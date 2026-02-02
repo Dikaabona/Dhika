@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, ContentPlan } from '../types';
@@ -256,9 +255,52 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData(prev => ({ ...prev, screenshotBase64: reader.result as string }));
+    reader.onloadend = async () => {
+      const base64 = reader.result as string;
+      const compressed = await new Promise<string>((resolve) => {
+        const img = new Image();
+        img.src = base64;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          
+          // Max dimension to keep it reasonable
+          const MAX_DIM = 1200;
+          if (width > MAX_DIM || height > MAX_DIM) {
+            if (width > height) {
+              height = (height / width) * MAX_DIM;
+              width = MAX_DIM;
+            } else {
+              width = (width / height) * MAX_DIM;
+              height = MAX_DIM;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(base64);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Iterative quality reduction to hit under 250kb
+          let quality = 0.8;
+          let dataUrl = canvas.toDataURL('image/jpeg', quality);
+          
+          // While size is > 250KB (approx via string length check)
+          while (dataUrl.length * 0.75 > 250000 && quality > 0.1) {
+            quality -= 0.1;
+            dataUrl = canvas.toDataURL('image/jpeg', quality);
+          }
+          resolve(dataUrl);
+        };
+      });
+      setFormData(prev => ({ ...prev, screenshotBase64: compressed }));
     };
     reader.readAsDataURL(file);
   };
@@ -365,7 +407,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         </div>
       )}
 
-      {/* HEADER SECTION - Responsive Optimized */}
+      {/* HEADER SECTION */}
       <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-sm border border-slate-100 flex flex-col gap-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
           <div className="flex items-center gap-4 sm:gap-6">
@@ -483,7 +525,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         </div>
       )}
 
-      {/* STATS CARDS - Mobile Friendly Scroll */}
+      {/* STATS CARDS */}
       <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-6 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
         {brandStats.map(bs => (
           <div key={bs.name} className="min-w-[240px] sm:min-w-[280px] bg-white p-6 rounded-[28px] sm:rounded-[32px] border border-slate-100 shadow-sm space-y-4 transition-all hover:shadow-md hover:-translate-y-1">
@@ -504,7 +546,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         ))}
       </div>
 
-      {/* DATA TABLE - Mobile Horizontal Scroll */}
+      {/* DATA TABLE */}
       <div className="bg-white rounded-[32px] sm:rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto no-scrollbar">
           <table className="w-full text-left min-w-[700px]">
