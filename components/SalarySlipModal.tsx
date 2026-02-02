@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useMemo } from 'react';
 import { Employee, SalaryData, AttendanceRecord } from '../types';
 import { Icons } from '../constants';
@@ -114,6 +113,8 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     while (temp <= rangeEnd) {
       const dStr = temp.toISOString().split('T')[0];
       const dayRecords = cutoffRecords.filter(r => r.date === dStr);
+      const isSunday = temp.getDay() === 0;
+      const isHost = (employee.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
       
       const mainRecord = dayRecords.find(r => r.status !== 'Lembur');
       const overtimeRecords = dayRecords.filter(r => r.status === 'Lembur');
@@ -125,15 +126,20 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         else if (mainRecord.status === 'Cuti') summary.cuti++;
         else if (mainRecord.status === 'Alpha') summary.alpha++;
         else summary.libur++;
+      } else if (overtimeRecords.length > 0) {
+        summary.hadir++;
       } else {
         if (dStr < todayStr && dStr >= ALPHA_START_DATE && isWorkDay(temp, employee)) {
           summary.alpha++;
         } else {
-          summary.libur++;
+          if (!isHost && isSunday) {
+            summary.libur++;
+          } else {
+            summary.hadir++;
+          }
         }
       }
 
-      // Hitung Lembur: Rp 20.000 / jam
       overtimeRecords.forEach(ov => {
         if (ov.clockIn && ov.clockOut) {
           const startArr = ov.clockIn.split(':').map(Number);
@@ -142,7 +148,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           const endMinutes = endArr[0] * 60 + endArr[1];
           
           let diffMinutes = endMinutes - startMinutes;
-          if (diffMinutes < 0) diffMinutes += 1440; // Menangani lembur lewat tengah malam
+          if (diffMinutes < 0) diffMinutes += 1440; 
           
           const hours = diffMinutes / 60;
           summary.overtimeHours += hours;

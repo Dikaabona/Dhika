@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, ContentPlan } from '../types';
@@ -41,7 +42,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   const [brands, setBrands] = useState<any[]>(() => {
     const saved = localStorage.getItem('content_brands_config');
     if (saved) return JSON.parse(saved);
-    return INITIAL_BRANDS.map(b => ({ name: b.name, target: 0, quotaDeadline: '' }));
+    return INITIAL_BRANDS.map(b => ({ name: b.name, target: 0, quotaDeadline: '', jamUpload: '19:00' }));
   });
 
   useEffect(() => {
@@ -66,22 +67,24 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   const saveConfigToCloud = async (key: string, value: any) => {
     localStorage.setItem(key, JSON.stringify(value));
     try {
-      await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' });
+      const { error } = await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' });
+      if (error) throw error;
+      return true;
     } catch (err) {
       console.error("Gagal sinkronisasi cloud content:", err);
+      return false;
     }
   };
 
   const persistBrandsUpdate = async (updatedBrands: any[]) => {
     setIsSavingBrands(true);
-    try {
-      await saveConfigToCloud('content_brands_config', updatedBrands);
+    const success = await saveConfigToCloud('content_brands_config', updatedBrands);
+    if (success) {
       setBrands(updatedBrands);
-    } catch (err: any) {
-      console.error("Gagal sinkronisasi Content brands:", err);
-    } finally {
-      setIsSavingBrands(false);
+    } else {
+      alert("Gagal menyimpan ke cloud. Coba lagi.");
     }
+    setIsSavingBrands(false);
   };
 
   const addBrand = async () => {
@@ -91,7 +94,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       alert("Brand sudah ada!");
       return;
     }
-    const updatedBrands = [...brands, { name: trimmed.toUpperCase(), target: 0, quotaDeadline: '' }];
+    const updatedBrands = [...brands, { name: trimmed.toUpperCase(), target: 0, quotaDeadline: '', jamUpload: '19:00' }];
     await persistBrandsUpdate(updatedBrands);
     setNewBrandName('');
   };
@@ -102,10 +105,21 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     await persistBrandsUpdate(updatedBrands);
   };
 
-  const updateBrandField = async (name: string, field: string, value: any) => {
+  // Diubah agar tidak auto-save ke cloud setiap kali ketik
+  const updateBrandLocal = (name: string, field: string, value: any) => {
     const updatedBrands = brands.map(b => b.name === name ? { ...b, [field]: value } : b);
     setBrands(updatedBrands);
-    await saveConfigToCloud('content_brands_config', updatedBrands);
+  };
+
+  const handleSaveSpecificBrand = async (name: string) => {
+    setIsSavingBrands(true);
+    const success = await saveConfigToCloud('content_brands_config', brands);
+    if (success) {
+      alert(`Config brand ${name} berhasil disimpan!`);
+    } else {
+      alert("Gagal menyimpan perubahan.");
+    }
+    setIsSavingBrands(false);
   };
 
   const creatorList = useMemo(() => {
@@ -133,6 +147,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     status: 'Selesai',
     notes: '',
     postingDate: new Date().toISOString().split('T')[0],
+    jamUpload: '19:00',
     linkReference: '',
     contentPillar: PILLAR_OPTIONS[0],
     captionHashtag: '',
@@ -181,6 +196,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         saves: plan.saves || 0,
         shares: plan.shares || 0,
         postingDate: plan.postingDate || new Date().toISOString().split('T')[0],
+        jamUpload: plan.jamUpload || '19:00',
         captionHashtag: plan.captionHashtag || '',
         linkPostingan: plan.linkPostingan || '',
         brand: plan.brand || brands[0]?.name || '',
@@ -197,6 +213,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         status: 'Selesai',
         notes: '',
         postingDate: new Date().toISOString().split('T')[0],
+        jamUpload: '19:00',
         linkReference: '',
         contentPillar: PILLAR_OPTIONS[0],
         captionHashtag: '',
@@ -267,7 +284,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           let width = img.width;
           let height = img.height;
           
-          // Max dimension to keep it reasonable
           const MAX_DIM = 1200;
           if (width > MAX_DIM || height > MAX_DIM) {
             if (width > height) {
@@ -288,11 +304,9 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           }
           ctx.drawImage(img, 0, 0, width, height);
           
-          // Iterative quality reduction to hit under 250kb
           let quality = 0.8;
           let dataUrl = canvas.toDataURL('image/jpeg', quality);
           
-          // While size is > 250KB (approx via string length check)
           while (dataUrl.length * 0.75 > 250000 && quality > 0.1) {
             quality -= 0.1;
             dataUrl = canvas.toDataURL('image/jpeg', quality);
@@ -314,6 +328,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       'BRAND': p.brand,
       'PLATFORM': p.platform,
       'TANGGAL POSTING': p.postingDate,
+      'JAM UPLOAD': p.jamUpload || '-',
       'CREATOR': getCreatorName(p.creatorId || ''),
       'PILLAR': p.contentPillar,
       'LINK POSTINGAN': p.linkPostingan,
@@ -351,6 +366,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
             brand: brand,
             platform: String(row['PLATFORM'] || 'TikTok'),
             postingDate: postingDate,
+            jamUpload: String(row['JAM UPLOAD'] || '19:00'),
             creatorId: findCreatorIdByName(row['CREATOR']),
             contentPillar: String(row['PILLAR'] || 'Entertainment'),
             linkPostingan: String(row['LINK POSTINGAN'] || ''),
@@ -486,39 +502,78 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       )}
 
       {isManagingBrands && hasFullAccess && (
-        <div className="bg-slate-900 p-6 sm:p-10 rounded-[32px] sm:rounded-[40px] text-white space-y-8 animate-in slide-in-from-top-4 duration-300">
+        <div className="bg-[#0f172a] p-6 sm:p-10 rounded-[40px] text-white shadow-2xl space-y-10 animate-in slide-in-from-top-4 duration-500 border border-white/5">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
-            <h3 className="text-xl font-black tracking-tight uppercase">Brand Quota Management</h3>
-            <div className="w-full sm:w-auto flex gap-3">
+            <div className="flex flex-col">
+              <h3 className="text-2xl font-black tracking-tight uppercase leading-none">BRAND QUOTA MANAGEMENT</h3>
+              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-[0.4em] mt-2">Target Performance Hub</p>
+            </div>
+            <div className="w-full sm:w-auto flex bg-[#1e293b] p-1.5 rounded-2xl border border-white/5 shadow-inner">
               <input 
                 type="text" 
                 value={newBrandName} 
                 onChange={e => setNewBrandName(e.target.value)} 
                 onKeyDown={e => e.key === 'Enter' && addBrand()} 
                 placeholder="NAMA BRAND..." 
-                className="flex-grow sm:flex-none bg-white/10 border border-white/20 rounded-xl px-5 py-2.5 text-[10px] font-black uppercase outline-none focus:ring-2 focus:ring-cyan-500" 
+                className="bg-transparent px-5 py-2.5 text-[10px] font-black uppercase outline-none flex-grow min-w-[120px] placeholder:text-slate-600" 
               />
-              <button onClick={addBrand} disabled={isSavingBrands} className="bg-cyan-500 text-black px-6 py-2.5 rounded-xl text-[10px] font-black uppercase disabled:opacity-50 active:scale-95 transition-all">
+              <button onClick={addBrand} disabled={isSavingBrands} className="bg-[#06b6d4] hover:bg-[#0891b2] text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all shadow-lg active:scale-95 disabled:opacity-50">
                 {isSavingBrands ? '...' : 'TAMBAH'}
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {brands.map((b: any) => (
-              <div key={b.name} className="bg-white/5 p-6 rounded-[28px] border border-white/10 space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-black tracking-widest uppercase">{b.name}</span>
-                  <button onClick={() => removeBrand(b.name)} disabled={isSavingBrands} className="text-red-400 hover:text-red-500 p-1.5 bg-red-500/10 rounded-lg"><Icons.Trash className="w-4 h-4" /></button>
+              <div key={b.name} className="bg-[#1e293b] p-6 sm:p-8 rounded-[32px] border border-white/5 space-y-6 group hover:border-[#06b6d4]/30 transition-all shadow-xl flex flex-col">
+                <div className="flex justify-between items-center shrink-0">
+                  <span className="text-xs font-black tracking-[0.1em] uppercase text-white">{b.name}</span>
+                  <button 
+                    onClick={() => removeBrand(b.name)} 
+                    disabled={isSavingBrands} 
+                    className="w-10 h-10 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-full flex items-center justify-center transition-all group/trash active:scale-90"
+                  >
+                    <Icons.Trash className="w-4 h-4" />
+                  </button>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Target Konten Bulanan</label>
-                  <input 
-                    type="number" 
-                    value={b.target} 
-                    onChange={e => updateBrandField(b.name, 'target', parseInt(e.target.value) || 0)} 
-                    className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-cyan-500 text-white font-bold" 
-                  />
+                <div className="space-y-4 flex-grow">
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">TARGET KONTEN</label>
+                    <input 
+                      type="number" 
+                      value={b.target} 
+                      onChange={e => updateBrandLocal(b.name, 'target', parseInt(e.target.value) || 0)} 
+                      className="w-full bg-[#0f172a] border border-white/5 rounded-2xl px-6 py-4 text-sm outline-none focus:border-[#06b6d4] text-white font-black shadow-inner" 
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">DEADLINE QUOTA</label>
+                      <input 
+                        type="date" 
+                        value={b.quotaDeadline || ''} 
+                        onChange={e => updateBrandLocal(b.name, 'quotaDeadline', e.target.value)} 
+                        className="w-full bg-[#0f172a] border border-white/5 rounded-2xl px-4 py-4 text-xs outline-none focus:border-[#06b6d4] text-white font-black shadow-inner" 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">JAM UPLOAD</label>
+                      <input 
+                        type="time" 
+                        value={b.jamUpload || '19:00'} 
+                        onChange={e => updateBrandLocal(b.name, 'jamUpload', e.target.value)} 
+                        className="w-full bg-[#0f172a] border border-white/5 rounded-2xl px-4 py-4 text-xs outline-none focus:border-[#06b6d4] text-white font-black shadow-inner" 
+                      />
+                    </div>
+                  </div>
                 </div>
+                <button 
+                  onClick={() => handleSaveSpecificBrand(b.name)}
+                  disabled={isSavingBrands}
+                  className="w-full bg-[#06b6d4] hover:bg-[#0891b2] text-white py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg active:scale-[0.98] transition-all mt-6 shrink-0 disabled:opacity-50"
+                >
+                  {isSavingBrands ? 'MENYIMPAN...' : 'SIMPAN'}
+                </button>
               </div>
             ))}
           </div>
@@ -541,6 +596,16 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
             </div>
             <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden">
               <div className="h-full bg-cyan-500 transition-all duration-1000" style={{ width: `${bs.progress}%` }}></div>
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-slate-50">
+               <div className="flex flex-col">
+                  <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">DEADLINE</span>
+                  <span className="text-[9px] font-bold text-slate-700">{bs.quotaDeadline || '-'}</span>
+               </div>
+               <div className="flex flex-col text-right">
+                  <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">JAM UPLOAD</span>
+                  <span className="text-[9px] font-bold text-cyan-600 bg-cyan-50 px-1.5 py-0.5 rounded-md self-end">{bs.jamUpload || '-'}</span>
+               </div>
             </div>
           </div>
         ))}
@@ -575,7 +640,10 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                           {plan.screenshotBase64 ? <img src={plan.screenshotBase64} className="w-full h-full object-cover rounded-xl shadow-sm" alt="" /> : <Icons.Image className="w-5 h-5" />}
                         </div>
                         <div>
-                          <p className="font-black text-slate-900 text-xs uppercase tracking-tight">{plan.brand}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-black text-slate-900 text-xs uppercase tracking-tight">{plan.brand}</p>
+                            <span className="text-[9px] font-black text-cyan-600 bg-cyan-50 px-1.5 py-0.5 rounded uppercase tracking-tighter">{plan.jamUpload || '-'}</span>
+                          </div>
                           <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase">{plan.postingDate}</p>
                         </div>
                       </div>
@@ -653,13 +721,8 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">PLATFORM</label>
-                      <select value={formData.platform} onChange={e => setFormData({...formData, platform: e.target.value as any})} className="w-full bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl px-5 py-3.5 text-xs font-bold text-black focus:ring-2 focus:ring-cyan-400/20 outline-none">
-                        <option value="TikTok">TikTok</option>
-                        <option value="Instagram">Instagram</option>
-                        <option value="Shopee">Shopee</option>
-                        <option value="Youtube">Youtube</option>
-                      </select>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">JAM UPLOAD</label>
+                      <input required type="time" value={formData.jamUpload} onChange={e => setFormData({...formData, jamUpload: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl px-5 py-3.5 text-xs font-bold text-black focus:ring-2 focus:ring-cyan-400/20 outline-none" />
                     </div>
                   </div>
 
@@ -677,11 +740,21 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                       <input required type="date" value={formData.postingDate} onChange={e => setFormData({...formData, postingDate: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl px-5 py-3.5 text-xs font-bold text-black focus:ring-2 focus:ring-cyan-400/20 outline-none" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">CONTENT PILLAR</label>
-                      <select value={formData.contentPillar} onChange={e => setFormData({...formData, contentPillar: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl px-5 py-3.5 text-xs font-bold text-black focus:ring-2 focus:ring-cyan-400/20 outline-none">
-                        {PILLAR_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">PLATFORM</label>
+                      <select value={formData.platform} onChange={e => setFormData({...formData, platform: e.target.value as any})} className="w-full bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl px-5 py-3.5 text-xs font-bold text-black focus:ring-2 focus:ring-cyan-400/20 outline-none">
+                        <option value="TikTok">TikTok</option>
+                        <option value="Instagram">Instagram</option>
+                        <option value="Shopee">Shopee</option>
+                        <option value="Youtube">Youtube</option>
                       </select>
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">CONTENT PILLAR</label>
+                    <select value={formData.contentPillar} onChange={e => setFormData({...formData, contentPillar: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl px-5 py-3.5 text-xs font-bold text-black focus:ring-2 focus:ring-cyan-400/20 outline-none">
+                      {PILLAR_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
                   </div>
 
                   <div className="space-y-2">
@@ -695,23 +768,23 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                    <div className="grid grid-cols-2 gap-x-6 gap-y-4">
                       <div className="space-y-1">
                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">VIEWS</label>
-                        <input type="number" value={formData.views} onChange={e => setFormData({...formData, views: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-black outline-none focus:border-cyan-400" />
+                        <input type="number" value={formData.views} onChange={e => setFormData({...formData, views: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-black text-black outline-none focus:border-cyan-400" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">LIKES</label>
-                        <input type="number" value={formData.likes} onChange={e => setFormData({...formData, likes: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-black outline-none focus:border-cyan-400" />
+                        <input type="number" value={formData.likes} onChange={e => setFormData({...formData, likes: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-black text-black outline-none focus:border-cyan-400" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">COMMENTS</label>
-                        <input type="number" value={formData.comments} onChange={e => setFormData({...formData, comments: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-black outline-none focus:border-cyan-400" />
+                        <input type="number" value={formData.comments} onChange={e => setFormData({...formData, comments: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-black text-black outline-none focus:border-cyan-400" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">SAVES</label>
-                        <input type="number" value={formData.saves} onChange={e => setFormData({...formData, saves: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-black outline-none focus:border-cyan-400" />
+                        <input type="number" value={formData.saves} onChange={e => setFormData({...formData, saves: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-black text-black outline-none focus:border-cyan-400" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">SHARES</label>
-                        <input type="number" value={formData.shares} onChange={e => setFormData({...formData, shares: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-black outline-none focus:border-cyan-400" />
+                        <input type="number" value={formData.shares} onChange={e => setFormData({...formData, shares: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-black text-black outline-none focus:border-cyan-400" />
                       </div>
                       <div className="flex flex-col justify-end">
                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">SCREENSHOT</label>
@@ -724,7 +797,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                    {formData.screenshotBase64 && (
                      <div className="mt-4 relative group">
                         <img src={formData.screenshotBase64} className="w-full h-32 object-cover rounded-2xl border border-slate-200 shadow-sm" alt="Preview" />
-                        <button type="button" onClick={() => setFormData({...formData, screenshotBase64: ''})} className="absolute top-2 right-2 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm shadow-lg opacity-0 group-hover:opacity-100 transition-opacity active:scale-90">&times;</button>
+                        <button type="button" onClick={() => setFormData({...formData, screenshotBase64: ''})} className="absolute top-2 right-2 bg-red-500 text-white gold w-6 h-6 rounded-full flex items-center justify-center text-sm shadow-lg opacity-0 group-hover:opacity-100 transition-opacity active:scale-90">&times;</button>
                      </div>
                    )}
                 </div>

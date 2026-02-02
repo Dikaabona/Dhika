@@ -82,6 +82,7 @@ export interface ContentPlan {
   notes?: string;
   // Reporting Fields
   postingDate?: string;
+  jamUpload?: string; // Field baru untuk waktu unggah
   linkReference?: string;
   contentPillar?: string;
   captionHashtag?: string;

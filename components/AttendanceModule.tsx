@@ -130,7 +130,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
   };
 
   return (
-    <div className="space-y-6 sm:space-y-10 animate-in fade-in duration-700">
+    <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-700">
       {zoomedImage && (
         <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setZoomedImage(null)}>
           <img src={zoomedImage} className="max-w-full max-h-[80vh] rounded-[32px] shadow-2xl border-4 border-white/10 scale-95 animate-in zoom-in-95 duration-300" alt="Verifikasi" />
@@ -149,136 +149,141 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         </div>
       )}
 
-      {/* Elegant Refined Header */}
-      <div className="bg-white rounded-[40px] p-8 sm:p-12 shadow-sm border border-slate-100 flex flex-col items-center text-center gap-8">
-        <div className="space-y-3">
-          <h2 className="font-black text-slate-900 text-3xl sm:text-5xl tracking-tighter uppercase leading-tight">Log Kehadiran</h2>
-          <div className="h-1.5 w-16 bg-[#FFC000] mx-auto rounded-full"></div>
-          <p className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-[0.5em] pt-2">Monitoring & History</p>
+      {/* Refined Header - Spacing reduced */}
+      <div className="bg-white rounded-[40px] p-6 sm:p-8 shadow-sm border border-slate-100 flex flex-col items-center text-center gap-6">
+        <div className="space-y-1">
+          <h2 className="font-black text-slate-900 text-3xl sm:text-4xl tracking-tighter uppercase leading-tight">Log Kehadiran</h2>
+          <div className="h-1 w-12 bg-[#FFC000] mx-auto rounded-full"></div>
+          <p className="text-[8px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-[0.5em] pt-1">Monitoring & History</p>
         </div>
         
-        <div className="flex flex-col sm:flex-row items-center gap-4 bg-slate-50 p-2 rounded-[28px] border border-slate-100 shadow-inner">
-          <div className="flex items-center gap-4 px-6 py-3 bg-white rounded-[22px] shadow-sm border border-slate-100">
+        <div className="flex flex-col sm:flex-row items-center gap-3 bg-slate-50 p-1.5 rounded-[28px] border border-slate-100 shadow-inner">
+          <div className="flex items-center gap-3 px-5 py-2.5 bg-white rounded-[22px] shadow-sm border border-slate-100">
             <div className="flex flex-col items-start">
-              <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-1">Mulai</span>
+              <span className="text-[7px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Mulai</span>
               <input 
                 type="date" 
                 value={startDate} 
                 onChange={(e) => onStartDateChange(e.target.value)} 
-                className="bg-transparent text-[11px] font-black outline-none text-slate-800 cursor-pointer" 
+                className="bg-transparent text-[10px] font-black outline-none text-slate-800 cursor-pointer" 
               />
             </div>
-            <div className="h-8 w-px bg-slate-100"></div>
+            <div className="h-7 w-px bg-slate-100"></div>
             <div className="flex flex-col items-start">
-              <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-1">Sampai</span>
+              <span className="text-[7px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Sampai</span>
               <input 
                 type="date" 
                 value={endDate} 
                 onChange={(e) => onEndDateChange(e.target.value)} 
-                className="bg-transparent text-[11px] font-black outline-none text-slate-800 cursor-pointer" 
+                className="bg-transparent text-[10px] font-black outline-none text-slate-800 cursor-pointer" 
               />
             </div>
           </div>
-          <button onClick={() => {}} className="hidden sm:flex bg-slate-900 text-[#FFC000] px-8 h-14 rounded-[22px] items-center justify-center text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg">Refresh</button>
+          <button onClick={() => {}} className="hidden sm:flex bg-slate-900 text-[#FFC000] px-7 h-12 rounded-[20px] items-center justify-center text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg">Refresh</button>
         </div>
       </div>
 
-      {/* Table Section - More elegant rows */}
-      <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden mb-10">
+      {/* Table Section - Reduced cell padding */}
+      <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden mb-6">
         <div className="overflow-x-auto no-scrollbar">
           <table className="w-full text-left">
-            <thead className="bg-slate-50/50 text-[10px] uppercase font-black tracking-[0.2em] border-b border-slate-100">
+            <thead className="bg-slate-50/50 text-[10px] uppercase font-black tracking-[0.1em] border-b border-slate-100">
               <tr>
-                <th className="px-8 sm:px-12 py-8">Tanggal</th>
-                <th className="px-6 py-8">Karyawan</th>
-                <th className="px-4 py-8 text-center">Status</th>
-                <th className="px-4 py-8">Masuk</th>
-                <th className="px-4 py-8">Pulang</th>
-                <th className="px-8 sm:px-12 py-8 text-right">Aksi</th>
+                <th className="px-6 sm:px-10 py-5">Tanggal</th>
+                <th className="px-5 py-5">Karyawan</th>
+                <th className="px-3 py-5 text-center">Status</th>
+                <th className="px-3 py-5">Masuk</th>
+                <th className="px-3 py-5">Pulang</th>
+                <th className="px-6 sm:px-10 py-5 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {tableRows.map(row => {
                 const existingRec = records.find(r => r.employeeId === row.employee.id && r.date === row.date);
+                const dateObj = new Date(row.date);
+                const isSunday = dateObj.getDay() === 0;
+                const isHost = (row.employee.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
                 const isToday = row.date === new Date().toISOString().split('T')[0];
                 const isPast = row.date < new Date().toISOString().split('T')[0];
                 
-                // Determine default status if no record exists
-                let defaultStatus: any = 'Libur';
-                // Aturan ALPHA otomatis hanya dihitung mulai ALPHA_START_DATE
+                // Aturan Khusus: Selain Host, hari Minggu otomatis 'Libur'. Sisanya 'Hadir'.
+                let defaultStatus: any = 'Hadir';
+                if (!isHost && isSunday) {
+                  defaultStatus = 'Libur';
+                }
+
                 if (!existingRec && isPast && row.date >= ALPHA_START_DATE && isWorkDay(row.date, row.employee)) {
                   defaultStatus = 'Alpha';
                 }
 
-                // Added explicit type cast to AttendanceRecord to resolve property access errors (id, clockIn, clockOut)
                 const rec = (existingRec || { status: defaultStatus, employeeId: row.employee.id, date: row.date }) as AttendanceRecord;
                 
                 return (
                   <tr key={`${row.employee.id}-${row.date}`} className={`hover:bg-slate-50/50 transition-all duration-300 group ${isToday ? 'bg-amber-50/20' : ''}`}>
-                    <td className="px-8 sm:px-12 py-8">
+                    <td className="px-6 sm:px-10 py-4">
                       <div className="flex flex-col">
-                        <p className="text-[11px] font-black text-slate-900 whitespace-nowrap">{row.date}</p>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                        <p className="text-[10px] font-black text-slate-900 whitespace-nowrap">{row.date}</p>
+                        <p className="text-[7px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                           {new Date(row.date).toLocaleDateString('id-ID', { weekday: 'short' })}
                         </p>
                       </div>
                     </td>
-                    <td className="px-6 py-8">
-                      <div className="flex items-center gap-4">
-                         <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl overflow-hidden border-2 border-white shadow-sm shrink-0 bg-slate-50 group-hover:rotate-3 transition-transform duration-500">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                         <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl overflow-hidden border-2 border-white shadow-sm shrink-0 bg-slate-50 group-hover:rotate-3 transition-transform duration-500">
                             {row.employee.photoBase64 || row.employee.avatarUrl ? (
                               <img src={row.employee.photoBase64 || row.employee.avatarUrl} className="w-full h-full object-cover" alt="" />
                             ) : (
                               <div className="w-full h-full bg-white flex items-center justify-center">
-                                <Icons.Users className="w-5 h-5 text-slate-200" />
+                                <Icons.Users className="w-4 h-4 text-slate-200" />
                               </div>
                             )}
                          </div>
                          <div className="min-w-0">
-                            <p className="text-[11px] sm:text-[13px] font-black uppercase text-slate-900 truncate max-w-[120px] sm:max-w-none">{row.employee.nama}</p>
-                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest truncate">{row.employee.jabatan}</p>
+                            <p className="text-[10px] sm:text-[11px] font-black uppercase text-slate-900 truncate max-w-[100px] sm:max-w-none">{row.employee.nama}</p>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate">{row.employee.jabatan}</p>
                          </div>
                       </div>
                     </td>
-                    <td className="px-4 py-8 text-center">
-                       <span className={`inline-block text-[9px] font-black uppercase px-4 py-1.5 rounded-xl border transition-all ${getStatusStyle(rec.status)}`}>
+                    <td className="px-3 py-4 text-center">
+                       <span className={`inline-block text-[8px] font-black uppercase px-3 py-1 rounded-lg border transition-all ${getStatusStyle(rec.status)}`}>
                          {rec.status}
                        </span>
                     </td>
-                    <td className="px-4 py-8">
-                      <div className="flex items-center gap-2.5">
-                        <span className={`text-[11px] font-black ${rec.clockIn ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockIn || '--:--'}</span>
+                    <td className="px-3 py-4">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-black ${rec.clockIn ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockIn || '--:--'}</span>
                         {rec.id && rec.clockIn && (
                           <button 
                             onClick={() => fetchRecordPhoto(rec.id!, 'photoIn')} 
-                            className="p-1.5 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-xl transition-all"
+                            className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"
                             title="Verifikasi Masuk"
                           >
-                            <Icons.Camera className="w-3.5 h-3.5" />
+                            <Icons.Camera className="w-3 h-3" />
                           </button>
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-8">
-                      <div className="flex items-center gap-2.5">
-                        <span className={`text-[11px] font-black ${rec.clockOut ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockOut || '--:--'}</span>
+                    <td className="px-3 py-4">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-black ${rec.clockOut ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockOut || '--:--'}</span>
                         {rec.id && rec.clockOut && (
                           <button 
                             onClick={() => fetchRecordPhoto(rec.id!, 'photoOut')} 
-                            className="p-1.5 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-xl transition-all"
+                            className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"
                             title="Verifikasi Pulang"
                           >
-                            <Icons.Camera className="w-3.5 h-3.5" />
+                            <Icons.Camera className="w-3 h-3" />
                           </button>
                         )}
                       </div>
                     </td>
-                    <td className="px-8 sm:px-12 py-8 text-right">
+                    <td className="px-6 sm:px-10 py-4 text-right">
                       <button 
                         onClick={() => { setEditingRecord(rec); setIsEditModalOpen(true); }} 
-                        className="p-3 text-slate-300 hover:text-cyan-600 hover:bg-cyan-50 rounded-2xl transition-all active:scale-90"
+                        className="p-2 text-slate-300 hover:text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90"
                       >
-                        <Icons.Edit className="w-5 h-5" />
+                        <Icons.Edit className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>

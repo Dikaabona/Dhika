@@ -1,6 +1,5 @@
-
-import React, { useMemo } from 'react';
-import { Employee, Submission, Broadcast } from '../types';
+import React, { useMemo, useEffect, useState, useRef } from 'react';
+import { Employee, Submission, Broadcast, ContentPlan } from '../types';
 import { Icons } from '../constants';
 import { getDaysUntilBirthday } from '../utils/dateUtils';
 
@@ -8,14 +7,25 @@ interface DashboardProps {
   employees: Employee[];
   submissions: Submission[];
   broadcasts: Broadcast[];
+  contentPlans: ContentPlan[];
   userRole: string;
   currentUserEmployee: Employee | null;
   weeklyHolidays?: Record<string, string[]>;
+  onNavigate: (tab: any) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ employees, submissions, broadcasts, userRole, currentUserEmployee, weeklyHolidays }) => {
+const NOTIFICATION_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
+
+const Dashboard: React.FC<DashboardProps> = ({ employees, submissions, broadcasts, contentPlans, userRole, currentUserEmployee, weeklyHolidays, onNavigate }) => {
   const isSuper = userRole === 'super';
   const isAdmin = userRole === 'admin' || isSuper;
+  const [playedAlarms, setPlayedAlarms] = useState<Set<string>>(new Set());
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const isCreator = useMemo(() => {
+    const jabatan = (currentUserEmployee?.jabatan || '').toLowerCase();
+    return jabatan.includes('content creator') || jabatan.includes('creator');
+  }, [currentUserEmployee]);
 
   const upcomingBirthdays = useMemo(() => {
     return employees
@@ -27,32 +37,108 @@ const Dashboard: React.FC<DashboardProps> = ({ employees, submissions, broadcast
       .sort((a, b) => a.daysUntil - b.daysUntil);
   }, [employees]);
 
+  // Logika Alarm Suara
+  const playAlarm = (planId: string) => {
+    if (!playedAlarms.has(planId)) {
+      if (!audioRef.current) {
+        audioRef.current = new Audio(NOTIFICATION_SOUND_URL);
+      }
+      audioRef.current.play().catch(() => console.warn("Browser blocked auto-play sound."));
+      setPlayedAlarms(prev => new Set(prev).add(planId));
+    }
+  };
+
   const attentionItems = useMemo(() => {
-    const items: { text: string; icon: React.ReactNode; color: string }[] = [];
+    const items: { text: string; icon: React.ReactNode; color: string; action?: string }[] = [];
     
+    // 1. Notifikasi Pengajuan untuk Admin
     if (isAdmin) {
       const pending = submissions.filter(s => s.status === 'Pending').length;
       if (pending > 0) {
         items.push({ 
           text: `Ada ${pending} pengajuan baru yang menunggu persetujuan.`, 
           icon: <Icons.FileText className="w-5 h-5" />, 
-          color: 'text-amber-400' 
+          color: 'text-amber-400',
+          action: 'inbox'
         });
-      }
-      
-      if (upcomingBirthdays.length > 0) {
-        const today = upcomingBirthdays.filter(b => b.daysUntil === 0);
-        if (today.length > 0) {
-          items.push({ 
-            text: `${today.length} Karyawan berulang tahun hari ini!`, 
-            icon: <Icons.Cake className="w-5 h-5" />, 
-            color: 'text-rose-400' 
-          });
-        }
       }
     }
 
+    // 2. Notifikasi Broadcast (Pengumuman) - Muncul untuk semua user yang ditargetkan
+    if (currentUserEmployee) {
+      const myBroadcasts = broadcasts.filter(b => {
+        const targets = Array.isArray(b.targetEmployeeIds) 
+          ? b.targetEmployeeIds 
+          : JSON.parse((b.targetEmployeeIds as any) || "[]");
+        return targets.map(String).includes(String(currentUserEmployee.id));
+      });
+
+      // Menampilkan setiap broadcast sebagai item individual di dashboard
+      myBroadcasts.forEach(brd => {
+        items.push({
+          text: `BROADCAST: ${brd.title}`,
+          icon: <Icons.Megaphone className="w-5 h-5" />,
+          color: 'text-cyan-400 font-bold',
+          action: 'inbox'
+        });
+      });
+    }
+
     if (userRole === 'employee' && currentUserEmployee) {
+      const jabatan = (currentUserEmployee.jabatan || '').toLowerCase();
+
+      // 3. Logika Notifikasi Jam Upload (Khusus Creator)
+      if (isCreator) {
+        const today = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        
+        contentPlans.forEach(plan => {
+          if (plan.postingDate === today && plan.jamUpload) {
+            const [hours, minutes] = plan.jamUpload.split(':').map(Number);
+            const targetTime = new Date();
+            targetTime.setHours(hours, minutes, 0, 0);
+            
+            const diffInMinutes = (targetTime.getTime() - now.getTime()) / (1000 * 60);
+            
+            if (diffInMinutes > 0 && diffInMinutes <= 30) {
+              items.push({
+                text: `URGENT: Upload konten ${plan.brand} dalam ${Math.ceil(diffInMinutes)} menit! (${plan.jamUpload})`,
+                icon: <Icons.Clock className="w-5 h-5 animate-pulse" />,
+                color: 'text-cyan-400 font-black',
+                action: 'content'
+              });
+              if (plan.id) playAlarm(plan.id);
+            }
+          }
+        });
+      }
+
+      // 4. Logika Informasi Libur (Khusus Host Live Streaming)
+      if (jabatan.includes('host') && weeklyHolidays) {
+        const myName = currentUserEmployee.nama.toUpperCase();
+        const myOffDays = Object.entries(weeklyHolidays)
+          .filter(([day, names]) => (names as string[]).map(n => n.toUpperCase()).includes(myName))
+          .map(([day]) => day);
+
+        if (myOffDays.length > 0) {
+          items.push({
+            text: `Info Libur (${currentUserEmployee.jabatan}): Jadwal rutin Anda adalah hari ${myOffDays.join(' & ')}.`,
+            icon: <Icons.Calendar className="w-5 h-5" />,
+            color: 'text-emerald-400 font-bold'
+          });
+          
+          const dayNames = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
+          const todayName = dayNames[new Date().getDay()];
+          if (myOffDays.includes(todayName)) {
+             items.push({
+               text: `HARI INI ADALAH JADWAL LIBUR ANDA. Selamat beristirahat!`,
+               icon: <Icons.Sparkles className="w-5 h-5" />,
+               color: 'text-emerald-500 font-black'
+             });
+          }
+        }
+      }
+
       const daysToBday = getDaysUntilBirthday(currentUserEmployee.tanggalLahir);
       if (daysToBday === 0) {
         items.push({ 
@@ -61,44 +147,18 @@ const Dashboard: React.FC<DashboardProps> = ({ employees, submissions, broadcast
           color: 'text-[#FFC000]' 
         });
       }
-
-      // Fitur Deteksi Libur Mingguan Host
-      if (currentUserEmployee.jabatan.toLowerCase().includes('host') && weeklyHolidays) {
-        const myName = currentUserEmployee.nama.toUpperCase();
-        // Added type assertion to names to fix TypeScript error: Property 'map' does not exist on type 'unknown'
-        const myOffDays = Object.entries(weeklyHolidays)
-          .filter(([day, names]) => (names as string[]).map(n => n.toUpperCase()).includes(myName))
-          .map(([day]) => day);
-
-        if (myOffDays.length > 0) {
-          items.push({
-            text: `Jadwal libur mingguan Anda: ${myOffDays.join(', ')}.`,
-            icon: <Icons.Calendar className="w-5 h-5" />,
-            color: 'text-emerald-400'
-          });
-        }
-      }
-
-      const myBroadcasts = broadcasts.filter(b => b.targetEmployeeIds.includes(currentUserEmployee.id));
-      if (myBroadcasts.length > 0) {
-        items.push({ 
-          text: `Ada ${myBroadcasts.length} pengumuman baru untuk Anda.`, 
-          icon: <Icons.Megaphone className="w-5 h-5" />, 
-          color: 'text-cyan-400' 
-        });
-      }
     }
 
     if (items.length === 0) {
       items.push({ 
-        text: "Sistem normal. Tidak ada tugas mendesak.", 
+        text: "Sistem normal. Tidak ada tugas mendesak saat ini.", 
         icon: <Icons.Sparkles className="w-5 h-5" />, 
         color: 'text-slate-400' 
       });
     }
 
     return items;
-  }, [submissions, upcomingBirthdays, userRole, currentUserEmployee, broadcasts, isAdmin, weeklyHolidays]);
+  }, [submissions, broadcasts, userRole, currentUserEmployee, isAdmin, weeklyHolidays, isCreator, contentPlans]);
 
   const stats = [
     { label: 'Total Karyawan', value: employees.length, color: '[#FFC000]' },
@@ -130,7 +190,6 @@ const Dashboard: React.FC<DashboardProps> = ({ employees, submissions, broadcast
         </div>
       )}
 
-      {/* REFINED ATTENTION MODULE - Mobile Optimized */}
       <div className="w-full bg-[#0f172a] rounded-[32px] md:rounded-[48px] p-0.5 md:p-1 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-500 border border-white/5">
         <div className="p-6 md:p-12 text-white relative">
           <div className="flex flex-row items-center justify-between gap-4 mb-6 md:mb-12">
@@ -156,18 +215,21 @@ const Dashboard: React.FC<DashboardProps> = ({ employees, submissions, broadcast
 
           <div className="space-y-2 md:space-y-4">
             {attentionItems.map((item, idx) => (
-              <div key={idx} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl md:rounded-[32px] p-4 md:p-8 flex items-center gap-3 md:gap-6 group hover:bg-white/10 transition-all duration-500">
+              <button 
+                key={idx} 
+                onClick={() => item.action && onNavigate(item.action)}
+                className={`w-full text-left bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl md:rounded-[32px] p-4 md:p-8 flex items-center gap-3 md:gap-6 group hover:bg-white/10 transition-all duration-500 ${item.action ? 'cursor-pointer active:scale-[0.99]' : 'cursor-default'}`}
+              >
                 <div className={`${item.color} p-2 md:p-3 rounded-xl bg-white/5 transition-transform group-hover:scale-110 shadow-lg shrink-0`}>
                   {React.cloneElement(item.icon as React.ReactElement<any>, { className: 'w-4 h-4 md:w-6 md:h-6' })}
                 </div>
                 <p className="text-xs md:text-lg font-medium leading-tight md:leading-relaxed text-slate-100">
                   {item.text}
                 </p>
-              </div>
+              </button>
             ))}
           </div>
 
-          {/* Abstract Decorations - Hidden on small mobile to improve performance */}
           <div className="hidden md:block absolute top-0 right-0 w-[400px] h-[400px] bg-[#FFC000]/10 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2 pointer-events-none opacity-50"></div>
           <div className="hidden md:block absolute bottom-0 left-0 w-[300px] h-[300px] bg-blue-600/10 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/2 pointer-events-none opacity-40"></div>
         </div>

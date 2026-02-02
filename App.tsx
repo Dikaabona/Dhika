@@ -103,7 +103,11 @@ const App: React.FC = () => {
   const fetchData = async (userEmail?: string, isSilent: boolean = false) => {
     if (!isSilent) setIsLoadingData(true);
     setFetchError(null);
-    try {
+
+    const maxRetries = 3;
+    let attempt = 0;
+
+    const performFetch = async () => {
       if (isSilent) syncAttendanceDates();
 
       const { data: empData, error: empError } = await supabase
@@ -154,12 +158,24 @@ const App: React.FC = () => {
 
       const { data: holidayData } = await supabase.from('settings').select('value').eq('key', 'weekly_holidays_config').single();
       if (holidayData) setWeeklyHolidays(holidayData.value);
-      
-    } catch (err: any) {
-      console.error("Error fetching data:", err);
-      setFetchError("Gagal memuat data. Periksa koneksi atau kuota egress Supabase.");
-    } finally {
-      setIsLoadingData(false);
+    };
+
+    while (attempt < maxRetries) {
+      try {
+        await performFetch();
+        break; 
+      } catch (err: any) {
+        attempt++;
+        console.warn(`Fetch attempt ${attempt} failed:`, err.message);
+        if (attempt === maxRetries) {
+          console.error("Final error fetching data:", err);
+          setFetchError("Gagal memuat data. Periksa koneksi internet atau kuota layanan Supabase Anda.");
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
+      } finally {
+        if (attempt === maxRetries || attempt === 0) setIsLoadingData(false);
+      }
     }
   };
 
@@ -300,7 +316,7 @@ const App: React.FC = () => {
       setIsFormOpen(false);
       setEditingEmployee(null);
     } catch (err: any) {
-      alert("Gagal menyimpan: " + err.message);
+      alert("Gaji menyimpan: " + err.message);
     }
   };
 
@@ -658,6 +674,8 @@ const App: React.FC = () => {
               userRole={userRole} 
               currentUserEmployee={currentUserEmployee} 
               weeklyHolidays={weeklyHolidays}
+              contentPlans={contentPlans}
+              onNavigate={setActiveTab}
             />
             <div className="bg-white rounded-[24px] sm:rounded-[32px] shadow-sm border border-slate-100 overflow-hidden relative">
               <div className="px-6 sm:px-10 py-6 sm:py-8 border-b flex justify-between items-center bg-white flex-wrap gap-4 sm:gap-6">
