@@ -1,17 +1,24 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Employee } from '../types';
-import { BANK_OPTIONS } from '../constants';
+import { BANK_OPTIONS, Icons } from '../constants';
 
 interface EmployeeFormProps {
   initialData: Employee | null;
+  employees: Employee[];
+  userRole: string;
   onSave: (employee: Employee) => void;
   onCancel: () => void;
 }
 
-const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, onSave, onCancel }) => {
+const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, userRole, onSave, onCancel }) => {
+  const isSuper = userRole === 'super';
+  
   const [formData, setFormData] = useState<Omit<Employee, 'id'>>({
+    idKaryawan: '',
     nama: '',
+    jabatan: '',
+    email: '',
     tempatLahir: '',
     tanggalLahir: '',
     alamat: '',
@@ -22,37 +29,89 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, onSave, onCanc
     noRekening: '',
     namaDiRekening: '',
     avatarUrl: '',
-    photoBase64: ''
+    photoBase64: '',
+    hutang: 0,
+    ktpDocBase64: '',
+    ktpDocType: 'image',
+    contractDocBase64: ''
   });
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (initialData) {
       const { id, ...rest } = initialData;
-      setFormData(rest);
+      setFormData({
+        ...rest,
+        hutang: rest.hutang || 0
+      });
     } else {
+      const generateNextSequentialId = (list: Employee[]) => {
+        const ids = list
+          .map(e => {
+            const match = (e.idKaryawan || '').match(/VID-(\d+)/);
+            return match ? parseInt(match[1], 10) : null;
+          })
+          .filter((id): id is number => id !== null);
+        const maxId = ids.length > 0 ? Math.max(...ids) : 7250;
+        return `VID-${maxId + 1}`;
+      };
+      
+      const nextId = generateNextSequentialId(employees);
+      const today = new Date();
+      const formattedToday = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+      
       setFormData(prev => ({
         ...prev,
-        avatarUrl: `https://picsum.photos/seed/${Math.random()}/200`
+        idKaryawan: nextId,
+        avatarUrl: '',
+        tanggalMasuk: formattedToday,
+        hutang: 0
       }));
     }
-  }, [initialData]);
+  }, [initialData, employees]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    if (!isSuper && ['idKaryawan', 'jabatan', 'tanggalMasuk', 'hutang'].includes(name)) return;
+    if (['noRekening', 'noKtp', 'noHandphone', 'hutang'].includes(name)) {
+      const numericValue = value.replace(/\D/g, '');
+      setFormData(prev => ({ ...prev, [name]: name === 'hutang' ? Number(numericValue) : numericValue }));
+      return;
+    }
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'photo') => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, photoBase64: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result as string;
+      if (field === 'photo') {
+        const resized = await new Promise<string>((resolve) => {
+          const img = new Image();
+          img.src = base64;
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const SIZE = 300;
+            canvas.width = SIZE;
+            canvas.height = SIZE;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              const minSize = Math.min(img.width, img.height);
+              const startX = (img.width - minSize) / 2;
+              const startY = (img.height - minSize) / 2;
+              ctx.drawImage(img, startX, startY, minSize, minSize, 0, 0, SIZE, SIZE);
+              resolve(canvas.toDataURL('image/jpeg', 0.6));
+            } else {
+              resolve(base64);
+            }
+          };
+        });
+        setFormData(prev => ({ ...prev, photoBase64: resized }));
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -63,193 +122,108 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, onSave, onCanc
     });
   };
 
+  // Logic untuk mengecek System Role berdasarkan email
+  const getSystemRoleDisplay = (email: string) => {
+    const emailLower = email.toLowerCase();
+    if (emailLower === 'muhammadmahardhikadib@gmail.com' || emailLower === 'rezaajidharma@gmail.com') {
+      return { label: 'SUPER ADMIN', color: 'bg-amber-400 text-black' };
+    }
+    if (emailLower === 'fikryadityar93@gmail.com' || emailLower === 'ariyansyah02122002@gmail.com') {
+      return { label: 'ADMIN SYSTEM', color: 'bg-slate-800 text-white' };
+    }
+    return null;
+  };
+
+  const sysRole = getSystemRoleDisplay(formData.email);
+
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b sticky top-0 bg-white z-10 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-slate-800">
-            {initialData ? 'Ubah Data Karyawan' : 'Tambah Karyawan Baru'}
-          </h2>
-          <button onClick={onCancel} className="text-slate-400 hover:text-slate-600 text-2xl">
-            &times;
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="flex flex-col items-center mb-6">
-            <div className="relative group">
-              <div className="w-32 h-32 rounded-full border-4 border-slate-100 overflow-hidden bg-slate-50">
-                {(formData.photoBase64 || formData.avatarUrl) ? (
-                  <img 
-                    src={formData.photoBase64 || formData.avatarUrl} 
-                    className="w-full h-full object-cover" 
-                    alt="Preview"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-300">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                  </div>
-                )}
-              </div>
-              <button 
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full shadow-lg hover:bg-blue-700 transition-all"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              </button>
-            </div>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              className="hidden" 
-              accept="image/*" 
-              onChange={handleFileChange} 
-            />
-            <p className="text-xs text-slate-500 mt-2">Upload Foto Karyawan</p>
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-2xl max-h-[95vh] overflow-hidden flex flex-col">
+        <div className="px-10 py-8 border-b flex justify-between items-center bg-[#ffdc04] sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-black text-black tracking-tight">{initialData ? 'Perbarui Data' : 'Registrasi Baru'}</h2>
           </div>
+          <button onClick={onCancel} className="text-black hover:text-red-600 transition-colors text-3xl p-2 leading-none font-black">&times;</button>
+        </div>
+        <form id="employee-form" onSubmit={handleSubmit} className="px-10 py-8 space-y-8 overflow-y-auto flex-grow bg-white custom-scrollbar">
+          <div className="space-y-6">
+            <div className="flex flex-col items-center gap-4 py-4">
+              <div className="relative group">
+                <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-slate-100 shadow-lg bg-slate-50 relative flex items-center justify-center">
+                  {formData.photoBase64 ? <img src={formData.photoBase64} alt="Profile" className="w-full h-full object-cover" /> : <Icons.Users />}
+                  <label htmlFor="photo-upload" className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"><Icons.Plus className="text-white" /></label>
+                </div>
+                <input type="file" id="photo-upload" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, 'photo')} />
+              </div>
+            </div>
+            
+            <div className="bg-[#FFFBEB] p-5 rounded-[24px] border border-[#FFD700]">
+              <label className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1.5 block">ID KARYAWAN RESMI</label>
+              <input required name="idKaryawan" readOnly={!isSuper} value={formData.idKaryawan} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-[#FFD700] rounded-xl text-lg font-bold text-black outline-none" />
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Nama Lengkap</label>
-              <input 
-                required 
-                name="nama" 
-                value={formData.nama} 
-                onChange={handleChange} 
-                className="w-full px-4 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 shadow-sm transition-all" 
-                placeholder="Contoh: Budi Santoso" 
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Nama Lengkap</label>
+                <input required name="nama" value={formData.nama} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Jabatan</label>
+                <input required name="jabatan" readOnly={!isSuper} value={formData.jabatan} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tempat Lahir</label>
+                <input required name="tempatLahir" value={formData.tempatLahir} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tanggal Lahir</label>
+                <input required name="tanggalLahir" value={formData.tanggalLahir} onChange={handleChange} placeholder="DD/MM/YYYY" className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Email</label>
+                  {sysRole && (
+                    <span className={`text-[8px] px-2 py-0.5 rounded-full font-black ${sysRole.color}`}>{sysRole.label}</span>
+                  )}
+                </div>
+                <input required type="email" name="email" value={formData.email} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Nomor HP</label>
+                <input required name="noHandphone" value={formData.noHandphone} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Nomor KTP</label>
+                <input required name="noKtp" value={formData.noKtp} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tanggal Masuk</label>
+                <input required name="tanggalMasuk" readOnly={!isSuper} value={formData.tanggalMasuk} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total Hutang Karyawan (Rp)</label>
+                <input name="hutang" readOnly={!isSuper} value={formData.hutang || 0} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-black text-black outline-none focus:bg-white transition-all text-lg" />
+                <p className="text-[9px] text-slate-400 font-medium ml-1">Hanya Super Admin yang dapat menyesuaikan saldo hutang.</p>
+              </div>
             </div>
             
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Nomor KTP</label>
-              <input 
-                required 
-                name="noKtp" 
-                value={formData.noKtp} 
-                onChange={handleChange} 
-                className="w-full px-4 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 shadow-sm transition-all" 
-                placeholder="16 Digit NIK" 
-              />
+              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Alamat</label>
+              <textarea required name="alamat" value={formData.alamat} onChange={handleChange} rows={3} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
             </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Tempat Lahir</label>
-              <input 
-                required 
-                name="tempatLahir" 
-                value={formData.tempatLahir} 
-                onChange={handleChange} 
-                className="w-full px-4 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 shadow-sm transition-all" 
-                placeholder="Kota Kelahiran" 
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Tanggal Lahir</label>
-              <input 
-                required 
-                type="date" 
-                name="tanggalLahir" 
-                value={formData.tanggalLahir} 
-                onChange={handleChange} 
-                className="w-full px-4 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 shadow-sm transition-all" 
-              />
-            </div>
-
-            <div className="md:col-span-2 space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Alamat Lengkap</label>
-              <textarea 
-                required 
-                name="alamat" 
-                value={formData.alamat} 
-                onChange={handleChange} 
-                rows={2} 
-                className="w-full px-4 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 shadow-sm transition-all" 
-                placeholder="Jl. Raya No. 123..." 
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">No. Handphone</label>
-              <input 
-                required 
-                name="noHandphone" 
-                value={formData.noHandphone} 
-                onChange={handleChange} 
-                className="w-full px-4 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 shadow-sm transition-all" 
-                placeholder="08xxxxxxxxx" 
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Tanggal Masuk</label>
-              <input 
-                required 
-                type="date" 
-                name="tanggalMasuk" 
-                value={formData.tanggalMasuk} 
-                onChange={handleChange} 
-                className="w-full px-4 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 shadow-sm transition-all" 
-              />
-            </div>
-
-            {/* SECTION: Bank Settings */}
-            <div className="pt-6 border-t md:col-span-2 bg-slate-50/50 -mx-6 px-6 pb-6">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                </div>
-                <h3 className="text-md font-bold text-slate-800">Bank Settings (Pengaturan Bank)</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bank Name</label>
-                  <select 
-                    name="bank" 
-                    value={formData.bank} 
-                    onChange={handleChange} 
-                    className="w-full px-4 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm text-slate-900 font-medium"
-                  >
-                    {BANK_OPTIONS.map(bank => <option key={bank} value={bank}>{bank}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Number</label>
-                  <input 
-                    required 
-                    name="noRekening" 
-                    value={formData.noRekening} 
-                    onChange={handleChange} 
-                    className="w-full px-4 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm text-slate-900 font-bold" 
-                    placeholder="Digit Rekening" 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Holder Name</label>
-                  <input 
-                    required 
-                    name="namaDiRekening" 
-                    value={formData.namaDiRekening} 
-                    onChange={handleChange} 
-                    className="w-full px-4 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm text-slate-900 font-medium" 
-                    placeholder="Sesuai Buku Tabungan" 
-                  />
-                </div>
+            <div className="pt-6 border-t"><label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-4 block">REKENING</label>
+              <div className="grid grid-cols-3 gap-4">
+                <select name="bank" value={formData.bank} onChange={handleChange} className="bg-slate-50 border border-slate-100 rounded-2xl p-3 text-xs font-bold text-black outline-none focus:bg-white transition-all">{BANK_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}</select>
+                <input required name="noRekening" value={formData.noRekening} onChange={handleChange} placeholder="Rekening" className="bg-slate-50 border border-slate-100 rounded-2xl p-3 text-sm font-bold text-black outline-none focus:bg-white transition-all" />
+                <input required name="namaDiRekening" value={formData.namaDiRekening} onChange={handleChange} placeholder="Nama Di Rekening" className="bg-slate-50 border border-slate-100 rounded-2xl p-3 text-sm font-bold text-black outline-none focus:bg-white transition-all" />
               </div>
             </div>
-          </div>
-
-          <div className="flex gap-4 pt-4">
-            <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-blue-200 active:scale-[0.98]">
-              Simpan Data Karyawan
-            </button>
-            <button type="button" onClick={onCancel} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold py-3 rounded-xl transition-all active:scale-[0.98]">
-              Batal
-            </button>
           </div>
         </form>
+        <div className="px-10 py-8 border-t bg-slate-50 flex gap-5 shrink-0">
+          <button type="submit" form="employee-form" className="flex-1 bg-slate-900 text-[#ffdc04] py-5 rounded-2xl font-black uppercase text-sm tracking-widest shadow-xl active:scale-95 transition-all">Simpan</button>
+          <button type="button" onClick={onCancel} className="flex-1 bg-white border-2 border-slate-200 text-slate-600 py-5 rounded-2xl font-black uppercase text-sm tracking-widest hover:bg-slate-50 transition-all">Batal</button>
+        </div>
       </div>
     </div>
   );

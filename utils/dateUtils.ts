@@ -1,6 +1,35 @@
 
+export const parseFlexibleDate = (dateStr: string): Date => {
+  if (!dateStr) return new Date(NaN);
+  
+  const trimmed = String(dateStr).trim();
+  
+  // Mendukung format DD/MM/YYYY atau DD-MM-YYYY
+  const localeMatch = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (localeMatch) {
+    const day = parseInt(localeMatch[1], 10);
+    const month = parseInt(localeMatch[2], 10) - 1;
+    const year = parseInt(localeMatch[3], 10);
+    return new Date(year, month, day);
+  }
+  
+  // Mendukung format YYYY-MM-DD (Standar HTML/ISO)
+  const isoMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (isoMatch) {
+    const year = parseInt(isoMatch[1], 10);
+    const month = parseInt(isoMatch[2], 10) - 1;
+    const day = parseInt(isoMatch[3], 10);
+    return new Date(year, month, day);
+  }
+  
+  // Fallback ke parser bawaan browser
+  const parsed = new Date(trimmed);
+  return isNaN(parsed.getTime()) ? new Date(NaN) : parsed;
+};
+
 export const calculateTenure = (joinDateStr: string): string => {
-  const joinDate = new Date(joinDateStr);
+  const joinDate = parseFlexibleDate(joinDateStr);
+  if (isNaN(joinDate.getTime())) return 'Format Salah';
   const now = new Date();
   
   let years = now.getFullYear() - joinDate.getFullYear();
@@ -16,4 +45,44 @@ export const calculateTenure = (joinDateStr: string): string => {
   if (months > 0) result.push(`${months} Bulan`);
   
   return result.length > 0 ? result.join(' ') : 'Baru Masuk';
+};
+
+export const getTenureYears = (joinDateStr: string): number => {
+  const joinDate = parseFlexibleDate(joinDateStr);
+  if (isNaN(joinDate.getTime())) return 0;
+  
+  const now = new Date();
+  // Set waktu ke 0 untuk perbandingan murni tanggal
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const join = new Date(joinDate.getFullYear(), joinDate.getMonth(), joinDate.getDate());
+  
+  let years = today.getFullYear() - join.getFullYear();
+  const m = today.getMonth() - join.getMonth();
+  
+  // Jika bulan belum sampai, atau bulan sama tapi hari belum sampai
+  if (m < 0 || (m === 0 && today.getDate() < join.getDate())) {
+    years--;
+  }
+  
+  return years;
+};
+
+export const getDaysUntilBirthday = (birthDateStr: string): number => {
+  const birthDate = parseFlexibleDate(birthDateStr);
+  if (isNaN(birthDate.getTime())) return 999;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const bMonth = birthDate.getMonth();
+  const bDay = birthDate.getDate();
+  
+  let nextBday = new Date(today.getFullYear(), bMonth, bDay);
+  
+  if (nextBday < today) {
+    nextBday.setFullYear(today.getFullYear() + 1);
+  }
+  
+  const diff = nextBday.getTime() - today.getTime();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
 };

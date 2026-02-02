@@ -2,54 +2,114 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Employee } from "../types";
 
-export const analyzeEmployees = async (employees: Employee[]): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
-  const prompt = `
-    Berikut adalah data karyawan perusahaan:
-    ${JSON.stringify(employees)}
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-    Berikan ringkasan singkat dalam Bahasa Indonesia mengenai komposisi karyawan ini (contoh: rentang umur, bank terbanyak digunakan, rata-rata masa kerja).
-    Juga berikan 1 saran strategis untuk HR.
-    Gunakan format ringkas 3-4 kalimat saja.
-  `;
+// Cache sederhana untuk menghindari pemanggilan ulang yang tidak perlu
+let analysisCache: { data: string; timestamp: number } | null = null;
+let lastRequestTime = 0;
+
+const getApiKey = () => {
+  try {
+    return process.env.API_KEY;
+  } catch (e) {
+    return undefined;
+  }
+};
+
+const ensurePaidKey = async () => {
+  if (typeof window !== 'undefined' && (window as any).aistudio) {
+    const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+    if (!hasKey) {
+      await (window as any).aistudio.openSelectKey();
+    }
+  }
+};
+
+const callWithRetry = async (fn: () => Promise<any>, maxRetries = 2): Promise<any> => {
+  // Mekanisme Throttling: Pastikan ada jeda minimal 2 detik antar request
+  const now = Date.now();
+  const timeSinceLastRequest = now - lastRequestTime;
+  if (timeSinceLastRequest < 2000) {
+    await delay(2000 - timeSinceLastRequest);
+  }
+
+  let lastError: any;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      lastRequestTime = Date.now();
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      const errorMsg = error?.message?.toLowerCase() || "";
+      const isRateLimit = errorMsg.includes('429') || error?.status === 'RESOURCE_EXHAUSTED';
+      
+      if (isRateLimit) {
+        // Jika berbayar tapi tetap limit, berikan jeda sangat panjang (10 detik)
+        const waitTime = 10000 + (Math.random() * 2000);
+        console.warn(`Quota Limit (429). Menunggu ${Math.round(waitTime/1000)} detik sebelum mencoba lagi...`);
+        await delay(waitTime);
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError;
+};
+
+export const analyzeEmployees = async (employees: Employee[]): Promise<string> => {
+  // Kembalikan cache jika analisis dilakukan kurang dari 5 menit yang lalu
+  if (analysisCache && (Date.now() - analysisCache.timestamp < 300000)) {
+    return analysisCache.data;
+  }
+
+  await ensurePaidKey();
+  const apiKey = getApiKey();
+  if (!apiKey) return "API Key tidak terdeteksi.";
+
+  const ai = new GoogleGenAI({ apiKey });
+  
+  // Ambil hanya data esensial untuk menghemat token dan proses
+  const summaryData = employees.slice(0, 20).map(e => ({
+    n: e.nama,
+    j: e.jabatan,
+    h: e.hutang
+  }));
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        thinkingConfig: { thinkingBudget: 0 }
-      }
-    });
-    return response.text || "Tidak dapat menganalisis data saat ini.";
-  } catch (error) {
-    console.error("AI analysis error:", error);
-    return "Terjadi kesalahan saat menghubungi asisten AI.";
+    const response = await callWithRetry(() => ai.models.generateContent({
+      model: 'gemini-3-flash-preview', // Tetap untuk analisis kompleks
+      contents: `Berikan 2 kalimat singkat analisis HR untuk data ini: ${JSON.stringify(summaryData)}`,
+      config: { thinkingConfig: { thinkingBudget: 0 } }
+    }));
+
+    const result = response.text || "Analisis selesai.";
+    analysisCache = { data: result, timestamp: Date.now() };
+    return result;
+  } catch (error: any) {
+    return "Sistem AI sedang memproses banyak permintaan. Silakan cek kembali beberapa saat lagi.";
   }
 };
 
 export const smartSearch = async (employees: Employee[], query: string): Promise<string[]> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `
-      Cari ID karyawan dari daftar berikut berdasarkan kriteria: "${query}"
-      Daftar Karyawan: ${JSON.stringify(employees.map(e => ({ id: e.id, nama: e.nama, bank: e.bank, tglMasuk: e.tanggalMasuk })))}
-      
-      Kembalikan hanya array ID yang cocok.
-    `,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.ARRAY,
-        items: { type: Type.STRING }
-      }
-    }
-  });
+  await ensurePaidKey();
+  const apiKey = getApiKey();
+  if (!apiKey) return [];
 
+  const ai = new GoogleGenAI({ apiKey });
+  
   try {
+    // Gunakan Flash Lite untuk pencarian: Lebih cepat & kuota lebih besar
+    const response = await callWithRetry(() => ai.models.generateContent({
+      model: 'gemini-flash-lite-latest',
+      contents: `Cari ID dari query: "${query}" di data: ${JSON.stringify(employees.slice(0, 50).map(e => ({id: e.id, n: e.nama})))}. Balas hanya array JSON ID.`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING }
+        }
+      }
+    }));
     return JSON.parse(response.text.trim());
   } catch {
     return [];
