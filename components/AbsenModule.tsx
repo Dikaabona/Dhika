@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Employee, AttendanceRecord } from '../types';
 import { Icons } from '../constants';
@@ -89,13 +88,10 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
     const context = canvas.getContext('2d');
     if (!context) return null;
 
-    // RESOLUSI DIOPTIMALKAN: 320x320 sudah sangat cukup untuk verifikasi wajah
-    // Ukuran file dengan quality 0.5 biasanya berkisar antara 20kb - 40kb
     const SIZE = 320; 
     canvas.width = SIZE;
     canvas.height = SIZE;
     
-    // Mirroring untuk kamera depan agar natural
     context.translate(canvas.width, 0);
     context.scale(-1, 1);
     
@@ -105,8 +101,17 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
     
     context.drawImage(video, startX, startY, minSize, minSize, 0, 0, SIZE, SIZE);
     
-    // QUALITY 0.5 menjamin file jauh di bawah 200kb tanpa mengorbankan detail wajah yang diperlukan
-    return canvas.toDataURL('image/jpeg', 0.5); 
+    let quality = 0.7;
+    let dataUrl = canvas.toDataURL('image/jpeg', quality);
+    
+    // Strict enforcement of 100KB limit
+    while (dataUrl.length * 0.75 > 100000 && quality > 0.05) {
+      quality -= 0.05;
+      dataUrl = canvas.toDataURL('image/jpeg', quality);
+    }
+    
+    console.log(`Photo captured. Final size: ${Math.round((dataUrl.length * 0.75) / 1024)} KB, Quality: ${quality.toFixed(2)}`);
+    return dataUrl; 
   };
 
   const handleAbsenUlang = async () => {
@@ -190,8 +195,6 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
 
   return (
     <div className="flex flex-col min-h-screen bg-white max-w-md mx-auto relative shadow-2xl overflow-hidden animate-in fade-in duration-700">
-      
-      {/* Top Navigation */}
       <div className="flex justify-between items-center px-6 pt-10 z-10">
         <button onClick={onClose} className="w-10 h-10 flex items-center justify-center bg-slate-50 border border-slate-100 rounded-full text-slate-400 hover:bg-white hover:text-slate-900 transition-all active:scale-90">
           <Icons.Home className="w-4 h-4" />
@@ -200,7 +203,6 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         <div className="w-10"></div>
       </div>
 
-      {/* Profile Section */}
       <div className="flex flex-col items-center mt-8 px-6 text-center">
         <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none">
           {employee.nama}
@@ -208,7 +210,6 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         <div className="h-1 w-8 bg-[#FFC000] rounded-full mt-3"></div>
       </div>
 
-      {/* Camera Viewport */}
       <div className="flex-grow flex flex-col items-center justify-center -mt-4">
         <div className="relative group">
           <div className="w-64 h-64 sm:w-72 sm:h-72 rounded-full border-8 border-white bg-slate-50 shadow-2xl overflow-hidden relative z-10 transition-transform duration-700 group-hover:scale-[1.02]">
@@ -222,11 +223,9 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
             )}
             <canvas ref={canvasRef} className="hidden" />
           </div>
-          {/* Abstract background glow */}
           <div className="absolute inset-0 bg-[#FFC000]/10 rounded-full blur-3xl -z-10 animate-pulse"></div>
         </div>
 
-        {/* Digital Clock Section */}
         <div className="mt-10 text-center space-y-1">
           <h1 className="text-6xl font-black text-slate-900 tracking-tighter tabular-nums leading-none">
             {currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -237,7 +236,6 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         </div>
       </div>
 
-      {/* Action Area */}
       <div className="pb-16 pt-8 flex flex-col items-center px-10">
         <button 
           onClick={handleAbsenAction}

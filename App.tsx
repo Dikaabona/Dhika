@@ -16,8 +16,8 @@ import AbsenModule from './components/AbsenModule.tsx';
 import { getTenureYears, calculateTenure } from './utils/dateUtils.ts';
 
 // --- KONFIGURASI SUPABASE ---
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://rcrtknakiwvfkmnwvdvf.supabase.co';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcnRrbmFraXd2Zmttbnd2ZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2NjEyODYsImV4cCI6MjA4NTIzNzI4Nn0.Ca9m25c9K0_J_kCRphGSaECGs8CGz4-zUpVoA_rIERA';
+const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://rcrtknakiwvfkmnwvdvf.supabase.co').trim();
+const SUPABASE_ANON_KEY = (process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcnRrbmFraXd2Zmttbnd2ZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2NjEyODYsImV4cCI6MjA4NTIzNzI4Nn0.Ca9m25c9K0_J_kCRphGSaECGs8CGz4-zUpVoA_rIERA').trim();
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -25,6 +25,7 @@ type ActiveTab = 'employees' | 'absen' | 'attendance' | 'schedule' | 'content' |
 type UserRole = 'super' | 'admin' | 'employee';
 
 const App: React.FC = () => {
+  const APP_VERSION = "1.0.2"; // Untuk verifikasi update di browser
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<UserRole>('employee');
   const [currentUserEmployee, setCurrentUserEmployee] = useState<Employee | null>(null);
@@ -101,13 +102,17 @@ const App: React.FC = () => {
   };
 
   const fetchData = async (userEmail?: string, isSilent: boolean = false) => {
+    if (!navigator.onLine) {
+      setFetchError("Anda sedang offline. Periksa koneksi internet Anda.");
+      return;
+    }
+
     if (!isSilent) setIsLoadingData(true);
     setFetchError(null);
 
-    const maxRetries = 3;
-    let attempt = 0;
+    const targetEmail = userEmail || session?.user?.email;
 
-    const performFetch = async () => {
+    try {
       if (isSilent) syncAttendanceDates();
 
       const { data: empData, error: empError } = await supabase
@@ -119,7 +124,6 @@ const App: React.FC = () => {
       setEmployees(allEmployees);
 
       let currentEmp: Employee | null = null;
-      const targetEmail = userEmail || session?.user?.email;
       let role: UserRole = 'employee';
       
       if (targetEmail) {
@@ -127,55 +131,42 @@ const App: React.FC = () => {
         setCurrentUserEmployee(currentEmp);
         role = getRoleBasedOnEmail(targetEmail);
         setUserRole(role);
-        
         if (role === 'employee' && activeTab === 'employees') {
           setActiveTab('absen');
         }
       }
 
-      const { data: attData, error: attError } = await supabase
-        .from('attendance')
-        .select('id, employeeId, date, status, clockIn, clockOut, notes')
-        .order('date', { ascending: false });
-      if (attError) throw attError;
-      setAttendanceRecords(attData || []);
+      const fetchPromises = [
+        supabase.from('attendance').select('id, employeeId, date, status, clockIn, clockOut, notes').order('date', { ascending: false }).then(({data, error}) => {
+          if (!error) setAttendanceRecords(data || []);
+        }),
+        (() => {
+          let subQuery = supabase.from('submissions').select('id, employeeId, employeeName, type, startDate, endDate, notes, status, submittedAt').order('submittedAt', { ascending: false });
+          if (role === 'employee' && currentEmp) subQuery = subQuery.eq('employeeId', currentEmp.id);
+          return subQuery.then(({data, error}) => {
+            if (!error) setSubmissions(data || []);
+          });
+        })(),
+        supabase.from('broadcasts').select('id, title, message, targetEmployeeIds, sentAt').order('sentAt', { ascending: false }).then(({data, error}) => {
+          if (!error) setBroadcasts(data || []);
+        }),
+        supabase.from('schedules').select('*').then(({data, error}) => {
+          if (!error) setLiveSchedules(data || []);
+        }),
+        supabase.from('content_plans').select('id, title, brand, platform, creatorId, deadline, postingDate, contentPillar, linkPostingan, views, likes, comments, saves, shares, status').order('postingDate', { ascending: false }).then(({data, error}) => {
+          if (!error) setContentPlans(data || []);
+        }),
+        supabase.from('settings').select('value').eq('key', 'weekly_holidays_config').single().then(({data, error}) => {
+          if (!error && data) setWeeklyHolidays(data.value);
+        })
+      ];
 
-      let subQuery = supabase.from('submissions').select('id, employeeId, employeeName, type, startDate, endDate, notes, status, submittedAt').order('submittedAt', { ascending: false });
-      if (role === 'employee' && currentEmp) {
-        subQuery = subQuery.eq('employeeId', currentEmp.id);
-      }
-      const { data: subData, error: subError } = await subQuery;
-      if (!subError) setSubmissions(subData || []);
+      await Promise.all(fetchPromises);
 
-      const { data: brdData, error: brdError } = await supabase.from('broadcasts').select('id, title, message, targetEmployeeIds, sentAt').order('sentAt', { ascending: false });
-      if (!brdError) setBroadcasts(brdData || []);
-
-      const { data: schData, error: schError } = await supabase.from('schedules').select('*');
-      if (!schError) setLiveSchedules(schData || []);
-
-      const { data: cpData, error: cpError } = await supabase.from('content_plans').select('id, title, brand, platform, creatorId, deadline, postingDate, contentPillar, linkPostingan, views, likes, comments, saves, shares, status').order('postingDate', { ascending: false });
-      if (!cpError) setContentPlans(cpData || []);
-
-      const { data: holidayData } = await supabase.from('settings').select('value').eq('key', 'weekly_holidays_config').single();
-      if (holidayData) setWeeklyHolidays(holidayData.value);
-    };
-
-    while (attempt < maxRetries) {
-      try {
-        await performFetch();
-        break; 
-      } catch (err: any) {
-        attempt++;
-        console.warn(`Fetch attempt ${attempt} failed:`, err.message);
-        if (attempt === maxRetries) {
-          console.error("Final error fetching data:", err);
-          setFetchError("Gagal memuat data. Periksa koneksi internet atau kuota layanan Supabase Anda.");
-        } else {
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-        }
-      } finally {
-        if (attempt === maxRetries || attempt === 0) setIsLoadingData(false);
-      }
+    } catch (err: any) {
+      setFetchError("Gagal terhubung ke database. Periksa koneksi internet Anda.");
+    } finally {
+      setIsLoadingData(false);
     }
   };
 
@@ -280,6 +271,8 @@ const App: React.FC = () => {
       if (session?.user?.email) {
         fetchData(session.user.email);
       }
+    }).catch(err => {
+      console.error("Auth session error:", err.message);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -512,6 +505,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
+      <div className="fixed bottom-4 right-4 z-50 bg-slate-900/50 text-white/50 text-[8px] px-2 py-1 rounded-full pointer-events-none">v{APP_VERSION}</div>
       {fetchError && (
         <div className="fixed top-0 left-0 right-0 bg-red-600 text-white py-3 px-6 z-[100] flex justify-between items-center animate-in slide-in-from-top duration-300">
           <div className="flex items-center gap-3">

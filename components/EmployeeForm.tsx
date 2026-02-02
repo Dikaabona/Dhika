@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Employee } from '../types';
 import { BANK_OPTIONS, Icons } from '../constants';
@@ -102,7 +101,15 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
               const startX = (img.width - minSize) / 2;
               const startY = (img.height - minSize) / 2;
               ctx.drawImage(img, startX, startY, minSize, minSize, 0, 0, SIZE, SIZE);
-              resolve(canvas.toDataURL('image/jpeg', 0.6));
+              
+              // MEKANISME KOMPRESI: Memastikan di bawah 100KB
+              let quality = 0.7;
+              let res = canvas.toDataURL('image/jpeg', quality);
+              while (res.length * 0.75 > 100000 && quality > 0.1) {
+                quality -= 0.1;
+                res = canvas.toDataURL('image/jpeg', quality);
+              }
+              resolve(res);
             } else {
               resolve(base64);
             }

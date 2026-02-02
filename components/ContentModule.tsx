@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, ContentPlan } from '../types';
@@ -105,7 +104,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     await persistBrandsUpdate(updatedBrands);
   };
 
-  // Diubah agar tidak auto-save ke cloud setiap kali ketik
   const updateBrandLocal = (name: string, field: string, value: any) => {
     const updatedBrands = brands.map(b => b.name === name ? { ...b, [field]: value } : b);
     setBrands(updatedBrands);
@@ -284,7 +282,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           let width = img.width;
           let height = img.height;
           
-          const MAX_DIM = 1200;
+          const MAX_DIM = 1000; // Dikurangi sedikit untuk keamanan size
           if (width > MAX_DIM || height > MAX_DIM) {
             if (width > height) {
               height = (height / width) * MAX_DIM;
@@ -304,10 +302,11 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           }
           ctx.drawImage(img, 0, 0, width, height);
           
-          let quality = 0.8;
+          let quality = 0.7;
           let dataUrl = canvas.toDataURL('image/jpeg', quality);
           
-          while (dataUrl.length * 0.75 > 250000 && quality > 0.1) {
+          // MEKANISME KOMPRESI: Memastikan di bawah 100KB
+          while (dataUrl.length * 0.75 > 100000 && quality > 0.1) {
             quality -= 0.1;
             dataUrl = canvas.toDataURL('image/jpeg', quality);
           }
@@ -382,7 +381,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         if (newReports.length > 0) {
           const { error } = await supabase.from('content_plans').upsert(newReports);
           if (error) throw error;
-          alert(`Berhasil mengimpor ${newReports.length} laporan konten!`);
+          alert(`Berhasil memproses ${newReports.length} laporan konten!`);
           const { data: updated } = await supabase.from('content_plans').select('*').order('postingDate', { ascending: false });
           if (updated) setPlans(updated);
           setIsManagingTemplate(false);
