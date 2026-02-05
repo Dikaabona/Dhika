@@ -1,8 +1,10 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, ContentPlan } from '../types';
 import { Icons, LIVE_BRANDS as INITIAL_BRANDS } from '../constants';
 import { supabase } from '../App';
+import { generateGoogleCalendarUrl } from '../utils/dateUtils';
 
 interface ContentModuleProps {
   employees: Employee[];
@@ -11,25 +13,26 @@ interface ContentModuleProps {
   searchQuery?: string;
   userRole?: string;
   currentEmployee?: Employee | null;
+  company: string;
 }
 
 const PILLAR_OPTIONS = ['Educational', 'Entertainment', 'Sales/Promo', 'Engagement', 'Behind the Scene', 'Inspirational'];
 
-const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlans, searchQuery = '', userRole = 'employee', currentEmployee = null }) => {
+const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlans, searchQuery: globalSearch = '', userRole = 'employee', currentEmployee = null, company }) => {
   const isCreator = useMemo(() => {
     const jabatan = (currentEmployee?.jabatan || '').toLowerCase();
     return jabatan.includes('content creator') || jabatan.includes('creator') || jabatan.includes('lead content');
   }, [currentEmployee]);
 
-  const hasFullAccess = userRole === 'admin' || userRole === 'super' || isCreator;
+  const hasFullAccess = userRole === 'admin' || userRole === 'super' || userRole === 'owner' || isCreator;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<ContentPlan | null>(null);
   const [dbStatus, setDbStatus] = useState<'sync' | 'local'>('sync');
   const [selectedBrandFilter, setSelectedBrandFilter] = useState<string>('ALL');
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  const [isManagingTemplate, setIsManagingTemplate] = useState(false);
   const [isProcessingExcel, setIsProcessingExcel] = useState(false);
+  const [localSearch, setLocalSearch] = useState('');
   
   const screenshotInputRef = useRef<HTMLInputElement>(null);
   const contentFileInputRef = useRef<HTMLInputElement>(null);
@@ -139,6 +142,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   const [formData, setFormData] = useState<Omit<ContentPlan, 'id'>>({
     title: '',
     brand: brands[0]?.name || '',
+    company: company,
     platform: 'TikTok',
     creatorId: '',
     deadline: '',
@@ -175,12 +179,13 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   }, [brands, plans, currentMonth, currentYear]);
 
   const filteredPlans = useMemo(() => {
+    const finalSearch = (localSearch || globalSearch).toLowerCase();
     return plans.filter(p => {
-      const matchesSearch = (p.brand || '').toLowerCase().includes(searchQuery.toLowerCase()) || (p.title || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = (p.brand || '').toLowerCase().includes(finalSearch) || (p.title || '').toLowerCase().includes(finalSearch);
       const matchesBrand = selectedBrandFilter === 'ALL' || p.brand === selectedBrandFilter;
       return matchesSearch && matchesBrand;
     });
-  }, [plans, searchQuery, selectedBrandFilter]);
+  }, [plans, globalSearch, localSearch, selectedBrandFilter]);
 
   const handleOpenModal = (plan?: ContentPlan) => {
     if (plan) {
@@ -205,6 +210,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       setFormData({
         title: '',
         brand: brands[0]?.name || '',
+        company: company,
         platform: 'TikTok',
         creatorId: isCreator ? currentEmployee?.id || '' : '',
         deadline: '',
@@ -282,7 +288,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           let width = img.width;
           let height = img.height;
           
-          const MAX_DIM = 1000; // Dikurangi sedikit untuk keamanan size
+          const MAX_DIM = 1000;
           if (width > MAX_DIM || height > MAX_DIM) {
             if (width > height) {
               height = (height / width) * MAX_DIM;
@@ -305,7 +311,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           let quality = 0.7;
           let dataUrl = canvas.toDataURL('image/jpeg', quality);
           
-          // MEKANISME KOMPRESI: Memastikan di bawah 100KB
           while (dataUrl.length * 0.75 > 100000 && quality > 0.1) {
             quality -= 0.1;
             dataUrl = canvas.toDataURL('image/jpeg', quality);
@@ -344,6 +349,30 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     XLSX.writeFile(workbook, `Report_Konten_Visibel_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  const handleDownloadTemplate = () => {
+    const template = [
+      {
+        'COMPANY': company,
+        'BRAND': 'BRAND CONTOH',
+        'PLATFORM': 'TikTok',
+        'TANGGAL POSTING': '2024-03-01',
+        'JAM UPLOAD': '19:00',
+        'CREATOR': 'NAMA CREATOR',
+        'PILLAR': 'Entertainment',
+        'LINK POSTINGAN': 'https://...',
+        'VIEWS': 1000,
+        'LIKES': 100,
+        'COMMENTS': 10,
+        'SAVES': 5,
+        'SHARES': 2
+      }
+    ];
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template Laporan Konten");
+    XLSX.writeFile(wb, `Template_Report_Konten_${company}.xlsx`);
+  };
+
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -363,6 +392,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
             id: `${Date.now()}${Math.floor(Math.random() * 10000)}`,
             title: `${brand} - ${postingDate}`,
             brand: brand,
+            company: String(row['COMPANY'] || company),
             platform: String(row['PLATFORM'] || 'TikTok'),
             postingDate: postingDate,
             jamUpload: String(row['JAM UPLOAD'] || '19:00'),
@@ -384,7 +414,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           alert(`Berhasil memproses ${newReports.length} laporan konten!`);
           const { data: updated } = await supabase.from('content_plans').select('*').order('postingDate', { ascending: false });
           if (updated) setPlans(updated);
-          setIsManagingTemplate(false);
         }
       } catch (err: any) {
         alert("Gagal mengimpor: " + err.message);
@@ -411,6 +440,30 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     return er.toFixed(2) + '%';
   };
 
+  const handleSyncBrandToCalendar = (bs: any) => {
+    if (!bs.quotaDeadline) {
+      alert("Harap atur Deadline Quota terlebih dahulu.");
+      return;
+    }
+    const url = generateGoogleCalendarUrl({
+      title: `DEADLINE KONTEN: ${bs.name}`,
+      details: `Target: ${bs.target} konten.\nStatus saat ini: ${bs.done}/${bs.target}.\nSistem: HR.Visibel ID`,
+      date: bs.quotaDeadline,
+      timeSlot: bs.jamUpload || '19:00'
+    });
+    window.open(url, '_blank');
+  };
+
+  const handleSyncItemToCalendar = (plan: ContentPlan) => {
+    const url = generateGoogleCalendarUrl({
+      title: `POSTING: ${plan.brand} (${plan.platform})`,
+      details: `Pillar: ${plan.contentPillar}\nCreator: ${getCreatorName(plan.creatorId || '')}\nSistem: HR.Visibel ID`,
+      date: plan.postingDate || new Date().toISOString().split('T')[0],
+      timeSlot: plan.jamUpload || '19:00'
+    });
+    window.open(url, '_blank');
+  };
+
   const CUSTOM_LINK_ICON = "https://lh3.googleusercontent.com/d/14IIco4Et4SqH7g1Qo9KqvsNMdPBabpzF";
 
   return (
@@ -423,82 +476,72 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       )}
 
       {/* HEADER SECTION */}
-      <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-sm border border-slate-100 flex flex-col gap-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
-          <div className="flex items-center gap-4 sm:gap-6">
-            <div className="bg-slate-900 p-4 sm:p-5 rounded-2xl sm:rounded-[28px] text-cyan-400 shadow-xl shadow-cyan-500/10 shrink-0">
-              <Icons.Video className="w-6 h-6 sm:w-8 sm:h-8" />
-            </div>
-            <div className="flex flex-col">
-              <h2 className="font-bold text-slate-900 text-2xl sm:text-3xl tracking-tighter leading-none uppercase">Content Hub</h2>
-              <div className="flex items-center gap-2 mt-2">
-                <p className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em]">Production & Performance</p>
-                <span className={`w-1.5 h-1.5 rounded-full ${dbStatus === 'sync' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></span>
+      <div className="bg-white rounded-[32px] sm:rounded-[60px] shadow-sm border border-slate-100 overflow-hidden">
+        <div className="px-8 sm:px-14 py-10 sm:py-16 border-b flex flex-col items-start bg-white gap-8">
+            <div className="flex flex-col gap-3">
+              <h2 className="font-black text-slate-900 uppercase tracking-tight text-2xl sm:text-4xl">Content Hub</h2>
+              <div className="flex items-center gap-3">
+                <span className="inline-block bg-slate-50 text-slate-400 text-[10px] font-black uppercase px-5 py-2 rounded-full tracking-widest self-start">Production & Performance</span>
+                <span className={`w-2 h-2 rounded-full ${dbStatus === 'sync' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></span>
               </div>
             </div>
-          </div>
-          
-          <div className="w-full sm:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-             <select 
-                value={selectedBrandFilter} 
-                onChange={(e) => setSelectedBrandFilter(e.target.value)} 
-                className="bg-slate-50 border border-slate-200 text-slate-900 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest px-6 py-4 rounded-xl sm:rounded-2xl outline-none focus:ring-2 focus:ring-cyan-400/20"
-              >
-                <option value="ALL">SEMUA BRAND</option>
-                {brands.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
-             </select>
-             {hasFullAccess && (
-               <button 
-                onClick={() => handleOpenModal()} 
-                className="bg-slate-900 hover:bg-black text-[#FFC000] py-4 px-8 rounded-xl sm:rounded-2xl font-bold text-[10px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-xl active:scale-95"
-               >
-                 <Icons.Plus className="w-4 h-4" /> BUAT REPORT
-               </button>
-             )}
-          </div>
-        </div>
+            
+            <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6 w-full">
+              {/* Bar Pencarian & Filter Brand */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-slate-100 p-1.5 rounded-[28px] border border-slate-100 shadow-inner w-full xl:max-w-[850px]">
+                <div className="relative shrink-0">
+                   <div className="bg-[#0f172a] text-white px-8 py-4 rounded-[22px] text-[10px] font-black uppercase tracking-widest flex items-center gap-3 cursor-pointer shadow-lg active:scale-95 transition-all">
+                     {selectedBrandFilter === 'ALL' ? 'SEMUA BRAND' : selectedBrandFilter}
+                     <Icons.ChevronDown className="w-3 h-3" />
+                     <select 
+                      value={selectedBrandFilter} 
+                      onChange={(e) => setSelectedBrandFilter(e.target.value)}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                     >
+                        <option value="ALL">SEMUA BRAND</option>
+                        {brands.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+                     </select>
+                   </div>
+                </div>
 
-        {hasFullAccess && (
-          <div className="flex flex-wrap items-center gap-2 border-t pt-6">
-            <button 
-              onClick={() => { setIsManagingTemplate(!isManagingTemplate); setIsManagingBrands(false); }} 
-              className={`flex-1 sm:flex-none px-6 py-3 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all ${isManagingTemplate ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-400 hover:bg-slate-50'}`}
-            >
-              TEMPLATE
-            </button>
-            <button 
-              onClick={() => { setIsManagingBrands(!isManagingBrands); setIsManagingTemplate(false); }} 
-              className={`flex-1 sm:flex-none px-6 py-3 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all ${isManagingBrands ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-400 hover:bg-slate-50'}`}
-            >
-              QUOTA
-            </button>
-          </div>
-        )}
+                <div className="relative flex-grow bg-white rounded-[22px] shadow-sm border border-slate-100 px-6 py-4 flex items-center gap-4 min-w-0">
+                  <Icons.Search className="w-5 h-5 text-slate-300 shrink-0" />
+                  <input 
+                    type="text" 
+                    placeholder="Cari Brand atau Judul Konten..." 
+                    value={localSearch}
+                    onChange={(e) => setLocalSearch(e.target.value)}
+                    className="w-full text-xs font-bold text-black outline-none placeholder:text-slate-300 uppercase tracking-widest bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Tombol Aksi */}
+              <div className="flex flex-wrap gap-3 sm:gap-4 items-center shrink-0">
+                {hasFullAccess && (
+                  <>
+                    <button onClick={handleDownloadTemplate} className="bg-slate-100 hover:bg-slate-200 border border-slate-200 px-8 py-4 rounded-[22px] flex items-center gap-2 font-black text-[10px] uppercase tracking-widest transition-all shadow-sm active:scale-95 text-slate-500">
+                      <Icons.Download className="w-4 h-4" /> TEMPLATE
+                    </button>
+                    <button onClick={() => setIsManagingBrands(!isManagingBrands)} className={`px-8 py-4 rounded-[22px] font-black text-[10px] uppercase tracking-widest transition-all shadow-sm border ${isManagingBrands ? 'bg-slate-900 text-white' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
+                      QUOTA
+                    </button>
+                    <button onClick={() => handleOpenModal()} className="bg-[#FFC000] hover:bg-black text-black hover:text-white px-10 py-4 rounded-[22px] flex items-center gap-2 font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-amber-100 active:scale-95">
+                      <Icons.Plus className="w-5 h-5" /> TAMBAH
+                    </button>
+                    <input type="file" ref={contentFileInputRef} onChange={handleImportExcel} className="hidden" accept=".xlsx,.xls" />
+                    <button onClick={() => contentFileInputRef.current?.click()} disabled={isProcessingExcel} className="bg-[#059669] hover:bg-[#047857] text-white px-8 py-4 rounded-[22px] flex items-center gap-2 font-black text-[10px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
+                      <Icons.Upload className="w-4 h-4" /> {isProcessingExcel ? '...' : 'UNGGAH'}
+                    </button>
+                    <button onClick={handleExportExcel} className="bg-[#0f172a] hover:bg-black text-white px-8 py-4 rounded-[22px] flex items-center gap-2 font-black text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95">
+                      <Icons.Database className="w-4 h-4" /> EKSPOR
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+        </div>
       </div>
-
-      {isManagingTemplate && hasFullAccess && (
-        <div className="bg-white p-6 sm:p-10 rounded-[32px] sm:rounded-[40px] shadow-xl border-4 border-slate-900/5 grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 animate-in slide-in-from-top-4 duration-300">
-           <div className="bg-emerald-50/50 p-6 sm:p-8 rounded-[24px] sm:rounded-[32px] border-2 border-emerald-100 space-y-6 flex flex-col items-center text-center group hover:bg-emerald-50 transition-colors">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 bg-emerald-600 text-white rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"><Icons.Download className="w-6 h-6 sm:w-8 sm:h-8" /></div>
-              <div>
-                <h3 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight">EKSPOR DATA LAPORAN</h3>
-                <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 leading-relaxed">Unduh seluruh riwayat performa konten ke Excel.</p>
-              </div>
-              <button onClick={handleExportExcel} className="w-full bg-emerald-600 text-white py-4 rounded-xl sm:rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-lg hover:bg-emerald-700 transition-all">MULAI EKSPOR</button>
-           </div>
-           <div className="bg-blue-50/50 p-6 sm:p-8 rounded-[24px] sm:rounded-[32px] border-2 border-blue-100 space-y-6 flex flex-col items-center text-center group hover:bg-blue-50 transition-colors">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 bg-slate-900 text-[#FFC000] rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"><Icons.Upload className="w-6 h-6 sm:w-8 sm:h-8" /></div>
-              <div>
-                <h3 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight">IMPOR DATA LAPORAN</h3>
-                <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 leading-relaxed">Unggah laporan masal (views, likes, dll) dari Excel.</p>
-              </div>
-              <input type="file" ref={contentFileInputRef} onChange={handleImportExcel} className="hidden" accept=".xlsx,.xls" />
-              <button onClick={() => contentFileInputRef.current?.click()} disabled={isProcessingExcel} className="w-full bg-slate-900 text-white py-4 rounded-xl sm:rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-lg hover:bg-black transition-all">
-                {isProcessingExcel ? 'MEMPROSES...' : 'UNGGAH EXCEL'}
-              </button>
-           </div>
-        </div>
-      )}
 
       {isManagingBrands && hasFullAccess && (
         <div className="bg-[#0f172a] p-6 sm:p-10 rounded-[40px] text-white shadow-2xl space-y-10 animate-in slide-in-from-top-4 duration-500 border border-white/5">
@@ -580,17 +623,26 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       )}
 
       {/* STATS CARDS */}
-      <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-6 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-6 -mx-4 px-4 sm:mx-0 sm:px-0 custom-scrollbar scroll-smooth">
         {brandStats.map(bs => (
-          <div key={bs.name} className="min-w-[240px] sm:min-w-[280px] bg-white p-6 rounded-[28px] sm:rounded-[32px] border border-slate-100 shadow-sm space-y-4 transition-all hover:shadow-md hover:-translate-y-1">
+          <div key={bs.name} className="min-w-[240px] sm:min-w-[280px] bg-white p-6 rounded-[28px] sm:rounded-[32px] border border-slate-100 shadow-sm space-y-4 transition-all hover:shadow-md hover:-translate-y-1 relative shrink-0">
             <div className="flex justify-between items-center">
               <span className="text-[10px] font-black text-black uppercase tracking-widest">{bs.name}</span>
-              <span className={`text-[8px] font-black px-2.5 py-1 rounded-lg ${bs.remaining === 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                {bs.remaining === 0 ? 'GOAL REACHED' : `${bs.remaining} REMAINING`}
-              </span>
+              <button 
+                onClick={() => handleSyncBrandToCalendar(bs)}
+                className="p-1.5 bg-slate-50 hover:bg-[#FFC000] text-slate-400 hover:text-black rounded-lg transition-all"
+                title="Sync Deadline to Calendar"
+              >
+                <Icons.Calendar className="w-3.5 h-3.5" />
+              </button>
             </div>
             <div className="flex justify-between items-end">
-              <p className="text-3xl font-black text-slate-900">{bs.done}<span className="text-xs text-slate-300 ml-1 font-bold">/ {bs.target}</span></p>
+              <div>
+                <p className="text-3xl font-black text-slate-900">{bs.done}<span className="text-xs text-slate-300 ml-1 font-bold">/ {bs.target}</span></p>
+                <p className="text-[8px] font-black px-2 py-0.5 mt-1 rounded inline-block bg-slate-50 text-slate-400">
+                  {bs.remaining === 0 ? 'GOAL REACHED' : `${bs.remaining} REMAINING`}
+                </p>
+              </div>
               <p className="text-[10px] font-black text-slate-500">{Math.round(bs.progress)}%</p>
             </div>
             <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden">
@@ -642,6 +694,13 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                           <div className="flex items-center gap-2">
                             <p className="font-black text-slate-900 text-xs uppercase tracking-tight">{plan.brand}</p>
                             <span className="text-[9px] font-black text-cyan-600 bg-cyan-50 px-1.5 py-0.5 rounded uppercase tracking-tighter">{plan.jamUpload || '-'}</span>
+                            <button 
+                              onClick={() => handleSyncItemToCalendar(plan)}
+                              className="p-1 hover:bg-slate-200 rounded transition-colors text-slate-400 hover:text-black"
+                              title="Set Reminder"
+                            >
+                              <Icons.Calendar className="w-3 h-3" />
+                            </button>
                           </div>
                           <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase">{plan.postingDate}</p>
                         </div>

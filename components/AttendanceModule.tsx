@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Employee, AttendanceRecord } from '../types';
 import { Icons } from '../constants';
@@ -25,6 +26,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
   setRecords, 
   searchQuery = '', 
   userRole = 'employee',
+  currentEmployee = null,
   startDate,
   endDate,
   onStartDateChange,
@@ -35,13 +37,25 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
   const [isPhotoLoading, setIsPhotoLoading] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<any>(null);
+  const [localSearch, setLocalSearch] = useState('');
+
+  const isAdmin = userRole === 'super' || userRole === 'admin' || userRole === 'owner';
 
   const searchedEmployees = useMemo(() => {
-    return employees.filter(emp => 
-      emp.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      emp.idKaryawan.toLowerCase().includes(searchQuery.toLowerCase())
+    let base = employees;
+    // Privacy Filter: Regular employees only see their own attendance logs
+    if (!isAdmin && currentEmployee) {
+      base = [currentEmployee];
+    }
+    
+    // Gabungkan filter pencarian dari prop (global) dan state lokal
+    const finalQuery = (localSearch || searchQuery).toLowerCase();
+    
+    return base.filter(emp => 
+      emp.nama.toLowerCase().includes(finalQuery) ||
+      emp.idKaryawan.toLowerCase().includes(finalQuery)
     );
-  }, [employees, searchQuery]);
+  }, [employees, searchQuery, localSearch, isAdmin, currentEmployee]);
 
   const datesInRange = useMemo(() => {
     const dates = [];
@@ -123,7 +137,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
       case 'Libur': return 'bg-slate-50 text-slate-400 border-slate-200';
       case 'Sakit': return 'bg-amber-50 text-amber-600 border-amber-100';
       case 'Izin': return 'bg-sky-50 text-sky-600 border-sky-100';
-      case 'Alpha': return 'bg-rose-50 text-rose-600 border-rose-100';
+      case 'Alpha': return 'bg-rose-50 text-rose-600 border-rose-100 font-bold';
       case 'Cuti': return 'bg-indigo-50 text-indigo-600 border-indigo-100';
       default: return 'bg-slate-50 text-slate-400 border-slate-100';
     }
@@ -149,7 +163,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         </div>
       )}
 
-      {/* Refined Header - Spacing reduced */}
+      {/* Refined Header */}
       <div className="bg-white rounded-[40px] p-6 sm:p-8 shadow-sm border border-slate-100 flex flex-col items-center text-center gap-6">
         <div className="space-y-1">
           <h2 className="font-black text-slate-900 text-3xl sm:text-4xl tracking-tighter uppercase leading-tight">Log Kehadiran</h2>
@@ -157,33 +171,45 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
           <p className="text-[8px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-[0.5em] pt-1">Monitoring & History</p>
         </div>
         
-        <div className="flex flex-col sm:flex-row items-center gap-3 bg-slate-50 p-1.5 rounded-[28px] border border-slate-100 shadow-inner">
-          <div className="flex items-center gap-3 px-5 py-2.5 bg-white rounded-[22px] shadow-sm border border-slate-100">
-            <div className="flex flex-col items-start">
-              <span className="text-[7px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Mulai</span>
+        <div className="flex flex-col lg:flex-row items-center gap-3 bg-slate-50 p-1.5 rounded-[28px] border border-slate-100 shadow-inner w-full max-w-4xl overflow-hidden">
+          <div className="flex items-center gap-3 px-6 py-3 bg-white rounded-[22px] shadow-sm border border-slate-100 shrink-0">
+            <div className="flex flex-col items-start min-w-[100px]">
+              <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Mulai</span>
               <input 
                 type="date" 
                 value={startDate} 
                 onChange={(e) => onStartDateChange(e.target.value)} 
-                className="bg-transparent text-[10px] font-black outline-none text-slate-800 cursor-pointer" 
+                className="bg-transparent text-xs sm:text-sm font-black outline-none text-slate-900 cursor-pointer" 
               />
             </div>
-            <div className="h-7 w-px bg-slate-100"></div>
-            <div className="flex flex-col items-start">
-              <span className="text-[7px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Sampai</span>
+            <div className="h-8 w-px bg-slate-100"></div>
+            <div className="flex flex-col items-start min-w-[100px]">
+              <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Sampai</span>
               <input 
                 type="date" 
                 value={endDate} 
                 onChange={(e) => onEndDateChange(e.target.value)} 
-                className="bg-transparent text-[10px] font-black outline-none text-slate-800 cursor-pointer" 
+                className="bg-transparent text-xs sm:text-sm font-black outline-none text-slate-900 cursor-pointer" 
               />
             </div>
           </div>
-          <button onClick={() => {}} className="hidden sm:flex bg-slate-900 text-[#FFC000] px-7 h-12 rounded-[20px] items-center justify-center text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg">Refresh</button>
+
+          {/* SEARCH FIELD */}
+          <div className="relative flex-grow w-full lg:w-auto px-4 py-3 bg-white rounded-[22px] shadow-sm border border-slate-100 flex items-center gap-3 h-[52px]">
+             <Icons.Search className="w-4 h-4 text-slate-300" />
+             <input 
+              type="text" 
+              placeholder="CARI NAMA ATAU ID..." 
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
+              className="w-full bg-transparent text-[10px] font-black outline-none text-slate-800 placeholder:text-slate-300 uppercase tracking-widest"
+             />
+          </div>
+
+          <button onClick={() => { setLocalSearch(''); onStartDateChange(new Date().toISOString().split('T')[0]); onEndDateChange(new Date().toISOString().split('T')[0]); }} className="hidden lg:flex bg-slate-900 text-[#FFC000] px-7 h-[52px] rounded-[20px] items-center justify-center text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shrink-0">Refresh</button>
         </div>
       </div>
 
-      {/* Table Section - Reduced cell padding */}
       <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden mb-6">
         <div className="overflow-x-auto no-scrollbar">
           <table className="w-full text-left">
@@ -206,12 +232,12 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                 const isToday = row.date === new Date().toISOString().split('T')[0];
                 const isPast = row.date < new Date().toISOString().split('T')[0];
                 
-                // Aturan Khusus: Selain Host, hari Minggu otomatis 'Libur'. Sisanya 'Hadir'.
                 let defaultStatus: any = 'Hadir';
                 if (!isHost && isSunday) {
                   defaultStatus = 'Libur';
                 }
 
+                // Official logic: Past dates without records on working days are marked Alpha automatically
                 if (!existingRec && isPast && row.date >= ALPHA_START_DATE && isWorkDay(row.date, row.employee)) {
                   defaultStatus = 'Alpha';
                 }
@@ -279,12 +305,14 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                       </div>
                     </td>
                     <td className="px-6 sm:px-10 py-4 text-right">
-                      <button 
-                        onClick={() => { setEditingRecord(rec); setIsEditModalOpen(true); }} 
-                        className="p-2 text-slate-300 hover:text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90"
-                      >
-                        <Icons.Edit className="w-4 h-4" />
-                      </button>
+                      {isAdmin && (
+                        <button 
+                          onClick={() => { setEditingRecord(rec); setIsEditModalOpen(true); }} 
+                          className="p-2 text-slate-300 hover:text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90"
+                        >
+                          <Icons.Edit className="w-4 h-4" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

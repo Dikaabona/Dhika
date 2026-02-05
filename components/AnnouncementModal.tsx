@@ -6,11 +6,13 @@ import { supabase } from '../App';
 
 interface AnnouncementModalProps {
   employees: Employee[];
+  // Added company prop to match Broadcast interface requirement
+  company: string;
   onClose: () => void;
   onSuccess?: () => void;
 }
 
-const AnnouncementModal: React.FC<AnnouncementModalProps> = ({ employees, onClose, onSuccess }) => {
+const AnnouncementModal: React.FC<AnnouncementModalProps> = ({ employees, company, onClose, onSuccess }) => {
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,9 +51,11 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({ employees, onClos
     setIsSending(true);
     try {
       // 1. Simpan ke Supabase agar muncul di Inbox
+      // Added company field to fix Property 'company' is missing error
       const newBroadcast: Broadcast = {
         title,
         message,
+        company,
         targetEmployeeIds: selectedEmployeeIds,
         sentAt: new Date().toISOString()
       };
@@ -83,7 +87,7 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({ employees, onClos
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[200]">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="p-6 border-b bg-slate-900 text-white flex justify-between items-center">
           <div className="flex items-center gap-3">

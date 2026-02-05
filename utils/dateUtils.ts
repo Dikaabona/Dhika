@@ -86,3 +86,38 @@ export const getDaysUntilBirthday = (birthDateStr: string): number => {
   const diff = nextBday.getTime() - today.getTime();
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 };
+
+/**
+ * Membuat URL Google Calendar template
+ * Format tanggal ISO basic: YYYYMMDDTHHmmSSZ
+ */
+export const generateGoogleCalendarUrl = (params: {
+  title: string;
+  details: string;
+  date: string; // YYYY-MM-DD
+  timeSlot: string; // e.g., "09.00 - 10.00" atau "19:00"
+}) => {
+  const dateOnly = params.date.replace(/-/g, '');
+  
+  // Handle single time or range
+  const timeParts = params.timeSlot.split(' - ');
+  const times = timeParts.map(t => t.replace(/[:.]/g, '').padEnd(4, '0'));
+  
+  let start = `${dateOnly}T${times[0]}00`;
+  let end = '';
+  
+  if (times[1]) {
+    end = `${dateOnly}T${times[1]}00`;
+  } else {
+    // Default duration: 1 hour
+    const hour = parseInt(times[0].substring(0, 2), 10);
+    const minute = times[0].substring(2, 4);
+    const endHour = (hour + 1).toString().padStart(2, '0');
+    end = `${dateOnly}T${endHour}${minute}00`;
+  }
+  
+  const baseUrl = 'https://www.google.com/calendar/render?action=TEMPLATE';
+  const url = `${baseUrl}&text=${encodeURIComponent(params.title)}&dates=${start}/${end}&details=${encodeURIComponent(params.details)}&sf=true&output=xml`;
+  
+  return url;
+};

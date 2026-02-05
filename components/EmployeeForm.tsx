@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Employee } from '../types';
 import { BANK_OPTIONS, Icons } from '../constants';
@@ -6,12 +7,17 @@ interface EmployeeFormProps {
   initialData: Employee | null;
   employees: Employee[];
   userRole: string;
+  userCompany: string;
   onSave: (employee: Employee) => void;
   onCancel: () => void;
 }
 
-const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, userRole, onSave, onCancel }) => {
+const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, userRole, userCompany, onSave, onCancel }) => {
+  const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super';
+  const isAdmin = userRole === 'admin';
+  // System Admin (Owner, Super, Admin) can edit restricted fields
+  const isSystemAdmin = isOwner || isSuper || isAdmin;
   
   const [formData, setFormData] = useState<Omit<Employee, 'id'>>({
     idKaryawan: '',
@@ -27,9 +33,11 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     bank: BANK_OPTIONS[0],
     noRekening: '',
     namaDiRekening: '',
+    company: userCompany,
     avatarUrl: '',
     photoBase64: '',
     hutang: 0,
+    isRemoteAllowed: false,
     ktpDocBase64: '',
     ktpDocType: 'image',
     contractDocBase64: ''
@@ -40,7 +48,8 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
       const { id, ...rest } = initialData;
       setFormData({
         ...rest,
-        hutang: rest.hutang || 0
+        hutang: rest.hutang || 0,
+        isRemoteAllowed: rest.isRemoteAllowed || false
       });
     } else {
       const generateNextSequentialId = (list: Employee[]) => {
@@ -63,14 +72,26 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
         idKaryawan: nextId,
         avatarUrl: '',
         tanggalMasuk: formattedToday,
-        hutang: 0
+        company: userCompany,
+        hutang: 0,
+        isRemoteAllowed: false
       }));
     }
-  }, [initialData, employees]);
+  }, [initialData, employees, userCompany]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    if (!isSuper && ['idKaryawan', 'jabatan', 'tanggalMasuk', 'hutang'].includes(name)) return;
+    const { name, value, type } = e.target as HTMLInputElement;
+    
+    // Perbaikan: Izinkan System Admin (termasuk Ariyansyah/Admin) mengubah field ini
+    const restrictedFields = ['idKaryawan', 'jabatan', 'tanggalMasuk', 'hutang', 'company'];
+    if (!isSystemAdmin && restrictedFields.includes(name)) return;
+
+    if (type === 'checkbox') {
+      const checked = (e.target as HTMLInputElement).checked;
+      setFormData(prev => ({ ...prev, [name]: checked }));
+      return;
+    }
+
     if (['noRekening', 'noKtp', 'noHandphone', 'hutang'].includes(name)) {
       const numericValue = value.replace(/\D/g, '');
       setFormData(prev => ({ ...prev, [name]: name === 'hutang' ? Number(numericValue) : numericValue }));
@@ -102,7 +123,6 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
               const startY = (img.height - minSize) / 2;
               ctx.drawImage(img, startX, startY, minSize, minSize, 0, 0, SIZE, SIZE);
               
-              // MEKANISME KOMPRESI: Memastikan di bawah 100KB
               let quality = 0.7;
               let res = canvas.toDataURL('image/jpeg', quality);
               while (res.length * 0.75 > 100000 && quality > 0.1) {
@@ -129,10 +149,12 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     });
   };
 
-  // Logic untuk mengecek System Role berdasarkan email
   const getSystemRoleDisplay = (email: string) => {
     const emailLower = email.toLowerCase();
-    if (emailLower === 'muhammadmahardhikadib@gmail.com' || emailLower === 'rezaajidharma@gmail.com') {
+    if (emailLower === 'muhammadmahardhikadib@gmail.com') {
+      return { label: 'OWNER', color: 'bg-indigo-600 text-white shadow-lg ring-2 ring-indigo-300' };
+    }
+    if (emailLower === 'rezaajidharma@gmail.com') {
       return { label: 'SUPER ADMIN', color: 'bg-amber-400 text-black' };
     }
     if (emailLower === 'fikryadityar93@gmail.com' || emailLower === 'ariyansyah02122002@gmail.com') {
@@ -144,7 +166,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
   const sysRole = getSystemRoleDisplay(formData.email);
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[200]">
       <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-2xl max-h-[95vh] overflow-hidden flex flex-col">
         <div className="px-10 py-8 border-b flex justify-between items-center bg-[#ffdc04] sticky top-0 z-10">
           <div className="flex items-center gap-3">
@@ -164,9 +186,15 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
               </div>
             </div>
             
-            <div className="bg-[#FFFBEB] p-5 rounded-[24px] border border-[#FFD700]">
-              <label className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1.5 block">ID KARYAWAN RESMI</label>
-              <input required name="idKaryawan" readOnly={!isSuper} value={formData.idKaryawan} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-[#FFD700] rounded-xl text-lg font-bold text-black outline-none" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="bg-[#FFFBEB] p-5 rounded-[24px] border border-[#FFD700]">
+                 <label className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1.5 block">ID KARYAWAN RESMI</label>
+                 <input required name="idKaryawan" readOnly={!isSystemAdmin} value={formData.idKaryawan} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-[#FFD700] rounded-xl text-lg font-bold text-black outline-none" />
+               </div>
+               <div className="bg-sky-50 p-5 rounded-[24px] border border-sky-100">
+                 <label className="text-[10px] font-bold text-sky-600 uppercase tracking-widest mb-1.5 block">COMPANY</label>
+                 <input required name="company" readOnly={!isSystemAdmin} value={formData.company} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-sky-100 rounded-xl text-lg font-bold text-slate-900 outline-none" />
+               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -176,7 +204,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Jabatan</label>
-                <input required name="jabatan" readOnly={!isSuper} value={formData.jabatan} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+                <input required name="jabatan" readOnly={!isSystemAdmin} value={formData.jabatan} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tempat Lahir</label>
@@ -205,12 +233,21 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tanggal Masuk</label>
-                <input required name="tanggalMasuk" readOnly={!isSuper} value={formData.tanggalMasuk} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+                <input required name="tanggalMasuk" readOnly={!isSystemAdmin} value={formData.tanggalMasuk} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
               </div>
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total Hutang Karyawan (Rp)</label>
-                <input name="hutang" readOnly={!isSuper} value={formData.hutang || 0} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-black text-black outline-none focus:bg-white transition-all text-lg" />
-                <p className="text-[9px] text-slate-400 font-medium ml-1">Hanya Super Admin yang dapat menyesuaikan saldo hutang.</p>
+                <input name="hutang" readOnly={!isSystemAdmin} value={formData.hutang || 0} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-black text-black outline-none focus:bg-white transition-all text-lg" />
+              </div>
+              <div className="flex items-center gap-3 bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                <input 
+                  type="checkbox" 
+                  name="isRemoteAllowed" 
+                  checked={formData.isRemoteAllowed} 
+                  onChange={handleChange}
+                  className="w-5 h-5 rounded border-emerald-200 text-emerald-600 focus:ring-emerald-500" 
+                />
+                <label className="text-[10px] text-emerald-800 font-black uppercase tracking-widest">Izinkan Absen Remote (Individu)</label>
               </div>
             </div>
             

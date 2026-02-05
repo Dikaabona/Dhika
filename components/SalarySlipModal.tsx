@@ -1,4 +1,5 @@
-import React, { useState, useRef, useMemo } from 'react';
+
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Employee, SalaryData, AttendanceRecord } from '../types';
 import { Icons } from '../constants';
 import { parseFlexibleDate } from '../utils/dateUtils';
@@ -27,7 +28,8 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
 
   const prevMonth = getPreviousMonthInfo();
 
-  const [data, setData] = useState<SalaryData & { adjustment: number }>({
+  const [isBPJSTKActive, setIsBPJSTKActive] = useState(true);
+  const [data, setData] = useState<SalaryData & { adjustment: number; pph21: number }>({
     month: prevMonth.name,
     year: prevMonth.year,
     gapok: employee.salaryConfig?.gapok ?? 5000000,
@@ -36,7 +38,8 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     tunjanganKomunikasi: employee.salaryConfig?.tunjanganKomunikasi ?? 200000,
     tunjanganKesehatan: employee.salaryConfig?.tunjanganKesehatan ?? 0,
     tunjanganJabatan: employee.salaryConfig?.tunjanganJabatan ?? 0,
-    bpjstk: employee.salaryConfig?.bpjstk ?? 150000,
+    bpjstk: employee.salaryConfig?.bpjstk ?? 0,
+    pph21: employee.salaryConfig?.pph21 ?? 0,
     lembur: employee.salaryConfig?.lembur ?? 0,
     bonus: employee.salaryConfig?.bonus ?? 0,
     thr: employee.salaryConfig?.thr ?? 0,
@@ -60,16 +63,13 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const isWorkDay = (date: Date, emp: Employee) => {
     const dayNameMap = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
     const currentDayName = dayNameMap[date.getDay()];
-    
     if (weeklyHolidays) {
       const empNameUpper = emp.nama.toUpperCase();
       const employeeInHolidays = Object.values(weeklyHolidays).some(names => (names as string[]).map(n => n.toUpperCase()).includes(empNameUpper));
-      
       if (employeeInHolidays) {
         return !(weeklyHolidays[currentDayName] || []).map(n => n.toUpperCase()).includes(empNameUpper);
       }
     }
-    
     const day = date.getDay();
     return day !== 0 && day !== 6;
   };
@@ -77,21 +77,17 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const tenureInfo = useMemo(() => {
     const joinDate = parseFlexibleDate(employee.tanggalMasuk);
     if (isNaN(joinDate.getTime())) return { years: 0, months: 0, totalMonths: 0 };
-    
     const now = new Date();
     let years = now.getFullYear() - joinDate.getFullYear();
     let months = now.getMonth() - joinDate.getMonth();
-    
     if (months < 0 || (months === 0 && now.getDate() < joinDate.getDate())) {
       years--;
       months += 12;
     }
-    
     const totalMonths = (years * 12) + months;
     return { years, months, totalMonths };
   }, [employee.tanggalMasuk]);
 
-  // Perhitungan Kehadiran dan Lembur Otomatis
   const attendanceResults = useMemo(() => {
     const targetMonthIdx = monthMap[data.month] ?? 0;
     const targetYear = parseInt(data.year);
@@ -108,17 +104,14 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
 
     const summary = { alpha: 0, hadir: 0, sakit: 0, izin: 0, libur: 0, cuti: 0, totalOvertimePay: 0, overtimeHours: 0 };
     const todayStr = new Date().toISOString().split('T')[0];
-
     let temp = new Date(rangeStart);
     while (temp <= rangeEnd) {
       const dStr = temp.toISOString().split('T')[0];
       const dayRecords = cutoffRecords.filter(r => r.date === dStr);
       const isSunday = temp.getDay() === 0;
       const isHost = (employee.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
-      
       const mainRecord = dayRecords.find(r => r.status !== 'Lembur');
       const overtimeRecords = dayRecords.filter(r => r.status === 'Lembur');
-
       if (mainRecord) {
         if (mainRecord.status === 'Hadir') summary.hadir++;
         else if (mainRecord.status === 'Sakit') summary.sakit++;
@@ -132,43 +125,53 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         if (dStr < todayStr && dStr >= ALPHA_START_DATE && isWorkDay(temp, employee)) {
           summary.alpha++;
         } else {
-          if (!isHost && isSunday) {
-            summary.libur++;
-          } else {
-            summary.hadir++;
-          }
+          if (!isHost && isSunday) summary.libur++;
+          else summary.hadir++;
         }
       }
-
       overtimeRecords.forEach(ov => {
         if (ov.clockIn && ov.clockOut) {
           const startArr = ov.clockIn.split(':').map(Number);
           const endArr = ov.clockOut.split(':').map(Number);
           const startMinutes = startArr[0] * 60 + startArr[1];
           const endMinutes = endArr[0] * 60 + endArr[1];
-          
           let diffMinutes = endMinutes - startMinutes;
           if (diffMinutes < 0) diffMinutes += 1440; 
-          
           const hours = diffMinutes / 60;
           summary.overtimeHours += hours;
+          // Perhitungan lembur: 1 jam = 20.000
           summary.totalOvertimePay += Math.round(hours * 20000);
         }
       });
-
       temp.setDate(temp.getDate() + 1);
     }
-
     return summary;
   }, [attendanceRecords, data.month, data.year, employee, weeklyHolidays]);
 
   const totalTunjanganOps = (data.tunjanganMakan || 0) + (data.tunjanganTransport || 0) + (data.tunjanganKomunikasi || 0) + (data.tunjanganKesehatan || 0) + (data.tunjanganJabatan || 0);
-
+  
   const potonganAbsensi = useMemo(() => {
     const totalGajiTetap = (data.gapok || 0) + totalTunjanganOps;
     const dailyRate = totalGajiTetap / 26;
     return Math.round((attendanceResults.alpha || 0) * dailyRate);
   }, [data.gapok, totalTunjanganOps, attendanceResults.alpha]);
+
+  const finalLemburValue = (data.lembur || 0) + attendanceResults.totalOvertimePay;
+  const totalPendapatan = (data.gapok || 0) + totalTunjanganOps + finalLemburValue + (data.bonus || 0) + (data.thr || 0);
+
+  const autoBPJS = useMemo(() => Math.round(totalPendapatan * 0.02), [totalPendapatan]);
+  const autoPajak = useMemo(() => {
+    if (totalPendapatan <= 5400000) return 0;
+    if (totalPendapatan <= 10000000) return Math.round(totalPendapatan * 0.0025);
+    if (totalPendapatan <= 15000000) return Math.round(totalPendapatan * 0.0125);
+    return Math.round(totalPendapatan * 0.05);
+  }, [totalPendapatan]);
+
+  useEffect(() => {
+    if (isBPJSTKActive) {
+      setData(prev => ({ ...prev, bpjstk: autoBPJS }));
+    }
+  }, [autoBPJS, isBPJSTKActive]);
 
   const calculateTHRValue = () => {
     const { totalMonths } = tenureInfo;
@@ -177,13 +180,19 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     setData(prev => ({ ...prev, thr: thrValue }));
   };
 
-  const finalLemburValue = (data.lembur || 0) + attendanceResults.totalOvertimePay;
-  const totalPendapatan = (data.gapok || 0) + totalTunjanganOps + finalLemburValue + (data.bonus || 0) + (data.thr || 0);
-  const totalPotongan = (data.bpjstk || 0) + potonganAbsensi + (data.potonganHutang || 0) + (data.potonganLain || 0);
+  const currentBPJSTK = isBPJSTKActive ? (data.bpjstk || 0) : 0;
+  const totalPotongan = currentBPJSTK + potonganAbsensi + (data.pph21 || 0) + (data.potonganHutang || 0) + (data.potonganLain || 0);
   const takeHomePay = totalPendapatan - totalPotongan + (data.adjustment || 0);
   const sisaHutang = Math.max(0, (employee.hutang || 0) - (data.potonganHutang || 0));
 
   const handleSaveConfig = async () => {
+    if (isSaving) return;
+
+    if (data.potonganHutang > 0) {
+      const confirmUpdate = window.confirm(`Perhatian! Saldo hutang karyawan akan berkurang sebesar Rp ${data.potonganHutang.toLocaleString('id-ID')}. Saldo akhir akan menjadi Rp ${sisaHutang.toLocaleString('id-ID')}. Lanjutkan?`);
+      if (!confirmUpdate) return;
+    }
+
     setIsSaving(true);
     try {
       const configToSave = {
@@ -194,16 +203,33 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         tunjanganKesehatan: data.tunjanganKesehatan,
         tunjanganJabatan: data.tunjanganJabatan,
         bpjstk: data.bpjstk,
+        pph21: data.pph21,
         lembur: data.lembur,
         bonus: data.bonus,
         thr: data.thr
       };
-      const { error } = await supabase.from('employees').update({ salaryConfig: configToSave }).eq('id', employee.id);
+
+      const updates: any = { 
+        salaryConfig: configToSave 
+      };
+      
+      if (data.potonganHutang > 0) {
+        updates.hutang = sisaHutang;
+      }
+
+      const { error } = await supabase
+        .from('employees')
+        .update(updates)
+        .eq('id', employee.id);
+
       if (error) throw error;
-      alert("Konfigurasi gaji berhasil disimpan!");
+
+      alert("Data Payroll & Saldo Hutang berhasil diperbarui secara otomatis!");
       if (onUpdate) onUpdate();
+      onClose();
     } catch (err: any) {
-      alert("Gagal menyimpan: " + err.message);
+      console.error("Save Error:", err);
+      alert("Gagal menyimpan perubahan: " + err.message);
     } finally {
       setIsSaving(false);
     }
@@ -280,8 +306,9 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           <div>
             <h3 style={{ fontSize: '14px', fontWeight: '900', textTransform: 'uppercase', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px', marginBottom: '20px' }}>Potongan (-)</h3>
             <div style={{ fontSize: '14px', lineHeight: '2.4' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>BPJS TK</span><span style={{ fontWeight: '800' }}>Rp {(data.bpjstk || 0).toLocaleString('id-ID')}</span></div>
+              {isBPJSTKActive && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>BPJS TK (2%)</span><span style={{ fontWeight: '800', color: '#ef4444' }}>Rp {(data.bpjstk || 0).toLocaleString('id-ID')}</span></div>}
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Absensi ({attendanceResults.alpha || 0} Alpha)</span><span style={{ fontWeight: '800', color: '#ef4444' }}>Rp {(potonganAbsensi || 0).toLocaleString('id-ID')}</span></div>
+              {(data.pph21 || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>PPh 21</span><span style={{ fontWeight: '800', color: '#ef4444' }}>Rp {(data.pph21 || 0).toLocaleString('id-ID')}</span></div>}
               {(data.potonganHutang || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Cicilan Hutang</span><span style={{ fontWeight: '800', color: '#ef4444' }}>Rp {(data.potonganHutang || 0).toLocaleString('id-ID')}</span></div>}
               {(data.potonganLain || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Potongan Lain</span><span style={{ fontWeight: '800', color: '#ef4444' }}>Rp {(data.potonganLain || 0).toLocaleString('id-ID')}</span></div>}
               <div style={{ borderTop: '1px solid #e2e8f0', marginTop: '10px', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '16px' }}><span>Total Potongan</span><span style={{ color: '#ef4444' }}>Rp {(totalPotongan || 0).toLocaleString('id-ID')}</span></div>
@@ -316,7 +343,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   );
 
   return (
-    <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[50]">
+    <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[200]">
       <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[95vh]">
         <div className="p-8 border-b bg-[#111827] text-white flex justify-between items-center shrink-0">
           <div>
@@ -326,8 +353,8 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           <button onClick={onClose} className="text-4xl leading-none opacity-40 hover:opacity-100 transition-opacity">&times;</button>
         </div>
         
-        <div className="p-8 overflow-y-auto space-y-6 bg-white flex-grow custom-scrollbar">
-          <div style={{ position: 'fixed', top: 0, left: 0, width: '794px', height: '1122px', zIndex: -100, visibility: 'hidden', pointerEvents: 'none' }}>
+        <div className="p-8 overflow-y-auto space-y-6 bg-white flex-grow custom-scrollbar min-h-[300px]">
+          <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', pointerEvents: 'none' }}>
             <div ref={hiddenSlipRef}><SalarySlipContent /></div>
           </div>
 
@@ -339,7 +366,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
 
             <div className="bg-[#FFFBEB] p-6 rounded-3xl border-2 border-[#FFE066] space-y-4">
                <div className="flex justify-between items-center">
-                  <p className="text-[10px] font-black text-[#806000] uppercase tracking-widest">Tambahan Gaji</p>
+                  <p className="text-[10px] font-black text-[#806000] uppercase tracking-widest">Tambahan Gaji (Rate: 20rb/jam)</p>
                   <span className="text-[9px] font-bold text-[#A68000]">Approved Lembur: {attendanceResults.overtimeHours.toFixed(1)} Jam (Rp {attendanceResults.totalOvertimePay.toLocaleString('id-ID')})</span>
                </div>
                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -366,19 +393,66 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                   <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest">HARI ALPHA ({attendanceResults.alpha})</label>
                   <p className="text-xl font-black text-rose-700">Rp {potonganAbsensi.toLocaleString('id-ID')}</p>
                 </div>
-                <div className="space-y-1.5 p-4 rounded-2xl border border-amber-100">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Potongan BPJSTK</label>
-                  <input type="text" value={(data.bpjstk || 0).toLocaleString('id-ID')} onChange={e => setData({...data, bpjstk: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border-2 border-amber-100 rounded-xl p-3 text-base font-black text-black shadow-sm focus:border-amber-400 outline-none" />
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <input 
+                      type="checkbox" 
+                      id="toggle-bpjstk"
+                      checked={isBPJSTKActive}
+                      onChange={(e) => setIsBPJSTKActive(e.target.checked)}
+                      className="w-4 h-4 rounded border-amber-200 text-[#FFC000] focus:ring-[#FFC000]"
+                    />
+                    <label htmlFor="toggle-bpjstk" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">AKTIFKAN POTONGAN BPJSTK (2%)</label>
+                  </div>
+                  <div className={`transition-opacity duration-300 ${isBPJSTKActive ? 'opacity-100' : 'opacity-30'}`}>
+                    <div className="flex items-center gap-2">
+                       <input 
+                        type="text" 
+                        disabled={!isBPJSTKActive}
+                        value={(data.bpjstk || 0).toLocaleString('id-ID')} 
+                        onChange={e => setData({...data, bpjstk: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
+                        className="flex-grow bg-white border-2 border-amber-100 rounded-xl p-3 text-base font-black text-black shadow-sm focus:border-amber-400 outline-none" 
+                      />
+                      <button onClick={() => setData({...data, bpjstk: autoBPJS})} className="bg-amber-500 text-white p-3 rounded-xl hover:bg-amber-600 transition-colors"><Icons.Sparkles className="w-4 h-4"/></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="pt-2 border-t border-slate-100">
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Potongan PPh 21 (Rp)</label>
+                    <button onClick={() => setData({...data, pph21: autoPajak})} className="text-[9px] font-black text-[#FFC000] bg-slate-900 px-3 py-1 rounded-lg">AUTO TER</button>
+                  </div>
+                  <input 
+                    type="text" 
+                    value={(data.pph21 || 0).toLocaleString('id-ID')} 
+                    onChange={e => setData({...data, pph21: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
+                    className="w-full bg-white border-2 border-slate-100 rounded-xl p-3 text-sm font-black text-black shadow-sm focus:border-indigo-400 outline-none" 
+                    placeholder="Pajak Bulanan..."
+                  />
                 </div>
               </div>
             </div>
 
             <div className="bg-slate-50/50 p-6 rounded-3xl border-2 border-slate-100 space-y-4">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Potongan Pinjaman & Lain-lain</p>
+              <div className="flex justify-between items-center">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Potongan Pinjaman & Lain-lain</p>
+                <span className="text-[9px] font-black text-slate-400 bg-white px-3 py-1 rounded-lg border">SISA SALDO: Rp {sisaHutang.toLocaleString('id-ID')}</span>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Potongan Hutang (Saldo: Rp {(employee.hutang || 0).toLocaleString('id-ID')})</label>
-                  <input type="text" value={(data.potonganHutang || 0).toLocaleString('id-ID')} onChange={e => setData({...data, potonganHutang: Math.min(employee.hutang || 0, parseInt(e.target.value.replace(/\./g, '')) || 0)})} className="w-full bg-white border-2 border-red-100 rounded-xl p-3 text-sm font-black text-black focus:border-red-400 outline-none" />
+                  <input 
+                    type="text" 
+                    value={(data.potonganHutang || 0).toLocaleString('id-ID')} 
+                    onChange={e => {
+                      const val = parseInt(e.target.value.replace(/\./g, '')) || 0;
+                      setData({...data, potonganHutang: Math.min(employee.hutang || 0, val)});
+                    }} 
+                    className="w-full bg-white border-2 border-red-100 rounded-xl p-3 text-sm font-black text-black focus:border-red-400 outline-none" 
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Potongan Lain</label>
@@ -386,32 +460,45 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                 </div>
               </div>
             </div>
-
-            <div className="bg-slate-900 rounded-3xl p-8 text-white shadow-xl flex justify-between items-center border-l-[12px] border-[#FFC000]">
-              <div><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Take Home Pay</p><p className="text-4xl font-black text-[#FFC000]">Rp {(takeHomePay || 0).toLocaleString('id-ID')}</p></div>
-              <div className="text-right"><p className="text-[9px] text-slate-500 font-bold uppercase mb-1">Total Bruto</p><p className="text-sm font-bold">Rp {(totalPendapatan || 0).toLocaleString('id-ID')}</p></div>
-            </div>
           </div>
         </div>
 
-        <div className="p-8 bg-white border-t-2 flex flex-col gap-4 shrink-0">
-          <button disabled={isSaving} onClick={handleSaveConfig} className="w-full bg-slate-900 text-[#FFC000] py-4 rounded-2xl font-black transition-all shadow-lg text-sm tracking-widest uppercase flex items-center justify-center gap-3 disabled:opacity-50">
-            {isSaving ? 'Menyimpan...' : <><Icons.Database /> SIMPAN PERUBAHAN</>}
-          </button>
-          <button onClick={() => setIsPreview(true)} className="w-full bg-[#FFC000] text-black py-4 rounded-2xl font-black hover:bg-[#E6AD00] transition-all shadow-md text-sm tracking-widest uppercase">LIHAT PRATINJAU SLIP</button>
-          <div className="flex gap-4">
-            <button onClick={() => window.open(`https://wa.me/${employee.noHandphone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Halo ${employee.nama}, Slip Gaji ${data.month} Anda sudah terbit. Total diterima: Rp ${takeHomePay.toLocaleString('id-ID')}`)}`)} className="flex-1 bg-emerald-500 text-white py-3 rounded-2xl font-black text-xs uppercase flex items-center justify-center gap-2">WA</button>
-            <button onClick={handleSendEmail} className="flex-1 bg-blue-600 text-white py-3 rounded-2xl font-black text-xs uppercase flex items-center justify-center gap-2">Email</button>
+        <div className="bg-white border-t-2 flex flex-col shrink-0">
+          <div className="bg-slate-900 px-8 py-5 text-white flex justify-between items-center border-l-[12px] border-[#FFC000] shadow-inner relative z-10">
+            <div>
+              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">Take Home Pay</p>
+              <p className="text-2xl font-black text-[#FFC000]">Rp {(takeHomePay || 0).toLocaleString('id-ID')}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[8px] text-slate-500 font-bold uppercase mb-1">Total Bruto</p>
+              <p className="text-xs font-bold">Rp {(totalPendapatan || 0).toLocaleString('id-ID')}</p>
+            </div>
+          </div>
+          
+          <div className="p-4 sm:p-6 space-y-3">
+            <button 
+              type="button"
+              disabled={isSaving} 
+              onClick={handleSaveConfig} 
+              className="w-full bg-slate-900 text-[#FFC000] py-4 rounded-2xl font-black transition-all shadow-lg text-xs tracking-widest uppercase flex items-center justify-center gap-3 disabled:opacity-50 active:scale-95 hover:bg-black"
+            >
+              {isSaving ? 'MEMPROSES...' : <><Icons.Database /> SIMPAN PERUBAHAN & POTONG HUTANG</>}
+            </button>
+            <button type="button" onClick={() => setIsPreview(true)} className="w-full bg-[#FFC000] text-black py-4 rounded-2xl font-black hover:bg-[#E6AD00] transition-all shadow-md text-xs tracking-widest uppercase active:scale-95">LIHAT PRATINJAU SLIP</button>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => window.open(`https://wa.me/${employee.noHandphone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Halo ${employee.nama}, Slip Gaji ${data.month} Anda sudah terbit. Total diterima: Rp ${takeHomePay.toLocaleString('id-ID')}`)}`)} className="flex-1 bg-emerald-500 text-white py-3 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-2 active:scale-95">WA</button>
+              <button type="button" onClick={handleSendEmail} className="flex-1 bg-blue-600 text-white py-3 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-2 active:scale-95">Email</button>
+            </div>
           </div>
         </div>
       </div>
       {isPreview && (
-        <div className="fixed inset-0 bg-slate-100 z-[60] p-10 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-100 z-[210] p-4 sm:p-10 overflow-y-auto">
           <div className="max-w-[800px] mx-auto shadow-2xl bg-white mb-32"><div ref={previewSlipRef}><SalarySlipContent /></div></div>
-          <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex gap-4 bg-white/90 backdrop-blur-xl px-8 py-5 rounded-full shadow-2xl border border-white/50 z-[70]">
-            <button onClick={() => setIsPreview(false)} className="px-6 py-2 rounded-full text-[10px] font-black text-slate-500 uppercase">Kembali</button>
-            <button onClick={() => handleDownloadImage()} className="bg-slate-900 text-white px-6 py-2 rounded-full text-[10px] font-black uppercase">Simpan PNG</button>
-            <button onClick={handleSendEmail} className="bg-blue-600 text-white px-6 py-2 rounded-full text-[10px] font-black uppercase">Kirim via Email</button>
+          <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex gap-2 sm:gap-4 bg-white/90 backdrop-blur-xl px-6 sm:px-8 py-4 sm:py-5 rounded-full shadow-2xl border border-white/50 z-[220] flex-wrap justify-center">
+            <button type="button" onClick={() => setIsPreview(false)} className="px-4 sm:px-6 py-2 rounded-full text-[10px] font-black text-slate-500 uppercase">Kembali</button>
+            <button type="button" onClick={() => handleDownloadImage()} className="bg-slate-900 text-white px-4 sm:px-6 py-2 rounded-full text-[10px] font-black uppercase">Simpan PNG</button>
+            <button type="button" onClick={handleSendEmail} className="bg-blue-600 text-white px-4 sm:px-6 py-2 rounded-full text-[10px] font-black uppercase">Kirim via Email</button>
           </div>
         </div>
       )}

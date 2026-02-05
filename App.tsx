@@ -1,7 +1,8 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { createClient, Session } from '@supabase/supabase-js';
-import { Employee, AttendanceRecord, LiveSchedule, Submission, Broadcast, ContentPlan } from './types.ts';
+import { Employee, AttendanceRecord, LiveSchedule, Submission, Broadcast, ContentPlan, LiveReport } from './types.ts';
 import { Icons, BANK_OPTIONS } from './constants.tsx';
 import EmployeeForm from './components/EmployeeForm.tsx';
 import Dashboard from './components/Dashboard.tsx';
@@ -13,7 +14,11 @@ import SubmissionForm from './components/SubmissionForm.tsx';
 import Inbox from './components/Inbox.tsx';
 import ContentModule from './components/ContentModule.tsx';
 import AbsenModule from './components/AbsenModule.tsx';
+import LegalModal from './components/LegalModal.tsx';
+import SettingsModule from './components/SettingsModule.tsx';
 import { getTenureYears, calculateTenure } from './utils/dateUtils.ts';
+
+const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
 
 // --- KONFIGURASI SUPABASE ---
 const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://rcrtknakiwvfkmnwvdvf.supabase.co').trim();
@@ -21,14 +26,14 @@ const SUPABASE_ANON_KEY = (process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiI
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-type ActiveTab = 'employees' | 'absen' | 'attendance' | 'schedule' | 'content' | 'submissions' | 'inbox';
-type UserRole = 'super' | 'admin' | 'employee';
+type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'submissions' | 'inbox' | 'settings';
+type UserRole = 'owner' | 'super' | 'admin' | 'employee';
 
 const App: React.FC = () => {
-  const APP_VERSION = "1.0.2"; // Untuk verifikasi update di browser
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<UserRole>('employee');
   const [currentUserEmployee, setCurrentUserEmployee] = useState<Employee | null>(null);
+  const [userCompany, setUserCompany] = useState<string>('Visibel');
   
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
@@ -38,21 +43,21 @@ const App: React.FC = () => {
   const [authError, setAuthError] = useState('');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
 
+  const [legalType, setLegalType] = useState<'privacy' | 'tos' | null>(null);
+
   const getTodayStr = () => new Date().toISOString().split('T')[0];
+  const getFirstDayOfMonth = () => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  };
 
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
     const savedTab = localStorage.getItem('visibel_active_tab');
-    return (savedTab as ActiveTab) || 'employees';
+    return (savedTab as ActiveTab) || 'home';
   });
 
   const [attendanceStartDate, setAttendanceStartDate] = useState(getTodayStr());
   const [attendanceEndDate, setAttendanceEndDate] = useState(getTodayStr());
-
-  const syncAttendanceDates = () => {
-    const today = getTodayStr();
-    setAttendanceStartDate(today);
-    setAttendanceEndDate(today);
-  };
 
   useEffect(() => {
     localStorage.setItem('visibel_active_tab', activeTab);
@@ -62,205 +67,156 @@ const App: React.FC = () => {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [liveSchedules, setLiveSchedules] = useState<LiveSchedule[]>([]);
   const [contentPlans, setContentPlans] = useState<ContentPlan[]>([]);
+  const [liveReports, setLiveReports] = useState<LiveReport[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [weeklyHolidays, setWeeklyHolidays] = useState<Record<string, string[]>>({});
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [isImportingEmployees, setIsImportingEmployees] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   
-  const [isAttendanceDropdownOpen, setIsAttendanceDropdownOpen] = useState(false);
-
+  const [isDesktopDropdownOpen, setIsDesktopDropdownOpen] = useState(false);
+  const [isMobileDropdownOpen, setIsMobileDropdownOpen] = useState(false);
+  
   const [searchQuery, setSearchQuery] = useState('');
+  const [companyFilter, setCompanyFilter] = useState<string>('ALL');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isAnnouncementOpen, setIsAnnouncementOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [slipEmployee, setSlipEmployee] = useState<Employee | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const desktopDropdownRef = useRef<HTMLDivElement>(null);
+  const mobileDropdownRef = useRef<HTMLDivElement>(null);
   const employeeFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (window.innerWidth >= 640 && dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsAttendanceDropdownOpen(false);
+      if (desktopDropdownRef.current && !desktopDropdownRef.current.contains(event.target as Node)) {
+        setIsDesktopDropdownOpen(false);
+      }
+      if (mobileDropdownRef.current && !mobileDropdownRef.current.contains(event.target as Node)) {
+        setIsMobileDropdownOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
-  }, []);
-
-  const getRoleBasedOnEmail = (email: string): UserRole => {
-    const emailLower = email.toLowerCase();
-    if (emailLower === 'muhammadmahardhikadib@gmail.com' || emailLower === 'rezaajidharma@gmail.com') return 'super';
+  const getRoleBasedOnEmail = (email: string, dbRole?: string): UserRole => {
+    const emailLower = (email || '').toLowerCase();
+    if (emailLower === OWNER_EMAIL) return 'owner';
+    if (dbRole) return dbRole as UserRole;
+    if (emailLower === 'rezaajidharma@gmail.com') return 'super';
     if (emailLower === 'fikryadityar93@gmail.com' || emailLower === 'ariyansyah02122002@gmail.com') return 'admin';
     return 'employee';
   };
 
   const fetchData = async (userEmail?: string, isSilent: boolean = false) => {
     if (!navigator.onLine) {
-      setFetchError("Anda sedang offline. Periksa koneksi internet Anda.");
+      setFetchError("Anda sedang offline.");
       return;
     }
-
     if (!isSilent) setIsLoadingData(true);
-    setFetchError(null);
-
     const targetEmail = userEmail || session?.user?.email;
 
     try {
-      if (isSilent) syncAttendanceDates();
-
       const { data: empData, error: empError } = await supabase
         .from('employees')
-        .select('id, idKaryawan, nama, jabatan, email, avatarUrl, tanggalMasuk, hutang, tempatLahir, tanggalLahir, alamat, noKtp, noHandphone, bank, noRekening, namaDiRekening, photoBase64, salaryConfig');
+        .select('*');
       
       if (empError) throw empError;
-      const allEmployees = empData || [];
-      setEmployees(allEmployees);
-
-      let currentEmp: Employee | null = null;
-      let role: UserRole = 'employee';
       
+      let allEmployees = empData || [];
+      let currentEmp: Employee | null = null;
+      let detectedCompany = 'Visibel';
+
       if (targetEmail) {
         currentEmp = allEmployees.find(e => e.email?.toLowerCase() === targetEmail.toLowerCase()) || null;
-        setCurrentUserEmployee(currentEmp);
-        role = getRoleBasedOnEmail(targetEmail);
-        setUserRole(role);
-        if (role === 'employee' && activeTab === 'employees') {
-          setActiveTab('absen');
+        if (currentEmp) {
+          detectedCompany = currentEmp.company || 'Visibel';
+          setUserCompany(detectedCompany);
+          setCurrentUserEmployee(currentEmp);
         }
+        const currentRole = getRoleBasedOnEmail(targetEmail, currentEmp?.role);
+        setUserRole(currentRole);
       }
+      
+      const activeUserRole = targetEmail ? getRoleBasedOnEmail(targetEmail, currentEmp?.role) : 'employee';
+      const isOwner = activeUserRole === 'owner';
+
+      const companyFilterVal = detectedCompany;
+
+      const companyEmployees = allEmployees.filter(e => isOwner || (e.company || 'Visibel') === companyFilterVal);
+      setEmployees(companyEmployees);
+
+      const buildQuery = (table: string) => {
+        let q = supabase.from(table).select('*');
+        if (!isOwner) q = q.eq('company', companyFilterVal);
+        return q;
+      };
 
       const fetchPromises = [
-        supabase.from('attendance').select('id, employeeId, date, status, clockIn, clockOut, notes').order('date', { ascending: false }).then(({data, error}) => {
-          if (!error) setAttendanceRecords(data || []);
-        }),
-        (() => {
-          let subQuery = supabase.from('submissions').select('id, employeeId, employeeName, type, startDate, endDate, notes, status, submittedAt').order('submittedAt', { ascending: false });
-          if (role === 'employee' && currentEmp) subQuery = subQuery.eq('employeeId', currentEmp.id);
-          return subQuery.then(({data, error}) => {
-            if (!error) setSubmissions(data || []);
-          });
-        })(),
-        supabase.from('broadcasts').select('id, title, message, targetEmployeeIds, sentAt').order('sentAt', { ascending: false }).then(({data, error}) => {
-          if (!error) setBroadcasts(data || []);
-        }),
-        supabase.from('schedules').select('*').then(({data, error}) => {
-          if (!error) setLiveSchedules(data || []);
-        }),
-        supabase.from('content_plans').select('id, title, brand, platform, creatorId, deadline, postingDate, contentPillar, linkPostingan, views, likes, comments, saves, shares, status').order('postingDate', { ascending: false }).then(({data, error}) => {
-          if (!error) setContentPlans(data || []);
-        }),
-        supabase.from('settings').select('value').eq('key', 'weekly_holidays_config').single().then(({data, error}) => {
-          if (!error && data) setWeeklyHolidays(data.value);
+        buildQuery('attendance').order('date', { ascending: false }).then(({data}) => setAttendanceRecords(data || [])),
+        buildQuery('live_reports').order('tanggal', { ascending: false }).then(({data}) => setLiveReports(data || [])),
+        buildQuery('submissions').order('submittedAt', { ascending: false }).then(({data}) => setSubmissions(data || [])),
+        buildQuery('broadcasts').order('sentAt', { ascending: false }).then(({data}) => setBroadcasts(data || [])),
+        buildQuery('schedules').then(({data}) => setLiveSchedules(data || [])),
+        buildQuery('content_plans').order('postingDate', { ascending: false }).then(({data}) => setContentPlans(data || [])),
+        supabase.from('settings').select('value').eq('key', `weekly_holidays_${companyFilterVal}`).single().then(({data}) => { 
+          if (data) setWeeklyHolidays(data.value); 
+          else setWeeklyHolidays(DEFAULT_HOLIDAYS);
         })
       ];
-
       await Promise.all(fetchPromises);
-
     } catch (err: any) {
-      setFetchError("Gagal terhubung ke database. Periksa koneksi internet Anda.");
+      setFetchError("Gagal sinkronisasi data.");
     } finally {
       setIsLoadingData(false);
     }
   };
 
-  const fetchEmployeeDetail = async (id: string): Promise<Employee | null> => {
-    const { data, error } = await supabase.from('employees').select('*').eq('id', id).single();
-    if (error) return null;
-    return data;
+  const DEFAULT_HOLIDAYS = {
+    'SENIN': [], 'SELASA': [], 'RABU': [], 'KAMIS': [], 'JUMAT': [], 'SABTU': [], 'MINGGU': []
   };
 
-  const handleEditClick = async (emp: Employee) => {
-    const detail = await fetchEmployeeDetail(emp.id);
-    if (detail) {
-      setEditingEmployee(detail);
-      setIsFormOpen(true);
-    } else {
-      setEditingEmployee(emp);
-      setIsFormOpen(true);
-    }
-  };
-
-  useEffect(() => {
-    if (!session) return;
-
-    const subChannel = supabase
-      .channel('realtime-updates-global')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'submissions' },
-        (payload) => {
-          fetchData(session?.user?.email, true);
-          if ((userRole === 'super' || userRole === 'admin') && Notification.permission === "granted") {
-            new Notification("HR.Visibel: Pengajuan Baru!", {
-              body: `Ada pengajuan ${payload.new.type} baru dari ${payload.new.employeeName}.`,
-              icon: "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA"
-            });
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'broadcasts' },
-        (payload) => {
-          fetchData(session?.user?.email, true);
-          if (currentUserEmployee && payload.new.targetEmployeeIds.includes(currentUserEmployee.id)) {
-            if (Notification.permission === "granted") {
-              new Notification("Pengumuman Baru!", {
-                body: payload.new.title,
-                icon: "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA"
-              });
-            }
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'submissions' },
-        () => fetchData(session?.user?.email, true)
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(subChannel);
-    };
-  }, [session, userRole, currentUserEmployee]);
-
-  const handleAuth = async (loginEmail: string, loginPassword?: string, isRegister = false, isReset = false) => {
+  const handleAuth = async (email: string, password?: string, isRegister = false, isReset = false) => {
     setIsAuthLoading(true);
     setAuthError('');
     try {
       if (isReset) {
-        const { error } = await supabase.auth.resetPasswordForEmail(loginEmail, {
-          redirectTo: window.location.origin,
-        });
+        const { error } = await supabase.auth.resetPasswordForEmail(email);
         if (error) throw error;
-        alert('Tautan pemulihan kata sandi telah dikirim ke email Anda.');
+        alert('Cek email untuk reset password.');
         setIsForgotPasswordMode(false);
       } else if (isRegister) {
-        const { error } = await supabase.auth.signUp({
-          email: loginEmail,
-          password: loginPassword!,
-        });
+        const { error } = await supabase.auth.signUp({ email, password: password! });
         if (error) throw error;
-        alert('Pendaftaran berhasil! Silakan cek email Anda untuk verifikasi atau silakan login.');
+        alert('Berhasil daftar, silakan cek email.');
         setIsRegisterMode(false);
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: loginEmail,
-          password: loginPassword!,
-        });
+        const { error } = await supabase.auth.signInWithPassword({ email, password: password! });
         if (error) throw error;
       }
     } catch (err: any) {
-      setAuthError(err.message || 'Terjadi kesalahan otentikasi');
+      setAuthError(err.message);
     } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsAuthLoading(true);
+    setAuthError('');
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin
+        }
+      });
+      if (error) throw error;
+    } catch (err: any) {
+      setAuthError(err.message);
       setIsAuthLoading(false);
     }
   };
@@ -268,516 +224,569 @@ const App: React.FC = () => {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session?.user?.email) {
-        fetchData(session.user.email);
-      }
-    }).catch(err => {
-      console.error("Auth session error:", err.message);
+      if (session?.user?.email) fetchData(session.user.email);
     });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session?.user?.email) {
-        fetchData(session.user.email);
-      } else {
-        setUserRole('employee');
-        setCurrentUserEmployee(null);
-      }
+      if (session?.user?.email) fetchData(session.user.email);
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    localStorage.removeItem('visibel_active_tab'); 
-    setEmployees([]);
-    setAttendanceRecords([]);
-    setLiveSchedules([]);
-    setContentPlans([]);
-    setSubmissions([]);
-    setBroadcasts([]);
-    setWeeklyHolidays({});
-    setCurrentUserEmployee(null);
-  };
-
-  const handleSave = async (employee: Employee) => {
-    try {
-      const { error } = await supabase.from('employees').upsert(employee);
-      if (error) throw error;
-      await fetchData(session?.user?.email, true);
-      setIsFormOpen(false);
-      setEditingEmployee(null);
-    } catch (err: any) {
-      alert("Gaji menyimpan: " + err.message);
-    }
-  };
-
-  const handleDeleteEmployee = async (id: string) => {
-    if (!confirm('Hapus Karyawan?')) return;
-    try {
-      const { error } = await supabase.from('employees').delete().eq('id', id);
-      if (error) throw error;
-      setEmployees(prev => prev.filter(e => e.id !== id));
-    } catch (err: any) {
-      alert("Gagal menghapus: " + err.message);
-    }
-  };
-
-  const downloadEmployeeTemplate = () => {
-    const templateData = [{
-      'ID Karyawan': 'VSB-XXXX',
-      'Nama': 'Contoh Nama',
-      'Jabatan': 'Staff',
-      'Email': 'contoh@visibel.id',
-      'Tempat Lahir': 'Jakarta',
-      'Tanggal Lahir': '01/01/1990',
-      'Alamat': 'Jl. Contoh No. 123',
-      'No KTP': '3201xxxxxxxxxxxx',
-      'No Handphone': '0812xxxxxxxx',
-      'Tanggal Masuk': '01/01/2023',
-      'Bank': 'BCA',
-      'No Rekening': '1234567890',
-      'Nama Di Rekening': 'CONTOH NAMA',
-      'Hutang': 0
-    }];
-    const worksheet = XLSX.utils.json_to_sheet(templateData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Template Karyawan");
-    XLSX.writeFile(workbook, `Template_Database_Karyawan.xlsx`);
-  };
-
-  const exportEmployees = (targetEmployees?: Employee[]) => {
-    const listToExport = targetEmployees || employees;
-    const dataToExport = listToExport.map(emp => ({
-      'ID Karyawan': emp.idKaryawan,
-      'Nama': emp.nama,
-      'Jabatan': emp.jabatan,
-      'Email': emp.email,
-      'Tempat Lahir': emp.tempatLahir,
-      'Tanggal Lahir': emp.tanggalLahir,
-      'Alamat': emp.alamat,
-      'No KTP': emp.noKtp,
-      'No Handphone': emp.noHandphone,
-      'Tanggal Masuk': emp.tanggalMasuk,
-      'Bank': emp.bank,
-      'No Rekening': emp.noRekening,
-      'Nama Di Rekening': emp.namaDiRekening,
-      'Hutang': emp.hutang
-    }));
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Database Karyawan");
-    XLSX.writeFile(workbook, `Database_Karyawan_Visibel_${new Date().toISOString().split('T')[0]}.xlsx`);
-  };
-
-  const importEmployees = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const data = new Uint8Array(event.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
-
-        const newEmployees: any[] = jsonData.map((row: any) => {
-          const idKaryawan = String(row['ID Karyawan'] || '').trim();
-          const existingEmployee = employees.find(e => e.idKaryawan === idKaryawan);
-          
-          return {
-            id: existingEmployee ? existingEmployee.id : (row['ID'] || Date.now().toString() + Math.random().toString(36).substr(2, 5)),
-            idKaryawan: idKaryawan,
-            nama: String(row['Nama'] || '').trim(),
-            jabatan: String(row['Jabatan'] || '').trim(),
-            email: String(row['Email'] || '').trim(),
-            tempatLahir: String(row['Tempat Lahir'] || '').trim(),
-            tanggalLahir: String(row['Tanggal Lahir'] || '').trim(),
-            alamat: String(row['Alamat'] || '').trim(),
-            noKtp: String(row['No KTP'] || '').trim(),
-            noHandphone: String(row['No Handphone'] || '').trim(),
-            tanggalMasuk: String(row['Tanggal Masuk'] || '').trim(),
-            bank: String(row['Bank'] || 'BCA').trim(),
-            noRekening: String(row['No Rekening'] || '').trim(),
-            namaDiRekening: String(row['Nama Di Rekening'] || '').trim(),
-            hutang: Number(row['Hutang'] || 0)
-          };
-        });
-
-        if (newEmployees.length > 0) {
-          const { error } = await supabase.from('employees').upsert(newEmployees, { onConflict: 'id' });
-          if (error) throw error;
-          alert(`Berhasil memproses ${newEmployees.length} data karyawan!`);
-          fetchData(session?.user?.email, true);
-        }
-      } catch (err: any) {
-        alert("Gagal mengimpor data: " + err.message);
-      }
-      if (employeeFileInputRef.current) employeeFileInputRef.current.value = '';
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  const unreadCount = useMemo(() => {
-    if (userRole === 'super' || userRole === 'admin') {
-      return submissions.filter(s => s.status === 'Pending').length;
-    } else if (userRole === 'employee' && currentUserEmployee) {
-      const relevantBroadcasts = broadcasts.filter(b => b.targetEmployeeIds.includes(currentUserEmployee!.id));
-      const mySubUpdates = submissions.filter(s => s.status !== 'Pending');
-      return relevantBroadcasts.length + mySubUpdates.length;
-    }
-    return 0;
-  }, [submissions, broadcasts, userRole, currentUserEmployee]);
+  const uniqueCompanies = useMemo(() => {
+    const set = new Set(employees.map(e => e.company || 'Visibel'));
+    return Array.from(set).sort();
+  }, [employees]);
 
   const filteredEmployees = useMemo(() => {
     let baseList = employees;
+    if (userRole !== 'owner') {
+      baseList = baseList.filter(emp => emp.email?.toLowerCase() !== OWNER_EMAIL);
+    }
+    if (userRole === 'owner' && companyFilter !== 'ALL') {
+      baseList = baseList.filter(emp => (emp.company || 'Visibel') === companyFilter);
+    }
     if (userRole === 'employee' && currentUserEmployee) {
-      baseList = employees.filter(emp => emp.id === currentUserEmployee.id);
+      baseList = baseList.filter(emp => emp.id === currentUserEmployee.id);
     }
     return baseList.filter(emp => 
       emp.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
       emp.idKaryawan.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [employees, searchQuery, userRole, currentUserEmployee]);
+  }, [employees, searchQuery, userRole, currentUserEmployee, companyFilter]);
 
-  const getUsedLeave = (empId: string) => {
-    const currentYear = new Date().getFullYear().toString();
-    return attendanceRecords.filter(r => 
-      r.employeeId === empId && 
-      r.status === 'Cuti' && 
-      r.date.startsWith(currentYear)
-    ).length;
+  const unreadCount = useMemo(() => {
+    if (userRole === 'owner' || userRole === 'super') return submissions.filter(s => s.status === 'Pending').length;
+    return 0;
+  }, [submissions, userRole]);
+
+  const handleDeleteEmployee = async (id: string) => {
+    if (!confirm('Hapus karyawan ini secara permanen?')) return;
+    try {
+      const { error } = await supabase.from('employees').delete().eq('id', id);
+      if (error) throw error;
+      fetchData(session?.user?.email, true);
+    } catch (err: any) {
+      alert("Gagal menghapus: " + err.message);
+    }
   };
 
-  if (!session) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
-        <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-md overflow-hidden relative border border-slate-200 animate-in fade-in zoom-in-95 duration-500">
-          <div className="bg-black p-10 text-center">
-            <img src="https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA" alt="Logo" className="w-[140px] h-auto mx-auto" />
-          </div>
-          <form onSubmit={(e) => { e.preventDefault(); handleAuth(loginEmail, loginPassword, isRegisterMode, isForgotPasswordMode); }} className="p-8 space-y-6">
-            <h2 className="text-xl font-bold text-slate-900 text-center uppercase tracking-[0.2em]">
-              {isForgotPasswordMode ? 'Reset Password' : isRegisterMode ? 'Daftar Baru' : 'Login'}
-            </h2>
-            <div className="space-y-2">
-              <label className="text-[10px] font-normal text-slate-400 uppercase tracking-widest">Email Terdaftar</label>
-              <input required type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} placeholder="admin@visibel.id" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-normal text-black outline-none focus:ring-2 focus:ring-[#FFC000] text-sm" />
-            </div>
-            {!isForgotPasswordMode && (
-              <div className="space-y-2">
-                <label className="text-[10px] font-normal text-slate-400 uppercase tracking-widest">Kata Sandi</label>
-                <div className="relative">
-                  <input required type={showPassword ? 'text' : 'password'} value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="••••••••" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-normal text-black outline-none focus:ring-2 focus:ring-[#FFC000] pr-12 text-sm" />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 p-1"><Icons.Search /></button>
-                </div>
-              </div>
-            )}
-            {authError && <p className="text-xs font-normal text-red-600 text-center">{authError}</p>}
-            
-            <button 
-              disabled={isAuthLoading} 
-              type="submit" 
-              className="w-full bg-[#111827] text-white py-6 rounded-3xl font-black text-sm uppercase tracking-[0.3em] shadow-2xl disabled:opacity-50 active:scale-95 transition-all"
-            >
-              {isAuthLoading ? 'Memproses...' : (isForgotPasswordMode ? 'Kirim Link' : isRegisterMode ? 'Daftar' : 'Masuk')}
-            </button>
-            
-            <div className="text-center pt-2 flex flex-col gap-3">
-              <button type="button" onClick={() => { setIsRegisterMode(!isRegisterMode); setIsForgotPasswordMode(false); }} className="text-[9px] font-normal text-slate-500 uppercase tracking-widest hover:text-slate-900 transition-colors">
-                {isRegisterMode ? 'Sudah punya akun? Masuk' : 'Daftar Baru'}
-              </button>
-              {!isRegisterMode && (
-                <button type="button" onClick={() => setIsForgotPasswordMode(!isForgotPasswordMode)} className="text-[9px] font-normal text-slate-500 uppercase tracking-widest hover:text-slate-900 transition-colors">
-                  {isForgotPasswordMode ? 'Kembali ke Masuk' : 'Lupa Password?'}
-                </button>
-              )}
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  }
+  const handleExportAllEmployees = () => {
+    const dataToExport = filteredEmployees.map(emp => ({
+      'COMPANY': emp.company,
+      'ID KARYAWAN': emp.idKaryawan,
+      'NAMA': emp.nama,
+      'TEMPAT LAHIR': emp.tempatLahir,
+      'TANGGAL LAHIR': emp.tanggalLahir,
+      'ALAMAT': emp.alamat,
+      'NO KTP': emp.noKtp,
+      'JABATAN': emp.jabatan,
+      'EMAIL': emp.email,
+      'NO HP': emp.noHandphone,
+      'MASA KERJA': calculateTenure(emp.tanggalMasuk),
+      'TANGGAL MASUK': emp.tanggalMasuk,
+      'BANK': emp.bank,
+      'REKENING': emp.noRekening,
+      'HUTANG': emp.hutang
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Database Karyawan");
+    XLSX.writeFile(workbook, `Database_Karyawan_${userCompany}_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
 
-  const isFullscreenModule = (activeTab as string) === 'absen' || (activeTab as string) === 'schedule';
+  const handleDownloadTemplate = () => {
+    const template = [
+      {
+        'COMPANY': userCompany,
+        'ID KARYAWAN': 'VID-7251',
+        'NAMA': 'NAMA CONTOH',
+        'TEMPAT LAHIR': 'BOGOR',
+        'TANGGAL LAHIR': '01/01/1995',
+        'ALAMAT': 'JL. CONTOH NO 123',
+        'NO KTP': '3201000000000001',
+        'NO HP': '081234567890',
+        'JABATAN': 'STAFF',
+        'EMAIL': 'contoh@visibel.id',
+        'TANGGAL MASUK': '01/01/2024',
+        'BANK': 'BCA',
+        'REKENING': '1234567890',
+        'HUTANG': 0
+      }
+    ];
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, `Template_Database_${userCompany}.xlsx`);
+  };
+
+  const handleImportEmployees = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsImportingEmployees(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        
+        const MAX_INT = 2147483647; 
+
+        const newEmployees = jsonData.map((row: any) => {
+          let rawHutang = row['HUTANG'] || 0;
+          let cleanHutang = 0;
+          if (typeof rawHutang === 'number') {
+            cleanHutang = rawHutang > 1000000000000 ? 0 : Math.min(rawHutang, MAX_INT);
+          } else {
+            const parsed = parseInt(String(rawHutang).replace(/[^0-9]/g, ''), 10);
+            cleanHutang = isNaN(parsed) ? 0 : (parsed > 1000000000000 ? 0 : Math.min(parsed, MAX_INT));
+          }
+
+          return {
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            company: String(row['COMPANY'] || userCompany),
+            idKaryawan: String(row['ID KARYAWAN'] || ''),
+            nama: String(row['NAMA'] || ''),
+            tempatLahir: String(row['TEMPAT LAHIR'] || ''),
+            tanggalLahir: String(row['TANGGAL LAHIR'] || ''),
+            alamat: String(row['ALAMAT'] || ''),
+            noKtp: String(row['NO KTP'] || ''),
+            noHandphone: String(row['NO HP'] || ''),
+            jabatan: String(row['JABATAN'] || ''),
+            email: String(row['EMAIL'] || '').toLowerCase(),
+            tanggalMasuk: String(row['TANGGAL MASUK'] || ''),
+            bank: String(row['BANK'] || 'BCA'),
+            noRekening: String(row['REKENING'] || ''),
+            hutang: cleanHutang
+          };
+        }).filter(emp => emp.nama && emp.email && (userRole === 'owner' || emp.company === userCompany));
+
+        if (newEmployees.length > 0) {
+          const { error } = await supabase.from('employees').upsert(newEmployees, { onConflict: 'email' });
+          if (error) throw error;
+          alert(`Berhasil mengimpor ${newEmployees.length} data karyawan!`);
+          fetchData(session?.user?.email, true);
+        } else {
+          alert("Tidak ada data valid yang ditemukan.");
+        }
+      } catch (err: any) {
+        alert("Gagal impor: " + err.message);
+      } finally {
+        setIsImportingEmployees(false);
+        if (employeeFileInputRef.current) employeeFileInputRef.current.value = '';
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const handleOpenDrive = async () => {
+    try {
+      const { data } = await supabase.from('settings').select('value').eq('key', `drive_link_${userCompany}`).single();
+      const driveUrl = data?.value || 'https://drive.google.com/drive/folders/1ccXLNRsTJuOyFe0F2RGq-EP6Zi5xotFV?usp=sharing';
+      window.open(driveUrl, '_blank');
+    } catch {
+      window.open('https://drive.google.com/drive/folders/1ccXLNRsTJuOyFe0F2RGq-EP6Zi5xotFV?usp=sharing', '_blank');
+    }
+  };
+
+  const handleContactAction = () => {
+    const wa = '628111743005';
+    const email = 'kontakvisibel@gmail.com';
+    const msg = encodeURIComponent(`Halo Visibel ID, saya ingin bertanya tentang layanan Sistem Manajemen untuk company ${userCompany}...`);
+    
+    if (window.confirm("Hubungi via WhatsApp? (Klik 'Batal' untuk kirim Email)")) {
+      window.open(`https://wa.me/${wa}?text=${msg}`, '_blank');
+    } else {
+      window.location.href = `mailto:${email}?subject=Informasi%20Sistem&body=${msg}`;
+    }
+  };
+
+  const isFullscreenModule = (activeTab as string) === 'absen';
+  const isAttendanceActive = ['absen', 'attendance', 'submissions'].includes(activeTab);
+
+  const isUnregistered = useMemo(() => {
+    if (!session || isLoadingData) return false;
+    return !currentUserEmployee && userRole === 'employee';
+  }, [session, isLoadingData, currentUserEmployee, userRole]);
+
+  const isAdminAccess = userRole === 'owner' || userRole === 'super' || userRole === 'admin';
+
+  const DesktopNav = () => (
+    <div className="flex items-center flex-nowrap">
+      <button onClick={() => setActiveTab('home')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'home' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>HOME</button>
+      <button onClick={() => setActiveTab('database')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'database' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>DATABASE</button>
+      <div className="relative" ref={desktopDropdownRef}>
+        <button onClick={() => setIsDesktopDropdownOpen(!isDesktopDropdownOpen)} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${isAttendanceActive ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+          PRESENSI <Icons.ChevronDown className={`w-3.5 h-3.5 transition-transform ${isDesktopDropdownOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {isDesktopDropdownOpen && (
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+            <button onClick={() => { setActiveTab('absen'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">ABSEN SEKARANG</button>
+            <div className="h-px bg-slate-50 w-full"></div>
+            <button onClick={() => { setActiveTab('attendance'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">DATA ABSENSI</button>
+            <div className="h-px bg-slate-50 w-full"></div>
+            <button onClick={() => { setActiveTab('submissions'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">FORM PENGAJUAN</button>
+          </div>
+        )}
+      </div>
+      <button onClick={() => setActiveTab('schedule')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'schedule' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>LIVE STREAMING</button>
+      <button onClick={() => setActiveTab('content')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'content' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>CONTENT</button>
+      {isAdminAccess && (
+        <button onClick={() => setActiveTab('settings')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>SETTING</button>
+      )}
+    </div>
+  );
+
+  const MobileNav = () => (
+    <div className="flex items-center flex-nowrap min-w-max px-2 py-0.5">
+      <button onClick={() => setActiveTab('home')} className={`px-4 py-2.5 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all shrink-0 ${activeTab === 'home' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>HOME</button>
+      <button onClick={() => setActiveTab('database')} className={`px-4 py-2.5 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all shrink-0 ${activeTab === 'database' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>DATABASE</button>
+      <div className="relative shrink-0" ref={mobileDropdownRef}>
+        <button onClick={() => setIsMobileDropdownOpen(!isMobileDropdownOpen)} className={`px-4 py-2.5 rounded-full text-[8px] font-bold tracking-widest uppercase flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${isAttendanceActive ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+          PRESENSI <Icons.ChevronDown className={`w-3 h-3 transition-transform ${isMobileDropdownOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {isMobileDropdownOpen && (
+          <div className="fixed left-4 right-4 mt-8 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.25)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+            <button onClick={() => { setActiveTab('absen'); setIsMobileDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">ABSEN SEKARANG</button>
+            <div className="h-px bg-slate-50 w-full"></div>
+            <button onClick={() => { setActiveTab('attendance'); setIsMobileDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">DATA ABSENSI</button>
+            <div className="h-px bg-slate-50 w-full"></div>
+            <button onClick={() => { setActiveTab('submissions'); setIsMobileDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">FORM PENGAJUAN</button>
+          </div>
+        )}
+      </div>
+      <button onClick={() => setActiveTab('schedule')} className={`px-4 py-2.5 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all shrink-0 ${activeTab === 'schedule' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>LIVE STREAMING</button>
+      <button onClick={() => setActiveTab('content')} className={`px-4 py-2.5 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all shrink-0 ${activeTab === 'content' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>CONTENT</button>
+      {isAdminAccess && (
+        <button onClick={() => setActiveTab('settings')} className={`px-4 py-2.5 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all shrink-0 ${activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>SETTING</button>
+      )}
+    </div>
+  );
+
+  const isGlobalUser = userRole === 'owner' || userRole === 'super' || userRole === 'admin';
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
-      <div className="fixed bottom-4 right-4 z-50 bg-slate-900/50 text-white/50 text-[8px] px-2 py-1 rounded-full pointer-events-none">v{APP_VERSION}</div>
-      {fetchError && (
-        <div className="fixed top-0 left-0 right-0 bg-red-600 text-white py-3 px-6 z-[100] flex justify-between items-center animate-in slide-in-from-top duration-300">
-          <div className="flex items-center gap-3">
-            <Icons.Database />
-            <p className="text-sm font-bold uppercase tracking-wide">{fetchError}</p>
-          </div>
-          <button onClick={() => fetchData()} className="bg-white text-red-600 px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-slate-100 transition-colors shadow-lg">Coba Lagi</button>
-        </div>
-      )}
-
-      {!isFullscreenModule && (
-        <nav className="bg-white border-b sticky top-0 z-40 shadow-sm h-14 sm:h-20">
-          <div className="max-w-7xl mx-auto h-full px-2 sm:px-6 lg:px-8 flex items-center justify-between gap-2 sm:gap-4">
-            
-            <div className="flex items-center gap-1 sm:gap-3 shrink-0 cursor-pointer" onClick={() => userRole !== 'admin' && setActiveTab('employees')}>
-              <img src="https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA" alt="Logo" className="h-6 sm:h-12 w-auto object-contain" />
-              <div className="hidden xs:flex flex-col">
-                <span className="text-[6px] sm:text-[9px] font-black text-[#FFC000] border border-[#FFC000] rounded px-1 uppercase tracking-tighter bg-white whitespace-nowrap">
-                  {userRole === 'super' ? 'SUPER ADMIN' : userRole === 'admin' ? 'ADMIN' : 'KARYAWAN'}
-                </span>
+    <div className="min-h-screen flex flex-col bg-[#f8fafc]">
+      {session ? (
+        isUnregistered ? (
+          <div className="flex-grow flex items-center justify-center p-6 animate-in fade-in duration-700 bg-slate-50">
+            <div className="bg-white p-12 rounded-[48px] shadow-2xl border border-slate-200 text-center max-w-lg w-full space-y-10">
+              <div className="w-24 h-24 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto shadow-sm">
+                <Icons.Users className="w-10 h-10" />
               </div>
-            </div>
-
-            <div className="flex-1 flex justify-center min-w-0">
-              <div className="flex bg-slate-100 p-1 rounded-xl sm:rounded-2xl shadow-inner max-w-full overflow-x-auto sm:overflow-visible no-scrollbar relative z-[10]">
-                <button 
-                  type="button" 
-                  onClick={() => setActiveTab('employees')} 
-                  className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[7px] sm:text-[10px] font-black tracking-widest transition-all uppercase whitespace-nowrap active:scale-95 ${activeTab === 'employees' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
-                >
-                  {userRole === 'super' ? 'DATABASE' : 'PROFIL'}
-                </button>
-                
-                <div className="relative" ref={dropdownRef}>
-                  <button 
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsAttendanceDropdownOpen(!isAttendanceDropdownOpen);
-                    }} 
-                    className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[7px] sm:text-[10px] font-black tracking-widest transition-all uppercase flex items-center gap-1 sm:gap-1.5 whitespace-nowrap active:scale-95 cursor-pointer relative z-[20] ${['absen', 'attendance', 'submissions'].includes(activeTab as any) ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
-                  >
-                    PRESENSI <Icons.ChevronDown className="w-2 sm:w-3" />
-                  </button>
-                  
-                  {isAttendanceDropdownOpen && (
-                    <div className="hidden sm:flex absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 bg-white rounded-[20px] shadow-2xl border border-slate-100 flex-col z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 ring-1 ring-black/5">
-                      <button type="button" onClick={() => { setActiveTab('absen'); setIsAttendanceDropdownOpen(false); }} className="w-full text-left px-5 py-3 text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 text-slate-700 border-b border-slate-50 transition-colors">ABSEN SEKARANG</button>
-                      {(userRole === 'super' || userRole === 'admin') && <button type="button" onClick={() => { setActiveTab('attendance'); setIsAttendanceDropdownOpen(false); }} className="w-full text-left px-5 py-3 text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 text-slate-700 border-b border-slate-50 transition-colors">Data Absensi</button>}
-                      <button type="button" onClick={() => { setActiveTab('submissions'); setIsAttendanceDropdownOpen(false); }} className="w-full text-left px-5 py-3 text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 text-slate-700 transition-colors">FORM PENGAJUAN</button>
-                    </div>
-                  )}
+              <div className="space-y-4">
+                <h2 className="text-3xl font-bold text-slate-900 uppercase tracking-tight">Email Tidak Terdaftar</h2>
+                <p className="text-slate-500 font-medium text-lg leading-relaxed">
+                  Email <span className="font-bold text-slate-900">({session.user.email})</span> tidak terdeteksi dalam database karyawan aktif sistem manapun.
+                </p>
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">Instruksi:</p>
+                  <p className="text-sm text-slate-600 font-medium">Silakan hubungi HRD perusahaan Anda untuk mendaftarkan akun Anda.</p>
                 </div>
-
-                <button 
-                  type="button" 
-                  onClick={() => setActiveTab('schedule')} 
-                  className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[7px] sm:text-[10px] font-black tracking-widest transition-all uppercase whitespace-nowrap active:scale-95 ${activeTab === 'schedule' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
-                >
-                  JADWAL
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setActiveTab('content')} 
-                  className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[7px] sm:text-[10px] font-black tracking-widest transition-all uppercase whitespace-nowrap active:scale-95 ${activeTab === 'content' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
-                >
-                  CONTENT
-                </button>
               </div>
-            </div>
-            
-            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
               <button 
-                type="button" 
-                onClick={() => setActiveTab('inbox')} 
-                className={`p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl transition-all relative active:scale-95 ${activeTab === 'inbox' ? 'bg-slate-900 text-[#FFC000]' : 'bg-slate-100 text-slate-500'}`}
+                onClick={() => supabase.auth.signOut()} 
+                className="w-full bg-[#0f172a] text-white py-6 rounded-3xl font-bold text-xs uppercase tracking-[0.4em] shadow-xl hover:bg-black transition-all active:scale-95 flex items-center justify-center gap-4"
               >
-                <Icons.Mail className="w-3 sm:w-4" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[5px] sm:text-[8px] w-2.5 sm:w-4 h-2.5 sm:h-4 flex items-center justify-center rounded-full border border-white font-bold">{unreadCount}</span>
-                )}
-              </button>
-
-              <div className="relative group">
-                <button type="button" className="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl bg-slate-100 text-slate-500 group-focus-within:bg-white group-focus-within:border group-focus-within:border-slate-200 transition-all active:scale-95">
-                  <Icons.Search className="w-3 sm:w-4" />
-                </button>
-                <input 
-                  type="text" 
-                  placeholder="CARI..." 
-                  className="absolute right-0 top-0 h-full w-0 group-focus-within:w-24 sm:group-focus-within:w-48 group-focus-within:pr-8 pl-2 opacity-0 group-focus-within:opacity-100 bg-white sm:bg-transparent text-[8px] sm:text-[10px] font-bold text-black outline-none transition-all rounded-lg sm:rounded-none shadow-xl sm:shadow-none" 
-                  value={searchQuery} 
-                  onChange={(e) => setSearchQuery(e.target.value)} 
-                />
-              </div>
-
-              <button 
-                type="button" 
-                onClick={handleLogout} 
-                className="p-1.5 sm:p-2.5 text-slate-400 hover:text-red-500 transition-all active:scale-95"
-              >
-                <Icons.LogOut className="w-3 sm:w-4" />
+                <Icons.LogOut className="w-5 h-5" /> KELUAR SISTEM
               </button>
             </div>
           </div>
-        </nav>
-      )}
-
-      {isAttendanceDropdownOpen && (
-        <div className="sm:hidden fixed inset-0 z-[1000] flex flex-col justify-end bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setIsAttendanceDropdownOpen(false)}>
-          <div className="bg-white rounded-t-[32px] p-6 space-y-3 animate-in slide-in-from-bottom" onClick={e => e.stopPropagation()}>
-            <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4"></div>
-            <button type="button" onClick={() => { setActiveTab('absen'); setIsAttendanceDropdownOpen(false); }} className="w-full flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 active:bg-amber-50 active:scale-95 transition-all">
-              <Icons.Camera className="w-4 h-4 text-[#FFC000]" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-800">Absen Sekarang</span>
-            </button>
-            {(userRole === 'super' || userRole === 'admin') && (
-              <button type="button" onClick={() => { setActiveTab('attendance'); setIsAttendanceDropdownOpen(false); }} className="w-full flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 active:bg-cyan-50 active:scale-95 transition-all">
-                <Icons.Calendar className="w-4 h-4 text-cyan-600" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-800">Data Absensi</span>
-              </button>
-            )}
-            <button type="button" onClick={() => { setActiveTab('submissions'); setIsAttendanceDropdownOpen(false); }} className="w-full flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 active:bg-emerald-50 active:scale-95 transition-all">
-              <Icons.FileText className="w-4 h-4 text-emerald-600" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-800">Form Pengajuan</span>
-            </button>
-            <button type="button" onClick={() => setIsAttendanceDropdownOpen(false)} className="w-full py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Tutup</button>
-          </div>
-        </div>
-      )}
-
-      <main className={`flex-grow w-full relative ${isFullscreenModule ? 'bg-white p-0' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8'}`}>
-        {activeTab === 'inbox' ? (
-          <Inbox submissions={submissions} broadcasts={broadcasts} employee={currentUserEmployee} userRole={userRole} onUpdate={() => fetchData(session?.user?.email, true)} />
-        ) : activeTab === 'absen' ? (
-          <AbsenModule employee={currentUserEmployee} attendanceRecords={attendanceRecords} onSuccess={() => fetchData(session?.user?.email, true)} onClose={() => setActiveTab('employees')} />
-        ) : activeTab === 'attendance' ? (
-          <AttendanceModule 
-            employees={employees} 
-            records={attendanceRecords} 
-            setRecords={setAttendanceRecords} 
-            searchQuery={searchQuery} 
-            userRole={userRole} 
-            currentEmployee={currentUserEmployee}
-            startDate={attendanceStartDate}
-            endDate={attendanceEndDate}
-            onStartDateChange={setAttendanceStartDate}
-            onEndDateChange={setAttendanceEndDate}
-            weeklyHolidays={weeklyHolidays}
-          />
-        ) : activeTab === 'schedule' ? (
-          <LiveScheduleModule employees={employees} schedules={liveSchedules} setSchedules={setLiveSchedules} searchQuery={searchQuery} readOnly={userRole === 'employee'} onClose={() => setActiveTab('employees')} />
-        ) : activeTab === 'content' ? (
-          <ContentModule employees={employees} plans={contentPlans} setPlans={setContentPlans} searchQuery={searchQuery} userRole={userRole} currentEmployee={currentUserEmployee} />
-        ) : activeTab === 'submissions' ? (
-          <SubmissionForm employee={currentUserEmployee} onSuccess={() => fetchData(session?.user?.email, true)} />
         ) : (
           <>
-            <Dashboard 
-              employees={employees} 
-              submissions={submissions} 
-              broadcasts={broadcasts} 
-              userRole={userRole} 
-              currentUserEmployee={currentUserEmployee} 
-              weeklyHolidays={weeklyHolidays}
-              contentPlans={contentPlans}
-              onNavigate={setActiveTab}
-            />
-            <div className="bg-white rounded-[24px] sm:rounded-[32px] shadow-sm border border-slate-100 overflow-hidden relative">
-              <div className="px-6 sm:px-10 py-6 sm:py-8 border-b flex justify-between items-center bg-white flex-wrap gap-4 sm:gap-6">
-                <div>
-                  <h2 className="font-bold text-slate-900 uppercase tracking-tighter text-lg sm:text-xl leading-none">{userRole === 'super' ? 'DATABASE KARYAWAN' : 'DATA DIRI'}</h2>
-                  <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1.5 sm:mt-2 inline-block bg-slate-50 px-3 py-1 rounded-full">{filteredEmployees.length} ENTRI</span>
+            {!isFullscreenModule && (
+              <nav className="bg-white border-b sticky top-0 z-[150] shadow-sm">
+                <div className="max-w-7xl mx-auto px-4">
+                  <div className="flex items-center justify-between h-16 sm:h-24 gap-3">
+                    <div className="flex items-center cursor-pointer shrink-0 sm:w-auto" onClick={() => setActiveTab('home')}>
+                      <img src="https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA" alt="Logo" className="h-5 sm:h-12 w-auto" />
+                    </div>
+
+                    <div className="flex-1 min-w-0 flex justify-center">
+                      <div className="hidden md:block bg-slate-100/60 p-1.5 rounded-full border border-slate-100 shadow-inner relative">
+                        <DesktopNav />
+                      </div>
+                      
+                      <div className="md:hidden w-full overflow-hidden flex justify-center">
+                        <div className="bg-slate-100/60 p-0.5 rounded-full border border-slate-100 shadow-inner overflow-x-auto no-scrollbar touch-pan-x scroll-smooth max-w-[calc(100%-0.5rem)]">
+                          <MobileNav />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 w-[75px] sm:w-auto justify-end">
+                      <button onClick={() => setActiveTab('inbox')} className={`p-2 sm:p-3.5 rounded-full relative shadow-sm border transition-all ${activeTab === 'inbox' ? 'bg-slate-900 text-[#FFC000] border-slate-900' : 'bg-slate-50 text-slate-400 border-slate-100 hover:bg-white'}`}>
+                        <Icons.Mail className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                        {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[7px] sm:text-[8px] w-4 h-4 flex items-center justify-center rounded-full border border-white font-bold animate-bounce">{unreadCount}</span>}
+                      </button>
+                      <button onClick={() => supabase.auth.signOut()} className="p-2 sm:p-3.5 rounded-full bg-slate-50 text-slate-300 border border-slate-100 shadow-sm hover:text-red-500 hover:border-red-100 transition-all active:scale-90">
+                        <Icons.LogOut className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                {userRole === 'super' && (
-                  <div className="flex flex-wrap gap-2 sm:gap-3">
-                    <button onClick={() => window.open('https://drive.google.com/drive/folders/1ccXLNRsTJuOyFe0F2RGq-EP6Zi5xotFV?usp=sharing', '_blank')} className="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 px-3 sm:px-4 py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[11px] font-black shadow-sm uppercase tracking-widest flex items-center gap-1.5 sm:gap-2.5 transition-all">
-                      <Icons.Video className="w-3 h-3 sm:w-4 h-4" /> DRIVE
-                    </button>
-                    <button onClick={downloadEmployeeTemplate} className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3 sm:px-4 py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[11px] font-semibold shadow-sm uppercase tracking-widest flex items-center gap-1.5 sm:gap-2.5 transition-colors">
-                      <Icons.Download className="w-3 h-3 sm:w-4 h-4" /> TEMPLATE
-                    </button>
-                    <button onClick={() => setIsFormOpen(true)} className="bg-[#FFC000] hover:bg-[#E6AD00] text-black px-4 py-2.5 rounded-lg sm:rounded-xl flex items-center justify-center gap-1.5 font-bold shadow-sm text-[9px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95 cursor-pointer">
-                      <Icons.Plus className="w-3 h-3 sm:w-4 h-4" /> TAMBAH
-                    </button>
-                    <button onClick={() => employeeFileInputRef.current?.click()} className="bg-emerald-600 text-white px-3 sm:px-4 py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[11px] font-semibold uppercase tracking-widest shadow-lg flex items-center gap-1.5 sm:gap-2.5 hover:bg-emerald-700">
-                      <Icons.Upload className="w-3 h-3 sm:w-4 h-4" /> UNGGAH
-                    </button>
-                    <input type="file" ref={employeeFileInputRef} className="hidden" accept=".xlsx,.xls" onChange={importEmployees} />
-                    <button onClick={() => exportEmployees()} className="bg-slate-900 text-white px-3 sm:px-4 py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[11px] font-semibold uppercase tracking-widest shadow-xl flex items-center gap-1.5 sm:gap-2.5 hover:bg-black">
-                      <Icons.Database className="w-3 h-3 sm:w-4 h-4" /> EKSPOR
-                    </button>
-                    <button onClick={() => setIsAnnouncementOpen(true)} className="bg-slate-900 text-white px-3 sm:px-4 py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[11px] font-semibold uppercase flex items-center gap-1.5 sm:gap-2.5 hover:bg-black transition-all">
-                      <Icons.Megaphone className="w-3 h-3 sm:w-4 h-4" /> BROADCAST
-                    </button>
+              </nav>
+            )}
+
+            <main className={`flex-grow w-full ${isFullscreenModule ? 'bg-white' : 'max-w-7xl mx-auto px-4 py-6 sm:py-10'}`}>
+              {activeTab === 'absen' ? (
+                <AbsenModule employee={currentUserEmployee} attendanceRecords={attendanceRecords} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} onClose={() => setActiveTab('home')} />
+              ) : activeTab === 'attendance' ? (
+                <AttendanceModule employees={employees} records={attendanceRecords} setRecords={setAttendanceRecords} searchQuery={searchQuery} userRole={userRole} currentEmployee={currentUserEmployee} startDate={attendanceStartDate} endDate={attendanceEndDate} onStartDateChange={setAttendanceStartDate} onEndDateChange={setAttendanceEndDate} weeklyHolidays={weeklyHolidays} />
+              ) : activeTab === 'schedule' ? (
+                <LiveScheduleModule employees={employees} schedules={liveSchedules} setSchedules={setLiveSchedules} reports={liveReports} setReports={setLiveReports} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
+              ) : activeTab === 'content' ? (
+                <ContentModule employees={employees} plans={contentPlans} setPlans={setContentPlans} searchQuery={searchQuery} userRole={userRole} currentEmployee={currentUserEmployee} company={userCompany} />
+              ) : activeTab === 'submissions' ? (
+                <SubmissionForm employee={currentUserEmployee} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} />
+              ) : activeTab === 'inbox' ? (
+                <Inbox submissions={submissions} broadcasts={broadcasts} employee={currentUserEmployee} userRole={userRole} onUpdate={() => fetchData(session?.user?.email, true)} />
+              ) : activeTab === 'settings' ? (
+                <SettingsModule userRole={userRole} userCompany={userCompany} onRefresh={() => fetchData(session?.user?.email, true)} />
+              ) : activeTab === 'database' ? (
+                <div className="bg-white rounded-[32px] sm:rounded-[60px] shadow-sm border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
+                  <div className="px-8 sm:px-14 py-10 sm:py-16 border-b flex flex-col items-start bg-white gap-8">
+                      <div className="flex flex-col gap-3">
+                        <h2 className="font-black text-slate-900 uppercase tracking-tight text-2xl sm:text-4xl">DATABASE KARYAWAN</h2>
+                        <span className="inline-block bg-slate-50 text-slate-400 text-[10px] font-black uppercase px-5 py-2 rounded-full tracking-widest self-start">{filteredEmployees.length} ENTRI {userRole === 'owner' ? '(GLOBAL)' : `(${userCompany})`}</span>
+                      </div>
+                      
+                      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6 w-full">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-slate-100 p-1.5 rounded-[28px] border border-slate-100 shadow-inner w-full xl:max-w-[700px]">
+                          {userRole === 'owner' && (
+                            <div className="relative shrink-0">
+                               <div className="bg-[#0f172a] text-white px-8 py-4 rounded-[22px] text-[10px] font-black uppercase tracking-widest flex items-center gap-3 cursor-pointer shadow-lg active:scale-95 transition-all">
+                                 {companyFilter === 'ALL' ? 'SEMUA COMPANY' : companyFilter}
+                                 <Icons.ChevronDown className="w-3 h-3" />
+                                 <select 
+                                  value={companyFilter} 
+                                  onChange={(e) => setCompanyFilter(e.target.value)}
+                                  className="absolute inset-0 opacity-0 cursor-pointer"
+                                 >
+                                    <option value="ALL">SEMUA COMPANY</option>
+                                    {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
+                                 </select>
+                               </div>
+                            </div>
+                          )}
+
+                          <div className="relative flex-grow bg-white rounded-[22px] shadow-sm border border-slate-100 px-6 py-4 flex items-center gap-4 min-w-0">
+                            <Icons.Search className="w-5 h-5 text-slate-300 shrink-0" />
+                            <input 
+                              type="text" 
+                              placeholder="Cari Nama atau ID..." 
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              className="w-full text-xs font-bold text-black outline-none placeholder:text-slate-300 uppercase tracking-widest bg-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-3 sm:gap-4 items-center shrink-0">
+                          <button onClick={handleDownloadTemplate} className="bg-slate-100 hover:bg-slate-200 border border-slate-200 px-8 py-4 rounded-[22px] flex items-center gap-2 font-black text-[10px] uppercase tracking-widest transition-all shadow-sm active:scale-95 text-slate-500">
+                            <Icons.Download className="w-4 h-4" /> TEMPLATE
+                          </button>
+                          {(userRole === 'owner' || userRole === 'super' || userRole === 'admin') && (
+                            <button onClick={() => setIsFormOpen(true)} className="bg-[#FFC000] hover:bg-black text-black hover:text-white px-10 py-4 rounded-[22px] flex items-center gap-2 font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-amber-100 active:scale-95">
+                              <Icons.Plus className="w-5 h-5" /> TAMBAH
+                            </button>
+                          )}
+                          <input type="file" ref={employeeFileInputRef} onChange={handleImportEmployees} className="hidden" accept=".xlsx,.xls" />
+                          <button onClick={() => employeeFileInputRef.current?.click()} disabled={isImportingEmployees} className="bg-[#059669] hover:bg-[#047857] text-white px-8 py-4 rounded-[22px] flex items-center gap-2 font-black text-[10px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
+                            <Icons.Upload className="w-4 h-4" /> {isImportingEmployees ? '...' : 'UNGGAH'}
+                          </button>
+                          <button onClick={handleExportAllEmployees} className="bg-[#0f172a] hover:bg-black text-white px-8 py-4 rounded-[22px] flex items-center gap-2 font-black text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95">
+                            <Icons.Database className="w-4 h-4" /> EKSPOR
+                          </button>
+                        </div>
+                      </div>
+                  </div>
+                  <div className="overflow-x-auto no-scrollbar scroll-smooth">
+                    <table className="w-full text-left min-w-[1500px] border-separate border-spacing-0">
+                      <thead className="bg-slate-50/80 backdrop-blur-sm text-slate-500 text-[10px] uppercase font-bold tracking-[0.15em] sticky top-0 z-10">
+                        <tr>
+                          {isGlobalUser && <th className="px-14 py-6 border-b border-slate-100">COMPANY</th>}
+                          <th className="px-8 py-6 border-b border-slate-100">ID KARYAWAN</th>
+                          <th className="px-10 py-6 border-b border-slate-100">NAMA KARYAWAN</th>
+                          <th className="px-10 py-6 border-b border-slate-100">TTL</th>
+                          <th className="px-10 py-6 border-b border-slate-100">ALAMAT</th>
+                          <th className="px-8 py-6 border-b border-slate-100">NO KTP</th>
+                          <th className="px-8 py-6 border-b border-slate-100 text-right">AKSI</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white">
+                        {filteredEmployees.map((emp, idx) => {
+                          const tenureYears = getTenureYears(emp.tanggalMasuk);
+                          return (
+                            <tr key={emp.id} className="hover:bg-slate-50/70 transition-all duration-300 group border-b border-slate-50 last:border-0">
+                              {isGlobalUser && (
+                                <td className="px-14 py-7 whitespace-nowrap">
+                                  <span className="text-[10px] font-black text-slate-800 uppercase tracking-tight">{emp.company || 'VISIBEL'}</span>
+                                </td>
+                              )}
+                              <td className="px-8 py-7 whitespace-nowrap">
+                                <span className="inline-block bg-slate-50 text-slate-700 font-black text-[10px] uppercase px-4 py-2 rounded-xl tracking-[0.1em] border border-slate-200/50 shadow-sm whitespace-nowrap">
+                                  {emp.idKaryawan || 'VSB-00'}
+                                </span>
+                              </td>
+                              <td className="px-10 py-7 whitespace-nowrap">
+                                <div className="flex items-center gap-5">
+                                    <div className="w-12 h-12 rounded-[22px] overflow-hidden border-2 border-white shadow-md bg-slate-100 shrink-0 transform group-hover:scale-105 transition-all duration-500 ring-1 ring-slate-100/50">
+                                      {emp.photoBase64 ? (
+                                        <img src={emp.photoBase64} className="w-full h-full object-cover" alt="" />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                          <Icons.Users className="w-5 h-5" />
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="font-black text-slate-900 text-[14px] uppercase truncate leading-tight mb-1 tracking-tight">{emp.nama}</p>
+                                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{emp.jabatan}</p>
+                                    </div>
+                                </div>
+                              </td>
+                              <td className="px-10 py-7 whitespace-nowrap">
+                                <div className="space-y-1">
+                                  <p className="text-[11px] font-black text-slate-800 uppercase tracking-tight leading-none">{emp.tempatLahir}</p>
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{emp.tanggalLahir}</p>
+                                </div>
+                              </td>
+                              <td className="px-10 py-7 whitespace-nowrap">
+                                <p className="text-[11px] text-slate-600 font-medium max-w-[280px] truncate uppercase tracking-tight" title={emp.alamat}>{emp.alamat}</p>
+                              </td>
+                              <td className="px-8 py-7 whitespace-nowrap">
+                                <p className="text-[11px] font-bold text-slate-800 tracking-widest opacity-80">{emp.noKtp}</p>
+                              </td>
+                              <td className="px-8 py-7 text-right whitespace-nowrap">
+                                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-0 translate-x-2">
+                                  <button onClick={() => setSlipEmployee(emp)} className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-emerald-100 shadow-sm hover:shadow-md bg-white" title="Slip Gaji"><Icons.Download className="w-4.5 h-4.5" /></button>
+                                  {(userRole === 'owner' || userRole === 'super' || userRole === 'admin' || emp.id === currentUserEmployee?.id) && (
+                                    <button onClick={() => { setEditingEmployee(emp); setIsFormOpen(true); }} className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-cyan-100 shadow-sm hover:shadow-md bg-white" title="Edit Data"><Icons.Edit className="w-4.5 h-4.5" /></button>
+                                  )}
+                                  {(userRole === 'owner' || userRole === 'super' || userRole === 'admin') && (
+                                    <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-rose-100 shadow-sm hover:shadow-md bg-white" title="Hapus"><Icons.Trash className="w-4.5 h-4.5" /></button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {filteredEmployees.length === 0 && (
+                          <tr>
+                            <td colSpan={userRole === 'owner' ? 7 : 6} className="py-20 text-center">
+                              <div className="flex flex-col items-center justify-center space-y-4 opacity-30">
+                                <Icons.Users className="w-12 h-12" />
+                                <p className="text-xs font-black uppercase tracking-[0.4em]">Data Tidak Ditemukan</p>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <Dashboard 
+                  employees={filteredEmployees} 
+                  submissions={submissions} 
+                  broadcasts={broadcasts} 
+                  userRole={userRole} 
+                  currentUserEmployee={currentUserEmployee} 
+                  contentPlans={contentPlans} 
+                  onNavigate={setActiveTab} 
+                  userCompany={userCompany}
+                  onOpenBroadcast={() => setIsAnnouncementOpen(true)}
+                  onOpenDrive={handleOpenDrive}
+                />
+              )}
+            </main>
+          </>
+        )
+      ) : (
+        <div className="flex-grow flex items-center justify-center p-6 animate-in fade-in duration-700 bg-[#2e2e2e]">
+          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden border border-slate-100">
+            <div className="bg-black p-12 text-center">
+              <img src="https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA" alt="Logo" className="w-[180px] h-auto mx-auto" />
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); handleAuth(loginEmail, loginPassword, isRegisterMode, isForgotPasswordMode); }} className="p-10 space-y-8">
+              <h2 className="text-2xl font-bold text-[#0f172a] text-center uppercase tracking-[0.3em]">
+                {isForgotPasswordMode ? 'RESET' : isRegisterMode ? 'DAFTAR BARU' : 'LOGIN'}
+              </h2>
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">EMAIL TERDAFTAR</label>
+                  <input required type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} placeholder="admin@visibel.id" className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#FFC000] text-sm font-medium text-black transition-all" />
+                </div>
+                {!isForgotPasswordMode && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">KATA SANDI</label>
+                    <div className="relative">
+                      <input required type={showPassword ? 'text' : 'password'} value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="••••••••" className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#FFC000] text-sm font-medium text-black transition-all" />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400">
+                        <Icons.Search className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-50/50 text-slate-900 text-[10px] sm:text-[11px] uppercase font-bold tracking-widest border-b border-slate-100">
-                    <tr>
-                      <th className="px-6 sm:px-8 py-4 sm:py-6">ID KARYAWAN</th>
-                      <th className="px-4 sm:px-6 py-4 sm:py-6">NAMA KARYAWAN</th>
-                      <th className="px-4 py-4 sm:py-6 hidden sm:table-cell">MASA KERJA</th>
-                      <th className="px-4 py-4 sm:py-6">CUTI</th>
-                      <th className="px-6 sm:px-10 py-4 sm:py-6 text-right">AKSI</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {filteredEmployees.map((emp) => {
-                      const tenureYears = getTenureYears(emp.tanggalMasuk);
-                      const usedLeave = getUsedLeave(emp.id);
-                      const leaveDisplay = tenureYears >= 1 ? `${usedLeave} / 12` : '0 / 0';
-                      const isNearlyUsedUp = tenureYears >= 1 && usedLeave > 10;
-                      
-                      const canEdit = userRole === 'super' || emp.id === currentUserEmployee?.id;
-                      const canViewSlip = userRole === 'super' || emp.id === currentUserEmployee?.id;
+              {authError && <p className="text-xs text-red-600 text-center font-bold">{authError}</p>}
+              <div className="space-y-4">
+                <button disabled={isAuthLoading} type="submit" className="w-full bg-[#0f172a] text-white py-5 rounded-3xl font-bold text-xs uppercase tracking-[0.4em] shadow-xl active:scale-[0.98] transition-all hover:bg-black">
+                  {isAuthLoading ? 'MENGHUBUNGKAN...' : 'MASUK'}
+                </button>
+                
+                <div className="flex items-center gap-4 py-2">
+                  <div className="h-px bg-slate-100 flex-grow"></div>
+                  <span className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">Atau masuk dengan</span>
+                  <div className="h-px bg-slate-100 flex-grow"></div>
+                </div>
 
-                      return (
-                        <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-6 sm:px-8 py-4 sm:py-6">
-                            <span className="text-[10px] sm:text-[11px] font-bold text-slate-900 tracking-wider bg-slate-100 px-2 sm:px-3 py-1 rounded-lg uppercase">{emp.idKaryawan}</span>
-                          </td>
-                          <td className="px-4 sm:px-6 py-4 sm:py-6">
-                            <div className="flex items-center gap-2 sm:gap-4">
-                              <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-full overflow-hidden border border-slate-100 shadow-sm bg-slate-50 flex items-center justify-center shrink-0">
-                                {emp.photoBase64 || emp.avatarUrl ? (
-                                  <img src={emp.photoBase64 || emp.avatarUrl} className="w-full h-full object-cover" alt="" />
-                                ) : null}
-                              </div>
-                              <div>
-                                <p className="font-bold text-slate-900 leading-tight text-[11px] sm:text-xs uppercase">{emp.nama}</p>
-                                <p className="text-[8px] sm:text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5 sm:mt-1">{emp.jabatan}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 sm:py-6 hidden sm:table-cell">
-                            <p className="text-[11px] font-semibold text-slate-600 uppercase leading-relaxed">{calculateTenure(emp.tanggalMasuk)}</p>
-                          </td>
-                          <td className="px-4 py-4 sm:py-6">
-                            <div className="flex items-center gap-2">
-                              <span className={`px-2 sm:px-4 py-1 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] font-bold border flex items-center justify-center min-w-[50px] sm:min-w-[60px] ${tenureYears < 1 ? 'bg-slate-50 text-slate-400 border-slate-100' : isNearlyUsedUp ? 'bg-red-50 text-red-600 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
-                                {leaveDisplay}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-6 sm:px-10 py-4 sm:py-6 text-right">
-                            <div className="flex justify-end gap-1 sm:gap-2">
-                              {canViewSlip && (
-                                <button type="button" onClick={(e) => { e.stopPropagation(); setSlipEmployee(emp); }} className="p-1.5 sm:p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-lg sm:rounded-xl transition-colors cursor-pointer" title="Slip Gaji"><Icons.Download className="w-4 h-4 sm:w-5 sm:h-5" /></button>
-                              )}
-                              {canEdit && (
-                                <button type="button" onClick={(e) => { e.stopPropagation(); handleEditClick(emp); }} className="p-1.5 sm:p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-lg sm:rounded-xl transition-all cursor-pointer" title="Edit Data"><Icons.Edit className="w-4 h-4 sm:w-5 sm:h-5" /></button>
-                              )}
-                              {userRole === 'super' && (
-                                <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteEmployee(emp.id); }} className="p-1.5 sm:p-2.5 text-red-500 hover:bg-red-50 rounded-lg sm:rounded-xl transition-colors cursor-pointer" title="Hapus Data"><Icons.Trash className="w-4 h-4 sm:w-5 sm:h-5" /></button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <button 
+                  type="button" 
+                  onClick={handleGoogleLogin} 
+                  disabled={isAuthLoading}
+                  className="w-full bg-white border-2 border-slate-100 text-slate-900 py-5 rounded-3xl font-bold text-[9px] uppercase tracking-[0.2em] shadow-sm active:scale-[0.98] transition-all hover:bg-slate-50 flex items-center justify-center gap-4"
+                >
+                  <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" alt="Google" className="w-5 h-5" />
+                  SIGN IN WITH GOOGLE
+                </button>
               </div>
-            </div>
-          </>
-        )}
-      </main>
-      {isFormOpen && (
-        <EmployeeForm employees={employees} initialData={editingEmployee} userRole={userRole} onSave={handleSave} onCancel={() => { setIsFormOpen(false); setEditingEmployee(null); }} />
+
+              <div className="text-center flex flex-col gap-4 pt-2">
+                <button type="button" onClick={() => { setIsRegisterMode(!isRegisterMode); setIsForgotPasswordMode(false); }} className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hover:text-slate-900 transition-colors">
+                  {isRegisterMode ? 'KEMBALI KE LOGIN' : 'DAFTAR BARU'}
+                </button>
+                {!isRegisterMode && (
+                  <button type="button" onClick={() => setIsForgotPasswordMode(!isForgotPasswordMode)} className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hover:text-slate-900 transition-colors">
+                    {isForgotPasswordMode ? 'KEMBALI KE LOGIN' : 'LUPA PASSWORD?'}
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
       )}
+
+      <footer className={`${!session ? 'bg-[#2e2e2e] border-none' : 'bg-white border-t'} py-12 sm:py-16 shrink-0`}>
+        <div className="max-w-7xl mx-auto px-6 flex flex-col items-center gap-8">
+          <img src="https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA" alt="Logo" className={`h-8 sm:h-10 ${!session ? 'opacity-40' : 'opacity-20 grayscale'}`} />
+          <div className="flex flex-wrap justify-center gap-6 sm:gap-12">
+            <button onClick={() => setLegalType('privacy')} className={`text-[10px] font-bold uppercase tracking-[0.2em] transition-colors ${!session ? 'text-slate-500 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}>Kebijakan Privasi</button>
+            <button onClick={() => setLegalType('tos')} className={`text-[10px] font-bold uppercase tracking-[0.2em] transition-colors ${!session ? 'text-slate-500 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}>Syarat & Ketentuan</button>
+            <button onClick={handleContactAction} className={`text-[10px] font-bold uppercase tracking-[0.2em] transition-colors ${!session ? 'text-slate-500 hover:text-emerald-400' : 'text-slate-400 hover:text-emerald-600'}`}>Informasi Kontak</button>
+          </div>
+          <p className={`text-[9px] font-bold uppercase tracking-[0.4em] text-center leading-relaxed ${!session ? 'text-slate-600' : 'text-slate-300'}`}>
+            &copy; {new Date().getFullYear()} Visibel ID • Sistem Manajemen
+          </p>
+        </div>
+      </footer>
+
+      {isFormOpen && <EmployeeForm employees={employees} initialData={editingEmployee} userRole={userRole} userCompany={userCompany} onSave={async (emp) => { await supabase.from('employees').upsert(emp); fetchData(session?.user?.email, true); setIsFormOpen(false); }} onCancel={() => setIsFormOpen(false)} />}
       {slipEmployee && <SalarySlipModal employee={slipEmployee} attendanceRecords={attendanceRecords} onClose={() => setSlipEmployee(null)} onUpdate={() => fetchData(session?.user?.email, true)} weeklyHolidays={weeklyHolidays} />}
-      {isAnnouncementOpen && <AnnouncementModal employees={employees} onClose={() => setIsAnnouncementOpen(false)} onSuccess={() => fetchData(session?.user?.email, true)} />}
+      {isAnnouncementOpen && <AnnouncementModal employees={filteredEmployees} company={userCompany} onClose={() => setIsAnnouncementOpen(false)} onSuccess={() => fetchData(session?.user?.email, true)} />}
+      {legalType && <LegalModal type={legalType} onClose={() => setLegalType(null)} />}
     </div>
   );
 };

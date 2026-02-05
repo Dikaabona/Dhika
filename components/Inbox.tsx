@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Submission, Employee, Broadcast, AttendanceRecord } from '../types.ts';
 import { Icons } from '../constants.tsx';
@@ -12,6 +13,9 @@ interface InboxProps {
 }
 
 const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRole, onUpdate }) => {
+  const isOwner = userRole === 'owner';
+  const isSuper = userRole === 'super' || isOwner;
+
   const handleApprove = async (sub: Submission) => {
     if (!sub.id) {
       alert("ID Pengajuan tidak ditemukan.");
@@ -48,6 +52,7 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
       // 1. Catat ke tabel attendance
       const attendanceRecords: Partial<AttendanceRecord>[] = dates.map(date => ({
         employeeId: sub.employeeId,
+        company: sub.company, // Sertakan company agar record muncul di filter
         date,
         status: sub.type,
         clockIn,
@@ -95,13 +100,13 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
     }
   };
 
-  const pendingApprovals = userRole !== 'employee' ? submissions.filter(s => s.status === 'Pending') : [];
+  const pendingApprovals = isSuper ? submissions.filter(s => s.status === 'Pending') : [];
 
-  const mySubmissions = (userRole === 'employee' && employee) 
+  const mySubmissions = (!isSuper && employee) 
     ? submissions.filter(s => s.employeeId === employee.id && s.status !== 'Pending') 
     : [];
   
-  const myBroadcasts = (userRole === 'employee' && employee)
+  const myBroadcasts = (userRole === 'employee' || userRole === 'admin') && employee
     ? broadcasts.filter(b => {
         const targets = Array.isArray(b.targetEmployeeIds) 
           ? b.targetEmployeeIds 
@@ -119,12 +124,12 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
         <div className="flex flex-col">
           <h2 className="text-3xl font-black text-[#0f172a] tracking-tight leading-none uppercase">KOTAK MASUK</h2>
           <p className="text-[11px] text-slate-400 font-bold tracking-[0.3em] uppercase mt-2">
-            {userRole !== 'employee' ? 'PUSAT KENDALI PENGAJUAN' : 'PESAN & PEMBERITAHUAN'}
+            {isSuper ? 'PUSAT KENDALI PENGAJUAN' : 'PESAN & PEMBERITAHUAN'}
           </p>
         </div>
       </div>
 
-      {userRole !== 'employee' && pendingApprovals.length > 0 && (
+      {isSuper && pendingApprovals.length > 0 && (
         <div className="space-y-6">
           <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-4">PENGAJUAN MENUNGGU PERSETUJUAN</h3>
           <div className="grid grid-cols-1 gap-6">
@@ -174,7 +179,7 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
             </div>
           ))}
 
-          {userRole === 'employee' && mySubmissions.map((sub) => (
+          {!isSuper && mySubmissions.map((sub) => (
             <div key={sub.id} className={`bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex justify-between items-center gap-6 border-l-[12px] ${sub.status === 'Approved' ? 'border-l-emerald-500' : 'border-l-rose-500'}`}>
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
