@@ -467,7 +467,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   const CUSTOM_LINK_ICON = "https://lh3.googleusercontent.com/d/14IIco4Et4SqH7g1Qo9KqvsNMdPBabpzF";
 
   return (
-    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-6 md:space-y-10 animate-in fade-in duration-500">
       {zoomedImage && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4 md:p-12 cursor-zoom-out" onClick={() => setZoomedImage(null)}>
           <img src={zoomedImage} alt="Zoomed" className="max-w-full max-h-full object-contain shadow-2xl rounded-lg animate-in zoom-in duration-200" />
@@ -475,24 +475,26 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         </div>
       )}
 
-      {/* HEADER SECTION */}
-      <div className="bg-white rounded-[32px] sm:rounded-[60px] shadow-sm border border-slate-100 overflow-hidden">
-        <div className="px-8 sm:px-14 py-10 sm:py-16 border-b flex flex-col items-start bg-white gap-8">
-            <div className="flex flex-col gap-3">
-              <h2 className="font-black text-slate-900 uppercase tracking-tight text-2xl sm:text-4xl">Content Hub</h2>
+      {/* HEADER SECTION - REFINED FOR MOBILE & DESKTOP */}
+      <div className="bg-white rounded-[32px] sm:rounded-[48px] shadow-sm border border-slate-100 overflow-hidden">
+        <div className="px-6 sm:px-12 py-8 sm:py-14 border-b flex flex-col items-start bg-white gap-6 sm:gap-10">
+            <div className="flex flex-col gap-2 sm:gap-3">
+              <h2 className="font-black text-slate-900 uppercase tracking-tight text-2xl sm:text-5xl">Content Hub</h2>
               <div className="flex items-center gap-3">
-                <span className="inline-block bg-slate-50 text-slate-400 text-[10px] font-black uppercase px-5 py-2 rounded-full tracking-widest self-start">Production & Performance</span>
-                <span className={`w-2 h-2 rounded-full ${dbStatus === 'sync' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></span>
+                <span className="inline-block bg-slate-100 text-slate-500 text-[8px] sm:text-[10px] font-black uppercase px-4 sm:px-6 py-2 sm:2.5 rounded-full tracking-[0.2em] self-start">Production & Performance</span>
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full ${dbStatus === 'sync' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-amber-500 animate-pulse'}`}></div>
+                </div>
               </div>
             </div>
             
-            <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6 w-full">
-              {/* Bar Pencarian & Filter Brand */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-slate-100 p-1.5 rounded-[28px] border border-slate-100 shadow-inner w-full xl:max-w-[850px]">
+            <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6 sm:gap-8 w-full">
+              {/* TERPADU SEARCH & FILTER BAR */}
+              <div className="flex items-center bg-[#f1f5f9] p-1 sm:p-1.5 rounded-[28px] sm:rounded-[32px] border border-slate-100 shadow-inner w-full xl:max-w-[700px]">
                 <div className="relative shrink-0">
-                   <div className="bg-[#0f172a] text-white px-8 py-4 rounded-[22px] text-[10px] font-black uppercase tracking-widest flex items-center gap-3 cursor-pointer shadow-lg active:scale-95 transition-all">
-                     {selectedBrandFilter === 'ALL' ? 'SEMUA BRAND' : selectedBrandFilter}
-                     <Icons.ChevronDown className="w-3 h-3" />
+                   <div className="bg-[#0f172a] text-white px-5 sm:px-8 py-3.5 sm:py-4.5 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] text-[9px] sm:text-[11px] font-black uppercase tracking-widest flex items-center gap-2 sm:gap-3 cursor-pointer shadow-lg active:scale-95 transition-all">
+                     <span className="truncate max-w-[80px] sm:max-w-none">{selectedBrandFilter === 'ALL' ? 'SEMUA' : selectedBrandFilter}</span>
+                     <Icons.ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                      <select 
                       value={selectedBrandFilter} 
                       onChange={(e) => setSelectedBrandFilter(e.target.value)}
@@ -504,37 +506,37 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                    </div>
                 </div>
 
-                <div className="relative flex-grow bg-white rounded-[22px] shadow-sm border border-slate-100 px-6 py-4 flex items-center gap-4 min-w-0">
-                  <Icons.Search className="w-5 h-5 text-slate-300 shrink-0" />
+                <div className="relative flex-grow bg-white h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] shadow-sm border border-slate-100 px-4 sm:px-7 flex items-center gap-3 sm:gap-4 min-w-0 ml-1 sm:ml-1.5">
+                  <Icons.Search className="w-4 h-4 sm:w-5 sm:h-5 text-slate-300 shrink-0" />
                   <input 
                     type="text" 
-                    placeholder="Cari Brand atau Judul Konten..." 
+                    placeholder="CARI..." 
                     value={localSearch}
                     onChange={(e) => setLocalSearch(e.target.value)}
-                    className="w-full text-xs font-bold text-black outline-none placeholder:text-slate-300 uppercase tracking-widest bg-white"
+                    className="w-full text-[10px] sm:text-xs font-black text-slate-800 outline-none placeholder:text-slate-300 uppercase tracking-widest bg-white"
                   />
                 </div>
               </div>
 
-              {/* Tombol Aksi */}
-              <div className="flex flex-wrap gap-3 sm:gap-4 items-center shrink-0">
+              {/* ACTION BUTTONS */}
+              <div className="flex flex-wrap gap-2 sm:gap-4 items-center shrink-0 w-full xl:w-auto">
                 {hasFullAccess && (
                   <>
-                    <button onClick={handleDownloadTemplate} className="bg-slate-100 hover:bg-slate-200 border border-slate-200 px-8 py-4 rounded-[22px] flex items-center gap-2 font-black text-[10px] uppercase tracking-widest transition-all shadow-sm active:scale-95 text-slate-500">
-                      <Icons.Download className="w-4 h-4" /> TEMPLATE
+                    <button onClick={handleDownloadTemplate} className="flex-1 sm:flex-none bg-slate-50 hover:bg-slate-100 border border-slate-200 px-4 sm:px-8 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-sm active:scale-95 text-slate-500">
+                      <Icons.Download className="w-4 h-4 sm:w-4.5 sm:h-4.5" /> TEMPLATE
                     </button>
-                    <button onClick={() => setIsManagingBrands(!isManagingBrands)} className={`px-8 py-4 rounded-[22px] font-black text-[10px] uppercase tracking-widest transition-all shadow-sm border ${isManagingBrands ? 'bg-slate-900 text-white' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
+                    <button onClick={() => setIsManagingBrands(!isManagingBrands)} className={`flex-1 sm:flex-none px-4 sm:px-8 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-sm border ${isManagingBrands ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
                       QUOTA
                     </button>
-                    <button onClick={() => handleOpenModal()} className="bg-[#FFC000] hover:bg-black text-black hover:text-white px-10 py-4 rounded-[22px] flex items-center gap-2 font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-amber-100 active:scale-95">
-                      <Icons.Plus className="w-5 h-5" /> TAMBAH
+                    <button onClick={() => handleOpenModal()} className="flex-1 sm:flex-none bg-[#FFC000] hover:bg-black text-black hover:text-white px-5 sm:px-10 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-amber-100 active:scale-95">
+                      <Icons.Plus className="w-4 h-4 sm:w-5 sm:h-5" /> TAMBAH
                     </button>
                     <input type="file" ref={contentFileInputRef} onChange={handleImportExcel} className="hidden" accept=".xlsx,.xls" />
-                    <button onClick={() => contentFileInputRef.current?.click()} disabled={isProcessingExcel} className="bg-[#059669] hover:bg-[#047857] text-white px-8 py-4 rounded-[22px] flex items-center gap-2 font-black text-[10px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
-                      <Icons.Upload className="w-4 h-4" /> {isProcessingExcel ? '...' : 'UNGGAH'}
+                    <button onClick={() => contentFileInputRef.current?.click()} disabled={isProcessingExcel} className="flex-1 sm:flex-none bg-[#059669] hover:bg-[#047857] text-white px-4 sm:px-9 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
+                      <Icons.Upload className="w-4 h-4 sm:w-4.5 sm:h-4.5" /> {isProcessingExcel ? '...' : 'UNGGAH'}
                     </button>
-                    <button onClick={handleExportExcel} className="bg-[#0f172a] hover:bg-black text-white px-8 py-4 rounded-[22px] flex items-center gap-2 font-black text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95">
-                      <Icons.Database className="w-4 h-4" /> EKSPOR
+                    <button onClick={handleExportExcel} className="flex-1 sm:flex-none bg-[#0f172a] hover:bg-black text-white px-4 sm:px-9 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95">
+                      <Icons.Database className="w-4 h-4 sm:w-4.5 sm:h-4.5" /> EKSPOR
                     </button>
                   </>
                 )}
@@ -544,67 +546,67 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       </div>
 
       {isManagingBrands && hasFullAccess && (
-        <div className="bg-[#0f172a] p-6 sm:p-10 rounded-[40px] text-white shadow-2xl space-y-10 animate-in slide-in-from-top-4 duration-500 border border-white/5">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+        <div className="bg-[#0f172a] p-8 sm:p-12 rounded-[48px] text-white shadow-2xl space-y-12 animate-in slide-in-from-top-4 duration-500 border border-white/5">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-8">
             <div className="flex flex-col">
-              <h3 className="text-2xl font-black tracking-tight uppercase leading-none">BRAND QUOTA MANAGEMENT</h3>
-              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-[0.4em] mt-2">Target Performance Hub</p>
+              <h3 className="text-3xl font-black tracking-tight uppercase leading-none">BRAND QUOTA MANAGEMENT</h3>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.4em] mt-3">Target Performance Hub</p>
             </div>
-            <div className="w-full sm:w-auto flex bg-[#1e293b] p-1.5 rounded-2xl border border-white/5 shadow-inner">
+            <div className="w-full sm:w-auto flex bg-[#1e293b] p-2 rounded-[28px] border border-white/5 shadow-inner">
               <input 
                 type="text" 
                 value={newBrandName} 
                 onChange={e => setNewBrandName(e.target.value)} 
                 onKeyDown={e => e.key === 'Enter' && addBrand()} 
                 placeholder="NAMA BRAND..." 
-                className="bg-transparent px-5 py-2.5 text-[10px] font-black uppercase outline-none flex-grow min-w-[120px] placeholder:text-slate-600" 
+                className="bg-transparent px-7 py-3.5 text-[11px] font-black uppercase outline-none flex-grow min-w-[160px] placeholder:text-slate-600" 
               />
-              <button onClick={addBrand} disabled={isSavingBrands} className="bg-[#06b6d4] hover:bg-[#0891b2] text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all shadow-lg active:scale-95 disabled:opacity-50">
+              <button onClick={addBrand} disabled={isSavingBrands} className="bg-[#06b6d4] hover:bg-[#0891b2] text-white px-8 py-3.5 rounded-[22px] text-[11px] font-black uppercase transition-all shadow-lg active:scale-95 disabled:opacity-50">
                 {isSavingBrands ? '...' : 'TAMBAH'}
               </button>
             </div>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {brands.map((b: any) => (
-              <div key={b.name} className="bg-[#1e293b] p-6 sm:p-8 rounded-[32px] border border-white/5 space-y-6 group hover:border-[#06b6d4]/30 transition-all shadow-xl flex flex-col">
+              <div key={b.name} className="bg-[#1e293b] p-8 rounded-[40px] border border-white/5 space-y-8 group hover:border-[#06b6d4]/30 transition-all shadow-xl flex flex-col">
                 <div className="flex justify-between items-center shrink-0">
-                  <span className="text-xs font-black tracking-[0.1em] uppercase text-white">{b.name}</span>
+                  <span className="text-sm font-black tracking-[0.1em] uppercase text-white">{b.name}</span>
                   <button 
                     onClick={() => removeBrand(b.name)} 
                     disabled={isSavingBrands} 
-                    className="w-10 h-10 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-full flex items-center justify-center transition-all group/trash active:scale-90"
+                    className="w-12 h-12 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-2xl flex items-center justify-center transition-all group/trash active:scale-90"
                   >
-                    <Icons.Trash className="w-4 h-4" />
+                    <Icons.Trash className="w-5 h-5" />
                   </button>
                 </div>
-                <div className="space-y-4 flex-grow">
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">TARGET KONTEN</label>
+                <div className="space-y-6 flex-grow">
+                  <div className="space-y-2.5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">TARGET KONTEN BULANAN</label>
                     <input 
                       type="number" 
                       value={b.target} 
                       onChange={e => updateBrandLocal(b.name, 'target', parseInt(e.target.value) || 0)} 
-                      className="w-full bg-[#0f172a] border border-white/5 rounded-2xl px-6 py-4 text-sm outline-none focus:border-[#06b6d4] text-white font-black shadow-inner" 
+                      className="w-full bg-[#0f172a] border border-white/5 rounded-3xl px-7 py-5 text-lg outline-none focus:border-[#06b6d4] text-white font-black shadow-inner" 
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">DEADLINE QUOTA</label>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">DEADLINE</label>
                       <input 
                         type="date" 
                         value={b.quotaDeadline || ''} 
                         onChange={e => updateBrandLocal(b.name, 'quotaDeadline', e.target.value)} 
-                        className="w-full bg-[#0f172a] border border-white/5 rounded-2xl px-4 py-4 text-xs outline-none focus:border-[#06b6d4] text-white font-black shadow-inner" 
+                        className="w-full bg-[#0f172a] border border-white/5 rounded-2xl px-5 py-4.5 text-xs outline-none focus:border-[#06b6d4] text-white font-black shadow-inner" 
                       />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">JAM UPLOAD</label>
+                    <div className="space-y-2.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">TIME</label>
                       <input 
                         type="time" 
                         value={b.jamUpload || '19:00'} 
                         onChange={e => updateBrandLocal(b.name, 'jamUpload', e.target.value)} 
-                        className="w-full bg-[#0f172a] border border-white/5 rounded-2xl px-4 py-4 text-xs outline-none focus:border-[#06b6d4] text-white font-black shadow-inner" 
+                        className="w-full bg-[#0f172a] border border-white/5 rounded-2xl px-5 py-4.5 text-xs outline-none focus:border-[#06b6d4] text-white font-black shadow-inner" 
                       />
                     </div>
                   </div>
@@ -612,9 +614,9 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                 <button 
                   onClick={() => handleSaveSpecificBrand(b.name)}
                   disabled={isSavingBrands}
-                  className="w-full bg-[#06b6d4] hover:bg-[#0891b2] text-white py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg active:scale-[0.98] transition-all mt-6 shrink-0 disabled:opacity-50"
+                  className="w-full bg-[#06b6d4] hover:bg-[#0891b2] text-white py-5 rounded-[22px] font-black text-[11px] uppercase tracking-[0.2em] shadow-lg active:scale-[0.98] transition-all mt-4 shrink-0 disabled:opacity-50"
                 >
-                  {isSavingBrands ? 'MENYIMPAN...' : 'SIMPAN'}
+                  {isSavingBrands ? 'MENYIMPAN...' : 'SIMPAN KONFIGURASI'}
                 </button>
               </div>
             ))}
@@ -622,123 +624,126 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         </div>
       )}
 
-      {/* STATS CARDS */}
-      <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-6 -mx-4 px-4 sm:mx-0 sm:px-0 custom-scrollbar scroll-smooth">
+      {/* STATS CARDS - SLIDER (AS REQUESTED) */}
+      <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 no-scrollbar scroll-smooth snap-x">
         {brandStats.map(bs => (
-          <div key={bs.name} className="min-w-[240px] sm:min-w-[280px] bg-white p-6 rounded-[28px] sm:rounded-[32px] border border-slate-100 shadow-sm space-y-4 transition-all hover:shadow-md hover:-translate-y-1 relative shrink-0">
-            <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black text-black uppercase tracking-widest">{bs.name}</span>
+          <div key={bs.name} className="min-w-[280px] sm:min-w-[320px] bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[36px] border border-slate-100 shadow-sm space-y-5 sm:space-y-6 transition-all hover:shadow-xl hover:-translate-y-1 relative group overflow-hidden snap-start shrink-0">
+            <div className="flex justify-between items-center relative z-10">
+              <span className="text-[10px] sm:text-[11px] font-black text-slate-900 uppercase tracking-widest">{bs.name}</span>
               <button 
                 onClick={() => handleSyncBrandToCalendar(bs)}
-                className="p-1.5 bg-slate-50 hover:bg-[#FFC000] text-slate-400 hover:text-black rounded-lg transition-all"
+                className="w-8 h-8 sm:w-9 sm:h-9 bg-slate-50 group-hover:bg-[#FFC000] text-slate-400 group-hover:text-black rounded-xl transition-all flex items-center justify-center shadow-inner"
                 title="Sync Deadline to Calendar"
               >
-                <Icons.Calendar className="w-3.5 h-3.5" />
+                <Icons.Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
             </div>
-            <div className="flex justify-between items-end">
+            <div className="flex justify-between items-end relative z-10">
               <div>
-                <p className="text-3xl font-black text-slate-900">{bs.done}<span className="text-xs text-slate-300 ml-1 font-bold">/ {bs.target}</span></p>
-                <p className="text-[8px] font-black px-2 py-0.5 mt-1 rounded inline-block bg-slate-50 text-slate-400">
-                  {bs.remaining === 0 ? 'GOAL REACHED' : `${bs.remaining} REMAINING`}
+                <p className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tighter">{bs.done}<span className="text-xs sm:text-sm text-slate-300 ml-2 font-bold tracking-normal">/ {bs.target}</span></p>
+                <p className={`text-[8px] sm:text-[9px] font-black px-2.5 sm:px-3 py-1 sm:py-1.5 mt-2 rounded-lg inline-block shadow-sm ${bs.remaining === 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}>
+                  {bs.remaining === 0 ? 'GOAL ACHIEVED' : `${bs.remaining} REMAINING`}
                 </p>
               </div>
-              <p className="text-[10px] font-black text-slate-500">{Math.round(bs.progress)}%</p>
+              <p className="text-[10px] sm:text-xs font-black text-slate-900 bg-slate-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-slate-100">{Math.round(bs.progress)}%</p>
             </div>
-            <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden">
-              <div className="h-full bg-cyan-500 transition-all duration-1000" style={{ width: `${bs.progress}%` }}></div>
+            <div className="h-1.5 sm:h-2 bg-slate-50 rounded-full overflow-hidden shadow-inner relative z-10 border border-slate-100">
+              <div className="h-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)] transition-all duration-1000" style={{ width: `${bs.progress}%` }}></div>
             </div>
-            <div className="flex items-center justify-between pt-2 border-t border-slate-50">
-               <div className="flex flex-col">
-                  <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">DEADLINE</span>
-                  <span className="text-[9px] font-bold text-slate-700">{bs.quotaDeadline || '-'}</span>
+            <div className="flex items-center justify-between pt-4 border-t border-slate-50 relative z-10">
+               <div className="flex flex-col gap-0.5 sm:gap-1">
+                  <span className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest">DEADLINE</span>
+                  <span className="text-[10px] sm:text-[11px] font-black text-slate-700">{bs.quotaDeadline || '-'}</span>
                </div>
-               <div className="flex flex-col text-right">
-                  <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">JAM UPLOAD</span>
-                  <span className="text-[9px] font-bold text-cyan-600 bg-cyan-50 px-1.5 py-0.5 rounded-md self-end">{bs.jamUpload || '-'}</span>
+               <div className="flex flex-col text-right gap-0.5 sm:gap-1">
+                  <span className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest">UPLOAD TIME</span>
+                  <span className="text-[10px] sm:text-[11px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg self-end">{bs.jamUpload || '-'}</span>
                </div>
             </div>
+            <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-full blur-3xl opacity-0 group-hover:opacity-60 transition-opacity -translate-y-1/2 translate-x-1/2"></div>
           </div>
         ))}
       </div>
 
-      {/* DATA TABLE */}
-      <div className="bg-white rounded-[32px] sm:rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto no-scrollbar">
-          <table className="w-full text-left min-w-[700px]">
-            <thead className="bg-slate-50 text-[10px] font-black text-black uppercase tracking-widest border-b border-slate-100">
+      {/* DATA TABLE - ELEGANT STYLE */}
+      <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
+        <div className="overflow-x-auto no-scrollbar scroll-smooth">
+          <table className="w-full text-left min-w-[1000px] border-separate border-spacing-0">
+            <thead className="bg-slate-50/80 backdrop-blur-sm text-slate-500 text-[10px] uppercase font-bold tracking-[0.15em] sticky top-0 z-10 border-b border-slate-100">
               <tr>
-                <th className="px-8 py-6">BRAND & TANGGAL</th>
-                <th className="px-6 py-6">CREATOR</th>
-                <th className="px-4 py-6 text-center">LINK</th>
-                <th className="px-6 py-6">PERFORMANCE</th>
-                <th className="px-4 py-6 text-center">ER%</th>
-                <th className="px-8 py-6 text-right">AKSI</th>
+                <th className="px-10 py-7 border-b border-slate-100">BRAND & TANGGAL</th>
+                <th className="px-8 py-7 border-b border-slate-100">CREATOR</th>
+                <th className="px-6 py-7 text-center border-b border-slate-100">LINK</th>
+                <th className="px-8 py-7 border-b border-slate-100">PERFORMANCE</th>
+                <th className="px-6 py-7 text-center border-b border-slate-100">ER%</th>
+                <th className="px-10 py-7 text-right border-b border-slate-100">AKSI</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="bg-white">
               {filteredPlans.map(plan => {
                 const er = calculateEngagementRate(plan);
                 const erValue = parseFloat(er);
                 return (
-                  <tr key={plan.id} className="hover:bg-slate-50/50 transition-all group text-slate-900">
-                    <td className="px-8 py-6">
-                      <div className="flex items-center gap-4">
+                  <tr key={plan.id} className="hover:bg-slate-50/70 transition-all duration-300 group border-b border-slate-50 last:border-0">
+                    <td className="px-10 py-8 whitespace-nowrap">
+                      <div className="flex items-center gap-5">
                         <div 
                           onClick={() => plan.screenshotBase64 && setZoomedImage(plan.screenshotBase64)} 
-                          className={`w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-300 transition-all ${plan.screenshotBase64 ? 'cursor-zoom-in hover:scale-105 active:scale-95' : ''}`}
+                          className={`w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-300 transition-all shadow-inner border-2 border-white ring-1 ring-slate-100 ${plan.screenshotBase64 ? 'cursor-zoom-in hover:scale-105 active:scale-95 group-hover:rotate-2' : ''}`}
                         >
-                          {plan.screenshotBase64 ? <img src={plan.screenshotBase64} className="w-full h-full object-cover rounded-xl shadow-sm" alt="" /> : <Icons.Image className="w-5 h-5" />}
+                          {plan.screenshotBase64 ? <img src={plan.screenshotBase64} className="w-full h-full object-cover rounded-xl" alt="" /> : <Icons.Image className="w-6 h-6" />}
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-black text-slate-900 text-xs uppercase tracking-tight">{plan.brand}</p>
-                            <span className="text-[9px] font-black text-cyan-600 bg-cyan-50 px-1.5 py-0.5 rounded uppercase tracking-tighter">{plan.jamUpload || '-'}</span>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-3">
+                            <p className="font-black text-slate-900 text-[14px] uppercase tracking-tight">{plan.brand}</p>
+                            <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100 shadow-sm uppercase tracking-tighter">{plan.jamUpload || '-'}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{plan.postingDate}</p>
                             <button 
                               onClick={() => handleSyncItemToCalendar(plan)}
-                              className="p-1 hover:bg-slate-200 rounded transition-colors text-slate-400 hover:text-black"
+                              className="p-1.5 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-lg transition-all text-slate-300"
                               title="Set Reminder"
                             >
-                              <Icons.Calendar className="w-3 h-3" />
+                              <Icons.Calendar className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                          <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase">{plan.postingDate}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-6">
-                      <p className="text-[11px] font-black text-slate-700 uppercase tracking-tight">{getCreatorName(plan.creatorId || '')}</p>
-                      <p className="text-[8px] text-slate-400 uppercase font-bold mt-1 tracking-widest">{plan.contentPillar}</p>
+                    <td className="px-8 py-8">
+                      <p className="text-[13px] font-black text-slate-800 uppercase tracking-tight leading-none">{getCreatorName(plan.creatorId || '')}</p>
+                      <p className="text-[10px] text-slate-400 uppercase font-bold mt-2 tracking-[0.1em]">{plan.contentPillar}</p>
                     </td>
-                    <td className="px-4 py-6">
+                    <td className="px-6 py-8">
                       <div className="flex justify-center">
                         {plan.linkPostingan ? (
-                          <a href={plan.linkPostingan} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center hover:bg-cyan-50 hover:border-cyan-200 transition-all shadow-sm active:scale-90">
-                            <img src={CUSTOM_LINK_ICON} className="w-5 h-5 object-contain" alt="link" />
+                          <a href={plan.linkPostingan} target="_blank" rel="noopener noreferrer" className="w-11 h-11 bg-white border border-slate-100 rounded-2xl flex items-center justify-center hover:bg-indigo-50 hover:border-indigo-200 transition-all shadow-sm active:scale-90 group/link">
+                            <img src={CUSTOM_LINK_ICON} className="w-5.5 h-5.5 object-contain group-hover:scale-110 transition-transform" alt="link" />
                           </a>
                         ) : (
-                          <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center opacity-20 grayscale"><img src={CUSTOM_LINK_ICON} className="w-5 h-5 object-contain" alt="no link" /></div>
+                          <div className="w-11 h-11 bg-slate-50 rounded-2xl flex items-center justify-center opacity-10 grayscale border border-dashed border-slate-200"><img src={CUSTOM_LINK_ICON} className="w-5.5 h-5.5 object-contain" alt="no link" /></div>
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-6">
-                      <div className="flex gap-4 py-1">
-                        <div className="text-center min-w-[35px]"><p className="text-[10px] font-black text-slate-900">{formatNumber(plan.views)}</p><p className="text-[7px] text-slate-400 font-black uppercase">Views</p></div>
-                        <div className="text-center min-w-[35px]"><p className="text-[10px] font-black text-slate-900">{formatNumber(plan.likes)}</p><p className="text-[7px] text-slate-400 font-black uppercase">Likes</p></div>
-                        <div className="text-center min-w-[35px]"><p className="text-[10px] font-black text-slate-900">{formatNumber(plan.comments)}</p><p className="text-[7px] text-slate-400 font-black uppercase">Comm</p></div>
-                        <div className="text-center min-w-[35px]"><p className="text-[10px] font-black text-slate-900">{formatNumber(plan.saves)}</p><p className="text-[7px] text-slate-400 font-black uppercase">Save</p></div>
+                    <td className="px-8 py-8">
+                      <div className="flex gap-5">
+                        <div className="text-center min-w-[45px]"><p className="text-[12px] font-black text-slate-900">{formatNumber(plan.views)}</p><p className="text-[8px] text-slate-400 font-black uppercase mt-1 tracking-tighter">Views</p></div>
+                        <div className="text-center min-w-[45px]"><p className="text-[12px] font-black text-slate-900">{formatNumber(plan.likes)}</p><p className="text-[8px] text-slate-400 font-black uppercase mt-1 tracking-tighter">Likes</p></div>
+                        <div className="text-center min-w-[45px]"><p className="text-[12px] font-black text-slate-900">{formatNumber(plan.comments)}</p><p className="text-[8px] text-slate-400 font-black uppercase mt-1 tracking-tighter">Comm</p></div>
+                        <div className="text-center min-w-[45px]"><p className="text-[12px] font-black text-slate-900">{formatNumber(plan.saves)}</p><p className="text-[8px] text-slate-400 font-black uppercase mt-1 tracking-tighter">Save</p></div>
                       </div>
                     </td>
-                    <td className="px-4 py-6">
+                    <td className="px-6 py-8">
                       <div className="flex justify-center">
-                        <div className={`inline-block px-3 py-1 rounded-lg text-[10px] font-black tracking-tight ${erValue >= 5 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-50 text-slate-500 border border-slate-100'}`}>{er}</div>
+                        <div className={`inline-block px-5 py-2 rounded-2xl text-[11px] font-black tracking-tight border shadow-sm transition-all ${erValue >= 5 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>{er}</div>
                       </div>
                     </td>
-                    <td className="px-8 py-6 text-right">
+                    <td className="px-10 py-8 text-right whitespace-nowrap">
                       {hasFullAccess && (
-                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                          <button onClick={() => handleOpenModal(plan)} className="p-2 text-cyan-600 hover:bg-cyan-50 rounded-lg transition-all active:scale-90"><Icons.Edit className="w-4 h-4" /></button>
-                          <button onClick={() => handleDelete(plan.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all active:scale-90"><Icons.Trash className="w-4 h-4" /></button>
+                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-0 translate-x-3">
+                          <button onClick={() => handleOpenModal(plan)} className="p-3 text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 rounded-2xl transition-all active:scale-90 bg-white shadow-sm hover:shadow-md"><Icons.Edit className="w-5 h-5" /></button>
+                          <button onClick={() => handleDelete(plan.id)} className="p-3 text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-100 rounded-2xl transition-all active:scale-90 bg-white shadow-sm hover:shadow-md"><Icons.Trash className="w-5 h-5" /></button>
                         </div>
                       )}
                     </td>
@@ -747,8 +752,11 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
               })}
               {filteredPlans.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-8 py-20 text-center">
-                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Tidak ada laporan konten ditemukan</p>
+                  <td colSpan={6} className="px-10 py-32 text-center">
+                    <div className="flex flex-col items-center justify-center space-y-4 opacity-30">
+                      <Icons.Database className="w-14 h-14" />
+                      <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.5em]">Laporan Tidak Ditemukan</p>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -758,48 +766,48 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[40px] sm:rounded-[48px] shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-500">
-            <div className="p-6 sm:p-10 border-b bg-slate-900 text-white flex justify-between items-center shrink-0">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[150] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[40px] sm:rounded-[56px] shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-500 border border-white/20">
+            <div className="p-8 sm:p-12 border-b bg-[#0f172a] text-white flex justify-between items-center shrink-0">
               <div>
-                <h2 className="text-xl sm:text-2xl font-black tracking-tight uppercase">{editingPlan ? 'EDIT REPORT KONTEN' : 'BUAT REPORT KONTEN BARU'}</h2>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Visibel ID Performance Hub</p>
+                <h2 className="text-2xl sm:text-3xl font-black tracking-tight uppercase leading-none">{editingPlan ? 'EDIT REPORT KONTEN' : 'BUAT REPORT KONTEN BARU'}</h2>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.5em] mt-3">Visibel ID Performance Hub</p>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="text-4xl leading-none opacity-40 hover:opacity-100 transition-all font-light">&times;</button>
+              <button onClick={() => setIsModalOpen(false)} className="w-14 h-14 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-4xl leading-none transition-all font-light">&times;</button>
             </div>
             
-            <form onSubmit={handleSave} className="p-6 sm:p-10 overflow-y-auto flex-grow space-y-8 custom-scrollbar bg-white">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-10">
-                <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
+            <form onSubmit={handleSave} className="p-8 sm:p-12 overflow-y-auto flex-grow space-y-10 custom-scrollbar bg-white">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10 sm:gap-14">
+                <div className="space-y-8">
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">BRAND</label>
-                      <select required value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl px-5 py-3.5 text-xs font-bold text-black focus:ring-2 focus:ring-cyan-400/20 outline-none">
+                      <select required value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner">
                         {brands.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
                       </select>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">JAM UPLOAD</label>
-                      <input required type="time" value={formData.jamUpload} onChange={e => setFormData({...formData, jamUpload: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl px-5 py-3.5 text-xs font-bold text-black focus:ring-2 focus:ring-cyan-400/20 outline-none" />
+                    <div className="space-y-2.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">UPLOAD TIME</label>
+                      <input required type="time" value={formData.jamUpload} onChange={e => setFormData({...formData, jamUpload: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner" />
                     </div>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">CREATOR</label>
-                    <select required value={formData.creatorId} onChange={e => setFormData({...formData, creatorId: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl px-5 py-3.5 text-xs font-bold text-black focus:ring-2 focus:ring-cyan-400/20 outline-none">
-                      <option value="">Pilih Creator...</option>
+                    <select required value={formData.creatorId} onChange={e => setFormData({...formData, creatorId: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner">
+                      <option value="">PILIH CREATOR...</option>
                       {creatorList.map(c => <option key={c.id} value={c.id}>{c.nama.toUpperCase()}</option>)}
                     </select>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">TANGGAL POSTING</label>
-                      <input required type="date" value={formData.postingDate} onChange={e => setFormData({...formData, postingDate: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl px-5 py-3.5 text-xs font-bold text-black focus:ring-2 focus:ring-cyan-400/20 outline-none" />
+                      <input required type="date" value={formData.postingDate} onChange={e => setFormData({...formData, postingDate: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner" />
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">PLATFORM</label>
-                      <select value={formData.platform} onChange={e => setFormData({...formData, platform: e.target.value as any})} className="w-full bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl px-5 py-3.5 text-xs font-bold text-black focus:ring-2 focus:ring-cyan-400/20 outline-none">
+                      <select value={formData.platform} onChange={e => setFormData({...formData, platform: e.target.value as any})} className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner">
                         <option value="TikTok">TikTok</option>
                         <option value="Instagram">Instagram</option>
                         <option value="Shopee">Shopee</option>
@@ -808,62 +816,62 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                     </div>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">CONTENT PILLAR</label>
-                    <select value={formData.contentPillar} onChange={e => setFormData({...formData, contentPillar: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl px-5 py-3.5 text-xs font-bold text-black focus:ring-2 focus:ring-cyan-400/20 outline-none">
+                    <select value={formData.contentPillar} onChange={e => setFormData({...formData, contentPillar: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner">
                       {PILLAR_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">LINK POSTINGAN</label>
-                    <input type="url" value={formData.linkPostingan} onChange={e => setFormData({...formData, linkPostingan: e.target.value})} placeholder="https://..." className="w-full bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl px-5 py-3.5 text-xs font-bold text-black focus:ring-2 focus:ring-cyan-400/20 outline-none" />
+                    <input type="url" value={formData.linkPostingan} onChange={e => setFormData({...formData, linkPostingan: e.target.value})} placeholder="https://..." className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner" />
                   </div>
                 </div>
 
-                <div className="bg-slate-50 p-6 sm:p-8 rounded-[28px] sm:rounded-[32px] border border-slate-100 space-y-6">
-                   <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] border-b border-slate-200 pb-3">PERFORMA STATISTIK</h3>
-                   <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">VIEWS</label>
-                        <input type="number" value={formData.views} onChange={e => setFormData({...formData, views: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-black text-black outline-none focus:border-cyan-400" />
+                <div className="bg-slate-50 p-8 sm:p-10 rounded-[40px] border border-slate-100 space-y-10 shadow-inner">
+                   <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em] border-b border-slate-200 pb-4">PERFORMA STATISTIK</h3>
+                   <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">VIEWS</label>
+                        <input type="number" value={formData.views} onChange={e => setFormData({...formData, views: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 outline-none focus:ring-4 focus:ring-indigo-400/10 transition-all shadow-sm" />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">LIKES</label>
-                        <input type="number" value={formData.likes} onChange={e => setFormData({...formData, likes: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-black text-black outline-none focus:border-cyan-400" />
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">LIKES</label>
+                        <input type="number" value={formData.likes} onChange={e => setFormData({...formData, likes: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 outline-none focus:ring-4 focus:ring-indigo-400/10 transition-all shadow-sm" />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">COMMENTS</label>
-                        <input type="number" value={formData.comments} onChange={e => setFormData({...formData, comments: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-black text-black outline-none focus:border-cyan-400" />
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">COMMENTS</label>
+                        <input type="number" value={formData.comments} onChange={e => setFormData({...formData, comments: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 outline-none focus:ring-4 focus:ring-indigo-400/10 transition-all shadow-sm" />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">SAVES</label>
-                        <input type="number" value={formData.saves} onChange={e => setFormData({...formData, saves: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-black text-black outline-none focus:border-cyan-400" />
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">SAVES</label>
+                        <input type="number" value={formData.saves} onChange={e => setFormData({...formData, saves: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 outline-none focus:ring-4 focus:ring-indigo-400/10 transition-all shadow-sm" />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">SHARES</label>
-                        <input type="number" value={formData.shares} onChange={e => setFormData({...formData, shares: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-black text-black outline-none focus:border-cyan-400" />
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">SHARES</label>
+                        <input type="number" value={formData.shares} onChange={e => setFormData({...formData, shares: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 outline-none focus:ring-4 focus:ring-indigo-400/10 transition-all shadow-sm" />
                       </div>
                       <div className="flex flex-col justify-end">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">SCREENSHOT</label>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">SCREENSHOT</label>
                         <input type="file" ref={screenshotInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
-                        <button type="button" onClick={() => screenshotInputRef.current?.click()} className={`h-[42px] rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border ${formData.screenshotBase64 ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-white text-slate-400 border-slate-200 hover:border-cyan-400 shadow-sm'}`}>
-                          <Icons.Camera className="w-3.5 h-3.5" /> {formData.screenshotBase64 ? 'TERLAMPIR' : 'UPLOAD'}
+                        <button type="button" onClick={() => screenshotInputRef.current?.click()} className={`h-[56px] rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 border shadow-sm ${formData.screenshotBase64 ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-white text-slate-400 border-slate-200 hover:border-indigo-400'}`}>
+                          <Icons.Camera className="w-4.5 h-4.5" /> {formData.screenshotBase64 ? 'TERLAMPIR' : 'UPLOAD'}
                         </button>
                       </div>
                    </div>
                    {formData.screenshotBase64 && (
-                     <div className="mt-4 relative group">
-                        <img src={formData.screenshotBase64} className="w-full h-32 object-cover rounded-2xl border border-slate-200 shadow-sm" alt="Preview" />
-                        <button type="button" onClick={() => setFormData({...formData, screenshotBase64: ''})} className="absolute top-2 right-2 bg-red-500 text-white gold w-6 h-6 rounded-full flex items-center justify-center text-sm shadow-lg opacity-0 group-hover:opacity-100 transition-opacity active:scale-90">&times;</button>
+                     <div className="mt-6 relative group">
+                        <img src={formData.screenshotBase64} className="w-full h-44 object-cover rounded-[32px] border border-slate-200 shadow-md group-hover:brightness-90 transition-all" alt="Preview" />
+                        <button type="button" onClick={() => setFormData({...formData, screenshotBase64: ''})} className="absolute top-4 right-4 bg-rose-500 text-white w-10 h-10 rounded-full flex items-center justify-center text-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity active:scale-90">&times;</button>
                      </div>
                    )}
                 </div>
               </div>
               
-              <div className="pt-8 border-t flex flex-col sm:flex-row gap-4">
-                <button type="submit" className="flex-1 bg-slate-900 text-[#FFC000] py-5 rounded-2xl sm:rounded-[28px] font-black text-sm uppercase tracking-[0.2em] shadow-xl active:scale-[0.98] transition-all">SIMPAN LAPORAN</button>
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-10 bg-white border border-slate-200 text-slate-400 py-5 rounded-2xl sm:rounded-[28px] font-black text-sm uppercase tracking-widest active:scale-[0.98] transition-all">BATAL</button>
+              <div className="pt-10 border-t flex flex-col sm:flex-row gap-5">
+                <button type="submit" className="flex-1 bg-slate-900 text-[#FFC000] py-6 rounded-[32px] font-black text-sm uppercase tracking-[0.3em] shadow-2xl active:scale-[0.98] transition-all hover:bg-black">SIMPAN LAPORAN</button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-14 bg-white border border-slate-200 text-slate-400 py-6 rounded-[32px] font-black text-sm uppercase tracking-widest active:scale-[0.98] transition-all">BATAL</button>
               </div>
             </form>
           </div>

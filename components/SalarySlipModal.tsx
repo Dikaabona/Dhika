@@ -139,7 +139,6 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           if (diffMinutes < 0) diffMinutes += 1440; 
           const hours = diffMinutes / 60;
           summary.overtimeHours += hours;
-          // Perhitungan lembur: 1 jam = 20.000
           summary.totalOvertimePay += Math.round(hours * 20000);
         }
       });
@@ -344,54 +343,81 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
 
   return (
     <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[200]">
-      <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[95vh]">
+      <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in zoom-in-95 duration-300">
         <div className="p-8 border-b bg-[#111827] text-white flex justify-between items-center shrink-0">
           <div>
-            <h2 className="text-2xl font-black tracking-tight">Kalkulasi Payroll</h2>
-            <p className="text-slate-400 text-[10px] mt-1 uppercase font-bold tracking-widest">{employee.nama} • {data.month} {data.year}</p>
+            <h2 className="text-2xl font-black tracking-tight uppercase">Kalkulasi Payroll</h2>
+            <p className="text-[#FFC000] text-[10px] mt-1 uppercase font-black tracking-widest">{employee.nama} • {data.month} {data.year}</p>
           </div>
-          <button onClick={onClose} className="text-4xl leading-none opacity-40 hover:opacity-100 transition-opacity">&times;</button>
+          <button onClick={onClose} className="text-4xl leading-none opacity-40 hover:opacity-100 transition-opacity font-light">&times;</button>
         </div>
         
-        <div className="p-8 overflow-y-auto space-y-6 bg-white flex-grow custom-scrollbar min-h-[300px]">
+        <div className="p-8 overflow-y-auto space-y-6 bg-white flex-grow custom-scrollbar">
           <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', pointerEvents: 'none' }}>
             <div ref={hiddenSlipRef}><SalarySlipContent /></div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Gaji Pokok</label>
-              <input type="text" value={(data.gapok || 0).toLocaleString('id-ID')} onChange={e => setData({...data, gapok: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-[#f8fafc] border-2 border-slate-100 rounded-2xl p-4 text-xl font-black text-black outline-none shadow-sm focus:border-[#FFC000] transition-all" />
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Gaji Pokok</label>
+              <input type="text" value={(data.gapok || 0).toLocaleString('id-ID')} onChange={e => setData({...data, gapok: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-[#f8fafc] border-2 border-slate-100 rounded-3xl p-5 text-2xl font-black text-black outline-none shadow-inner focus:border-[#FFC000] transition-all" />
             </div>
 
-            <div className="bg-[#FFFBEB] p-6 rounded-3xl border-2 border-[#FFE066] space-y-4">
+            {/* TUNJANGAN SECTION */}
+            <div className="bg-sky-50/40 p-6 rounded-[32px] border-2 border-sky-100 space-y-4">
+              <p className="text-[10px] font-black text-sky-600 uppercase tracking-[0.2em] ml-1">Tunjangan Operasional & Jabatan</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Makan</label>
+                  <input type="text" value={(data.tunjanganMakan || 0).toLocaleString('id-ID')} onChange={e => setData({...data, tunjanganMakan: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-sky-200 rounded-xl p-3 text-sm font-bold text-black focus:border-sky-400 outline-none shadow-sm" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Transport</label>
+                  <input type="text" value={(data.tunjanganTransport || 0).toLocaleString('id-ID')} onChange={e => setData({...data, tunjanganTransport: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-sky-200 rounded-xl p-3 text-sm font-bold text-black focus:border-sky-400 outline-none shadow-sm" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Komunikasi</label>
+                  <input type="text" value={(data.tunjanganKomunikasi || 0).toLocaleString('id-ID')} onChange={e => setData({...data, tunjanganKomunikasi: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-sky-200 rounded-xl p-3 text-sm font-bold text-black focus:border-sky-400 outline-none shadow-sm" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Kesehatan</label>
+                  <input type="text" value={(data.tunjanganKesehatan || 0).toLocaleString('id-ID')} onChange={e => setData({...data, tunjanganKesehatan: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-sky-200 rounded-xl p-3 text-sm font-bold text-black focus:border-sky-400 outline-none shadow-sm" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Jabatan</label>
+                  <input type="text" value={(data.tunjanganJabatan || 0).toLocaleString('id-ID')} onChange={e => setData({...data, tunjanganJabatan: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-sky-200 rounded-xl p-3 text-sm font-bold text-black focus:border-sky-400 outline-none shadow-sm" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-[#FFFBEB] p-6 rounded-[32px] border-2 border-[#FFE066] space-y-4">
                <div className="flex justify-between items-center">
-                  <p className="text-[10px] font-black text-[#806000] uppercase tracking-widest">Tambahan Gaji (Rate: 20rb/jam)</p>
-                  <span className="text-[9px] font-bold text-[#A68000]">Approved Lembur: {attendanceResults.overtimeHours.toFixed(1)} Jam (Rp {attendanceResults.totalOvertimePay.toLocaleString('id-ID')})</span>
+                  <p className="text-[10px] font-black text-[#806000] uppercase tracking-widest ml-1">Tambahan Gaji (Rate: 20rb/jam)</p>
+                  <span className="text-[9px] font-bold text-[#A68000]">Lembur System: {attendanceResults.overtimeHours.toFixed(1)} Jam (Rp {attendanceResults.totalOvertimePay.toLocaleString('id-ID')})</span>
                </div>
                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-[9px] font-bold text-[#806000] uppercase tracking-widest">Lembur Manual (Rp)</label>
-                    <input type="text" value={(data.lembur || 0).toLocaleString('id-ID')} onChange={e => setData({...data, lembur: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-[#FFD700] rounded-xl p-3 text-sm font-bold text-black focus:border-[#FFC000] outline-none" />
+                    <label className="text-[9px] font-bold text-[#806000] uppercase tracking-widest ml-1">Lembur Manual (Rp)</label>
+                    <input type="text" value={(data.lembur || 0).toLocaleString('id-ID')} onChange={e => setData({...data, lembur: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-[#FFD700] rounded-xl p-3 text-sm font-bold text-black focus:border-[#FFC000] outline-none shadow-sm" />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[9px] font-bold text-[#806000] uppercase tracking-widest">THR (Rp)</label>
-                    <input type="text" value={(data.thr || 0).toLocaleString('id-ID')} onChange={e => setData({...data, thr: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-[#FFD700] rounded-xl p-3 text-sm font-bold text-black focus:border-[#FFC000] outline-none" />
+                    <label className="text-[9px] font-bold text-[#806000] uppercase tracking-widest ml-1">THR (Rp)</label>
+                    <input type="text" value={(data.thr || 0).toLocaleString('id-ID')} onChange={e => setData({...data, thr: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-[#FFD700] rounded-xl p-3 text-sm font-bold text-black focus:border-[#FFC000] outline-none shadow-sm" />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[9px] font-bold text-[#806000] uppercase tracking-widest">Bonus (Rp)</label>
-                    <input type="text" value={(data.bonus || 0).toLocaleString('id-ID')} onChange={e => setData({...data, bonus: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-[#FFD700] rounded-xl p-3 text-sm font-bold text-black focus:border-[#FFC000] outline-none" />
+                    <label className="text-[9px] font-bold text-[#806000] uppercase tracking-widest ml-1">Bonus (Rp)</label>
+                    <input type="text" value={(data.bonus || 0).toLocaleString('id-ID')} onChange={e => setData({...data, bonus: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-[#FFD700] rounded-xl p-3 text-sm font-bold text-black focus:border-[#FFC000] outline-none shadow-sm" />
                   </div>
                </div>
-               <button onClick={calculateTHRValue} className="w-full bg-[#FFC000] text-black text-[9px] font-black py-2 rounded-xl border border-[#cc9a00]">AUTO HITUNG THR</button>
+               <button onClick={calculateTHRValue} className="w-full bg-[#FFC000] text-black text-[10px] font-black py-3 rounded-2xl border border-[#cc9a00] shadow-sm active:scale-[0.98] transition-all">AUTO HITUNG THR</button>
             </div>
             
-            <div className="bg-slate-50/50 p-6 rounded-3xl border-2 border-slate-100 space-y-4">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Absensi & BPJS</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5 bg-rose-50/50 p-4 rounded-2xl border border-rose-100">
+            <div className="bg-slate-50/50 p-6 rounded-[32px] border-2 border-slate-100 space-y-4">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Absensi & BPJS</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1.5 bg-rose-50/50 p-5 rounded-3xl border border-rose-100">
                   <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest">HARI ALPHA ({attendanceResults.alpha})</label>
-                  <p className="text-xl font-black text-rose-700">Rp {potonganAbsensi.toLocaleString('id-ID')}</p>
+                  <p className="text-2xl font-black text-rose-700">Rp {potonganAbsensi.toLocaleString('id-ID')}</p>
                 </div>
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 mb-1">
@@ -400,11 +426,11 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                       id="toggle-bpjstk"
                       checked={isBPJSTKActive}
                       onChange={(e) => setIsBPJSTKActive(e.target.checked)}
-                      className="w-4 h-4 rounded border-amber-200 text-[#FFC000] focus:ring-[#FFC000]"
+                      className="w-5 h-5 rounded border-amber-200 text-[#FFC000] focus:ring-[#FFC000]"
                     />
-                    <label htmlFor="toggle-bpjstk" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">AKTIFKAN POTONGAN BPJSTK (2%)</label>
+                    <label htmlFor="toggle-bpjstk" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest cursor-pointer">AKTIFKAN BPJSTK (2%)</label>
                   </div>
-                  <div className={`transition-opacity duration-300 ${isBPJSTKActive ? 'opacity-100' : 'opacity-30'}`}>
+                  <div className={`transition-all duration-300 ${isBPJSTKActive ? 'opacity-100' : 'opacity-30'}`}>
                     <div className="flex items-center gap-2">
                        <input 
                         type="text" 
@@ -413,7 +439,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                         onChange={e => setData({...data, bpjstk: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
                         className="flex-grow bg-white border-2 border-amber-100 rounded-xl p-3 text-base font-black text-black shadow-sm focus:border-amber-400 outline-none" 
                       />
-                      <button onClick={() => setData({...data, bpjstk: autoBPJS})} className="bg-amber-500 text-white p-3 rounded-xl hover:bg-amber-600 transition-colors"><Icons.Sparkles className="w-4 h-4"/></button>
+                      <button onClick={() => setData({...data, bpjstk: autoBPJS})} className="bg-amber-500 text-white p-3 rounded-xl hover:bg-amber-600 transition-colors shadow-sm"><Icons.Sparkles className="w-4 h-4"/></button>
                     </div>
                   </div>
                 </div>
@@ -422,28 +448,28 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
               <div className="pt-2 border-t border-slate-100">
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Potongan PPh 21 (Rp)</label>
-                    <button onClick={() => setData({...data, pph21: autoPajak})} className="text-[9px] font-black text-[#FFC000] bg-slate-900 px-3 py-1 rounded-lg">AUTO TER</button>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Potongan PPh 21 (Pajak)</label>
+                    <button onClick={() => setData({...data, pph21: autoPajak})} className="text-[9px] font-black text-[#FFC000] bg-slate-900 px-4 py-1.5 rounded-lg active:scale-95 transition-all">HITUNG OTOMATIS</button>
                   </div>
                   <input 
                     type="text" 
                     value={(data.pph21 || 0).toLocaleString('id-ID')} 
                     onChange={e => setData({...data, pph21: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
-                    className="w-full bg-white border-2 border-slate-100 rounded-xl p-3 text-sm font-black text-black shadow-sm focus:border-indigo-400 outline-none" 
+                    className="w-full bg-white border-2 border-slate-100 rounded-xl p-3 text-sm font-bold text-black shadow-sm focus:border-indigo-400 outline-none" 
                     placeholder="Pajak Bulanan..."
                   />
                 </div>
               </div>
             </div>
 
-            <div className="bg-slate-50/50 p-6 rounded-3xl border-2 border-slate-100 space-y-4">
+            <div className="bg-slate-50/50 p-6 rounded-[32px] border-2 border-slate-100 space-y-4">
               <div className="flex justify-between items-center">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Potongan Pinjaman & Lain-lain</p>
-                <span className="text-[9px] font-black text-slate-400 bg-white px-3 py-1 rounded-lg border">SISA SALDO: Rp {sisaHutang.toLocaleString('id-ID')}</span>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pinjaman & Lain-lain</p>
+                <span className="text-[9px] font-black text-slate-500 bg-white px-3 py-1.5 rounded-xl border shadow-sm uppercase tracking-tighter">SISA SALDO: Rp {sisaHutang.toLocaleString('id-ID')}</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Potongan Hutang (Saldo: Rp {(employee.hutang || 0).toLocaleString('id-ID')})</label>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Potongan Hutang (Saldo: Rp {(employee.hutang || 0).toLocaleString('id-ID')})</label>
                   <input 
                     type="text" 
                     value={(data.potonganHutang || 0).toLocaleString('id-ID')} 
@@ -451,12 +477,12 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                       const val = parseInt(e.target.value.replace(/\./g, '')) || 0;
                       setData({...data, potonganHutang: Math.min(employee.hutang || 0, val)});
                     }} 
-                    className="w-full bg-white border-2 border-red-100 rounded-xl p-3 text-sm font-black text-black focus:border-red-400 outline-none" 
+                    className="w-full bg-white border-2 border-red-100 rounded-xl p-3 text-sm font-bold text-black focus:border-red-400 outline-none shadow-sm" 
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Potongan Lain</label>
-                  <input type="text" value={(data.potonganLain || 0).toLocaleString('id-ID')} onChange={e => setData({...data, potonganLain: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border-2 border-slate-100 rounded-xl p-3 text-sm font-black text-black focus:border-[#FFC000] outline-none" />
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Potongan Lainnya</label>
+                  <input type="text" value={(data.potonganLain || 0).toLocaleString('id-ID')} onChange={e => setData({...data, potonganLain: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border-2 border-slate-100 rounded-xl p-3 text-sm font-bold text-black focus:border-[#FFC000] outline-none shadow-sm" />
                 </div>
               </div>
             </div>
@@ -464,30 +490,35 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         </div>
 
         <div className="bg-white border-t-2 flex flex-col shrink-0">
-          <div className="bg-slate-900 px-8 py-5 text-white flex justify-between items-center border-l-[12px] border-[#FFC000] shadow-inner relative z-10">
+          <div className="bg-[#0f172a] px-8 py-6 text-white flex justify-between items-center border-l-[16px] border-[#FFC000] shadow-2xl relative z-10">
             <div>
-              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">Take Home Pay</p>
-              <p className="text-2xl font-black text-[#FFC000]">Rp {(takeHomePay || 0).toLocaleString('id-ID')}</p>
+              <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mb-1.5">Take Home Pay</p>
+              <p className="text-3xl font-black text-[#FFC000] tracking-tighter">Rp {(takeHomePay || 0).toLocaleString('id-ID')}</p>
             </div>
             <div className="text-right">
-              <p className="text-[8px] text-slate-500 font-bold uppercase mb-1">Total Bruto</p>
-              <p className="text-xs font-bold">Rp {(totalPendapatan || 0).toLocaleString('id-ID')}</p>
+              <p className="text-[9px] text-slate-500 font-bold uppercase mb-1.5">Total Bruto</p>
+              <p className="text-sm font-black text-slate-300">Rp {(totalPendapatan || 0).toLocaleString('id-ID')}</p>
             </div>
           </div>
           
-          <div className="p-4 sm:p-6 space-y-3">
+          <div className="p-6 space-y-4">
             <button 
               type="button"
               disabled={isSaving} 
+              // Fix: Corrected handleSaveSettings to handleSaveConfig
               onClick={handleSaveConfig} 
-              className="w-full bg-slate-900 text-[#FFC000] py-4 rounded-2xl font-black transition-all shadow-lg text-xs tracking-widest uppercase flex items-center justify-center gap-3 disabled:opacity-50 active:scale-95 hover:bg-black"
+              className="w-full bg-[#0f172a] text-[#FFC000] py-5 rounded-2xl font-black transition-all shadow-xl text-[11px] tracking-[0.2em] uppercase flex items-center justify-center gap-4 disabled:opacity-50 active:scale-[0.98] hover:bg-black"
             >
-              {isSaving ? 'MEMPROSES...' : <><Icons.Database /> SIMPAN PERUBAHAN & POTONG HUTANG</>}
+              {isSaving ? 'MEMPROSES...' : <><Icons.Database className="w-5 h-5" /> SIMPAN PERUBAHAN & POTONG HUTANG</>}
             </button>
-            <button type="button" onClick={() => setIsPreview(true)} className="w-full bg-[#FFC000] text-black py-4 rounded-2xl font-black hover:bg-[#E6AD00] transition-all shadow-md text-xs tracking-widest uppercase active:scale-95">LIHAT PRATINJAU SLIP</button>
-            <div className="flex gap-3">
-              <button type="button" onClick={() => window.open(`https://wa.me/${employee.noHandphone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Halo ${employee.nama}, Slip Gaji ${data.month} Anda sudah terbit. Total diterima: Rp ${takeHomePay.toLocaleString('id-ID')}`)}`)} className="flex-1 bg-emerald-500 text-white py-3 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-2 active:scale-95">WA</button>
-              <button type="button" onClick={handleSendEmail} className="flex-1 bg-blue-600 text-white py-3 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-2 active:scale-95">Email</button>
+            <button type="button" onClick={() => setIsPreview(true)} className="w-full bg-[#FFC000] text-black py-5 rounded-2xl font-black hover:bg-[#E6AD00] transition-all shadow-lg text-[11px] tracking-[0.2em] uppercase active:scale-[0.98]">LIHAT PRATINJAU SLIP</button>
+            <div className="grid grid-cols-2 gap-4">
+              <button type="button" onClick={() => window.open(`https://wa.me/${employee.noHandphone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Halo ${employee.nama},\n\nSlip Gaji ${data.month} Anda sudah terbit.\n\nTotal diterima: Rp ${takeHomePay.toLocaleString('id-ID')}\n\nSilakan cek detailnya di portal HR.\nTerima kasih.`)}`)} className="bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-black text-xs uppercase flex items-center justify-center gap-3 active:scale-[0.98] transition-all shadow-md">
+                WA
+              </button>
+              <button type="button" onClick={handleSendEmail} className="bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black text-xs uppercase flex items-center justify-center gap-3 active:scale-[0.98] transition-all shadow-md">
+                EMAIL
+              </button>
             </div>
           </div>
         </div>
@@ -495,10 +526,11 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       {isPreview && (
         <div className="fixed inset-0 bg-slate-100 z-[210] p-4 sm:p-10 overflow-y-auto">
           <div className="max-w-[800px] mx-auto shadow-2xl bg-white mb-32"><div ref={previewSlipRef}><SalarySlipContent /></div></div>
-          <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex gap-2 sm:gap-4 bg-white/90 backdrop-blur-xl px-6 sm:px-8 py-4 sm:py-5 rounded-full shadow-2xl border border-white/50 z-[220] flex-wrap justify-center">
-            <button type="button" onClick={() => setIsPreview(false)} className="px-4 sm:px-6 py-2 rounded-full text-[10px] font-black text-slate-500 uppercase">Kembali</button>
-            <button type="button" onClick={() => handleDownloadImage()} className="bg-slate-900 text-white px-4 sm:px-6 py-2 rounded-full text-[10px] font-black uppercase">Simpan PNG</button>
-            <button type="button" onClick={handleSendEmail} className="bg-blue-600 text-white px-4 sm:px-6 py-2 rounded-full text-[10px] font-black uppercase">Kirim via Email</button>
+          <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex gap-3 sm:gap-4 bg-white/90 backdrop-blur-xl px-8 py-5 rounded-full shadow-2xl border border-white/50 z-[220] flex-wrap justify-center items-center">
+            <button type="button" onClick={() => setIsPreview(false)} className="px-6 py-2.5 rounded-full text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 transition-colors">Kembali</button>
+            <div className="h-6 w-px bg-slate-200"></div>
+            <button type="button" onClick={() => handleDownloadImage()} className="bg-slate-900 text-white px-8 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg">Simpan PNG</button>
+            <button type="button" onClick={handleSendEmail} className="bg-blue-600 text-white px-8 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg">Kirim via Email</button>
           </div>
         </div>
       )}
