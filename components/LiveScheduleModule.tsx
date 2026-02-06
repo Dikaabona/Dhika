@@ -28,10 +28,10 @@ const getLocalDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
-const formatDateToMDY = (dateStr: string) => {
+// Updated: format to YYYY/MM/DD as requested
+const formatDateToYMD = (dateStr: string) => {
   if (!dateStr || !dateStr.includes('-')) return dateStr;
-  const [y, m, d] = dateStr.split('-');
-  return `${m}/${d}/${y}`;
+  return dateStr.replace(/-/g, '/');
 };
 
 const isDateInRange = (target: string, start: string, end: string) => {
@@ -41,9 +41,11 @@ const isDateInRange = (target: string, start: string, end: string) => {
   return t >= s && t <= e;
 };
 
+const DAYS_OF_WEEK = ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU'];
+
 const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, schedules, setSchedules, reports, setReports, userRole = 'employee', company, onClose }) => {
   const readOnly = userRole === 'employee';
-  const [activeSubTab, setActiveSubTab] = useState<'JADWAL' | 'BRAND' | 'REPORT' | 'GRAFIK'>('JADWAL');
+  const [activeSubTab, setActiveSubTab] = useState<'JADWAL' | 'BRAND' | 'REPORT' | 'GRAFIK' | 'LIBUR'>('JADWAL');
   const [startDate, setStartDate] = useState(getLocalDateString());
   const [endDate, setEndDate] = useState(getLocalDateString());
   const [localSearch, setLocalSearch] = useState('');
@@ -52,12 +54,58 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   const [isImporting, setIsImporting] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
   
+  const [isSavingHolidays, setIsSavingHolidays] = useState(false);
+  const [weeklyHolidays, setWeeklyHolidays] = useState<Record<string, string[]>>({
+    'SENIN': [], 'SELASA': [], 'RABU': [], 'KAMIS': [], 'JUMAT': [], 'SABTU': [], 'MINGGU': []
+  });
+
   const scheduleFileInputRef = useRef<HTMLInputElement>(null);
 
   const [brands, setBrands] = useState<any[]>(() => {
     const saved = localStorage.getItem(`live_brands_config_${company}`);
     return saved ? JSON.parse(saved) : INITIAL_BRANDS;
   });
+
+  useEffect(() => {
+    if (activeSubTab === 'LIBUR') {
+      fetchHolidays();
+    }
+  }, [activeSubTab]);
+
+  const fetchHolidays = async () => {
+    try {
+      const { data } = await supabase.from('settings').select('value').eq('key', `weekly_holidays_${company}`).single();
+      if (data) setWeeklyHolidays(data.value);
+    } catch (e) {
+      console.warn("Gagal memuat data libur.");
+    }
+  };
+
+  const handleSaveHolidays = async () => {
+    setIsSavingHolidays(true);
+    try {
+      const { error } = await supabase.from('settings').upsert({
+        key: `weekly_holidays_${company}`,
+        value: weeklyHolidays
+      }, { onConflict: 'key' });
+      if (error) throw error;
+      alert("Jadwal libur mingguan berhasil diperbarui!");
+    } catch (err: any) {
+      alert("Gagal menyimpan: " + err.message);
+    } finally {
+      setIsSavingHolidays(false);
+    }
+  };
+
+  const toggleHoliday = (day: string, empName: string) => {
+    setWeeklyHolidays(prev => {
+      const current = prev[day] || [];
+      const next = current.includes(empName) 
+        ? current.filter(n => n !== empName)
+        : [...current, empName];
+      return { ...prev, [day]: next };
+    });
+  };
 
   const addBrand = () => {
     const name = newBrandName.trim().toUpperCase();
@@ -111,7 +159,8 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
           } else {
             const parts = String(rawDate).split('/');
             if (parts.length === 3) {
-              formattedDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+              // Updated: Parsing YYYY/MM/DD
+              formattedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
             }
           }
 
@@ -177,11 +226,12 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
     const dataToExport = exportedData
       .sort((a, b) => a.date.localeCompare(b.date) || a.hourSlot.localeCompare(b.hourSlot))
       .map(s => ({
-        'TANGGAL': formatDateToMDY(s.date),
+        // Updated: format to YYYY/MM/DD
+        'TANGGAL': formatDateToYMD(s.date),
         'BRAND': s.brand.toUpperCase(),
         'SLOT WAKTU': s.hourSlot,
         'NAMA HOST': employeeMap[s.hostId] || 'TBA',
-        'NAMA OPERATOR': employeeMap[s.hostId] || 'TBA'
+        'NAMA OPERATOR': employeeMap[s.opId] || 'TBA'
       }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -197,7 +247,15 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   
   const opList = useMemo(() => employees.filter(e => {
     const j = (e.jabatan || '').trim().toUpperCase();
-    return j.includes('OPERATOR') || j.includes('OP');
+    const n = (e.nama || '').trim().toUpperCase();
+    return j.includes('OPERATOR') || j.includes('OP') || n.includes('ARIYANSYAH');
+  }), [employees]);
+
+  const liveStaffList = useMemo(() => employees.filter(e => {
+    const j = (e.jabatan || '').trim().toUpperCase();
+    const n = (e.nama || '').trim().toUpperCase();
+    // Filter specifically for Live Streaming staff as shown in the screenshot requirements
+    return j.includes('HOST') || j.includes('OPERATOR') || j.includes('OP') || n.includes('ARIYANSYAH');
   }), [employees]);
 
   const datesInRange = useMemo(() => {
@@ -255,14 +313,14 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         </div>
 
         <div className="bg-[#F3F4F6] rounded-full p-1.5 sm:p-2 flex shadow-inner mb-6 sm:mb-8 max-w-full overflow-x-auto no-scrollbar flex-nowrap touch-pan-x">
-          {['JADWAL', 'REPORT', 'GRAFIK', 'BRAND'].map((tab) => (
-             (tab !== 'BRAND' || !readOnly) && (
+          {['JADWAL', 'REPORT', 'GRAFIK', 'LIBUR', 'BRAND'].map((tab) => (
+             ((tab !== 'BRAND' && tab !== 'LIBUR') || !readOnly) && (
               <button 
                 key={tab} 
                 onClick={() => setActiveSubTab(tab as any)} 
                 className={`flex-1 py-3 px-6 sm:py-4 sm:px-8 rounded-full text-[10px] sm:text-[11px] font-bold tracking-widest uppercase transition-all duration-300 whitespace-nowrap ${activeSubTab === tab ? 'bg-white text-[#111827] shadow-[0_4px_12px_rgba(0,0,0,0.05)]' : 'text-slate-400 hover:text-slate-600'}`}
               >
-                {tab === 'REPORT' ? 'REPORT' : tab}
+                {tab}
               </button>
              )
           ))}
@@ -303,13 +361,13 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                   disabled={isImporting}
                   className="flex-1 bg-[#EFF6FF] border border-blue-100 text-blue-700 px-4 py-3 sm:px-8 sm:py-4 rounded-[16px] sm:rounded-[20px] text-[8px] sm:text-[11px] font-bold uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 sm:gap-3 transition-all hover:bg-blue-100 active:scale-95 disabled:opacity-50"
                 >
-                  <Icons.Upload className="w-4 h-4 sm:w-5 sm:h-5" /> {isImporting ? '...' : 'IMPORT'}
+                  <Icons.Upload className="w-4 h-4 sm:w-5 h-5" /> {isImporting ? '...' : 'IMPORT'}
                 </button>
                 <button 
                   onClick={handleExportExcel} 
                   className="flex-1 bg-[#ECFDF5] border border-emerald-100 text-emerald-700 px-4 py-3 sm:px-8 sm:py-4 rounded-[16px] sm:rounded-[20px] text-[8px] sm:text-[11px] font-bold uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 sm:gap-3 transition-all hover:bg-emerald-100 active:scale-95"
                 >
-                  <Icons.Download className="w-4 h-4 sm:w-5 sm:h-5" /> EKSPOR ({schedules.length})
+                  <Icons.Download className="w-4 h-4 sm:w-5 h-5" /> EKSPOR ({schedules.length})
                 </button>
               </div>
             )}
@@ -332,6 +390,22 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
               ))}
             </div>
           </div>
+        )}
+
+        {activeSubTab === 'LIBUR' && !readOnly && (
+           <div className="flex justify-between items-end gap-6 bg-slate-50 p-6 rounded-[32px] border border-slate-100">
+              <div className="space-y-1">
+                 <h3 className="text-lg font-black text-slate-900 uppercase">Manajemen Hari Libur</h3>
+                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Atur hari libur mingguan tetap untuk setiap host & OP</p>
+              </div>
+              <button 
+                onClick={handleSaveHolidays}
+                disabled={isSavingHolidays}
+                className="bg-slate-900 text-[#FFC000] px-8 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 disabled:opacity-50"
+              >
+                {isSavingHolidays ? 'MENYIMPAN...' : 'SIMPAN JADWAL LIBUR'}
+              </button>
+           </div>
         )}
       </div>
 
@@ -432,6 +506,36 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
           <LiveReportModule employees={employees} reports={reports} setReports={setReports} userRole={userRole} company={company} onClose={() => setActiveSubTab('JADWAL')} />
         ) : activeSubTab === 'GRAFIK' ? (
           <LiveCharts reports={reports} employees={employees} />
+        ) : activeSubTab === 'LIBUR' ? (
+          <div className="animate-in fade-in duration-500 space-y-8">
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {DAYS_OF_WEEK.map(day => (
+                  <div key={day} className="bg-slate-50 p-6 rounded-[32px] border border-slate-100 flex flex-col h-[350px]">
+                     <div className="flex justify-between items-center mb-6 shrink-0">
+                        <span className="text-sm font-black text-slate-900 tracking-widest">{day}</span>
+                        <span className="bg-white px-3 py-1 rounded-lg text-[9px] font-black text-indigo-500 border border-slate-200">{weeklyHolidays[day]?.length || 0} ORANG</span>
+                     </div>
+                     <div className="flex-grow overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                        {liveStaffList.map(emp => (
+                          <div 
+                            key={emp.id} 
+                            onClick={() => !readOnly && toggleHoliday(day, emp.nama)}
+                            className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${weeklyHolidays[day]?.includes(emp.nama) ? 'bg-indigo-500 border-indigo-600 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'}`}
+                          >
+                             <div className="flex items-center gap-3">
+                                <div className="w-7 h-7 rounded-lg overflow-hidden bg-slate-100 shrink-0">
+                                   {emp.photoBase64 ? <img src={emp.photoBase64} className="w-full h-full object-cover" /> : null}
+                                </div>
+                                <span className="text-[10px] font-bold truncate max-w-[120px]">{emp.nama.toUpperCase()}</span>
+                             </div>
+                             {weeklyHolidays[day]?.includes(emp.nama) && <Icons.Plus className="w-3 h-3 rotate-45" />}
+                          </div>
+                        ))}
+                     </div>
+                  </div>
+                ))}
+             </div>
+          </div>
         ) : activeSubTab === 'BRAND' ? (
           <div className="animate-in fade-in duration-500 space-y-8 max-w-4xl mx-auto pb-20">
             {!readOnly && (

@@ -220,9 +220,11 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       {isAdmin && (
         <div className="flex flex-wrap gap-3 animate-in fade-in slide-in-from-bottom-2 duration-700">
-           <button onClick={onOpenDrive} className="bg-slate-50 hover:bg-white text-blue-600 border border-slate-100 px-8 py-4 rounded-[22px] flex items-center gap-3 font-black text-[10px] uppercase tracking-widest transition-all shadow-sm active:scale-95">
-              <Icons.Video className="w-4 h-4" /> DRIVE {isOwner ? 'GLOBAL' : userCompany.toUpperCase()}
-           </button>
+           {isSuper && (
+             <button onClick={onOpenDrive} className="bg-slate-50 hover:bg-white text-blue-600 border border-slate-100 px-8 py-4 rounded-[22px] flex items-center gap-3 font-black text-[10px] uppercase tracking-widest transition-all shadow-sm active:scale-95">
+                <Icons.Video className="w-4 h-4" /> DRIVE
+             </button>
+           )}
            <button onClick={onOpenBroadcast} className="bg-slate-900 hover:bg-black text-[#FFC000] px-8 py-4 rounded-[22px] flex items-center gap-3 font-black text-[10px] uppercase tracking-widest transition-all shadow-xl active:scale-95 border border-slate-800">
               <Icons.Megaphone className="w-4 h-4" /> BROADCAST
            </button>

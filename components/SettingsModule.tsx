@@ -53,7 +53,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const fetchSettingsAndEmployees = async () => {
     setIsLoading(true);
     try {
-      // Fetch settings for the currently selected company (Owner can switch, others fixed to their own)
       const targetCompany = isOwner ? selectedCompany : userCompany;
       
       const { data: settingsData, error: settingsError } = await supabase
@@ -65,10 +64,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
       if (settingsError && settingsError.code !== 'PGRST116') throw settingsError;
       if (settingsData) setSettings(settingsData.value);
 
-      // Fetch employees based on role & company
       let query = supabase.from('employees').select('*').order('nama', { ascending: true });
-      
-      // Super admin only sees their company, Owner sees the selected context
       query = query.eq('company', targetCompany);
 
       const { data: empData, error: empError } = await query;
@@ -330,8 +326,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                </div>
             </div>
 
-            <div className="bg-white rounded-[40px] border border-slate-100 overflow-hidden shadow-sm">
-               <table className="w-full text-left">
+            <div className="bg-white rounded-[40px] border border-slate-100 overflow-x-auto no-scrollbar shadow-sm">
+               <table className="w-full text-left min-w-[700px]">
                   <thead className="bg-slate-50 text-[9px] font-black uppercase tracking-widest text-slate-400 border-b">
                      <tr>
                         <th className="px-10 py-6">Karyawan</th>
@@ -343,7 +339,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                   <tbody className="divide-y divide-slate-100">
                      {filteredEmployees.map(emp => (
                        <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-10 py-5">
+                          <td className="px-10 py-5 whitespace-nowrap">
                              <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-100 bg-white shadow-sm shrink-0">
                                    {emp.photoBase64 ? <img src={emp.photoBase64} className="w-full h-full object-cover" /> : null}
@@ -354,10 +350,10 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                                 </div>
                              </div>
                           </td>
-                          <td className="px-10 py-5">
+                          <td className="px-10 py-5 whitespace-nowrap">
                              <span className="text-[10px] font-bold text-slate-500 uppercase">{emp.jabatan}</span>
                           </td>
-                          <td className="px-10 py-5">
+                          <td className="px-10 py-5 whitespace-nowrap">
                              <span className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border ${
                                emp.role === 'owner' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
                                emp.role === 'super' ? 'bg-amber-50 text-amber-600 border-amber-100' :
@@ -367,7 +363,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                                 {emp.role || 'employee'}
                              </span>
                           </td>
-                          <td className="px-10 py-5 text-right">
+                          <td className="px-10 py-5 text-right whitespace-nowrap">
                              <select 
                                value={emp.role || 'employee'}
                                onChange={(e) => handleUpdateRole(emp.id, e.target.value)}

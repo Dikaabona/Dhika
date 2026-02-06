@@ -14,15 +14,14 @@ interface LiveReportModuleProps {
   onClose: () => void;
 }
 
-// Helper untuk format tanggal MM/DD/YYYY
-const formatDateToMDY = (dateStr: string) => {
+// Updated: format to YYYY/MM/DD
+const formatDateToYMD = (dateStr: string) => {
   if (!dateStr || !dateStr.includes('-')) return dateStr;
-  const [y, m, d] = dateStr.split('-');
-  return `${m}/${d}/${y}`;
+  return dateStr.replace(/-/g, '/');
 };
 
-// Helper untuk parse MM/DD/YYYY kembali ke ISO YYYY-MM-DD
-const parseMDYToIso = (val: any) => {
+// Updated: parse YYYY/MM/DD back to ISO YYYY-MM-DD
+const parseYMDToIso = (val: any) => {
   if (!val) return new Date().toISOString().split('T')[0];
   if (val instanceof Date) return val.toISOString().split('T')[0];
   
@@ -30,11 +29,11 @@ const parseMDYToIso = (val: any) => {
   if (str.includes('/')) {
     const parts = str.split('/');
     if (parts.length === 3) {
-      const m = parts[0].padStart(2, '0');
-      const d = parts[1].padStart(2, '0');
-      const y = parts[2];
-      const fullY = y.length === 2 ? `20${y}` : y;
-      return `${fullY}-${m}-${d}`;
+      // Assuming YYYY/MM/DD format
+      const y = parts[0];
+      const m = parts[1].padStart(2, '0');
+      const d = parts[2].padStart(2, '0');
+      return `${y}-${m}-${d}`;
     }
   }
   
@@ -51,7 +50,11 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
   const [editingReport, setEditingReport] = useState<LiveReport | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('ALL');
-  const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
+  
+  const getTodayStr = () => new Date().toISOString().split('T')[0];
+  const [startDate, setStartDate] = useState(getTodayStr());
+  const [endDate, setEndDate] = useState(getTodayStr());
+  
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -105,13 +108,13 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
   const filteredReports = useMemo(() => {
     return reports.filter(r => {
       const matchesBrand = selectedBrand === 'ALL' || r.brand === selectedBrand;
-      const matchesDate = !dateFilter || r.tanggal === dateFilter;
+      const matchesDate = (!startDate || r.tanggal >= startDate) && (!endDate || r.tanggal <= endDate);
       const hostName = employees.find(e => e.id === r.hostId)?.nama || '';
       const opName = employees.find(e => e.id === r.opId)?.nama || '';
       const matchesSearch = hostName.toLowerCase().includes(searchQuery.toLowerCase()) || opName.toLowerCase().includes(searchQuery.toLowerCase()) || (r.roomId && r.roomId.includes(searchQuery));
       return matchesBrand && matchesDate && matchesSearch;
     });
-  }, [reports, selectedBrand, dateFilter, searchQuery, employees]);
+  }, [reports, selectedBrand, startDate, endDate, searchQuery, employees]);
 
   const handleOpenModal = (report?: LiveReport) => {
     if (report) {
@@ -167,7 +170,8 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
 
   const handleExport = () => {
     let dataToExport = filteredReports.map((r) => ({
-      'TANGGAL': formatDateToMDY(r.tanggal),
+      // Updated: format to YYYY/MM/DD
+      'TANGGAL': formatDateToYMD(r.tanggal),
       'BRAND': r.brand,
       'ROOM ID': r.roomId,
       'HOST': employees.find(e => e.id === r.hostId)?.nama || '-',
@@ -186,6 +190,30 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Live Report");
     XLSX.writeFile(wb, `LiveReport_Visibel_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const handleDownloadTemplate = () => {
+    const template = [
+      {
+        'TANGGAL': '2026/02/06',
+        'BRAND': 'HITJAB',
+        'ROOM ID': 'ROOM_123',
+        'HOST': 'NAMA HOST',
+        'OP': 'NAMA OP',
+        'VIEW': 0,
+        'RATE': '0%',
+        'CTR': '0%',
+        'START': '00:00',
+        'END': '00:00',
+        'DURASI': 0,
+        'CO': 0,
+        'GMV': 0
+      }
+    ];
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template Laporan Live");
+    XLSX.writeFile(wb, `Template_LiveReport_${company}.xlsx`);
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,7 +244,8 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
           };
 
           return {
-            tanggal: parseMDYToIso(row['TANGGAL']),
+            // Updated: parse using parseYMDToIso
+            tanggal: parseYMDToIso(row['TANGGAL']),
             brand: String(row['BRAND'] || '').toUpperCase().trim(),
             company: String(row['COMPANY'] || company),
             roomId: String(row['ROOM ID'] || '').trim(),
@@ -269,24 +298,46 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
           />
         </div>
         
-        <div className="grid grid-cols-2 gap-3">
+        <div className="bg-slate-50 p-1.5 rounded-[28px] border border-slate-100 flex flex-col sm:flex-row gap-3 shadow-inner">
           <select 
             value={selectedBrand} 
             onChange={(e) => setSelectedBrand(e.target.value)} 
-            className="bg-white border border-slate-200 px-4 py-3.5 rounded-2xl text-[10px] font-black text-slate-900 outline-none shadow-sm appearance-none text-center uppercase tracking-widest"
+            className="bg-white border border-slate-200 px-6 py-3.5 rounded-[22px] text-[10px] font-black text-slate-900 outline-none shadow-sm appearance-none text-center uppercase tracking-widest sm:flex-grow"
           >
             <option value="ALL">SEMUA BRAND</option>
             {LIVE_BRANDS.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
           </select>
-          <input 
-            type="date" 
-            value={dateFilter} 
-            onChange={(e) => setDateFilter(e.target.value)} 
-            className="bg-white border border-slate-200 px-4 py-3.5 rounded-2xl text-[10px] font-black text-slate-900 outline-none shadow-sm text-center" 
-          />
+          
+          <div className="flex items-center gap-3 px-6 py-3 bg-white rounded-[22px] shadow-sm border border-slate-100 shrink-0">
+            <div className="flex flex-col items-start min-w-[100px]">
+              <span className="text-[7px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Mulai</span>
+              <input 
+                type="date" 
+                value={startDate} 
+                onChange={(e) => setStartDate(e.target.value)} 
+                className="bg-transparent text-[10px] font-black outline-none text-slate-900 cursor-pointer" 
+              />
+            </div>
+            <div className="h-8 w-px bg-slate-100"></div>
+            <div className="flex flex-col items-start min-w-[100px]">
+              <span className="text-[7px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Sampai</span>
+              <input 
+                type="date" 
+                value={endDate} 
+                onChange={(e) => setEndDate(e.target.value)} 
+                className="bg-transparent text-[10px] font-black outline-none text-slate-900 cursor-pointer" 
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <button 
+            onClick={handleDownloadTemplate} 
+            className="bg-slate-50 border border-slate-200 text-slate-400 px-3 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-sm hover:bg-slate-100 transition-all flex items-center justify-center gap-2"
+          >
+            <Icons.Download className="w-3 h-3" /> TEMPLATE
+          </button>
           <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".xlsx,.xls" />
           <button 
             onClick={() => fileInputRef.current?.click()} 
@@ -304,7 +355,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
           {canManage && (
             <button 
               onClick={() => handleOpenModal()} 
-              className="col-span-2 sm:col-span-1 bg-slate-900 text-[#FFC000] px-4 py-4 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"
+              className="col-span-3 bg-slate-900 text-[#FFC000] px-4 py-4 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"
             >
               <Icons.Plus className="w-3 h-3" /> TAMBAH REPORT
             </button>

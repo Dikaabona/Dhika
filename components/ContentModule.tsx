@@ -236,13 +236,29 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!hasFullAccess) return;
+
     const finalTitle = `${formData.brand} - ${formData.postingDate || 'No Date'}`;
-    const reportId = editingPlan?.id || `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-    const dataToSave = { ...formData, title: finalTitle, id: reportId, status: 'Selesai' as const };
+    const reportId = editingPlan?.id || `REP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     
+    const dataToSave = { 
+      ...formData, 
+      title: finalTitle, 
+      id: reportId, 
+      status: 'Selesai' as const,
+      likes: Number(formData.likes || 0),
+      comments: Number(formData.comments || 0),
+      views: Number(formData.views || 0),
+      saves: Number(formData.saves || 0),
+      shares: Number(formData.shares || 0)
+    };
+
     try {
       const { error } = await supabase.from('content_plans').upsert(dataToSave);
-      if (error) throw error;
+      
+      if (error) {
+        console.error("Supabase Error Detail:", error);
+        throw error;
+      }
       
       setPlans(prev => {
         const idx = prev.findIndex(p => p.id === reportId);
@@ -256,7 +272,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       setIsModalOpen(false);
       setDbStatus('sync');
     } catch (err: any) {
-      alert("Gagal menyimpan ke database.");
+      alert("Gagal menyimpan ke database: " + (err.message || "Kesalahan tidak diketahui"));
       setDbStatus('local');
     }
   };
@@ -269,7 +285,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       if (error) throw error;
       setPlans(prev => prev.filter(p => p.id !== planId));
     } catch (err: any) {
-      alert("Gagal menghapus data.");
+      alert("Gagal menghapus data: " + err.message);
     }
   };
 
@@ -389,7 +405,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           const postingDate = row['TANGGAL POSTING'] ? (row['TANGGAL POSTING'] instanceof Date ? row['TANGGAL POSTING'].toISOString().split('T')[0] : String(row['TANGGAL POSTING'])) : new Date().toISOString().split('T')[0];
           
           return {
-            id: `${Date.now()}${Math.floor(Math.random() * 10000)}`,
+            id: `REP-IMP-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
             title: `${brand} - ${postingDate}`,
             brand: brand,
             company: String(row['COMPANY'] || company),
@@ -475,7 +491,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         </div>
       )}
 
-      {/* HEADER SECTION - REFINED FOR MOBILE & DESKTOP */}
+      {/* HEADER SECTION */}
       <div className="bg-white rounded-[32px] sm:rounded-[48px] shadow-sm border border-slate-100 overflow-hidden">
         <div className="px-6 sm:px-12 py-8 sm:py-14 border-b flex flex-col items-start bg-white gap-6 sm:gap-10">
             <div className="flex flex-col gap-2 sm:gap-3">
@@ -483,13 +499,12 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
               <div className="flex items-center gap-3">
                 <span className="inline-block bg-slate-100 text-slate-500 text-[8px] sm:text-[10px] font-black uppercase px-4 sm:px-6 py-2 sm:2.5 rounded-full tracking-[0.2em] self-start">Production & Performance</span>
                 <div className="flex items-center gap-2">
-                  <div className={`w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full ${dbStatus === 'sync' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-amber-500 animate-pulse'}`}></div>
+                  <div className={`w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full ${dbStatus === 'sync' ? 'bg-emerald-50 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-amber-50 animate-pulse'}`}></div>
                 </div>
               </div>
             </div>
             
             <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6 sm:gap-8 w-full">
-              {/* TERPADU SEARCH & FILTER BAR */}
               <div className="flex items-center bg-[#f1f5f9] p-1 sm:p-1.5 rounded-[28px] sm:rounded-[32px] border border-slate-100 shadow-inner w-full xl:max-w-[700px]">
                 <div className="relative shrink-0">
                    <div className="bg-[#0f172a] text-white px-5 sm:px-8 py-3.5 sm:py-4.5 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] text-[9px] sm:text-[11px] font-black uppercase tracking-widest flex items-center gap-2 sm:gap-3 cursor-pointer shadow-lg active:scale-95 transition-all">
@@ -518,7 +533,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                 </div>
               </div>
 
-              {/* ACTION BUTTONS */}
               <div className="flex flex-wrap gap-2 sm:gap-4 items-center shrink-0 w-full xl:w-auto">
                 {hasFullAccess && (
                   <>
@@ -624,7 +638,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         </div>
       )}
 
-      {/* STATS CARDS - SLIDER (AS REQUESTED) */}
+      {/* STATS CARDS - SLIDER */}
       <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 no-scrollbar scroll-smooth snap-x">
         {brandStats.map(bs => (
           <div key={bs.name} className="min-w-[280px] sm:min-w-[320px] bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[36px] border border-slate-100 shadow-sm space-y-5 sm:space-y-6 transition-all hover:shadow-xl hover:-translate-y-1 relative group overflow-hidden snap-start shrink-0">
@@ -665,7 +679,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         ))}
       </div>
 
-      {/* DATA TABLE - ELEGANT STYLE */}
+      {/* DATA TABLE */}
       <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto no-scrollbar scroll-smooth">
           <table className="w-full text-left min-w-[1000px] border-separate border-spacing-0">
@@ -765,6 +779,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         </div>
       </div>
 
+      {/* MODAL FORM */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[150] flex items-center justify-center p-4">
           <div className="bg-white rounded-[40px] sm:rounded-[56px] shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-500 border border-white/20">

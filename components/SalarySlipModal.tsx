@@ -8,6 +8,7 @@ import { supabase } from '../App';
 interface SalarySlipModalProps {
   employee: Employee;
   attendanceRecords: AttendanceRecord[];
+  userRole: string; // Tambahkan prop userRole
   onClose: () => void;
   onUpdate?: () => void;
   weeklyHolidays?: Record<string, string[]>;
@@ -15,7 +16,10 @@ interface SalarySlipModalProps {
 
 const ALPHA_START_DATE = '2026-02-02';
 
-const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceRecords, onClose, onUpdate, weeklyHolidays }) => {
+const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceRecords, userRole, onClose, onUpdate, weeklyHolidays }) => {
+  // Logic: Read-only untuk admin dan karyawan
+  const isReadOnlyRole = userRole === 'admin' || userRole === 'employee';
+
   const getPreviousMonthInfo = () => {
     const now = new Date();
     const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -173,6 +177,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   }, [autoBPJS, isBPJSTKActive]);
 
   const calculateTHRValue = () => {
+    if (isReadOnlyRole) return;
     const { totalMonths } = tenureInfo;
     const baseForTHR = (data.gapok || 0) + totalTunjanganOps;
     let thrValue = totalMonths >= 12 ? baseForTHR : (totalMonths >= 3 ? Math.round((totalMonths / 12) * baseForTHR) : 0);
@@ -185,7 +190,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const sisaHutang = Math.max(0, (employee.hutang || 0) - (data.potonganHutang || 0));
 
   const handleSaveConfig = async () => {
-    if (isSaving) return;
+    if (isSaving || isReadOnlyRole) return;
 
     if (data.potonganHutang > 0) {
       const confirmUpdate = window.confirm(`Perhatian! Saldo hutang karyawan akan berkurang sebesar Rp ${data.potonganHutang.toLocaleString('id-ID')}. Saldo akhir akan menjadi Rp ${sisaHutang.toLocaleString('id-ID')}. Lanjutkan?`);
@@ -360,7 +365,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           <div className="space-y-6">
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Gaji Pokok</label>
-              <input type="text" value={(data.gapok || 0).toLocaleString('id-ID')} onChange={e => setData({...data, gapok: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-[#f8fafc] border-2 border-slate-100 rounded-3xl p-5 text-2xl font-black text-black outline-none shadow-inner focus:border-[#FFC000] transition-all" />
+              <input type="text" disabled={isReadOnlyRole} value={(data.gapok || 0).toLocaleString('id-ID')} onChange={e => setData({...data, gapok: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-[#f8fafc] border-2 border-slate-100 rounded-3xl p-5 text-2xl font-black text-black outline-none shadow-inner focus:border-[#FFC000] transition-all disabled:opacity-70" />
             </div>
 
             {/* TUNJANGAN SECTION */}
@@ -369,23 +374,23 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Makan</label>
-                  <input type="text" value={(data.tunjanganMakan || 0).toLocaleString('id-ID')} onChange={e => setData({...data, tunjanganMakan: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-sky-200 rounded-xl p-3 text-sm font-bold text-black focus:border-sky-400 outline-none shadow-sm" />
+                  <input type="text" disabled={isReadOnlyRole} value={(data.tunjanganMakan || 0).toLocaleString('id-ID')} onChange={e => setData({...data, tunjanganMakan: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-sky-200 rounded-xl p-3 text-sm font-bold text-black focus:border-sky-400 outline-none shadow-sm disabled:opacity-70" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Transport</label>
-                  <input type="text" value={(data.tunjanganTransport || 0).toLocaleString('id-ID')} onChange={e => setData({...data, tunjanganTransport: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-sky-200 rounded-xl p-3 text-sm font-bold text-black focus:border-sky-400 outline-none shadow-sm" />
+                  <input type="text" disabled={isReadOnlyRole} value={(data.tunjanganTransport || 0).toLocaleString('id-ID')} onChange={e => setData({...data, tunjanganTransport: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-sky-200 rounded-xl p-3 text-sm font-bold text-black focus:border-sky-400 outline-none shadow-sm disabled:opacity-70" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Komunikasi</label>
-                  <input type="text" value={(data.tunjanganKomunikasi || 0).toLocaleString('id-ID')} onChange={e => setData({...data, tunjanganKomunikasi: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-sky-200 rounded-xl p-3 text-sm font-bold text-black focus:border-sky-400 outline-none shadow-sm" />
+                  <input type="text" disabled={isReadOnlyRole} value={(data.tunjanganKomunikasi || 0).toLocaleString('id-ID')} onChange={e => setData({...data, tunjanganKomunikasi: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-sky-200 rounded-xl p-3 text-sm font-bold text-black focus:border-sky-400 outline-none shadow-sm disabled:opacity-70" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Kesehatan</label>
-                  <input type="text" value={(data.tunjanganKesehatan || 0).toLocaleString('id-ID')} onChange={e => setData({...data, tunjanganKesehatan: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-sky-200 rounded-xl p-3 text-sm font-bold text-black focus:border-sky-400 outline-none shadow-sm" />
+                  <input type="text" disabled={isReadOnlyRole} value={(data.tunjanganKesehatan || 0).toLocaleString('id-ID')} onChange={e => setData({...data, tunjanganKesehatan: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-sky-200 rounded-xl p-3 text-sm font-bold text-black focus:border-sky-400 outline-none shadow-sm disabled:opacity-70" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Jabatan</label>
-                  <input type="text" value={(data.tunjanganJabatan || 0).toLocaleString('id-ID')} onChange={e => setData({...data, tunjanganJabatan: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-sky-200 rounded-xl p-3 text-sm font-bold text-black focus:border-sky-400 outline-none shadow-sm" />
+                  <input type="text" disabled={isReadOnlyRole} value={(data.tunjanganJabatan || 0).toLocaleString('id-ID')} onChange={e => setData({...data, tunjanganJabatan: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-sky-200 rounded-xl p-3 text-sm font-bold text-black focus:border-sky-400 outline-none shadow-sm disabled:opacity-70" />
                 </div>
               </div>
             </div>
@@ -398,18 +403,20 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-bold text-[#806000] uppercase tracking-widest ml-1">Lembur Manual (Rp)</label>
-                    <input type="text" value={(data.lembur || 0).toLocaleString('id-ID')} onChange={e => setData({...data, lembur: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-[#FFD700] rounded-xl p-3 text-sm font-bold text-black focus:border-[#FFC000] outline-none shadow-sm" />
+                    <input type="text" disabled={isReadOnlyRole} value={(data.lembur || 0).toLocaleString('id-ID')} onChange={e => setData({...data, lembur: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-[#FFD700] rounded-xl p-3 text-sm font-bold text-black focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-70" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-bold text-[#806000] uppercase tracking-widest ml-1">THR (Rp)</label>
-                    <input type="text" value={(data.thr || 0).toLocaleString('id-ID')} onChange={e => setData({...data, thr: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-[#FFD700] rounded-xl p-3 text-sm font-bold text-black focus:border-[#FFC000] outline-none shadow-sm" />
+                    <input type="text" disabled={isReadOnlyRole} value={(data.thr || 0).toLocaleString('id-ID')} onChange={e => setData({...data, thr: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-[#FFD700] rounded-xl p-3 text-sm font-bold text-black focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-70" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-bold text-[#806000] uppercase tracking-widest ml-1">Bonus (Rp)</label>
-                    <input type="text" value={(data.bonus || 0).toLocaleString('id-ID')} onChange={e => setData({...data, bonus: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-[#FFD700] rounded-xl p-3 text-sm font-bold text-black focus:border-[#FFC000] outline-none shadow-sm" />
+                    <input type="text" disabled={isReadOnlyRole} value={(data.bonus || 0).toLocaleString('id-ID')} onChange={e => setData({...data, bonus: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border border-[#FFD700] rounded-xl p-3 text-sm font-bold text-black focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-70" />
                   </div>
                </div>
-               <button onClick={calculateTHRValue} className="w-full bg-[#FFC000] text-black text-[10px] font-black py-3 rounded-2xl border border-[#cc9a00] shadow-sm active:scale-[0.98] transition-all">AUTO HITUNG THR</button>
+               {!isReadOnlyRole && (
+                 <button onClick={calculateTHRValue} className="w-full bg-[#FFC000] text-black text-[10px] font-black py-3 rounded-2xl border border-[#cc9a00] shadow-sm active:scale-[0.98] transition-all">AUTO HITUNG THR</button>
+               )}
             </div>
             
             <div className="bg-slate-50/50 p-6 rounded-[32px] border-2 border-slate-100 space-y-4">
@@ -424,6 +431,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                     <input 
                       type="checkbox" 
                       id="toggle-bpjstk"
+                      disabled={isReadOnlyRole}
                       checked={isBPJSTKActive}
                       onChange={(e) => setIsBPJSTKActive(e.target.checked)}
                       className="w-5 h-5 rounded border-amber-200 text-[#FFC000] focus:ring-[#FFC000]"
@@ -434,12 +442,14 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                     <div className="flex items-center gap-2">
                        <input 
                         type="text" 
-                        disabled={!isBPJSTKActive}
+                        disabled={!isBPJSTKActive || isReadOnlyRole}
                         value={(data.bpjstk || 0).toLocaleString('id-ID')} 
                         onChange={e => setData({...data, bpjstk: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
                         className="flex-grow bg-white border-2 border-amber-100 rounded-xl p-3 text-base font-black text-black shadow-sm focus:border-amber-400 outline-none" 
                       />
-                      <button onClick={() => setData({...data, bpjstk: autoBPJS})} className="bg-amber-500 text-white p-3 rounded-xl hover:bg-amber-600 transition-colors shadow-sm"><Icons.Sparkles className="w-4 h-4"/></button>
+                      {!isReadOnlyRole && (
+                        <button onClick={() => setData({...data, bpjstk: autoBPJS})} className="bg-amber-500 text-white p-3 rounded-xl hover:bg-amber-600 transition-colors shadow-sm"><Icons.Sparkles className="w-4 h-4"/></button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -449,13 +459,16 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Potongan PPh 21 (Pajak)</label>
-                    <button onClick={() => setData({...data, pph21: autoPajak})} className="text-[9px] font-black text-[#FFC000] bg-slate-900 px-4 py-1.5 rounded-lg active:scale-95 transition-all">HITUNG OTOMATIS</button>
+                    {!isReadOnlyRole && (
+                      <button onClick={() => setData({...data, pph21: autoPajak})} className="text-[9px] font-black text-[#FFC000] bg-slate-900 px-4 py-1.5 rounded-lg active:scale-95 transition-all">HITUNG OTOMATIS</button>
+                    )}
                   </div>
                   <input 
                     type="text" 
+                    disabled={isReadOnlyRole}
                     value={(data.pph21 || 0).toLocaleString('id-ID')} 
                     onChange={e => setData({...data, pph21: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
-                    className="w-full bg-white border-2 border-slate-100 rounded-xl p-3 text-sm font-bold text-black shadow-sm focus:border-indigo-400 outline-none" 
+                    className="w-full bg-white border-2 border-slate-100 rounded-xl p-3 text-sm font-bold text-black shadow-sm focus:border-indigo-400 outline-none disabled:opacity-70" 
                     placeholder="Pajak Bulanan..."
                   />
                 </div>
@@ -472,17 +485,18 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Potongan Hutang (Saldo: Rp {(employee.hutang || 0).toLocaleString('id-ID')})</label>
                   <input 
                     type="text" 
+                    disabled={isReadOnlyRole}
                     value={(data.potonganHutang || 0).toLocaleString('id-ID')} 
                     onChange={e => {
                       const val = parseInt(e.target.value.replace(/\./g, '')) || 0;
                       setData({...data, potonganHutang: Math.min(employee.hutang || 0, val)});
                     }} 
-                    className="w-full bg-white border-2 border-red-100 rounded-xl p-3 text-sm font-bold text-black focus:border-red-400 outline-none shadow-sm" 
+                    className="w-full bg-white border-2 border-red-100 rounded-xl p-3 text-sm font-bold text-black focus:border-red-400 outline-none shadow-sm disabled:opacity-70" 
                   />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Potongan Lainnya</label>
-                  <input type="text" value={(data.potonganLain || 0).toLocaleString('id-ID')} onChange={e => setData({...data, potonganLain: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border-2 border-slate-100 rounded-xl p-3 text-sm font-bold text-black focus:border-[#FFC000] outline-none shadow-sm" />
+                  <input type="text" disabled={isReadOnlyRole} value={(data.potonganLain || 0).toLocaleString('id-ID')} onChange={e => setData({...data, potonganLain: parseInt(e.target.value.replace(/\./g, '')) || 0})} className="w-full bg-white border-2 border-slate-100 rounded-xl p-3 text-sm font-bold text-black focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-70" />
                 </div>
               </div>
             </div>
@@ -502,15 +516,16 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           </div>
           
           <div className="p-6 space-y-4">
-            <button 
-              type="button"
-              disabled={isSaving} 
-              // Fix: Corrected handleSaveSettings to handleSaveConfig
-              onClick={handleSaveConfig} 
-              className="w-full bg-[#0f172a] text-[#FFC000] py-5 rounded-2xl font-black transition-all shadow-xl text-[11px] tracking-[0.2em] uppercase flex items-center justify-center gap-4 disabled:opacity-50 active:scale-[0.98] hover:bg-black"
-            >
-              {isSaving ? 'MEMPROSES...' : <><Icons.Database className="w-5 h-5" /> SIMPAN PERUBAHAN & POTONG HUTANG</>}
-            </button>
+            {!isReadOnlyRole && (
+              <button 
+                type="button"
+                disabled={isSaving} 
+                onClick={handleSaveConfig} 
+                className="w-full bg-[#0f172a] text-[#FFC000] py-5 rounded-2xl font-black transition-all shadow-xl text-[11px] tracking-[0.2em] uppercase flex items-center justify-center gap-4 disabled:opacity-50 active:scale-[0.98] hover:bg-black"
+              >
+                {isSaving ? 'MEMPROSES...' : <><Icons.Database className="w-5 h-5" /> SIMPAN PERUBAHAN & POTONG HUTANG</>}
+              </button>
+            )}
             <button type="button" onClick={() => setIsPreview(true)} className="w-full bg-[#FFC000] text-black py-5 rounded-2xl font-black hover:bg-[#E6AD00] transition-all shadow-lg text-[11px] tracking-[0.2em] uppercase active:scale-[0.98]">LIHAT PRATINJAU SLIP</button>
             <div className="grid grid-cols-2 gap-4">
               <button type="button" onClick={() => window.open(`https://wa.me/${employee.noHandphone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Halo ${employee.nama},\n\nSlip Gaji ${data.month} Anda sudah terbit.\n\nTotal diterima: Rp ${takeHomePay.toLocaleString('id-ID')}\n\nSilakan cek detailnya di portal HR.\nTerima kasih.`)}`)} className="bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-black text-xs uppercase flex items-center justify-center gap-3 active:scale-[0.98] transition-all shadow-md">

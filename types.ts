@@ -14,16 +14,15 @@ export interface Employee {
   bank: string;
   noRekening: string;
   namaDiRekening: string;
-  company: string; // Field baru untuk multi-company
+  company: string;
   avatarUrl?: string;
   photoBase64?: string;
   hutang: number;
-  isRemoteAllowed?: boolean; // Properti baru untuk izin absen luar kantor individu
-  role?: 'owner' | 'super' | 'admin' | 'employee'; // Role sistem baru
-  // Digital Documents
+  isRemoteAllowed?: boolean;
+  role?: 'owner' | 'super' | 'admin' | 'employee';
   ktpDocBase64?: string;
   ktpDocType?: 'image' | 'pdf';
-  contractDocBase64?: string; // Always PDF
+  contractDocBase64?: string;
   salaryConfig?: Omit<SalaryData, 'month' | 'year'>;
 }
 
@@ -32,24 +31,40 @@ export type AttendanceStatus = 'Hadir' | 'Sakit' | 'Izin' | 'Alpha' | 'Libur' | 
 export interface AttendanceRecord {
   id?: string;
   employeeId: string;
-  company: string; // Filter per company
-  date: string; // YYYY-MM-DD
+  company: string;
+  date: string;
   status: AttendanceStatus;
   clockIn?: string;
   clockOut?: string;
   notes?: string;
-  docBase64?: string; // For medical letters
+  docBase64?: string;
   docType?: string;
   submittedAt?: string;
   photoIn?: string;
   photoOut?: string;
 }
 
+export interface Shift {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  color: string;
+}
+
+export interface ShiftAssignment {
+  id?: string;
+  employeeId: string;
+  date: string;
+  shiftId: string;
+  company: string;
+}
+
 export interface AttendanceSettings {
   locationName: string;
   latitude: number;
   longitude: number;
-  radius: number; // dalam meter
+  radius: number;
   allowRemote: boolean;
 }
 
@@ -57,7 +72,7 @@ export interface Submission {
   id?: string;
   employeeId: string;
   employeeName: string;
-  company: string; // Filter per company
+  company: string;
   type: AttendanceStatus;
   startDate: string;
   endDate: string;
@@ -71,8 +86,8 @@ export interface Broadcast {
   id?: string;
   title: string;
   message: string;
-  company: string; // Filter per company
-  targetEmployeeIds: string[]; // Array of employee IDs
+  company: string;
+  targetEmployeeIds: string[];
   sentAt: string;
 }
 
@@ -80,7 +95,7 @@ export interface LiveSchedule {
   id?: string;
   date: string;
   brand: string;
-  company: string; // Filter per company
+  company: string;
   hourSlot: string;
   hostId: string;
   opId: string;
@@ -90,16 +105,16 @@ export interface LiveReport {
   id?: string;
   tanggal: string;
   brand: string;
-  company: string; // Filter per company
+  company: string;
   roomId: string;
   hostId: string;
   opId: string;
   totalView: number;
-  enterRoomRate: string; // e.g. "4.5%"
-  ctr: string; // e.g. "2.1%"
+  enterRoomRate: string;
+  ctr: string;
   waktuMulai: string;
   waktuSelesai: string;
-  durasi: number; // Jam
+  durasi: number;
   checkout: number;
   gmv: number;
 }
@@ -108,13 +123,12 @@ export interface ContentPlan {
   id?: string;
   title: string;
   brand: string;
-  company: string; // Filter per company
+  company: string;
   platform: 'TikTok' | 'Instagram' | 'Shopee' | 'Youtube';
   creatorId: string;
   deadline: string;
   status: 'Draft' | 'Proses' | 'Editing' | 'Selesai';
   notes?: string;
-  // Reporting Fields
   postingDate?: string;
   jamUpload?: string;
   linkReference?: string;

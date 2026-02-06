@@ -8,17 +8,22 @@ interface EmployeeFormProps {
   employees: Employee[];
   userRole: string;
   userCompany: string;
+  currentUserEmployee: Employee | null; // Tambahkan prop ini
   onSave: (employee: Employee) => void;
   onCancel: () => void;
 }
 
-const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, userRole, userCompany, onSave, onCancel }) => {
+const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, userRole, userCompany, currentUserEmployee, onSave, onCancel }) => {
   const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super';
-  const isAdmin = userRole === 'admin';
-  // System Admin (Owner, Super, Admin) can edit restricted fields
-  const isSystemAdmin = isOwner || isSuper || isAdmin;
   
+  // Role 'admin' di sistem ini sekarang diperlakukan seperti karyawan untuk edit data (hanya data sendiri)
+  // Kecuali jika admin tersebut adalah Super Admin resmi
+  const isSystemAdmin = isOwner || isSuper;
+  
+  // Logic: Apakah user sedang mengedit datanya sendiri?
+  const isEditingSelf = initialData?.id === currentUserEmployee?.id;
+
   const [formData, setFormData] = useState<Omit<Employee, 'id'>>({
     idKaryawan: '',
     nama: '',
@@ -82,8 +87,9 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target as HTMLInputElement;
     
-    // Perbaikan: Izinkan System Admin (termasuk Ariyansyah/Admin) mengubah field ini
-    const restrictedFields = ['idKaryawan', 'jabatan', 'tanggalMasuk', 'hutang', 'company'];
+    // Field yang hanya boleh diedit oleh Super Admin / Owner
+    const restrictedFields = ['idKaryawan', 'jabatan', 'tanggalMasuk', 'hutang', 'company', 'isRemoteAllowed'];
+    
     if (!isSystemAdmin && restrictedFields.includes(name)) return;
 
     if (type === 'checkbox') {
@@ -189,11 +195,11 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <div className="bg-[#FFFBEB] p-5 rounded-[24px] border border-[#FFD700]">
                  <label className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1.5 block">ID KARYAWAN RESMI</label>
-                 <input required name="idKaryawan" readOnly={!isSystemAdmin} value={formData.idKaryawan} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-[#FFD700] rounded-xl text-lg font-bold text-black outline-none" />
+                 <input required name="idKaryawan" readOnly={!isSystemAdmin} value={formData.idKaryawan} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-[#FFD700] rounded-xl text-lg font-bold text-black outline-none disabled:opacity-70" />
                </div>
                <div className="bg-sky-50 p-5 rounded-[24px] border border-sky-100">
                  <label className="text-[10px] font-bold text-sky-600 uppercase tracking-widest mb-1.5 block">COMPANY</label>
-                 <input required name="company" readOnly={!isSystemAdmin} value={formData.company} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-sky-100 rounded-xl text-lg font-bold text-slate-900 outline-none" />
+                 <input required name="company" readOnly={!isSystemAdmin} value={formData.company} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-sky-100 rounded-xl text-lg font-bold text-slate-900 outline-none disabled:opacity-70" />
                </div>
             </div>
 
@@ -204,7 +210,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Jabatan</label>
-                <input required name="jabatan" readOnly={!isSystemAdmin} value={formData.jabatan} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+                <input required name="jabatan" readOnly={!isSystemAdmin} value={formData.jabatan} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all disabled:opacity-70" />
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tempat Lahir</label>
@@ -233,16 +239,17 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tanggal Masuk</label>
-                <input required name="tanggalMasuk" readOnly={!isSystemAdmin} value={formData.tanggalMasuk} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+                <input required name="tanggalMasuk" readOnly={!isSystemAdmin} value={formData.tanggalMasuk} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all disabled:opacity-70" />
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total Hutang Karyawan (Rp)</label>
-                <input name="hutang" readOnly={!isSystemAdmin} value={formData.hutang || 0} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-black text-black outline-none focus:bg-white transition-all text-lg" />
+                <input name="hutang" readOnly={!isSystemAdmin} value={formData.hutang || 0} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-black text-black outline-none focus:bg-white transition-all text-lg disabled:opacity-70" />
               </div>
               <div className="flex items-center gap-3 bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
                 <input 
                   type="checkbox" 
                   name="isRemoteAllowed" 
+                  disabled={!isSystemAdmin}
                   checked={formData.isRemoteAllowed} 
                   onChange={handleChange}
                   className="w-5 h-5 rounded border-emerald-200 text-emerald-600 focus:ring-emerald-500" 

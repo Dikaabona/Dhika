@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { createClient, Session } from '@supabase/supabase-js';
-import { Employee, AttendanceRecord, LiveSchedule, Submission, Broadcast, ContentPlan, LiveReport } from './types.ts';
+import { Employee, AttendanceRecord, LiveSchedule, Submission, Broadcast, ContentPlan, LiveReport, ShiftAssignment } from './types.ts';
 import { Icons, BANK_OPTIONS } from './constants.tsx';
 import EmployeeForm from './components/EmployeeForm.tsx';
 import Dashboard from './components/Dashboard.tsx';
@@ -16,6 +16,7 @@ import ContentModule from './components/ContentModule.tsx';
 import AbsenModule from './components/AbsenModule.tsx';
 import LegalModal from './components/LegalModal.tsx';
 import SettingsModule from './components/SettingsModule.tsx';
+import ShiftModule from './components/ShiftModule.tsx';
 import { getTenureYears, calculateTenure } from './utils/dateUtils.ts';
 
 const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
@@ -26,7 +27,7 @@ const SUPABASE_ANON_KEY = (process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiI
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'submissions' | 'inbox' | 'settings';
+type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'submissions' | 'inbox' | 'settings' | 'shift';
 type UserRole = 'owner' | 'super' | 'admin' | 'employee';
 
 const App: React.FC = () => {
@@ -46,11 +47,7 @@ const App: React.FC = () => {
   const [legalType, setLegalType] = useState<'privacy' | 'tos' | null>(null);
 
   const getTodayStr = () => new Date().toISOString().split('T')[0];
-  const getFirstDayOfMonth = () => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  };
-
+  
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
     const savedTab = localStorage.getItem('visibel_active_tab');
     return (savedTab as ActiveTab) || 'home';
@@ -70,6 +67,7 @@ const App: React.FC = () => {
   const [liveReports, setLiveReports] = useState<LiveReport[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
+  const [shiftAssignments, setShiftAssignments] = useState<ShiftAssignment[]>([]);
   const [weeklyHolidays, setWeeklyHolidays] = useState<Record<string, string[]>>({});
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isImportingEmployees, setIsImportingEmployees] = useState(false);
@@ -88,6 +86,9 @@ const App: React.FC = () => {
   const desktopDropdownRef = useRef<HTMLDivElement>(null);
   const mobileDropdownRef = useRef<HTMLDivElement>(null);
   const employeeFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [currentEmpPage, setCurrentEmpPage] = useState(1);
+  const empRowsPerPage = 10;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -143,7 +144,6 @@ const App: React.FC = () => {
       
       const activeUserRole = targetEmail ? getRoleBasedOnEmail(targetEmail, currentEmp?.role) : 'employee';
       const isOwner = activeUserRole === 'owner';
-
       const companyFilterVal = detectedCompany;
 
       const companyEmployees = allEmployees.filter(e => isOwner || (e.company || 'Visibel') === companyFilterVal);
@@ -162,6 +162,7 @@ const App: React.FC = () => {
         buildQuery('broadcasts').order('sentAt', { ascending: false }).then(({data}) => setBroadcasts(data || [])),
         buildQuery('schedules').then(({data}) => setLiveSchedules(data || [])),
         buildQuery('content_plans').order('postingDate', { ascending: false }).then(({data}) => setContentPlans(data || [])),
+        buildQuery('shift_assignments').then(({data}) => setShiftAssignments(data || [])),
         supabase.from('settings').select('value').eq('key', `weekly_holidays_${companyFilterVal}`).single().then(({data}) => { 
           if (data) setWeeklyHolidays(data.value); 
           else setWeeklyHolidays(DEFAULT_HOLIDAYS);
@@ -254,6 +255,11 @@ const App: React.FC = () => {
       emp.idKaryawan.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [employees, searchQuery, userRole, currentUserEmployee, companyFilter]);
+
+  const totalEmpPages = Math.ceil(filteredEmployees.length / empRowsPerPage);
+  const paginatedEmployeesList = useMemo(() => {
+    return filteredEmployees.slice((currentEmpPage - 1) * empRowsPerPage, currentEmpPage * empRowsPerPage);
+  }, [filteredEmployees, currentEmpPage]);
 
   const unreadCount = useMemo(() => {
     if (userRole === 'owner' || userRole === 'super') return submissions.filter(s => s.status === 'Pending').length;
@@ -403,13 +409,15 @@ const App: React.FC = () => {
   };
 
   const isFullscreenModule = (activeTab as string) === 'absen';
-  const isAttendanceActive = ['absen', 'attendance', 'submissions'].includes(activeTab);
+  const isAttendanceActive = ['absen', 'attendance', 'submissions', 'shift'].includes(activeTab);
 
   const isUnregistered = useMemo(() => {
     if (!session || isLoadingData) return false;
     return !currentUserEmployee && userRole === 'employee';
   }, [session, isLoadingData, currentUserEmployee, userRole]);
 
+  // Fix: Added isGlobalUser definition to check if user has owner access (for company column visibility)
+  const isGlobalUser = userRole === 'owner';
   const isAdminAccess = userRole === 'owner' || userRole === 'super' || userRole === 'admin';
 
   const DesktopNav = () => (
@@ -423,6 +431,12 @@ const App: React.FC = () => {
         {isDesktopDropdownOpen && (
           <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
             <button onClick={() => { setActiveTab('absen'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">ABSEN SEKARANG</button>
+            {userRole !== 'employee' && (
+              <>
+                <div className="h-px bg-slate-50 w-full"></div>
+                <button onClick={() => { setActiveTab('shift'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">JADWAL SHIFT</button>
+              </>
+            )}
             <div className="h-px bg-slate-50 w-full"></div>
             <button onClick={() => { setActiveTab('attendance'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">DATA ABSENSI</button>
             <div className="h-px bg-slate-50 w-full"></div>
@@ -449,6 +463,12 @@ const App: React.FC = () => {
         {isMobileDropdownOpen && (
           <div className="fixed left-4 right-4 mt-8 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.25)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
             <button onClick={() => { setActiveTab('absen'); setIsMobileDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">ABSEN SEKARANG</button>
+            {userRole !== 'employee' && (
+              <>
+                <div className="h-px bg-slate-50 w-full"></div>
+                <button onClick={() => { setActiveTab('shift'); setIsMobileDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">JADWAL SHIFT</button>
+              </>
+            )}
             <div className="h-px bg-slate-50 w-full"></div>
             <button onClick={() => { setActiveTab('attendance'); setIsMobileDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">DATA ABSENSI</button>
             <div className="h-px bg-slate-50 w-full"></div>
@@ -463,8 +483,6 @@ const App: React.FC = () => {
       )}
     </div>
   );
-
-  const isGlobalUser = userRole === 'owner' || userRole === 'super' || userRole === 'admin';
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc]">
@@ -508,8 +526,8 @@ const App: React.FC = () => {
                         <DesktopNav />
                       </div>
                       
-                      <div className="md:hidden w-full overflow-hidden flex justify-center">
-                        <div className="bg-slate-100/60 p-0.5 rounded-full border border-slate-100 shadow-inner overflow-x-auto no-scrollbar touch-pan-x scroll-smooth max-w-[calc(100%-0.5rem)]">
+                      <div className="md:hidden w-full overflow-hidden flex justify-center px-2">
+                        <div className="bg-slate-100/60 p-0.5 rounded-full border border-slate-100 shadow-inner overflow-x-auto no-scrollbar touch-pan-x scroll-smooth max-w-full">
                           <MobileNav />
                         </div>
                       </div>
@@ -532,8 +550,10 @@ const App: React.FC = () => {
             <main className={`flex-grow w-full ${isFullscreenModule ? 'bg-white' : 'max-w-7xl mx-auto px-4 py-6 sm:py-10'}`}>
               {activeTab === 'absen' ? (
                 <AbsenModule employee={currentUserEmployee} attendanceRecords={attendanceRecords} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} onClose={() => setActiveTab('home')} />
+              ) : activeTab === 'shift' ? (
+                <ShiftModule employees={employees} assignments={shiftAssignments} setAssignments={setShiftAssignments} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'attendance' ? (
-                <AttendanceModule employees={employees} records={attendanceRecords} setRecords={setAttendanceRecords} searchQuery={searchQuery} userRole={userRole} currentEmployee={currentUserEmployee} startDate={attendanceStartDate} endDate={attendanceEndDate} onStartDateChange={setAttendanceStartDate} onEndDateChange={setAttendanceEndDate} weeklyHolidays={weeklyHolidays} />
+                <AttendanceModule employees={employees} records={attendanceRecords} setRecords={setAttendanceRecords} searchQuery={searchQuery} userRole={userRole} currentEmployee={currentUserEmployee} startDate={attendanceStartDate} endDate={attendanceEndDate} onStartDateChange={setAttendanceStartDate} onEndDateChange={setAttendanceEndDate} weeklyHolidays={weeklyHolidays} company={userCompany} />
               ) : activeTab === 'schedule' ? (
                 <LiveScheduleModule employees={employees} schedules={liveSchedules} setSchedules={setLiveSchedules} reports={liveReports} setReports={setLiveReports} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'content' ? (
@@ -552,7 +572,7 @@ const App: React.FC = () => {
                         <span className="inline-block bg-slate-50 text-slate-400 text-[10px] font-black uppercase px-5 py-2 rounded-full tracking-widest self-start">{filteredEmployees.length} ENTRI {userRole === 'owner' ? '(GLOBAL)' : `(${userCompany})`}</span>
                       </div>
                       
-                      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6 w-full">
+                      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6 sm:gap-8 w-full">
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-slate-100 p-1.5 rounded-[28px] border border-slate-100 shadow-inner w-full xl:max-w-[700px]">
                           {userRole === 'owner' && (
                             <div className="relative shrink-0">
@@ -561,7 +581,7 @@ const App: React.FC = () => {
                                  <Icons.ChevronDown className="w-3 h-3" />
                                  <select 
                                   value={companyFilter} 
-                                  onChange={(e) => setCompanyFilter(e.target.value)}
+                                  onChange={(e) => { setCompanyFilter(e.target.value); setCurrentEmpPage(1); }}
                                   className="absolute inset-0 opacity-0 cursor-pointer"
                                  >
                                     <option value="ALL">SEMUA COMPANY</option>
@@ -577,32 +597,32 @@ const App: React.FC = () => {
                               type="text" 
                               placeholder="Cari Nama atau ID..." 
                               value={searchQuery}
-                              onChange={(e) => setSearchQuery(e.target.value)}
+                              onChange={(e) => { setSearchQuery(e.target.value); setCurrentEmpPage(1); }}
                               className="w-full text-xs font-bold text-black outline-none placeholder:text-slate-300 uppercase tracking-widest bg-white"
                             />
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-3 sm:gap-4 items-center shrink-0">
-                          <button onClick={handleDownloadTemplate} className="bg-slate-100 hover:bg-slate-200 border border-slate-200 px-8 py-4 rounded-[22px] flex items-center gap-2 font-black text-[10px] uppercase tracking-widest transition-all shadow-sm active:scale-95 text-slate-500">
+                        <div className="grid grid-cols-2 md:flex md:flex-row gap-2 sm:gap-4 items-center shrink-0 w-full xl:w-auto">
+                          <button onClick={handleDownloadTemplate} className="bg-slate-100 hover:bg-slate-200 border border-slate-200 px-4 py-3 sm:px-8 sm:py-4 rounded-[20px] sm:rounded-[22px] flex items-center justify-center gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-sm active:scale-95 text-slate-500">
                             <Icons.Download className="w-4 h-4" /> TEMPLATE
                           </button>
                           {(userRole === 'owner' || userRole === 'super' || userRole === 'admin') && (
-                            <button onClick={() => setIsFormOpen(true)} className="bg-[#FFC000] hover:bg-black text-black hover:text-white px-10 py-4 rounded-[22px] flex items-center gap-2 font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-amber-100 active:scale-95">
+                            <button onClick={() => setIsFormOpen(true)} className="bg-[#FFC000] hover:bg-black text-black hover:text-white px-4 py-3 sm:px-10 sm:py-4 rounded-[20px] sm:rounded-[22px] flex items-center justify-center gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-amber-100 active:scale-95">
                               <Icons.Plus className="w-5 h-5" /> TAMBAH
                             </button>
                           )}
                           <input type="file" ref={employeeFileInputRef} onChange={handleImportEmployees} className="hidden" accept=".xlsx,.xls" />
-                          <button onClick={() => employeeFileInputRef.current?.click()} disabled={isImportingEmployees} className="bg-[#059669] hover:bg-[#047857] text-white px-8 py-4 rounded-[22px] flex items-center gap-2 font-black text-[10px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
+                          <button onClick={() => employeeFileInputRef.current?.click()} disabled={isImportingEmployees} className="bg-[#059669] hover:bg-[#047857] text-white px-4 py-3 sm:px-8 sm:py-4 rounded-[20px] sm:rounded-[22px] flex items-center justify-center gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
                             <Icons.Upload className="w-4 h-4" /> {isImportingEmployees ? '...' : 'UNGGAH'}
                           </button>
-                          <button onClick={handleExportAllEmployees} className="bg-[#0f172a] hover:bg-black text-white px-8 py-4 rounded-[22px] flex items-center gap-2 font-black text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95">
+                          <button onClick={handleExportAllEmployees} className="col-span-2 md:col-auto bg-[#0f172a] hover:bg-black text-white px-4 py-3 sm:px-8 sm:py-4 rounded-[20px] sm:rounded-[22px] flex items-center justify-center gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95">
                             <Icons.Database className="w-4 h-4" /> EKSPOR
                           </button>
                         </div>
                       </div>
                   </div>
-                  <div className="overflow-x-auto no-scrollbar scroll-smooth">
+                  <div className="overflow-x-auto custom-scrollbar touch-pan-x">
                     <table className="w-full text-left min-w-[1500px] border-separate border-spacing-0">
                       <thead className="bg-slate-50/80 backdrop-blur-sm text-slate-500 text-[10px] uppercase font-bold tracking-[0.15em] sticky top-0 z-10">
                         <tr>
@@ -612,12 +632,22 @@ const App: React.FC = () => {
                           <th className="px-10 py-6 border-b border-slate-100">TTL</th>
                           <th className="px-10 py-6 border-b border-slate-100">ALAMAT</th>
                           <th className="px-8 py-6 border-b border-slate-100">NO KTP</th>
+                          <th className="px-8 py-6 border-b border-slate-100">CUTI</th>
                           <th className="px-8 py-6 border-b border-slate-100 text-right">AKSI</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white">
-                        {filteredEmployees.map((emp, idx) => {
+                        {paginatedEmployeesList.map((emp, idx) => {
                           const tenureYears = getTenureYears(emp.tanggalMasuk);
+                          const leaveQuota = tenureYears >= 1 ? 12 : 0;
+                          const currentYear = new Date().getFullYear();
+                          const usedLeave = attendanceRecords.filter(r => 
+                            r.employeeId === emp.id && 
+                            r.status === 'Cuti' && 
+                            new Date(r.date).getFullYear() === currentYear
+                          ).length;
+                          const sisaCuti = Math.max(0, leaveQuota - usedLeave);
+                          
                           return (
                             <tr key={emp.id} className="hover:bg-slate-50/70 transition-all duration-300 group border-b border-slate-50 last:border-0">
                               {isGlobalUser && (
@@ -659,11 +689,18 @@ const App: React.FC = () => {
                               <td className="px-8 py-7 whitespace-nowrap">
                                 <p className="text-[11px] font-bold text-slate-800 tracking-widest opacity-80">{emp.noKtp}</p>
                               </td>
+                              <td className="px-8 py-7 whitespace-nowrap">
+                                <span className={`inline-block font-black text-[10px] px-3 py-1 rounded-lg ${sisaCuti > 0 ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                                  {sisaCuti} HARI
+                                </span>
+                              </td>
                               <td className="px-8 py-7 text-right whitespace-nowrap">
                                 <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-0 translate-x-2">
-                                  <button onClick={() => setSlipEmployee(emp)} className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-emerald-100 shadow-sm hover:shadow-md bg-white" title="Slip Gaji"><Icons.Download className="w-4.5 h-4.5" /></button>
-                                  {(userRole === 'owner' || userRole === 'super' || userRole === 'admin' || emp.id === currentUserEmployee?.id) && (
-                                    <button onClick={() => { setEditingEmployee(emp); setIsFormOpen(true); }} className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-cyan-100 shadow-sm hover:shadow-md bg-white" title="Edit Data"><Icons.Edit className="w-4.5 h-4.5" /></button>
+                                  {(userRole === 'owner' || userRole === 'super' || emp.id === currentUserEmployee?.id) && (
+                                    <button onClick={() => setSlipEmployee(emp)} className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-emerald-100 shadow-sm hover:shadow-md bg-white" title="Slip Gaji"><Icons.Download className="w-4.5 h-4.5" /></button>
+                                  )}
+                                  {(userRole === 'owner' || userRole === 'super' || emp.id === currentUserEmployee?.id) && (
+                                    <button onClick={() => { setEditingEmployee(emp); setIsFormOpen(true); }} className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-emerald-100 shadow-sm hover:shadow-md bg-white" title="Edit Data"><Icons.Edit className="w-4.5 h-4.5" /></button>
                                   )}
                                   {(userRole === 'owner' || userRole === 'super' || userRole === 'admin') && (
                                     <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-rose-100 shadow-sm hover:shadow-md bg-white" title="Hapus"><Icons.Trash className="w-4.5 h-4.5" /></button>
@@ -675,7 +712,7 @@ const App: React.FC = () => {
                         })}
                         {filteredEmployees.length === 0 && (
                           <tr>
-                            <td colSpan={userRole === 'owner' ? 7 : 6} className="py-20 text-center">
+                            <td colSpan={isGlobalUser ? 8 : 7} className="py-20 text-center">
                               <div className="flex flex-col items-center justify-center space-y-4 opacity-30">
                                 <Icons.Users className="w-12 h-12" />
                                 <p className="text-xs font-black uppercase tracking-[0.4em]">Data Tidak Ditemukan</p>
@@ -686,6 +723,31 @@ const App: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
+
+                  {totalEmpPages > 1 && (
+                    <div className="px-8 sm:px-14 py-6 flex items-center justify-between border-t border-slate-100 bg-slate-50/50">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Halaman</span>
+                        <span className="text-xs font-black text-slate-900 px-3 py-1 bg-white rounded-lg shadow-sm border border-slate-200">{currentEmpPage} / {totalEmpPages}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          disabled={currentEmpPage === 1}
+                          onClick={() => setCurrentEmpPage(prev => prev - 1)}
+                          className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95"
+                        >
+                          <Icons.ChevronDown className="w-4 h-4 rotate-90" />
+                        </button>
+                        <button 
+                          disabled={currentEmpPage === totalEmpPages}
+                          onClick={() => setCurrentEmpPage(prev => prev + 1)}
+                          className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95"
+                        >
+                          <Icons.ChevronDown className="w-4 h-4 -rotate-90" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <Dashboard 
@@ -783,8 +845,8 @@ const App: React.FC = () => {
         </div>
       </footer>
 
-      {isFormOpen && <EmployeeForm employees={employees} initialData={editingEmployee} userRole={userRole} userCompany={userCompany} onSave={async (emp) => { await supabase.from('employees').upsert(emp); fetchData(session?.user?.email, true); setIsFormOpen(false); }} onCancel={() => setIsFormOpen(false)} />}
-      {slipEmployee && <SalarySlipModal employee={slipEmployee} attendanceRecords={attendanceRecords} onClose={() => setSlipEmployee(null)} onUpdate={() => fetchData(session?.user?.email, true)} weeklyHolidays={weeklyHolidays} />}
+      {isFormOpen && <EmployeeForm employees={employees} initialData={editingEmployee} userRole={userRole} userCompany={userCompany} currentUserEmployee={currentUserEmployee} onSave={async (emp) => { await supabase.from('employees').upsert(emp); fetchData(session?.user?.email, true); setIsFormOpen(false); }} onCancel={() => setIsFormOpen(false)} />}
+      {slipEmployee && <SalarySlipModal employee={slipEmployee} attendanceRecords={attendanceRecords} userRole={userRole} onClose={() => setSlipEmployee(null)} onUpdate={() => fetchData(session?.user?.email, true)} weeklyHolidays={weeklyHolidays} />}
       {isAnnouncementOpen && <AnnouncementModal employees={filteredEmployees} company={userCompany} onClose={() => setIsAnnouncementOpen(false)} onSuccess={() => fetchData(session?.user?.email, true)} />}
       {legalType && <LegalModal type={legalType} onClose={() => setLegalType(null)} />}
     </div>
