@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { createClient, Session } from '@supabase/supabase-js';
-import { Employee, AttendanceRecord, LiveSchedule, Submission, Broadcast, ContentPlan, LiveReport, ShiftAssignment } from './types.ts';
+import { Employee, AttendanceRecord, LiveSchedule, Submission, Broadcast, ContentPlan, LiveReport, ShiftAssignment, ActiveTab, UserRole } from './types.ts';
 import { Icons, BANK_OPTIONS } from './constants.tsx';
 import EmployeeForm from './components/EmployeeForm.tsx';
 import Dashboard from './components/Dashboard.tsx';
@@ -17,6 +17,7 @@ import AbsenModule from './components/AbsenModule.tsx';
 import LegalModal from './components/LegalModal.tsx';
 import SettingsModule from './components/SettingsModule.tsx';
 import ShiftModule from './components/ShiftModule.tsx';
+import MinVisModule from './components/MinVisModule.tsx';
 import { getTenureYears, calculateTenure } from './utils/dateUtils.ts';
 
 const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
@@ -26,9 +27,6 @@ const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://rcrtknakiwvfkmnwvdvf.
 const SUPABASE_ANON_KEY = (process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcnRrbmFraXd2Zmttbnd2ZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2NjEyODYsImV4cCI6MjA4NTIzNzI4Nn0.Ca9m25c9K0_J_kCRphGSaECGs8CGz4-zUpVoA_rIERA').trim();
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'submissions' | 'inbox' | 'settings' | 'shift';
-type UserRole = 'owner' | 'super' | 'admin' | 'employee';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -74,7 +72,9 @@ const App: React.FC = () => {
   const [fetchError, setFetchError] = useState<string | null>(null);
   
   const [isDesktopDropdownOpen, setIsDesktopDropdownOpen] = useState(false);
+  const [isDesktopModulOpen, setIsDesktopModulOpen] = useState(false);
   const [isMobileDropdownOpen, setIsMobileDropdownOpen] = useState(false);
+  const [isMobileModulOpen, setIsMobileModulOpen] = useState(false);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [companyFilter, setCompanyFilter] = useState<string>('ALL');
@@ -84,7 +84,9 @@ const App: React.FC = () => {
   const [slipEmployee, setSlipEmployee] = useState<Employee | null>(null);
 
   const desktopDropdownRef = useRef<HTMLDivElement>(null);
+  const desktopModulRef = useRef<HTMLDivElement>(null);
   const mobileDropdownRef = useRef<HTMLDivElement>(null);
+  const mobileModulRef = useRef<HTMLDivElement>(null);
   const employeeFileInputRef = useRef<HTMLInputElement>(null);
 
   const [currentEmpPage, setCurrentEmpPage] = useState(1);
@@ -95,8 +97,14 @@ const App: React.FC = () => {
       if (desktopDropdownRef.current && !desktopDropdownRef.current.contains(event.target as Node)) {
         setIsDesktopDropdownOpen(false);
       }
+      if (desktopModulRef.current && !desktopModulRef.current.contains(event.target as Node)) {
+        setIsDesktopModulOpen(false);
+      }
       if (mobileDropdownRef.current && !mobileDropdownRef.current.contains(event.target as Node)) {
         setIsMobileDropdownOpen(false);
+      }
+      if (mobileModulRef.current && !mobileModulRef.current.contains(event.target as Node)) {
+        setIsMobileModulOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -104,11 +112,14 @@ const App: React.FC = () => {
   }, []);
 
   const getRoleBasedOnEmail = (email: string, dbRole?: string): UserRole => {
-    const emailLower = (email || '').toLowerCase();
-    if (emailLower === OWNER_EMAIL) return 'owner';
+    const emailLower = (email || '').toLowerCase().trim();
+    if (emailLower === OWNER_EMAIL.toLowerCase()) return 'owner';
+    
     if (dbRole) return dbRole as UserRole;
+    
     if (emailLower === 'rezaajidharma@gmail.com') return 'super';
     if (emailLower === 'fikryadityar93@gmail.com' || emailLower === 'ariyansyah02122002@gmail.com') return 'admin';
+    
     return 'employee';
   };
 
@@ -118,7 +129,8 @@ const App: React.FC = () => {
       return;
     }
     if (!isSilent) setIsLoadingData(true);
-    const targetEmail = userEmail || session?.user?.email;
+    
+    const targetEmail = (userEmail || session?.user?.email || '').toLowerCase().trim();
 
     try {
       const { data: empData, error: empError } = await supabase
@@ -132,12 +144,16 @@ const App: React.FC = () => {
       let detectedCompany = 'Visibel';
 
       if (targetEmail) {
-        currentEmp = allEmployees.find(e => e.email?.toLowerCase() === targetEmail.toLowerCase()) || null;
+        currentEmp = allEmployees.find(e => (e.email || '').toLowerCase().trim() === targetEmail) || null;
+        
         if (currentEmp) {
           detectedCompany = currentEmp.company || 'Visibel';
           setUserCompany(detectedCompany);
           setCurrentUserEmployee(currentEmp);
+        } else {
+          setCurrentUserEmployee(null);
         }
+        
         const currentRole = getRoleBasedOnEmail(targetEmail, currentEmp?.role);
         setUserRole(currentRole);
       }
@@ -242,7 +258,7 @@ const App: React.FC = () => {
   const filteredEmployees = useMemo(() => {
     let baseList = employees;
     if (userRole !== 'owner') {
-      baseList = baseList.filter(emp => emp.email?.toLowerCase() !== OWNER_EMAIL);
+      baseList = baseList.filter(emp => (emp.email || '').toLowerCase().trim() !== OWNER_EMAIL.toLowerCase());
     }
     if (userRole === 'owner' && companyFilter !== 'ALL') {
       baseList = baseList.filter(emp => (emp.company || 'Visibel') === companyFilter);
@@ -360,7 +376,7 @@ const App: React.FC = () => {
             noKtp: String(row['NO KTP'] || ''),
             noHandphone: String(row['NO HP'] || ''),
             jabatan: String(row['JABATAN'] || ''),
-            email: String(row['EMAIL'] || '').toLowerCase(),
+            email: String(row['EMAIL'] || '').toLowerCase().trim(),
             tanggalMasuk: String(row['TANGGAL MASUK'] || ''),
             bank: String(row['BANK'] || 'BCA'),
             noRekening: String(row['REKENING'] || ''),
@@ -408,15 +424,15 @@ const App: React.FC = () => {
     }
   };
 
-  const isFullscreenModule = (activeTab as string) === 'absen';
+  const isFullscreenModule = (activeTab as string) === 'absen' || (activeTab as string) === 'minvis';
   const isAttendanceActive = ['absen', 'attendance', 'submissions', 'shift'].includes(activeTab);
+  const isModulActive = ['schedule', 'content', 'minvis'].includes(activeTab);
 
   const isUnregistered = useMemo(() => {
     if (!session || isLoadingData) return false;
     return !currentUserEmployee && userRole === 'employee';
   }, [session, isLoadingData, currentUserEmployee, userRole]);
 
-  // Fix: Added isGlobalUser definition to check if user has owner access (for company column visibility)
   const isGlobalUser = userRole === 'owner';
   const isAdminAccess = userRole === 'owner' || userRole === 'super' || userRole === 'admin';
 
@@ -444,8 +460,22 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      <button onClick={() => setActiveTab('schedule')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'schedule' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>LIVE STREAMING</button>
-      <button onClick={() => setActiveTab('content')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'content' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>CONTENT</button>
+
+      <div className="relative" ref={desktopModulRef}>
+        <button onClick={() => setIsDesktopModulOpen(!isDesktopModulOpen)} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${isModulActive ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+          CONTENT <Icons.ChevronDown className={`w-3.5 h-3.5 transition-transform ${isDesktopModulOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {isDesktopModulOpen && (
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+            <button onClick={() => { setActiveTab('schedule'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">LIVE STREAMING</button>
+            <div className="h-px bg-slate-50 w-full"></div>
+            <button onClick={() => { setActiveTab('content'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">SHORT VIDEO</button>
+            <div className="h-px bg-slate-50 w-full"></div>
+            <button onClick={() => { setActiveTab('minvis'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-[#FFC000] hover:text-black transition-colors text-[#334155]">MINVIS (AI)</button>
+          </div>
+        )}
+      </div>
+
       {isAdminAccess && (
         <button onClick={() => setActiveTab('settings')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>SETTING</button>
       )}
@@ -476,8 +506,22 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      <button onClick={() => setActiveTab('schedule')} className={`px-4 py-2.5 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all shrink-0 ${activeTab === 'schedule' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>LIVE STREAMING</button>
-      <button onClick={() => setActiveTab('content')} className={`px-4 py-2.5 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all shrink-0 ${activeTab === 'content' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>CONTENT</button>
+
+      <div className="relative shrink-0" ref={mobileModulRef}>
+        <button onClick={() => setIsMobileModulOpen(!isMobileModulOpen)} className={`px-4 py-2.5 rounded-full text-[8px] font-bold tracking-widest uppercase flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${isModulActive ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+          CONTENT <Icons.ChevronDown className={`w-3 h-3 transition-transform ${isMobileModulOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {isMobileModulOpen && (
+          <div className="fixed left-4 right-4 mt-8 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.25)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+            <button onClick={() => { setActiveTab('schedule'); setIsMobileModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">LIVE STREAMING</button>
+            <div className="h-px bg-slate-50 w-full"></div>
+            <button onClick={() => { setActiveTab('content'); setIsMobileModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">SHORT VIDEO</button>
+            <div className="h-px bg-slate-50 w-full"></div>
+            <button onClick={() => { setActiveTab('minvis'); setIsMobileModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-[#FFC000] hover:text-black transition-colors text-[#334155]">MINVIS (AI)</button>
+          </div>
+        )}
+      </div>
+
       {isAdminAccess && (
         <button onClick={() => setActiveTab('settings')} className={`px-4 py-2.5 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all shrink-0 ${activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>SETTING</button>
       )}
@@ -496,18 +540,22 @@ const App: React.FC = () => {
               <div className="space-y-4">
                 <h2 className="text-3xl font-bold text-slate-900 uppercase tracking-tight">Email Tidak Terdaftar</h2>
                 <p className="text-slate-500 font-medium text-lg leading-relaxed">
-                  Email <span className="font-bold text-slate-900">({session.user.email})</span> tidak terdeteksi dalam database karyawan aktif sistem manapun.
+                  Email <span className="font-bold text-slate-900 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">({session.user.email})</span> tidak terdeteksi dalam database karyawan aktif sistem manapun.
                 </p>
-                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">Instruksi:</p>
-                  <p className="text-sm text-slate-600 font-medium">Silakan hubungi HRD perusahaan Anda untuk mendaftarkan akun Anda.</p>
+                <div className="bg-[#FFFBEB] p-8 rounded-3xl border border-[#FFD700] text-left">
+                  <p className="text-[10px] font-black text-amber-600 uppercase tracking-[0.2em] mb-4">Instruksi Penting:</p>
+                  <ol className="text-xs text-amber-800 font-bold space-y-3 list-decimal pl-4">
+                    <li>Copy email Anda di atas: <span className="underline select-all">{session.user.email}</span></li>
+                    <li>Berikan email tersebut kepada HRD / Admin perusahaan Anda.</li>
+                    <li>Admin harus memasukkan email tersebut ke menu <span className="font-black">DATABASE</span> agar Anda dapat mengakses sistem ini.</li>
+                  </ol>
                 </div>
               </div>
               <button 
                 onClick={() => supabase.auth.signOut()} 
                 className="w-full bg-[#0f172a] text-white py-6 rounded-3xl font-bold text-xs uppercase tracking-[0.4em] shadow-xl hover:bg-black transition-all active:scale-95 flex items-center justify-center gap-4"
               >
-                <Icons.LogOut className="w-5 h-5" /> KELUAR SISTEM
+                <Icons.LogOut className="w-5 h-5" /> KELUAR & COBA LAGI
               </button>
             </div>
           </div>
@@ -550,6 +598,8 @@ const App: React.FC = () => {
             <main className={`flex-grow w-full ${isFullscreenModule ? 'bg-white' : 'max-w-7xl mx-auto px-4 py-6 sm:py-10'}`}>
               {activeTab === 'absen' ? (
                 <AbsenModule employee={currentUserEmployee} attendanceRecords={attendanceRecords} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} onClose={() => setActiveTab('home')} />
+              ) : activeTab === 'minvis' ? (
+                <MinVisModule onClose={() => setActiveTab('home')} />
               ) : activeTab === 'shift' ? (
                 <ShiftModule employees={employees} assignments={shiftAssignments} setAssignments={setShiftAssignments} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'attendance' ? (
@@ -613,7 +663,7 @@ const App: React.FC = () => {
                             </button>
                           )}
                           <input type="file" ref={employeeFileInputRef} onChange={handleImportEmployees} className="hidden" accept=".xlsx,.xls" />
-                          <button onClick={() => employeeFileInputRef.current?.click()} disabled={isImportingEmployees} className="bg-[#059669] hover:bg-[#047857] text-white px-4 py-3 sm:px-8 sm:py-4 rounded-[20px] sm:rounded-[22px] flex items-center justify-center gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
+                          <button onClick={() => employeeFileInputRef.current?.click()} disabled={isImportingEmployees} className="bg-[#059669] hover:bg-[#047857] text-white px-4 py-3 rounded-[20px] sm:rounded-[22px] flex items-center justify-center gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
                             <Icons.Upload className="w-4 h-4" /> {isImportingEmployees ? '...' : 'UNGGAH'}
                           </button>
                           <button onClick={handleExportAllEmployees} className="col-span-2 md:col-auto bg-[#0f172a] hover:bg-black text-white px-4 py-3 sm:px-8 sm:py-4 rounded-[20px] sm:rounded-[22px] flex items-center justify-center gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95">
@@ -652,7 +702,7 @@ const App: React.FC = () => {
                             <tr key={emp.id} className="hover:bg-slate-50/70 transition-all duration-300 group border-b border-slate-50 last:border-0">
                               {isGlobalUser && (
                                 <td className="px-14 py-7 whitespace-nowrap">
-                                  <span className="text-[10px] font-black text-slate-800 uppercase tracking-tight">{emp.company || 'VISIBEL'}</span>
+                                  <span className="text-sm font-bold text-slate-800 uppercase tracking-tight">{emp.company || 'VISIBEL'}</span>
                                 </td>
                               )}
                               <td className="px-8 py-7 whitespace-nowrap">
@@ -672,7 +722,7 @@ const App: React.FC = () => {
                                       )}
                                     </div>
                                     <div className="min-w-0">
-                                      <p className="font-black text-slate-900 text-[14px] uppercase truncate leading-tight mb-1 tracking-tight">{emp.nama}</p>
+                                      <p className="font-semibold text-slate-900 text-[14px] uppercase truncate leading-tight mb-1 tracking-tight">{emp.nama}</p>
                                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{emp.jabatan}</p>
                                     </div>
                                 </div>
@@ -700,7 +750,7 @@ const App: React.FC = () => {
                                     <button onClick={() => setSlipEmployee(emp)} className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-emerald-100 shadow-sm hover:shadow-md bg-white" title="Slip Gaji"><Icons.Download className="w-4.5 h-4.5" /></button>
                                   )}
                                   {(userRole === 'owner' || userRole === 'super' || emp.id === currentUserEmployee?.id) && (
-                                    <button onClick={() => { setEditingEmployee(emp); setIsFormOpen(true); }} className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-emerald-100 shadow-sm hover:shadow-md bg-white" title="Edit Data"><Icons.Edit className="w-4.5 h-4.5" /></button>
+                                    <button onClick={() => { setEditingEmployee(emp); setIsFormOpen(true); }} className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-cyan-100 shadow-sm hover:shadow-md bg-white" title="Edit Data"><Icons.Edit className="w-4.5 h-4.5" /></button>
                                   )}
                                   {(userRole === 'owner' || userRole === 'super' || userRole === 'admin') && (
                                     <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-rose-100 shadow-sm hover:shadow-md bg-white" title="Hapus"><Icons.Trash className="w-4.5 h-4.5" /></button>

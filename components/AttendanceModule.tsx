@@ -98,8 +98,18 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
 
   const isWorkDay = (dateStr: string, emp: Employee) => {
     const date = new Date(dateStr);
+    const day = date.getDay(); // 0 = Sunday, 6 = Saturday
+    const isHost = (emp.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
+
+    // Screenshot Requirement: Selain jabatan "host live streaming" hari minggu otomatis "libur"
+    if (day === 0) return isHost;
+
+    // Default Saturday to off
+    if (day === 6) return false;
+
     const dayNameMap = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
-    const currentDayName = dayNameMap[date.getDay()];
+    const currentDayName = dayNameMap[day];
+
     if (weeklyHolidays) {
       const empNameUpper = emp.nama.toUpperCase();
       const employeeInHolidays = Object.values(weeklyHolidays).some(names => (names as string[]).map(n => n.toUpperCase()).includes(empNameUpper));
@@ -107,8 +117,8 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         return !(weeklyHolidays[currentDayName] || []).map(n => n.toUpperCase()).includes(empNameUpper);
       }
     }
-    const day = date.getDay();
-    return day !== 0 && day !== 6;
+    
+    return true;
   };
 
   const tableRows = useMemo(() => {
@@ -152,7 +162,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         'TANGGAL': row.date,
         'ID KARYAWAN': row.employee.idKaryawan,
         'NAMA': row.employee.nama,
-        'STATUS': existingRec?.status || (isWorkDay(row.date, row.employee) ? 'Alpha' : 'Libur'),
+        'STATUS': existingRec?.status || (isWorkDay(row.date, row.employee) ? 'Hadir' : 'Libur'),
         'MASUK': existingRec?.clockIn || '',
         'PULANG': existingRec?.clockOut || '',
         'CATATAN': existingRec?.notes || ''
@@ -310,7 +320,14 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                 const isToday = row.date === new Date().toISOString().split('T')[0];
                 const isPast = row.date < new Date().toISOString().split('T')[0];
                 const isWork = isWorkDay(row.date, row.employee);
-                const rec = (existingRec || { status: isWork ? (isPast ? 'Alpha' : 'Hadir') : 'Libur', employeeId: row.employee.id, date: row.date }) as AttendanceRecord;
+                
+                // If no record exists, default to 'Alpha' only on work days that have passed.
+                // Sundays for non-hosts will be 'Libur'.
+                const rec = (existingRec || { 
+                  status: isWork ? (isPast ? 'Alpha' : 'Hadir') : 'Libur', 
+                  employeeId: row.employee.id, 
+                  date: row.date 
+                }) as AttendanceRecord;
                 
                 return (
                   <tr key={`${row.employee.id}-${row.date}`} className={`hover:bg-slate-50/50 transition-all duration-300 group ${isToday ? 'bg-amber-50/20' : ''}`}>
@@ -367,7 +384,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
           <div className="bg-slate-50/50 px-6 sm:px-10 py-5 flex items-center justify-between border-t border-slate-100">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Halaman</span>
-              <span className="text-xs font-black text-slate-900 px-3 py-1 bg-white rounded-lg shadow-sm border border-slate-200">{currentPage} / {totalPages}</span>
+              <span className="text-xs font-black text-white px-3 py-1 bg-white rounded-lg shadow-sm border border-slate-200">{currentPage} / {totalPages}</span>
             </div>
             <div className="flex gap-2">
               <button 

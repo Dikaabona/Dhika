@@ -65,8 +65,18 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   };
 
   const isWorkDay = (date: Date, emp: Employee) => {
+    const day = date.getDay();
+    const isHost = (emp.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
+    
+    // Screenshot Requirement: Selain jabatan "host live streaming" hari minggu otomatis "libur"
+    if (day === 0) return isHost;
+    
+    // Default Saturday to off
+    if (day === 6) return false;
+
     const dayNameMap = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
-    const currentDayName = dayNameMap[date.getDay()];
+    const currentDayName = dayNameMap[day];
+
     if (weeklyHolidays) {
       const empNameUpper = emp.nama.toUpperCase();
       const employeeInHolidays = Object.values(weeklyHolidays).some(names => (names as string[]).map(n => n.toUpperCase()).includes(empNameUpper));
@@ -74,8 +84,8 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         return !(weeklyHolidays[currentDayName] || []).map(n => n.toUpperCase()).includes(empNameUpper);
       }
     }
-    const day = date.getDay();
-    return day !== 0 && day !== 6;
+    
+    return true;
   };
 
   const tenureInfo = useMemo(() => {
@@ -112,10 +122,11 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     while (temp <= rangeEnd) {
       const dStr = temp.toISOString().split('T')[0];
       const dayRecords = cutoffRecords.filter(r => r.date === dStr);
-      const isSunday = temp.getDay() === 0;
-      const isHost = (employee.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
+      const isWork = isWorkDay(temp, employee);
+      
       const mainRecord = dayRecords.find(r => r.status !== 'Lembur');
       const overtimeRecords = dayRecords.filter(r => r.status === 'Lembur');
+      
       if (mainRecord) {
         if (mainRecord.status === 'Hadir') summary.hadir++;
         else if (mainRecord.status === 'Sakit') summary.sakit++;
@@ -126,11 +137,12 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       } else if (overtimeRecords.length > 0) {
         summary.hadir++;
       } else {
-        if (dStr < todayStr && dStr >= ALPHA_START_DATE && isWorkDay(temp, employee)) {
-          summary.alpha++;
+        if (dStr < todayStr && dStr >= ALPHA_START_DATE) {
+          if (isWork) summary.alpha++;
+          else summary.libur++;
         } else {
-          if (!isHost && isSunday) summary.libur++;
-          else summary.hadir++;
+          if (!isWork) summary.libur++;
+          else summary.hadir++; // Future or current work day defaults to expected attendance for calc
         }
       }
       overtimeRecords.forEach(ov => {

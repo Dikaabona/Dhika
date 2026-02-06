@@ -50,6 +50,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
   const [editingReport, setEditingReport] = useState<LiveReport | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('ALL');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
   const getTodayStr = () => new Date().toISOString().split('T')[0];
   const [startDate, setStartDate] = useState(getTodayStr());
@@ -116,6 +117,23 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
     });
   }, [reports, selectedBrand, startDate, endDate, searchQuery, employees]);
 
+  // Checklist Logics
+  const toggleSelect = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredReports.length && filteredReports.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      const allIds = filteredReports.map(r => r.id!).filter(Boolean);
+      setSelectedIds(new Set(allIds));
+    }
+  };
+
   const handleOpenModal = (report?: LiveReport) => {
     if (report) {
       setEditingReport(report);
@@ -161,7 +179,27 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
       const { error } = await supabase.from('live_reports').delete().eq('id', id);
       if (error) throw error;
       setReports(prev => prev.filter(r => r.id !== id));
+      const nextSelected = new Set(selectedIds);
+      nextSelected.delete(id);
+      setSelectedIds(nextSelected);
     } catch (err: any) { alert("Gagal menghapus: " + err.message); }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Hapus ${selectedIds.size} laporan terpilih secara permanen?`)) return;
+    
+    try {
+      const idsToDelete = Array.from(selectedIds);
+      const { error } = await supabase.from('live_reports').delete().in('id', idsToDelete);
+      if (error) throw error;
+      
+      setReports(prev => prev.filter(r => !selectedIds.has(r.id!)));
+      setSelectedIds(new Set());
+      alert(`Berhasil menghapus ${idsToDelete.length} laporan.`);
+    } catch (err: any) {
+      alert("Gagal menghapus massal: " + err.message);
+    }
   };
 
   const formatCurrency = (val: number) => {
@@ -353,17 +391,27 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
             <Icons.Download className="w-3 h-3" /> EXPORT
           </button>
           {canManage && (
-            <button 
-              onClick={() => handleOpenModal()} 
-              className="col-span-3 bg-slate-900 text-[#FFC000] px-4 py-4 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"
-            >
-              <Icons.Plus className="w-3 h-3" /> TAMBAH REPORT
-            </button>
+            <div className="col-span-3 flex gap-3">
+              <button 
+                onClick={() => handleOpenModal()} 
+                className="flex-grow bg-slate-900 text-[#FFC000] px-4 py-4 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"
+              >
+                <Icons.Plus className="w-3 h-3" /> TAMBAH REPORT
+              </button>
+              {selectedIds.size > 0 && (
+                <button 
+                  onClick={handleBulkDelete} 
+                  className="bg-rose-500 text-white px-6 py-4 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all animate-in slide-in-from-right-2"
+                >
+                  <Icons.Trash className="w-4 h-4" /> HAPUS ({selectedIds.size})
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm flex flex-col justify-center">
           <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total View</p>
           <p className="text-xl font-black text-slate-900">{filteredReports.reduce((sum, r) => sum + (r.totalView || 0), 0).toLocaleString()}</p>
@@ -378,6 +426,10 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
           <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Checkout</p>
           <p className="text-xl font-black text-emerald-600">{filteredReports.reduce((sum, r) => sum + (r.checkout || 0), 0).toLocaleString()}</p>
         </div>
+        <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm flex flex-col justify-center">
+          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Durasi</p>
+          <p className="text-xl font-black text-slate-900">{filteredReports.reduce((sum, r) => sum + (r.durasi || 0), 0).toFixed(1)} Jam</p>
+        </div>
         <div className="bg-[#0f172a] p-5 rounded-[28px] border border-white/5 shadow-xl flex flex-col justify-center">
           <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Total GMV</p>
           <p className="text-base font-black text-[#FFC000] truncate">{formatCurrency(filteredReports.reduce((sum, r) => sum + (r.gmv || 0), 0))}</p>
@@ -386,10 +438,18 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
 
       <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto no-scrollbar">
-          <table className="w-full text-left min-w-[800px]">
+          <table className="w-full text-left min-w-[850px]">
             <thead>
               <tr className="bg-slate-50/50 text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
-                <th className="px-6 py-5 w-12 text-center">No</th>
+                <th className="px-4 py-5 w-10 text-center">
+                   <input 
+                     type="checkbox" 
+                     checked={selectedIds.size === filteredReports.length && filteredReports.length > 0} 
+                     onChange={toggleSelectAll}
+                     className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                   />
+                </th>
+                <th className="px-4 py-5 w-12 text-center">No</th>
                 <th className="px-6 py-5">Sesi & Live</th>
                 <th className="px-6 py-5">Host & OP</th>
                 <th className="px-6 py-5 text-center">Performance</th>
@@ -402,8 +462,16 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                 const host = employees.find(e => e.id === report.hostId);
                 const op = employees.find(e => e.id === report.opId);
                 return (
-                  <tr key={report.id} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="px-6 py-5 text-[10px] font-bold text-slate-300 text-center">{idx + 1}</td>
+                  <tr key={report.id} className={`hover:bg-slate-50/50 transition-colors group ${selectedIds.has(report.id!) ? 'bg-indigo-50/30' : ''}`}>
+                    <td className="px-4 py-5 text-center">
+                       <input 
+                         type="checkbox" 
+                         checked={selectedIds.has(report.id!)} 
+                         onChange={() => toggleSelect(report.id!)}
+                         className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                       />
+                    </td>
+                    <td className="px-4 py-5 text-[10px] font-bold text-slate-300 text-center">{idx + 1}</td>
                     <td className="px-6 py-5">
                        <p className="text-[10px] font-black text-slate-900 uppercase">
                          {new Date(report.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
@@ -437,7 +505,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
               })}
               {filteredReports.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-8 py-20 text-center">
+                  <td colSpan={7} className="px-8 py-20 text-center">
                     <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Tidak ada laporan ditemukan</p>
                   </td>
                 </tr>

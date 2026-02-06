@@ -163,3 +163,6 @@ export interface SalaryData {
   potonganHutang: number;
   potonganLain: number;
 }
+
+export type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'submissions' | 'inbox' | 'settings' | 'shift' | 'minvis';
+export type UserRole = 'owner' | 'super' | 'admin' | 'employee';

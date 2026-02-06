@@ -222,12 +222,13 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Email</label>
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Email (Login Google)</label>
                   {sysRole && (
                     <span className={`text-[8px] px-2 py-0.5 rounded-full font-black ${sysRole.color}`}>{sysRole.label}</span>
                   )}
                 </div>
                 <input required type="email" name="email" value={formData.email} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+                <p className="text-[8px] text-slate-400 font-bold uppercase leading-tight italic">Penting: Masukkan email Gmail yang akan digunakan karyawan untuk login via Google.</p>
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Nomor HP</label>
