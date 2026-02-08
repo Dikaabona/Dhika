@@ -40,7 +40,8 @@ const MinVisModule: React.FC<MinVisModuleProps> = ({ onClose }) => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const stream = await ai.models.generateContentStream({
-        model: 'gemini-3-flash-preview',
+        // Fix: Use gemini-3-pro-preview for expert reasoning and analysis
+        model: 'gemini-3-pro-preview',
         contents: [
           { role: 'user', parts: [{ text: userMessage }] }
         ],

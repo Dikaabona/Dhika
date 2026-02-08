@@ -12,6 +12,9 @@ interface AbsenModuleProps {
   onClose?: () => void;
 }
 
+const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
+const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
+
 // Fungsi bantu kalkulasi jarak Haversine (meter)
 const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371e3; // meter
@@ -41,6 +44,9 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Case-insensitive comparison
+  const currentLogo = (company || '').toLowerCase() === 'seller space' ? SELLER_SPACE_LOGO : VISIBEL_LOGO;
 
   const getTodayLocalStr = () => {
     const now = new Date();
@@ -204,7 +210,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
     const isIndividualRemote = employee.isRemoteAllowed;
     
     if (locationStatus.settings && !locationStatus.isInside && !isGlobalRemote && !isIndividualRemote) {
-      alert(`Maaf, Anda berada di luar area ${locationStatus.settings.locationName} (${locationStatus.distance}m) dan tidak memiliki izin absen remote.`);
+      alert(`Maaf, Anda berada di luar area ${locationStatus.settings.locationName} (${locationStatus.distance}m) and tidak memiliki izin absen remote.`);
       return;
     }
 
@@ -272,8 +278,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
           <span className="text-[10px] font-black uppercase tracking-widest">Tutup</span>
         </button>
         <div className="flex flex-col items-center">
-           <img src="https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA" alt="Logo" className="h-10 w-auto" />
-           <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-1">{company}</span>
+           <img src={currentLogo} alt="Logo" className={`${ (company || '').toLowerCase() === 'seller space' ? 'h-[30px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} />
         </div>
         <div className="w-10"></div>
       </div>

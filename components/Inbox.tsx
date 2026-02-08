@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Submission, Employee, Broadcast, AttendanceRecord } from '../types.ts';
 import { Icons } from '../constants.tsx';
 import { supabase } from '../App.tsx';
@@ -15,6 +15,18 @@ interface InboxProps {
 const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRole, onUpdate }) => {
   const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super' || isOwner;
+  const [historyPage, setHistoryPage] = useState(1);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile device for dynamic pagination size
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const itemsPerPage = isMobile ? 3 : 10;
 
   const handleApprove = async (sub: Submission) => {
     if (!sub.id) {
@@ -37,7 +49,6 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
         current.setDate(current.getDate() + 1);
       }
 
-      // Logic parsing khusus untuk lembur
       let clockIn: string | undefined = undefined;
       let clockOut: string | undefined = undefined;
 
@@ -49,10 +60,9 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
         }
       }
 
-      // 1. Catat ke tabel attendance
       const attendanceRecords: Partial<AttendanceRecord>[] = dates.map(date => ({
         employeeId: sub.employeeId,
-        company: sub.company, // Sertakan company agar record muncul di filter
+        company: sub.company,
         date,
         status: sub.type,
         clockIn,
@@ -61,23 +71,15 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
       }));
 
       const { error: attError } = await supabase.from('attendance').upsert(attendanceRecords, { onConflict: 'employeeId,date' });
-      if (attError) {
-        console.error("Attendance Error:", attError);
-        throw new Error(`Gagal mencatat absensi: ${attError.message}`);
-      }
+      if (attError) throw new Error(`Gagal mencatat absensi: ${attError.message}`);
 
-      // 2. Update status pengajuan
       const { error: subError } = await supabase.from('submissions').update({ status: 'Approved' }).eq('id', sub.id);
-      if (subError) {
-        console.error("Submission Update Error:", subError);
-        throw new Error(`Gagal update status pengajuan: ${subError.message}`);
-      }
+      if (subError) throw new Error(`Gagal update status pengajuan: ${subError.message}`);
 
       alert("Pengajuan berhasil disetujui!");
       onUpdate();
     } catch (err: any) {
-      console.error("Full Error Object:", err);
-      alert(err.message || "Gagal memproses pengajuan. Periksa koneksi atau hak akses database.");
+      alert(err.message || "Gagal memproses pengajuan.");
     }
   };
 
@@ -87,24 +89,40 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
     
     try {
       const { error } = await supabase.from('submissions').update({ status: 'Rejected' }).eq('id', id);
-      if (error) {
-        console.error("Reject Error:", error);
-        throw new Error(error.message);
-      }
+      if (error) throw new Error(error.message);
       
       alert("Pengajuan telah ditolak.");
       onUpdate();
     } catch (err: any) {
-      console.error("Full Reject Error:", err);
-      alert(`Gagal menolak pengajuan: ${err.message || "Error tidak diketahui"}`);
+      alert(`Gagal menolak pengajuan: ${err.message}`);
     }
   };
 
-  const pendingApprovals = isSuper ? submissions.filter(s => s.status === 'Pending') : [];
+  const oneMonthAgo = useMemo(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return d;
+  }, []);
 
-  const mySubmissions = (!isSuper && employee) 
-    ? submissions.filter(s => s.employeeId === employee.id && s.status !== 'Pending') 
-    : [];
+  const pendingApprovals = useMemo(() => {
+    return isSuper ? submissions.filter(s => s.status === 'Pending') : [];
+  }, [submissions, isSuper]);
+
+  const submissionHistory = useMemo(() => {
+    let base = submissions.filter(s => s.status !== 'Pending');
+    if (!isSuper && employee) {
+      base = base.filter(s => s.employeeId === employee.id);
+    }
+    return base.filter(s => {
+      const subDate = new Date(s.submittedAt);
+      return subDate >= oneMonthAgo;
+    });
+  }, [submissions, isSuper, employee, oneMonthAgo]);
+
+  const totalHistoryPages = Math.ceil(submissionHistory.length / itemsPerPage);
+  const paginatedHistory = useMemo(() => {
+    return submissionHistory.slice((historyPage - 1) * itemsPerPage, historyPage * itemsPerPage);
+  }, [submissionHistory, historyPage, itemsPerPage]);
   
   const myBroadcasts = (userRole === 'employee' || userRole === 'admin') && employee
     ? broadcasts.filter(b => {
@@ -163,6 +181,55 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
         </div>
       )}
 
+      {submissionHistory.length > 0 && (
+        <div className="space-y-6">
+          <div className="flex justify-between items-end border-b border-slate-100 pb-4">
+            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">HISTORY PENGAJUAN (TERSIMPAN 1 BULAN)</h3>
+            {totalHistoryPages > 1 && (
+              <div className="flex gap-2">
+                 <button 
+                  disabled={historyPage === 1}
+                  onClick={() => setHistoryPage(p => p - 1)}
+                  className="p-2 rounded-lg bg-slate-100 text-slate-500 disabled:opacity-30 hover:bg-slate-200 transition-all"
+                 >
+                   <Icons.ChevronDown className="w-4 h-4 rotate-90" />
+                 </button>
+                 <span className="text-[10px] font-black text-slate-900 bg-white px-3 py-2 rounded-lg border shadow-sm whitespace-nowrap min-w-[60px] flex items-center justify-center">
+                   {historyPage} / {totalHistoryPages}
+                 </span>
+                 <button 
+                  disabled={historyPage === totalHistoryPages}
+                  onClick={() => setHistoryPage(p => p + 1)}
+                  className="p-2 rounded-lg bg-slate-100 text-slate-500 disabled:opacity-30 hover:bg-slate-200 transition-all"
+                 >
+                   <Icons.ChevronDown className="w-4 h-4 -rotate-90" />
+                 </button>
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {paginatedHistory.map((sub) => (
+              <div key={sub.id} className={`bg-white p-6 rounded-[32px] shadow-sm border border-slate-100 flex justify-between items-center gap-6 border-l-[10px] ${sub.status === 'Approved' ? 'border-l-emerald-500' : 'border-l-rose-500'}`}>
+                <div className="space-y-1.5 overflow-hidden">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${sub.status === 'Approved' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                      {sub.status === 'Approved' ? 'DISETUJUI' : 'DITOLAK'}
+                    </span>
+                    {isSuper && <p className="text-[10px] font-black text-slate-900 truncate">{sub.employeeName}</p>}
+                    <p className="text-[10px] font-bold text-slate-700 truncate">Pengajuan {sub.type}</p>
+                  </div>
+                  <p className="text-[9px] text-slate-500 font-bold">{sub.startDate} {sub.startDate !== sub.endDate ? `- ${sub.endDate}` : ''}</p>
+                  <p className="text-[9px] text-slate-400 italic truncate" title={sub.notes}>"{sub.notes}"</p>
+                </div>
+                <div className="shrink-0">
+                  <Icons.Sparkles className={sub.status === 'Approved' ? 'text-emerald-500 w-5 h-5' : 'text-rose-500 w-5 h-5'} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="space-y-6">
         <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-4">PENGUMUMAN & PESAN</h3>
         <div className="grid grid-cols-1 gap-6">
@@ -179,23 +246,7 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
             </div>
           ))}
 
-          {!isSuper && mySubmissions.map((sub) => (
-            <div key={sub.id} className={`bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex justify-between items-center gap-6 border-l-[12px] ${sub.status === 'Approved' ? 'border-l-emerald-500' : 'border-l-rose-500'}`}>
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${sub.status === 'Approved' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                    {sub.status === 'Approved' ? 'DISETUJUI' : 'DITOLAK'}
-                  </span>
-                  <p className="text-sm font-bold text-slate-900">Pengajuan {sub.type}</p>
-                </div>
-                <p className="text-xs text-slate-500">{sub.startDate} {sub.startDate !== sub.endDate ? `- ${sub.endDate}` : ''}</p>
-                <p className="text-[10px] text-slate-400 italic">"{sub.notes}"</p>
-              </div>
-              <Icons.Sparkles className={sub.status === 'Approved' ? 'text-emerald-500' : 'text-rose-500'} />
-            </div>
-          ))}
-
-          {myBroadcasts.length === 0 && mySubmissions.length === 0 && pendingApprovals.length === 0 && (
+          {myBroadcasts.length === 0 && submissionHistory.length === 0 && pendingApprovals.length === 0 && (
             <div className="bg-slate-50 py-20 rounded-[40px] border-2 border-dashed border-slate-200 text-center">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kotak masuk kosong</p>
             </div>

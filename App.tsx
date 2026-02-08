@@ -18,9 +18,14 @@ import LegalModal from './components/LegalModal.tsx';
 import SettingsModule from './components/SettingsModule.tsx';
 import ShiftModule from './components/ShiftModule.tsx';
 import MinVisModule from './components/MinVisModule.tsx';
+import KPIModule from './components/KPIModule.tsx';
 import { getTenureYears, calculateTenure } from './utils/dateUtils.ts';
 
 const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
+
+// --- KONFIGURASI LOGO ---
+const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
+const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
 
 // --- KONFIGURASI SUPABASE ---
 const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://rcrtknakiwvfkmnwvdvf.supabase.co').trim();
@@ -91,6 +96,10 @@ const App: React.FC = () => {
 
   const [currentEmpPage, setCurrentEmpPage] = useState(1);
   const empRowsPerPage = 10;
+
+  const currentLogo = useMemo(() => {
+    return (userCompany || '').toLowerCase() === 'seller space' ? SELLER_SPACE_LOGO : VISIBEL_LOGO;
+  }, [userCompany]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -435,6 +444,7 @@ const App: React.FC = () => {
 
   const isGlobalUser = userRole === 'owner';
   const isAdminAccess = userRole === 'owner' || userRole === 'super' || userRole === 'admin';
+  const isHighAdminAccess = userRole === 'owner' || userRole === 'super';
 
   const DesktopNav = () => (
     <div className="flex items-center flex-nowrap">
@@ -476,54 +486,12 @@ const App: React.FC = () => {
         )}
       </div>
 
+      {isHighAdminAccess && (
+        <button onClick={() => setActiveTab('kpi')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'kpi' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>PERFORMANCE KPI</button>
+      )}
+
       {isAdminAccess && (
         <button onClick={() => setActiveTab('settings')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>SETTING</button>
-      )}
-    </div>
-  );
-
-  const MobileNav = () => (
-    <div className="flex items-center flex-nowrap min-w-max px-2 py-0.5">
-      <button onClick={() => setActiveTab('home')} className={`px-4 py-2.5 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all shrink-0 ${activeTab === 'home' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>HOME</button>
-      <button onClick={() => setActiveTab('database')} className={`px-4 py-2.5 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all shrink-0 ${activeTab === 'database' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>DATABASE</button>
-      <div className="relative shrink-0" ref={mobileDropdownRef}>
-        <button onClick={() => setIsMobileDropdownOpen(!isMobileDropdownOpen)} className={`px-4 py-2.5 rounded-full text-[8px] font-bold tracking-widest uppercase flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${isAttendanceActive ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-          PRESENSI <Icons.ChevronDown className={`w-3 h-3 transition-transform ${isMobileDropdownOpen ? 'rotate-180' : ''}`} />
-        </button>
-        {isMobileDropdownOpen && (
-          <div className="fixed left-4 right-4 mt-8 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.25)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
-            <button onClick={() => { setActiveTab('absen'); setIsMobileDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">ABSEN SEKARANG</button>
-            {userRole !== 'employee' && (
-              <>
-                <div className="h-px bg-slate-50 w-full"></div>
-                <button onClick={() => { setActiveTab('shift'); setIsMobileDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">JADWAL SHIFT</button>
-              </>
-            )}
-            <div className="h-px bg-slate-50 w-full"></div>
-            <button onClick={() => { setActiveTab('attendance'); setIsMobileDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">DATA ABSENSI</button>
-            <div className="h-px bg-slate-50 w-full"></div>
-            <button onClick={() => { setActiveTab('submissions'); setIsMobileDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">FORM PENGAJUAN</button>
-          </div>
-        )}
-      </div>
-
-      <div className="relative shrink-0" ref={mobileModulRef}>
-        <button onClick={() => setIsMobileModulOpen(!isMobileModulOpen)} className={`px-4 py-2.5 rounded-full text-[8px] font-bold tracking-widest uppercase flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${isModulActive ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-          CONTENT <Icons.ChevronDown className={`w-3 h-3 transition-transform ${isMobileModulOpen ? 'rotate-180' : ''}`} />
-        </button>
-        {isMobileModulOpen && (
-          <div className="fixed left-4 right-4 mt-8 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.25)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
-            <button onClick={() => { setActiveTab('schedule'); setIsMobileModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">LIVE STREAMING</button>
-            <div className="h-px bg-slate-50 w-full"></div>
-            <button onClick={() => { setActiveTab('content'); setIsMobileModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">SHORT VIDEO</button>
-            <div className="h-px bg-slate-50 w-full"></div>
-            <button onClick={() => { setActiveTab('minvis'); setIsMobileModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-[#FFC000] hover:text-black transition-colors text-[#334155]">MINVIS (AI)</button>
-          </div>
-        )}
-      </div>
-
-      {isAdminAccess && (
-        <button onClick={() => setActiveTab('settings')} className={`px-4 py-2.5 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all shrink-0 ${activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>SETTING</button>
       )}
     </div>
   );
@@ -566,7 +534,7 @@ const App: React.FC = () => {
                 <div className="max-w-7xl mx-auto px-4">
                   <div className="flex items-center justify-between h-16 sm:h-24 gap-3">
                     <div className="flex items-center cursor-pointer shrink-0 sm:w-auto" onClick={() => setActiveTab('home')}>
-                      <img src="https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA" alt="Logo" className="h-5 sm:h-12 w-auto" />
+                      <img src={currentLogo} alt="Logo" className={`${ (userCompany || '').toLowerCase() === 'seller space' ? 'h-[30px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} />
                     </div>
 
                     <div className="flex-1 min-w-0 flex justify-center">
@@ -574,11 +542,8 @@ const App: React.FC = () => {
                         <DesktopNav />
                       </div>
                       
-                      <div className="md:hidden w-full overflow-hidden flex justify-center px-2">
-                        <div className="bg-slate-100/60 p-0.5 rounded-full border border-slate-100 shadow-inner overflow-x-auto no-scrollbar touch-pan-x scroll-smooth max-w-full">
-                          <MobileNav />
-                        </div>
-                      </div>
+                      {/* Navigasi tengah dihilangkan pada mobile sesuai permintaan screenshot */}
+                      <div className="md:hidden"></div>
                     </div>
 
                     <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 w-[75px] sm:w-auto justify-end">
@@ -600,12 +565,14 @@ const App: React.FC = () => {
                 <AbsenModule employee={currentUserEmployee} attendanceRecords={attendanceRecords} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'minvis' ? (
                 <MinVisModule onClose={() => setActiveTab('home')} />
+              ) : activeTab === 'kpi' ? (
+                <KPIModule employees={employees} attendanceRecords={attendanceRecords} contentPlans={contentPlans} liveReports={liveReports} userRole={userRole} currentEmployee={currentUserEmployee} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'shift' ? (
                 <ShiftModule employees={employees} assignments={shiftAssignments} setAssignments={setShiftAssignments} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'attendance' ? (
                 <AttendanceModule employees={employees} records={attendanceRecords} setRecords={setAttendanceRecords} searchQuery={searchQuery} userRole={userRole} currentEmployee={currentUserEmployee} startDate={attendanceStartDate} endDate={attendanceEndDate} onStartDateChange={setAttendanceStartDate} onEndDateChange={setAttendanceEndDate} weeklyHolidays={weeklyHolidays} company={userCompany} />
               ) : activeTab === 'schedule' ? (
-                <LiveScheduleModule employees={employees} schedules={liveSchedules} setSchedules={setLiveSchedules} reports={liveReports} setReports={setLiveReports} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
+                <LiveScheduleModule employees={employees} schedules={liveSchedules} setSchedules={setLiveSchedules} reports={liveReports} setReports={setLiveReports} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} attendanceRecords={attendanceRecords} />
               ) : activeTab === 'content' ? (
                 <ContentModule employees={employees} plans={contentPlans} setPlans={setContentPlans} searchQuery={searchQuery} userRole={userRole} currentEmployee={currentUserEmployee} company={userCompany} />
               ) : activeTab === 'submissions' ? (
@@ -622,7 +589,7 @@ const App: React.FC = () => {
                         <span className="inline-block bg-slate-50 text-slate-400 text-[10px] font-black uppercase px-5 py-2 rounded-full tracking-widest self-start">{filteredEmployees.length} ENTRI {userRole === 'owner' ? '(GLOBAL)' : `(${userCompany})`}</span>
                       </div>
                       
-                      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6 sm:gap-8 w-full">
+                      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 sm:gap-8 w-full">
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-slate-100 p-1.5 rounded-[28px] border border-slate-100 shadow-inner w-full xl:max-w-[700px]">
                           {userRole === 'owner' && (
                             <div className="relative shrink-0">
@@ -653,21 +620,21 @@ const App: React.FC = () => {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 md:flex md:flex-row gap-2 sm:gap-4 items-center shrink-0 w-full xl:w-auto">
-                          <button onClick={handleDownloadTemplate} className="bg-slate-100 hover:bg-slate-200 border border-slate-200 px-4 py-3 sm:px-8 sm:py-4 rounded-[20px] sm:rounded-[22px] flex items-center justify-center gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-sm active:scale-95 text-slate-500">
-                            <Icons.Download className="w-4 h-4" /> TEMPLATE
+                        <div className="flex flex-nowrap overflow-x-auto no-scrollbar gap-2 sm:gap-4 items-center shrink-0 w-full lg:w-auto pb-4 sm:pb-0">
+                          <button onClick={handleDownloadTemplate} className="bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-500 px-3 py-2.5 sm:px-5 sm:py-3.5 rounded-[18px] sm:rounded-[22px] flex items-center justify-center gap-1.5 sm:gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-sm active:scale-95 text-slate-500 whitespace-nowrap">
+                            <Icons.Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> TEMPLATE
                           </button>
                           {(userRole === 'owner' || userRole === 'super' || userRole === 'admin') && (
-                            <button onClick={() => setIsFormOpen(true)} className="bg-[#FFC000] hover:bg-black text-black hover:text-white px-4 py-3 sm:px-10 sm:py-4 rounded-[20px] sm:rounded-[22px] flex items-center justify-center gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-amber-100 active:scale-95">
-                              <Icons.Plus className="w-5 h-5" /> TAMBAH
+                            <button onClick={() => setIsFormOpen(true)} className="bg-[#FFC000] hover:bg-black text-black hover:text-white px-3 py-2.5 sm:px-5 sm:py-3.5 rounded-[18px] sm:rounded-[22px] flex items-center justify-center gap-1.5 sm:gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-amber-100 active:scale-95 whitespace-nowrap">
+                              <Icons.Plus className="w-3.5 h-3.5 sm:w-5 sm:h-5" /> TAMBAH
                             </button>
                           )}
                           <input type="file" ref={employeeFileInputRef} onChange={handleImportEmployees} className="hidden" accept=".xlsx,.xls" />
-                          <button onClick={() => employeeFileInputRef.current?.click()} disabled={isImportingEmployees} className="bg-[#059669] hover:bg-[#047857] text-white px-4 py-3 rounded-[20px] sm:rounded-[22px] flex items-center justify-center gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
-                            <Icons.Upload className="w-4 h-4" /> {isImportingEmployees ? '...' : 'UNGGAH'}
+                          <button onClick={() => employeeFileInputRef.current?.click()} disabled={isImportingEmployees} className="bg-[#059669] hover:bg-[#047857] text-white px-3 py-2.5 sm:px-5 sm:py-3.5 rounded-[18px] sm:rounded-[22px] flex items-center justify-center gap-1.5 sm:gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50 whitespace-nowrap">
+                            <Icons.Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> {isImportingEmployees ? '...' : 'UNGGAH'}
                           </button>
-                          <button onClick={handleExportAllEmployees} className="col-span-2 md:col-auto bg-[#0f172a] hover:bg-black text-white px-4 py-3 sm:px-8 sm:py-4 rounded-[20px] sm:rounded-[22px] flex items-center justify-center gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95">
-                            <Icons.Database className="w-4 h-4" /> EKSPOR
+                          <button onClick={handleExportAllEmployees} className="bg-[#0f172a] hover:bg-black text-white px-3 py-2.5 sm:px-5 sm:py-3.5 rounded-[18px] sm:rounded-[22px] flex items-center justify-center gap-1.5 sm:gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95 whitespace-nowrap">
+                            <Icons.Database className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> EKSPOR
                           </button>
                         </div>
                       </div>
@@ -778,7 +745,7 @@ const App: React.FC = () => {
                     <div className="px-8 sm:px-14 py-6 flex items-center justify-between border-t border-slate-100 bg-slate-50/50">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Halaman</span>
-                        <span className="text-xs font-black text-slate-900 px-3 py-1 bg-white rounded-lg shadow-sm border border-slate-200">{currentEmpPage} / {totalEmpPages}</span>
+                        <span className="text-xs font-black text-white px-3 py-1 bg-white rounded-lg shadow-sm border border-slate-200">{currentEmpPage} / {totalEmpPages}</span>
                       </div>
                       <div className="flex gap-2">
                         <button 
@@ -811,6 +778,7 @@ const App: React.FC = () => {
                   userCompany={userCompany}
                   onOpenBroadcast={() => setIsAnnouncementOpen(true)}
                   onOpenDrive={handleOpenDrive}
+                  contentBrandConfigs={[]}
                 />
               )}
             </main>
@@ -820,7 +788,7 @@ const App: React.FC = () => {
         <div className="flex-grow flex items-center justify-center p-6 animate-in fade-in duration-700 bg-[#2e2e2e]">
           <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden border border-slate-100">
             <div className="bg-black p-12 text-center">
-              <img src="https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA" alt="Logo" className="w-[180px] h-auto mx-auto" />
+              <img src={VISIBEL_LOGO} alt="Logo" className="w-[180px] h-auto mx-auto" />
             </div>
             <form onSubmit={(e) => { e.preventDefault(); handleAuth(loginEmail, loginPassword, isRegisterMode, isForgotPasswordMode); }} className="p-10 space-y-8">
               <h2 className="text-2xl font-bold text-[#0f172a] text-center uppercase tracking-[0.3em]">
@@ -848,25 +816,9 @@ const App: React.FC = () => {
                 <button disabled={isAuthLoading} type="submit" className="w-full bg-[#0f172a] text-white py-5 rounded-3xl font-bold text-xs uppercase tracking-[0.4em] shadow-xl active:scale-[0.98] transition-all hover:bg-black">
                   {isAuthLoading ? 'MENGHUBUNGKAN...' : 'MASUK'}
                 </button>
-                
-                <div className="flex items-center gap-4 py-2">
-                  <div className="h-px bg-slate-100 flex-grow"></div>
-                  <span className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">Atau masuk dengan</span>
-                  <div className="h-px bg-slate-100 flex-grow"></div>
-                </div>
-
-                <button 
-                  type="button" 
-                  onClick={handleGoogleLogin} 
-                  disabled={isAuthLoading}
-                  className="w-full bg-white border-2 border-slate-100 text-slate-900 py-5 rounded-3xl font-bold text-[9px] uppercase tracking-[0.2em] shadow-sm active:scale-[0.98] transition-all hover:bg-slate-50 flex items-center justify-center gap-4"
-                >
-                  <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" alt="Google" className="w-5 h-5" />
-                  SIGN IN WITH GOOGLE
-                </button>
               </div>
 
-              <div className="text-center flex flex-col gap-4 pt-2">
+              <div className="text-center flex-col gap-4 pt-2 flex">
                 <button type="button" onClick={() => { setIsRegisterMode(!isRegisterMode); setIsForgotPasswordMode(false); }} className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hover:text-slate-900 transition-colors">
                   {isRegisterMode ? 'KEMBALI KE LOGIN' : 'DAFTAR BARU'}
                 </button>
@@ -883,7 +835,7 @@ const App: React.FC = () => {
 
       <footer className={`${!session ? 'bg-[#2e2e2e] border-none' : 'bg-white border-t'} py-12 sm:py-16 shrink-0`}>
         <div className="max-w-7xl mx-auto px-6 flex flex-col items-center gap-8">
-          <img src="https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA" alt="Logo" className={`h-8 sm:h-10 ${!session ? 'opacity-40' : 'opacity-20 grayscale'}`} />
+          <img src={currentLogo} alt="Logo" className={`h-12 sm:h-16 ${!session ? 'opacity-40' : 'opacity-20 grayscale'}`} />
           <div className="flex flex-wrap justify-center gap-6 sm:gap-12">
             <button onClick={() => setLegalType('privacy')} className={`text-[10px] font-bold uppercase tracking-[0.2em] transition-colors ${!session ? 'text-slate-500 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}>Kebijakan Privasi</button>
             <button onClick={() => setLegalType('tos')} className={`text-[10px] font-bold uppercase tracking-[0.2em] transition-colors ${!session ? 'text-slate-500 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}>Syarat & Ketentuan</button>

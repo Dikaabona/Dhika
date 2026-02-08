@@ -225,9 +225,9 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
     }));
 
     const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Live Report");
-    XLSX.writeFile(wb, `LiveReport_Visibel_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, ws, "Live Report");
+    XLSX.writeFile(workbook, `LiveReport_Visibel_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleDownloadTemplate = () => {
@@ -249,9 +249,9 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
       }
     ];
     const ws = XLSX.utils.json_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Template Laporan Live");
-    XLSX.writeFile(wb, `Template_LiveReport_${company}.xlsx`);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, ws, "Template Laporan Live");
+    XLSX.writeFile(workbook, `Template_LiveReport_${company}.xlsx`);
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -267,13 +267,11 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
         
         const MAX_INT = 2147483647; // Postgres standard Integer limit
 
-        const newReports = jsonData.map((row: any) => {
+        const rawParsedReports = jsonData.map((row: any) => {
           if (!row['BRAND'] || !row['ROOM ID'] || String(row['ROOM ID']).includes('CONTOH_')) return null;
 
-          // Pembersih nilai numerik dari angka raksasa yang tidak masuk akal (seperti No KTP)
           const cleanInt = (v: any) => {
             if (typeof v === 'number') {
-              // Jika nilai > 1 triliun, itu pasti salah kolom (seperti KTP)
               return v > 1000000000000 ? 0 : Math.min(Math.floor(v), MAX_INT);
             }
             const str = String(v || '0').replace(/[^0-9]/g, '');
@@ -282,7 +280,6 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
           };
 
           return {
-            // Updated: parse using parseYMDToIso
             tanggal: parseYMDToIso(row['TANGGAL']),
             brand: String(row['BRAND'] || '').toUpperCase().trim(),
             company: String(row['COMPANY'] || company),
@@ -298,14 +295,60 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
             checkout: cleanInt(row['CO']),
             gmv: cleanInt(row['GMV'])
           };
-        }).filter(r => r !== null && r.brand && r.roomId);
+        }).filter(r => r !== null) as Omit<LiveReport, 'id'>[];
 
-        if (newReports.length > 0) {
-          const { data: inserted, error } = await supabase.from('live_reports').insert(newReports).select();
+        if (rawParsedReports.length > 0) {
+          // --- LOGIKA ANTI-DOUBLE IMPORT (2 TAHAP SELEKSI) ---
+          
+          // 1. Seleksi Tahap 1: Deduplikasi Internal File (Pilih GMV tertinggi jika Room ID sama)
+          const fileDeduperMap = new Map<string, Omit<LiveReport, 'id'>>();
+          rawParsedReports.forEach(report => {
+            const existingInFile = fileDeduperMap.get(report.roomId);
+            if (!existingInFile || report.gmv > existingInFile.gmv) {
+              fileDeduperMap.set(report.roomId, report);
+            }
+          });
+
+          // 2. Seleksi Tahap 2: Bandingkan dengan Database (State Saat Ini)
+          const finalToUpsert: Partial<LiveReport>[] = [];
+          /* Fix: explicitly type the Map to prevent type inference errors in forEach */
+          const existingInDbMap = new Map<string, LiveReport>(reports.map(r => [r.roomId, r]));
+
+          fileDeduperMap.forEach((newReport, roomId) => {
+            const existingInDb = existingInDbMap.get(roomId);
+            if (existingInDb) {
+              // Jika Room ID sama, cek GMV. Jika GMV berbeda -> Update. 
+              // Jika Room ID sama dan GMV sama -> Lewati (Double Data).
+              if (newReport.gmv !== existingInDb.gmv) {
+                finalToUpsert.push({ ...newReport, id: existingInDb.id });
+              }
+            } else {
+              // Data baru murni
+              finalToUpsert.push(newReport);
+            }
+          });
+
+          if (finalToUpsert.length === 0) {
+            alert("Tidak ada data baru atau data dengan GMV berbeda untuk diimpor.");
+            setIsImporting(false);
+            return;
+          }
+
+          const { data: inserted, error } = await supabase.from('live_reports').upsert(finalToUpsert).select();
           if (error) throw error;
           
-          setReports(prev => [...(inserted || []), ...prev]);
-          alert(`Sukses! ${inserted?.length || 0} data laporan berhasil diimpor.`);
+          // Update state tanpa reload jika memungkinkan
+          setReports(prev => {
+            const updated = [...prev];
+            inserted?.forEach(item => {
+              const idx = updated.findIndex(r => r.roomId === item.roomId);
+              if (idx !== -1) updated[idx] = item;
+              else updated.push(item);
+            });
+            return updated.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
+          });
+          
+          alert(`Sukses! ${inserted?.length || 0} data berhasil diproses (seleksi GMV & proteksi duplikat aktif).`);
         } else {
           alert("Tidak ada data valid yang ditemukan dalam file.");
         }

@@ -184,7 +184,8 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         const data = new Uint8Array(event.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-        const newRecords = jsonData.map((row: any) => {
+        
+        const rawRecords = jsonData.map((row: any) => {
           const emp = employees.find(e => e.idKaryawan === String(row['ID KARYAWAN']));
           if (!emp) return null;
           return {
@@ -197,10 +198,19 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
             notes: row['CATATAN'] ? String(row['CATATAN']) : 'Imported'
           };
         }).filter(r => r !== null);
-        if (newRecords.length > 0) {
-          const { error } = await supabase.from('attendance').upsert(newRecords, { onConflict: 'employeeId,date' });
+
+        if (rawRecords.length > 0) {
+          // --- FIX: DEDUPLICATION LOGIC ---
+          const uniqueRecordsMap = new Map();
+          rawRecords.forEach((r: any) => {
+            const key = `${r.employeeId}_${r.date}`;
+            uniqueRecordsMap.set(key, r);
+          });
+          const dedupedRecords = Array.from(uniqueRecordsMap.values());
+
+          const { error } = await supabase.from('attendance').upsert(dedupedRecords, { onConflict: 'employeeId,date' });
           if (error) throw error;
-          alert(`Berhasil mengimpor ${newRecords.length} data absensi!`);
+          alert(`Berhasil mengimpor ${dedupedRecords.length} data absensi!`);
           location.reload();
         }
       } catch (err: any) { alert("Gagal impor: " + err.message); } finally { setIsImporting(false); }

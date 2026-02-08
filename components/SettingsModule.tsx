@@ -43,7 +43,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     try {
       const { data, error } = await supabase.from('employees').select('company');
       if (error) throw error;
-      const unique = Array.from(new Set(data.map(e => e.company || 'Visibel'))).sort();
+      // Added type assertion to any[] and then to string[] to resolve the 'unknown[]' inference error
+      const unique = Array.from(new Set((data as any[]).map(e => e.company || 'Visibel'))).sort() as string[];
       setAllCompanies(unique);
     } catch (err) {
       console.error("Gagal memuat daftar perusahaan:", err);

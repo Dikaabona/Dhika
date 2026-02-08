@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { Employee, LiveSchedule, LiveReport } from '../types';
+import { Employee, LiveSchedule, LiveReport, AttendanceRecord } from '../types';
 import { Icons, LIVE_BRANDS as INITIAL_BRANDS, TIME_SLOTS } from '../constants';
 import { supabase } from '../App';
 import { generateGoogleCalendarUrl } from '../utils/dateUtils';
@@ -18,6 +18,7 @@ interface LiveScheduleModuleProps {
   userRole?: string;
   company: string;
   onClose?: () => void;
+  attendanceRecords?: AttendanceRecord[];
 }
 
 const getLocalDateString = () => {
@@ -43,7 +44,7 @@ const isDateInRange = (target: string, start: string, end: string) => {
 
 const DAYS_OF_WEEK = ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU'];
 
-const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, schedules, setSchedules, reports, setReports, userRole = 'employee', company, onClose }) => {
+const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, schedules, setSchedules, reports, setReports, userRole = 'employee', company, onClose, attendanceRecords = [] }) => {
   const readOnly = userRole === 'employee';
   const [activeSubTab, setActiveSubTab] = useState<'JADWAL' | 'BRAND' | 'REPORT' | 'GRAFIK' | 'LIBUR'>('JADWAL');
   const [startDate, setStartDate] = useState(getLocalDateString());
@@ -151,7 +152,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         const workbook = XLSX.read(data, { type: 'array', cellDates: true });
         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         
-        const newSchedules = jsonData.map((row: any) => {
+        const rawSchedules = jsonData.map((row: any) => {
           const rawDate = row['TANGGAL'];
           let formattedDate = '';
           if (rawDate instanceof Date) {
@@ -159,8 +160,12 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
           } else {
             const parts = String(rawDate).split('/');
             if (parts.length === 3) {
-              // Updated: Parsing YYYY/MM/DD
               formattedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            } else {
+              const dashParts = String(rawDate).split('-');
+              if (dashParts.length === 3) {
+                formattedDate = `${dashParts[0]}-${dashParts[1].padStart(2, '0')}-${dashParts[2].padStart(2, '0')}`;
+              }
             }
           }
 
@@ -176,8 +181,22 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
           };
         }).filter(s => s !== null);
 
-        if (newSchedules.length > 0) {
-          const { data: inserted, error } = await supabase.from('schedules').upsert(newSchedules, { onConflict: 'date,brand,hourSlot' }).select();
+        if (rawSchedules.length > 0) {
+          // --- FIX: DEDUPLICATION LOGIC ---
+          // Menghapus data duplikat dalam file Excel sebelum di-upsert ke Supabase
+          // agar tidak terjadi error 'cannot affect row a second time'
+          const uniqueSchedulesMap = new Map();
+          rawSchedules.forEach((s: any) => {
+            const key = `${s.date}_${s.brand}_${s.hourSlot}`;
+            uniqueSchedulesMap.set(key, s);
+          });
+          const dedupedSchedules = Array.from(uniqueSchedulesMap.values());
+
+          const { data: inserted, error } = await supabase
+            .from('schedules')
+            .upsert(dedupedSchedules, { onConflict: 'date,brand,hourSlot' })
+            .select();
+
           if (error) throw error;
           
           setSchedules(prev => {
@@ -189,7 +208,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
             });
             return updated;
           });
-          alert(`Berhasil mengimpor ${inserted?.length} jadwal!`);
+          alert(`Berhasil mengimpor ${inserted?.length} jadwal! (Duplikat otomatis disatukan)`);
         } else {
           alert("Tidak ada data jadwal valid ditemukan.");
         }
@@ -251,12 +270,42 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
     return j.includes('OPERATOR') || j.includes('OP') || n.includes('ARIYANSYAH');
   }), [employees]);
 
+  // Updated: Restricted to only "HOST LIVE STREAMING" as per screenshot request
   const liveStaffList = useMemo(() => employees.filter(e => {
     const j = (e.jabatan || '').trim().toUpperCase();
-    const n = (e.nama || '').trim().toUpperCase();
-    // Filter specifically for Live Streaming staff as shown in the screenshot requirements
-    return j.includes('HOST') || j.includes('OPERATOR') || j.includes('OP') || n.includes('ARIYANSYAH');
+    return j === 'HOST LIVE STREAMING';
   }), [employees]);
+
+  // Derived Holiday Logic: Union of static weeklyHolidays and actual attendance 'Libur' records
+  const syncedHolidays = useMemo(() => {
+    const dayMap = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
+    const currentHolidays: Record<string, string[]> = {
+      'SENIN': [...(weeklyHolidays['SENIN'] || [])],
+      'SELASA': [...(weeklyHolidays['SELASA'] || [])],
+      'RABU': [...(weeklyHolidays['RABU'] || [])],
+      'KAMIS': [...(weeklyHolidays['KAMIS'] || [])],
+      'JUMAT': [...(weeklyHolidays['JUMAT'] || [])],
+      'SABTU': [...(weeklyHolidays['SABTU'] || [])],
+      'MINGGU': [...(weeklyHolidays['MINGGU'] || [])]
+    };
+
+    // Auto-sync from attendance data
+    attendanceRecords.forEach(rec => {
+      if (rec.status === 'Libur') {
+        const emp = employees.find(e => e.id === rec.employeeId);
+        // Sync only for job title "host live streaming"
+        if (emp && (emp.jabatan || '').trim().toUpperCase() === 'HOST LIVE STREAMING') {
+          const date = new Date(rec.date);
+          const dayName = dayMap[date.getDay()];
+          if (dayName && currentHolidays[dayName] && !currentHolidays[dayName].includes(emp.nama)) {
+            currentHolidays[dayName].push(emp.nama);
+          }
+        }
+      }
+    });
+
+    return currentHolidays;
+  }, [weeklyHolidays, attendanceRecords, employees]);
 
   const datesInRange = useMemo(() => {
     const dates = [];
@@ -273,7 +322,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   const updateSchedule = async (date: string, brand: string, hourSlot: string, field: 'hostId' | 'opId', value: string) => {
     if (readOnly) return;
     const normBrand = brand.trim().toUpperCase();
-    const existing = schedules.find(s => s.date === date && s.brand.trim().toUpperCase() === normBrand && s.hourSlot === hourSlot);
+    const existing = schedules.find(s => s.date === date && (s.brand || '').trim().toUpperCase() === normBrand && s.hourSlot === hourSlot);
     const newRecord = { 
       ...(existing || {}),
       date, 
@@ -287,7 +336,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
       const { data, error } = await supabase.from('schedules').upsert(newRecord, { onConflict: 'date,brand,hourSlot' }).select();
       if (error) throw error;
       setSchedules(prev => {
-        const idx = prev.findIndex(s => s.date === date && s.brand.trim().toUpperCase() === normBrand && s.hourSlot === hourSlot);
+        const idx = prev.findIndex(s => s.date === date && (s.brand || '').trim().toUpperCase() === normBrand && s.hourSlot === hourSlot);
         if (idx !== -1) {
           const updated = [...prev];
           updated[idx] = data[0];
@@ -513,14 +562,14 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                   <div key={day} className="bg-slate-50 p-6 rounded-[32px] border border-slate-100 flex flex-col h-[350px]">
                      <div className="flex justify-between items-center mb-6 shrink-0">
                         <span className="text-sm font-black text-slate-900 tracking-widest">{day}</span>
-                        <span className="bg-white px-3 py-1 rounded-lg text-[9px] font-black text-indigo-500 border border-slate-200">{weeklyHolidays[day]?.length || 0} ORANG</span>
+                        <span className="bg-white px-3 py-1 rounded-lg text-[9px] font-black text-indigo-500 border border-slate-200">{syncedHolidays[day]?.length || 0} ORANG</span>
                      </div>
                      <div className="flex-grow overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                         {liveStaffList.map(emp => (
                           <div 
                             key={emp.id} 
                             onClick={() => !readOnly && toggleHoliday(day, emp.nama)}
-                            className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${weeklyHolidays[day]?.includes(emp.nama) ? 'bg-indigo-500 border-indigo-600 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'}`}
+                            className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${syncedHolidays[day]?.includes(emp.nama) ? 'bg-indigo-500 border-indigo-600 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'}`}
                           >
                              <div className="flex items-center gap-3">
                                 <div className="w-7 h-7 rounded-lg overflow-hidden bg-slate-100 shrink-0">
@@ -528,7 +577,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                                 </div>
                                 <span className="text-[10px] font-bold truncate max-w-[120px]">{emp.nama.toUpperCase()}</span>
                              </div>
-                             {weeklyHolidays[day]?.includes(emp.nama) && <Icons.Plus className="w-3 h-3 rotate-45" />}
+                             {syncedHolidays[day]?.includes(emp.nama) && <Icons.Plus className="w-3 h-3 rotate-45" />}
                           </div>
                         ))}
                      </div>

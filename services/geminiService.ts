@@ -8,14 +8,6 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 let analysisCache: { data: string; timestamp: number } | null = null;
 let lastRequestTime = 0;
 
-const getApiKey = () => {
-  try {
-    return process.env.API_KEY;
-  } catch (e) {
-    return undefined;
-  }
-};
-
 const ensurePaidKey = async () => {
   if (typeof window !== 'undefined' && (window as any).aistudio) {
     const hasKey = await (window as any).aistudio.hasSelectedApiKey();
@@ -43,6 +35,13 @@ const callWithRetry = async (fn: () => Promise<any>, maxRetries = 2): Promise<an
       const errorMsg = error?.message?.toLowerCase() || "";
       const isRateLimit = errorMsg.includes('429') || error?.status === 'RESOURCE_EXHAUSTED';
       
+      // Fix: Handle key selection reset if error is "Requested entity was not found"
+      if (errorMsg.includes("requested entity was not found")) {
+         if (typeof window !== 'undefined' && (window as any).aistudio) {
+           await (window as any).aistudio.openSelectKey();
+         }
+      }
+
       if (isRateLimit) {
         // Jika berbayar tapi tetap limit, berikan jeda sangat panjang (10 detik)
         const waitTime = 10000 + (Math.random() * 2000);
@@ -63,10 +62,8 @@ export const analyzeEmployees = async (employees: Employee[]): Promise<string> =
   }
 
   await ensurePaidKey();
-  const apiKey = getApiKey();
-  if (!apiKey) return "API Key tidak terdeteksi.";
-
-  const ai = new GoogleGenAI({ apiKey });
+  // Fix: Initialize GoogleGenAI right before the call and use process.env.API_KEY directly
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   // Ambil hanya data esensial untuk menghemat token dan proses
   const summaryData = employees.slice(0, 20).map(e => ({
@@ -77,7 +74,8 @@ export const analyzeEmployees = async (employees: Employee[]): Promise<string> =
 
   try {
     const response = await callWithRetry(() => ai.models.generateContent({
-      model: 'gemini-3-flash-preview', // Tetap untuk analisis kompleks
+      // Fix: Use gemini-3-pro-preview for complex analysis as per guidelines
+      model: 'gemini-3-pro-preview', 
       contents: `Berikan 2 kalimat singkat analisis HR untuk data ini: ${JSON.stringify(summaryData)}`,
       config: { thinkingConfig: { thinkingBudget: 0 } }
     }));
@@ -92,10 +90,8 @@ export const analyzeEmployees = async (employees: Employee[]): Promise<string> =
 
 export const smartSearch = async (employees: Employee[], query: string): Promise<string[]> => {
   await ensurePaidKey();
-  const apiKey = getApiKey();
-  if (!apiKey) return [];
-
-  const ai = new GoogleGenAI({ apiKey });
+  // Fix: Initialize GoogleGenAI right before the call and use process.env.API_KEY directly
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   try {
     // Gunakan Flash Lite untuk pencarian: Lebih cepat & kuota lebih besar
