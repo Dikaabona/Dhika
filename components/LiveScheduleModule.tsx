@@ -33,13 +33,11 @@ const DEFAULT_HOLIDAYS = {
   'SENIN': [], 'SELASA': [], 'RABU': [], 'KAMIS': [], 'JUMAT': [], 'SABTU': [], 'MINGGU': []
 };
 
-// Updated: format to YYYY/MM/DD as requested
 const formatDateToYMD = (dateStr: string) => {
   if (!dateStr || !dateStr.includes('-')) return dateStr;
   return dateStr.replace(/-/g, '/');
 };
 
-// Updated: parse YYYY/MM/DD back to ISO YYYY-MM-DD
 const parseYMDToIso = (val: any) => {
   if (!val) return new Date().toISOString().split('T')[0];
   if (val instanceof Date) return val.toISOString().split('T')[0];
@@ -48,7 +46,6 @@ const parseYMDToIso = (val: any) => {
   if (str.includes('/')) {
     const parts = str.split('/');
     if (parts.length === 3) {
-      // Assuming YYYY/MM/DD format
       const y = parts[0];
       const m = parts[1].padStart(2, '0');
       const d = parts[2].padStart(2, '0');
@@ -75,48 +72,59 @@ const DAYS_OF_WEEK = ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MIN
 
 const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, schedules, setSchedules, reports, setReports, userRole = 'employee', company, onClose, attendanceRecords = [] }) => {
   const readOnly = userRole === 'employee';
-  const [activeSubTab, setActiveSubTab] = useState<'JADWAL' | 'REPORT' | 'GRAFIK' | 'LIBUR'>('JADWAL');
+  const [activeSubTab, setActiveSubTab] = useState<'JADWAL' | 'REPORT' | 'GRAFIK' | 'LIBUR' | 'BRAND'>('JADWAL');
   const [startDate, setStartDate] = useState(getLocalDateString());
   const [endDate, setEndDate] = useState(getLocalDateString());
   const [localSearch, setLocalSearch] = useState('');
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('SEMUA BRAND');
-  const [showEmptySlots] = useState(false); // Forced false to hide empty slots by default
+  const [showEmptySlots] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
   
   const [isSavingHolidays, setIsSavingHolidays] = useState(false);
   const [weeklyHolidays, setWeeklyHolidays] = useState<Record<string, string[]>>(DEFAULT_HOLIDAYS);
+  const [brands, setBrands] = useState<any[]>(INITIAL_BRANDS);
+  const [isLoadingBrands, setIsLoadingBrands] = useState(false);
 
   const scheduleFileInputRef = useRef<HTMLInputElement>(null);
 
-  const [brands, setBrands] = useState<any[]>(() => {
-    const saved = localStorage.getItem(`live_brands_config_${company}`);
-    return saved ? JSON.parse(saved) : INITIAL_BRANDS;
-  });
-
   useEffect(() => {
-    if (activeSubTab === 'LIBUR') {
-      fetchHolidays();
-    }
-  }, [activeSubTab, company]);
+    fetchBrandsAndHolidays();
+  }, [company]);
 
-  const fetchHolidays = async () => {
+  const fetchBrandsAndHolidays = async () => {
+    setIsLoadingBrands(true);
     try {
-      const { data } = await supabase.from('settings').select('value').eq('key', `weekly_holidays_${company}`).single();
-      if (data) {
-        const stored = data.value;
+      const { data: brandData } = await supabase.from('settings').select('value').eq('key', `live_brands_${company}`).single();
+      if (brandData) setBrands(brandData.value);
+
+      const { data: holidayData } = await supabase.from('settings').select('value').eq('key', `weekly_holidays_${company}`).single();
+      if (holidayData) {
+        const stored = holidayData.value;
         const currentMonday = getMondayISO(new Date());
-        
-        // Logic sinkronisasi otomatis: Reset jika data melewati hari Minggu (masuk minggu baru)
         if (stored && typeof stored === 'object' && stored.weekStart === currentMonday) {
           setWeeklyHolidays(stored.days || DEFAULT_HOLIDAYS);
         } else {
-          // Reset ke default karena sudah ganti minggu (Logika user: Senin data sudah terbaru)
           setWeeklyHolidays(DEFAULT_HOLIDAYS);
         }
       }
     } catch (e) {
-      console.warn("Gagal memuat data libur.");
+      console.warn("Gagal sinkronisasi data setting.");
+    } finally {
+      setIsLoadingBrands(false);
+    }
+  };
+
+  const handleSaveBrands = async (updatedBrands: any[]) => {
+    try {
+      const { error } = await supabase.from('settings').upsert({
+        key: `live_brands_${company}`,
+        value: updatedBrands
+      }, { onConflict: 'key' });
+      if (error) throw error;
+      setBrands(updatedBrands);
+    } catch (err: any) {
+      alert("Gagal sinkronisasi brand: " + err.message);
     }
   };
 
@@ -132,7 +140,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         }
       }, { onConflict: 'key' });
       if (error) throw error;
-      alert("Jadwal libur mingguan berhasil diperbarui untuk minggu ini!");
+      alert("Jadwal libur mingguan berhasil diperbarui!");
     } catch (err: any) {
       alert("Gagal menyimpan: " + err.message);
     } finally {
@@ -141,29 +149,23 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   };
 
   const toggleHoliday = (day: string, empName: string) => {
-    // Memastikan tidak ada yang libur 2 kali dalam 1 minggu dalam template setting
     const isAssignedOtherDay = Object.entries(weeklyHolidays).some(([d, names]) => 
       d !== day && (names as string[]).includes(empName)
     );
-
     const currentNames = weeklyHolidays[day] || [];
     const isAlreadyOnThisDay = currentNames.includes(empName);
-
     if (!isAlreadyOnThisDay && isAssignedOtherDay) {
-      alert(`Peringatan: ${empName.toUpperCase()} sudah memiliki jadwal libur di hari lain minggu ini. Maksimal 1 hari libur tetap per minggu.`);
+      alert(`Peringatan: ${empName.toUpperCase()} sudah memiliki jadwal libur di hari lain.`);
       return;
     }
-
     setWeeklyHolidays(prev => {
       const current = prev[day] || [];
-      const next = current.includes(empName) 
-        ? current.filter(n => n !== empName)
-        : [...current, empName];
+      const next = current.includes(empName) ? current.filter(n => n !== empName) : [...current, empName];
       return { ...prev, [day]: next };
     });
   };
 
-  const addBrand = () => {
+  const addBrand = async () => {
     const name = newBrandName.trim().toUpperCase();
     if (!name) return;
     if (brands.some((b: any) => b.name === name)) {
@@ -171,16 +173,14 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
       return;
     }
     const updated = [...brands, { name, color: 'bg-slate-200' }];
-    setBrands(updated);
-    localStorage.setItem(`live_brands_config_${company}`, JSON.stringify(updated));
+    await handleSaveBrands(updated);
     setNewBrandName('');
   };
 
-  const removeBrand = (name: string) => {
-    if (!confirm(`Hapus brand "${name}"? Perubahan ini akan tersimpan secara lokal.`)) return;
+  const removeBrand = async (name: string) => {
+    if (!confirm(`Hapus brand "${name}" secara permanen?`)) return;
     const updated = brands.filter((b: any) => b.name !== name);
-    setBrands(updated);
-    localStorage.setItem(`live_brands_config_${company}`, JSON.stringify(updated));
+    await handleSaveBrands(updated);
   };
   
   const employeeMap = useMemo(() => {
@@ -214,18 +214,13 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
             formattedDate = rawDate.toISOString().split('T')[0];
           } else {
             const parts = String(rawDate).split('/');
-            if (parts.length === 3) {
-              formattedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-            } else {
+            if (parts.length === 3) formattedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            else {
               const dashParts = String(rawDate).split('-');
-              if (dashParts.length === 3) {
-                formattedDate = `${dashParts[0]}-${dashParts[1].padStart(2, '0')}-${dashParts[2].padStart(2, '0')}`;
-              }
+              if (dashParts.length === 3) formattedDate = `${dashParts[0]}-${dashParts[1].padStart(2, '0')}-${dashParts[2].padStart(2, '0')}`;
             }
           }
-
           if (!formattedDate || !row['BRAND'] || !row['SLOT WAKTU']) return null;
-
           return {
             date: formattedDate,
             brand: String(row['BRAND']).trim().toUpperCase(),
@@ -237,39 +232,12 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         }).filter(s => s !== null);
 
         if (rawSchedules.length > 0) {
-          const uniqueSchedulesMap = new Map();
-          rawSchedules.forEach((s: any) => {
-            const key = `${s.date}_${s.brand}_${s.hourSlot}`;
-            uniqueSchedulesMap.set(key, s);
-          });
-          const dedupedSchedules = Array.from(uniqueSchedulesMap.values());
-
-          const { data: inserted, error } = await supabase
-            .from('schedules')
-            .upsert(dedupedSchedules, { onConflict: 'date,brand,hourSlot' })
-            .select();
-
+          const { data: inserted, error } = await supabase.from('schedules').upsert(rawSchedules, { onConflict: 'date,brand,hourSlot' }).select();
           if (error) throw error;
-          
-          setSchedules(prev => {
-            const updated = [...prev];
-            inserted?.forEach(newItem => {
-              const idx = updated.findIndex(s => s.date === newItem.date && s.brand === newItem.brand && s.hourSlot === newItem.hourSlot);
-              if (idx !== -1) updated[idx] = newItem;
-              else updated.push(newItem);
-            });
-            return updated;
-          });
-          alert(`Berhasil mengimpor ${inserted?.length} jadwal! (Duplikat otomatis disatukan)`);
-        } else {
-          alert("Tidak ada data jadwal valid ditemukan.");
+          alert(`Berhasil mengimpor ${inserted?.length} jadwal!`);
+          location.reload();
         }
-      } catch (err: any) {
-        alert("Gagal impor: " + err.message);
-      } finally {
-        setIsImporting(false);
-        if (scheduleFileInputRef.current) scheduleFileInputRef.current.value = '';
-      }
+      } catch (err: any) { alert("Gagal impor: " + err.message); } finally { setIsImporting(false); }
     };
     reader.readAsArrayBuffer(file);
   };
@@ -277,55 +245,30 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   const handleExportExcel = () => {
     const activeFilter = selectedBrandFilter.trim().toUpperCase();
     const searchTerm = localSearch.trim().toLowerCase();
-
     const exportedData = schedules.filter(s => {
       const matchesDate = isDateInRange(s.date, startDate, endDate);
-      const brandInDb = (s.brand || '').trim().toUpperCase();
-      const matchesBrand = activeFilter === 'SEMUA BRAND' || brandInDb === activeFilter;
+      const matchesBrand = activeFilter === 'SEMUA BRAND' || (s.brand || '').toUpperCase() === activeFilter;
       const hostName = (employeeMap[s.hostId] || '').toLowerCase();
       const opName = (employeeMap[s.opId] || '').toLowerCase();
-      const matchesSearch = !searchTerm || hostName.includes(searchTerm) || opName.includes(searchTerm) || brandInDb.includes(searchTerm.toUpperCase());
-
-      return matchesDate && matchesBrand && matchesSearch;
+      return matchesDate && matchesBrand && (!searchTerm || hostName.includes(searchTerm) || opName.includes(searchTerm));
     });
-
-    if (exportedData.length === 0) {
-      alert(`Data tidak ditemukan untuk rentang ${startDate} s/d ${endDate}.`);
-      return;
-    }
-
-    const dataToExport = exportedData
-      .sort((a, b) => a.date.localeCompare(b.date) || a.hourSlot.localeCompare(b.hourSlot))
-      .map(s => ({
-        // Updated: format to YYYY/MM/DD
-        'TANGGAL': formatDateToYMD(s.date),
-        'BRAND': s.brand.toUpperCase(),
-        'SLOT WAKTU': s.hourSlot,
-        'NAMA HOST': employeeMap[s.hostId] || 'TBA',
-        'NAMA OPERATOR': employeeMap[s.opId] || 'TBA'
-      }));
-
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Jadwal Live");
-    XLSX.writeFile(workbook, `Jadwal_Live_${company}_${startDate}.xlsx`);
+    if (exportedData.length === 0) return alert("Data tidak ditemukan.");
+    const dataToExport = exportedData.sort((a, b) => a.date.localeCompare(b.date)).map(s => ({
+      'TANGGAL': formatDateToYMD(s.date),
+      'BRAND': s.brand.toUpperCase(),
+      'SLOT WAKTU': s.hourSlot,
+      'NAMA HOST': employeeMap[s.hostId] || 'TBA',
+      'NAMA OPERATOR': employeeMap[s.opId] || 'TBA'
+    }));
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Jadwal Live");
+    XLSX.writeFile(wb, `Jadwal_Live_${company}.xlsx`);
   };
 
-  const hostList = useMemo(() => employees.filter(e => {
-    const j = (e.jabatan || '').trim().toUpperCase();
-    return j.includes('HOST');
-  }), [employees]);
-  
-  const opList = useMemo(() => employees.filter(e => {
-    const j = (e.jabatan || '').trim().toUpperCase();
-    const n = (e.nama || '').trim().toUpperCase();
-    return j.includes('OPERATOR') || j.includes('OP') || n.includes('ARIYANSYAH');
-  }), [employees]);
-
-  const liveStaffList = useMemo(() => employees.filter(e => {
-    const j = (e.jabatan || '').trim().toUpperCase();
-    return j === 'HOST LIVE STREAMING';
-  }), [employees]);
+  const hostList = useMemo(() => employees.filter(e => (e.jabatan || '').toUpperCase().includes('HOST')), [employees]);
+  const opList = useMemo(() => employees.filter(e => (e.jabatan || '').toUpperCase().includes('OP') || (e.nama || '').toUpperCase().includes('ARIYANSYAH')), [employees]);
+  const liveStaffList = useMemo(() => employees.filter(e => (e.jabatan || '').toUpperCase() === 'HOST LIVE STREAMING'), [employees]);
 
   const datesInRange = useMemo(() => {
     const dates = [];
@@ -341,32 +284,17 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
 
   const updateSchedule = async (date: string, brand: string, hourSlot: string, field: 'hostId' | 'opId', value: string) => {
     if (readOnly) return;
-    const normBrand = brand.trim().toUpperCase();
-    const existing = schedules.find(s => s.date === date && (s.brand || '').trim().toUpperCase() === normBrand && s.hourSlot === hourSlot);
-    const newRecord = { 
-      ...(existing || {}),
-      date, 
-      brand: normBrand, 
-      hourSlot, 
-      company, 
-      [field]: value 
-    };
-
+    const existing = schedules.find(s => s.date === date && (s.brand || '').trim().toUpperCase() === brand.toUpperCase() && s.hourSlot === hourSlot);
+    const newRecord = { ...(existing || {}), date, brand: brand.toUpperCase(), hourSlot, company, [field]: value };
     try {
       const { data, error } = await supabase.from('schedules').upsert(newRecord, { onConflict: 'date,brand,hourSlot' }).select();
       if (error) throw error;
       setSchedules(prev => {
-        const idx = prev.findIndex(s => s.date === date && (s.brand || '').trim().toUpperCase() === normBrand && s.hourSlot === hourSlot);
-        if (idx !== -1) {
-          const updated = [...prev];
-          updated[idx] = data[0];
-          return updated;
-        }
+        const idx = prev.findIndex(s => s.date === date && s.brand === brand.toUpperCase() && s.hourSlot === hourSlot);
+        if (idx !== -1) { const upd = [...prev]; upd[idx] = data[0]; return upd; }
         return [data[0], ...prev];
       });
-    } catch (err: any) {
-      alert("Gagal update: " + err.message);
-    }
+    } catch (err: any) { alert("Gagal update: " + err.message); }
   };
 
   return (
@@ -395,10 +323,6 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
           ))}
         </div>
 
-        {activeSubTab === 'LIBUR' && (
-           <p className="text-center text-[10px] font-bold text-rose-500 uppercase tracking-[0.2em] -mt-4 mb-6 animate-pulse">Data libur otomatis kadaluarsa setiap hari Senin (Update 1 Minggu Sekali)</p>
-        )}
-
         {activeSubTab === 'JADWAL' && (
           <div className="space-y-4 sm:space-y-6">
             <div className="flex flex-col md:flex-row gap-3 sm:gap-4">
@@ -413,156 +337,65 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                   <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="text-[10px] sm:text-[12px] font-bold text-[#111827] outline-none bg-transparent cursor-pointer" />
                 </div>
               </div>
-              
               <div className="relative flex-1 bg-[#F3F4F6] border border-slate-100 rounded-[24px] sm:rounded-[28px] px-6 py-4 sm:px-8 sm:py-5 shadow-inner flex items-center gap-3 sm:gap-4">
                 <Icons.Search className="w-4 h-4 sm:w-6 sm:h-6 text-slate-400" />
-                <input 
-                  type="text" 
-                  placeholder="CARI HOST / BRAND..." 
-                  value={localSearch} 
-                  onChange={e => setLocalSearch(e.target.value)} 
-                  className="w-full bg-transparent text-[10px] sm:text-[12px] font-bold uppercase tracking-widest text-[#111827] outline-none placeholder:text-slate-300" 
-                />
+                <input type="text" placeholder="CARI HOST / BRAND..." value={localSearch} onChange={e => setLocalSearch(e.target.value)} className="w-full bg-transparent text-[10px] sm:text-[12px] font-bold uppercase tracking-widest text-[#111827] outline-none placeholder:text-slate-300" />
               </div>
             </div>
-
             {!readOnly && (
               <div className="flex gap-3 sm:gap-4">
                 <input type="file" ref={scheduleFileInputRef} onChange={handleImportExcel} className="hidden" accept=".xlsx,.xls" />
-                <button 
-                  onClick={() => scheduleFileInputRef.current?.click()} 
-                  disabled={isImporting}
-                  className="flex-1 bg-[#EFF6FF] border border-blue-100 text-blue-700 px-4 py-3 sm:px-8 sm:py-4 rounded-[16px] sm:rounded-[20px] text-[8px] sm:text-[11px] font-bold uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 sm:gap-3 transition-all hover:bg-blue-100 active:scale-95 disabled:opacity-50"
-                >
-                  <Icons.Upload className="w-4 h-4 sm:w-5 h-5" /> {isImporting ? '...' : 'IMPORT'}
-                </button>
-                <button 
-                  onClick={handleExportExcel} 
-                  className="flex-1 bg-[#ECFDF5] border border-emerald-100 text-emerald-700 px-4 py-3 sm:px-8 sm:py-4 rounded-[16px] sm:rounded-[20px] text-[8px] sm:text-[11px] font-bold uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 sm:gap-3 transition-all hover:bg-emerald-100 active:scale-95"
-                >
-                  <Icons.Download className="w-4 h-4 sm:w-5 h-5" /> EKSPOR ({schedules.length})
-                </button>
+                <button onClick={() => scheduleFileInputRef.current?.click()} disabled={isImporting} className="flex-1 bg-[#EFF6FF] border border-blue-100 text-blue-700 px-4 py-3 sm:px-8 sm:py-4 rounded-[16px] sm:rounded-[20px] text-[8px] sm:text-[11px] font-bold uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 transition-all hover:bg-blue-100 disabled:opacity-50"><Icons.Upload className="w-4 h-4" /> IMPORT</button>
+                <button onClick={handleExportExcel} className="flex-1 bg-[#ECFDF5] border border-emerald-100 text-emerald-700 px-4 py-3 sm:px-8 sm:py-4 rounded-[16px] sm:rounded-[20px] text-[8px] sm:text-[11px] font-bold uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 transition-all hover:bg-emerald-100"><Icons.Download className="w-4 h-4" /> EKSPOR</button>
               </div>
             )}
-            
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 pt-4 border-t border-slate-50">
-              <button 
-                onClick={() => setSelectedBrandFilter('SEMUA BRAND')} 
-                className={`px-4 py-2 sm:px-8 sm:py-3 rounded-xl sm:rounded-2xl text-[8px] sm:text-[10px] font-bold tracking-widest uppercase transition-all shadow-sm ${selectedBrandFilter === 'SEMUA BRAND' ? 'bg-[#111827] text-yellow-400' : 'bg-[#F3F4F6] text-slate-400 hover:bg-slate-200'}`}
-              >
-                SEMUA
-              </button>
+              <button onClick={() => setSelectedBrandFilter('SEMUA BRAND')} className={`px-4 py-2 sm:px-8 sm:py-3 rounded-xl sm:rounded-2xl text-[8px] sm:text-[10px] font-bold tracking-widest uppercase transition-all shadow-sm ${selectedBrandFilter === 'SEMUA BRAND' ? 'bg-[#111827] text-yellow-400' : 'bg-[#F3F4F6] text-slate-400 hover:bg-slate-200'}`}>SEMUA</button>
               {brands.map((brand: any) => (
-                <button 
-                  key={brand.name} 
-                  onClick={() => setSelectedBrandFilter(brand.name)} 
-                  className={`px-4 py-2 sm:px-8 sm:py-3 rounded-xl sm:rounded-2xl text-[8px] sm:text-[10px] font-bold tracking-widest uppercase transition-all shadow-sm ${selectedBrandFilter === brand.name ? 'bg-[#111827] text-yellow-400' : 'bg-[#F3F4F6] text-slate-400 hover:bg-slate-200'}`}
-                >
-                  {brand.name.toUpperCase()}
-                </button>
+                <button key={brand.name} onClick={() => setSelectedBrandFilter(brand.name)} className={`px-4 py-2 sm:px-8 sm:py-3 rounded-xl sm:rounded-2xl text-[8px] sm:text-[10px] font-bold tracking-widest uppercase transition-all shadow-sm ${selectedBrandFilter === brand.name ? 'bg-[#111827] text-yellow-400' : 'bg-[#F3F4F6] text-slate-400 hover:bg-slate-200'}`}>{brand.name.toUpperCase()}</button>
               ))}
             </div>
           </div>
-        )}
-
-        {activeSubTab === 'LIBUR' && !readOnly && (
-           <div className="flex justify-between items-end gap-6 bg-slate-50 p-6 rounded-[32px] border border-slate-100">
-              <div className="space-y-1">
-                 <h3 className="text-lg font-black text-slate-900 uppercase">Manajemen Hari Libur</h3>
-                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Atur hari libur mingguan tetap untuk setiap host & OP</p>
-              </div>
-              <button 
-                onClick={handleSaveHolidays}
-                disabled={isSavingHolidays}
-                className="bg-slate-900 text-[#FFC000] px-8 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 disabled:opacity-50"
-              >
-                {isSavingHolidays ? 'MENYIMPAN...' : 'SIMPAN JADWAL LIBUR'}
-              </button>
-           </div>
         )}
       </div>
 
       <div className="flex-grow overflow-y-auto px-6 sm:px-12 pt-2 sm:pt-10 pb-16 bg-white custom-scrollbar">
         {activeSubTab === 'JADWAL' ? (
-          <div className="animate-in fade-in duration-500 space-y-8 sm:space-y-12">
+          <div className="animate-in fade-in duration-500 space-y-10 sm:space-y-16">
             {datesInRange.map(date => (
-              <div key={date} className="space-y-4 sm:space-y-12">
-                <div className="flex items-center justify-center pt-2 sm:pt-0">
-                  <div className="bg-white border border-slate-100 px-6 py-2.5 sm:px-12 sm:py-5 rounded-full shadow-sm">
-                    <span className="text-[9px] sm:text-[12px] font-bold text-[#111827] uppercase tracking-[0.2em] sm:tracking-[0.3em] whitespace-nowrap">
-                      {new Date(date).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase()}
-                    </span>
+              <div key={date} className="space-y-6 sm:space-y-12">
+                <div className="flex items-center justify-center">
+                  <div className="bg-white border border-slate-100 px-10 py-3.5 sm:px-16 sm:py-6 rounded-full shadow-md">
+                    <span className="text-[12px] sm:text-[16px] font-black text-[#111827] uppercase tracking-[0.2em]">{new Date(date).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase()}</span>
                   </div>
                 </div>
-                
-                <div className="space-y-4 sm:space-y-6">
+                <div className="space-y-8">
                   {TIME_SLOTS.map(slot => {
                     const brandsForSlot = brands.filter((brand: any) => {
-                      const brandNameNorm = brand.name.trim().toUpperCase();
-                      const filterNorm = selectedBrandFilter.trim().toUpperCase();
-                      const matchesBrandFilter = filterNorm === 'SEMUA BRAND' || brandNameNorm === filterNorm;
-                      if (!matchesBrandFilter) return false;
-                      
-                      const sched = schedules.find(s => s.date === date && (s.brand || '').trim().toUpperCase() === brandNameNorm && s.hourSlot === slot);
-                      const hasAssignment = sched && (sched.hostId || sched.opId);
-                      
+                      const brandNameNorm = brand.name.toUpperCase();
+                      const filterNorm = selectedBrandFilter.toUpperCase();
+                      if (filterNorm !== 'SEMUA BRAND' && brandNameNorm !== filterNorm) return false;
+                      const sched = schedules.find(s => s.date === date && (s.brand || '').toUpperCase() === brandNameNorm && s.hourSlot === slot);
                       if (localSearch) {
-                        const hostName = sched ? (employeeMap[sched.hostId] || '').toLowerCase() : '';
-                        const opName = sched ? (employeeMap[sched.opId] || '').toLowerCase() : '';
-                        const searchTerm = localSearch.toLowerCase();
-                        return hostName.includes(searchTerm) || opName.includes(searchTerm) || brandNameNorm.includes(searchTerm.toUpperCase());
+                        const h = sched ? (employeeMap[sched.hostId] || '').toLowerCase() : '';
+                        const o = sched ? (employeeMap[sched.opId] || '').toLowerCase() : '';
+                        return h.includes(localSearch.toLowerCase()) || o.includes(localSearch.toLowerCase()) || brandNameNorm.includes(localSearch.toUpperCase());
                       }
-
-                      return hasAssignment || showEmptySlots;
+                      return (sched && (sched.hostId || sched.opId)) || showEmptySlots;
                     });
-
                     if (brandsForSlot.length === 0) return null;
-
                     return (
-                      <div key={`${date}-${slot}`} className="bg-slate-50/50 p-4 sm:p-8 rounded-[28px] sm:rounded-[40px] border border-slate-100 space-y-4 sm:space-y-6">
-                        <div className="flex items-center gap-3 sm:gap-6">
-                          <span className="bg-[#111827] text-yellow-400 px-4 py-1.5 sm:px-6 sm:py-2.5 rounded-full text-[8px] sm:text-[11px] font-bold tracking-[0.1em] sm:tracking-[0.2em] shadow-lg shrink-0">{slot}</span>
-                          <div className="h-px flex-grow bg-slate-200/60"></div>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                      <div key={`${date}-${slot}`} className="bg-slate-50/70 p-6 sm:p-12 rounded-[40px] border border-slate-100 space-y-8 shadow-inner">
+                        <div className="flex items-center gap-5"><span className="bg-[#111827] text-yellow-400 px-6 py-2.5 rounded-full text-[11px] font-black tracking-[0.1em]">{slot}</span><div className="h-px flex-grow bg-slate-200"></div></div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-10">
                           {brandsForSlot.map((brand: any) => {
-                            const bName = brand.name.trim().toUpperCase();
-                            const sched = schedules.find(s => s.date === date && (s.brand || '').trim().toUpperCase() === bName && s.hourSlot === slot) || { hostId: '', opId: '' };
+                            const sched = schedules.find(s => s.date === date && (s.brand || '').toUpperCase() === brand.name.toUpperCase() && s.hourSlot === slot) || { hostId: '', opId: '' };
                             return (
-                              <div key={`${date}-${slot}-${brand.name}`} className="bg-white border border-slate-100 rounded-[20px] sm:rounded-[32px] p-4 sm:p-8 space-y-4 sm:space-y-6 shadow-sm hover:shadow-xl transition-all">
-                                <div className="flex justify-between items-center pb-2 sm:pb-4 border-b border-slate-50">
-                                   <div className="flex flex-col">
-                                      <p className="text-[9px] sm:text-[12px] font-bold text-[#111827] tracking-widest uppercase">{brand.name}</p>
-                                      <p className="text-[7px] sm:text-[9px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">Live Segment</p>
-                                   </div>
-                                </div>
-                                
-                                <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                                   <div className="space-y-1.5 sm:space-y-2">
-                                      <label className="text-[7px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">HOST</label>
-                                      <select 
-                                        value={sched.hostId} 
-                                        disabled={readOnly} 
-                                        onChange={(e) => updateSchedule(date, brand.name, slot, 'hostId', e.target.value)} 
-                                        className="w-full bg-[#F9FAFB] border border-slate-100 rounded-xl sm:rounded-2xl px-2 py-2.5 sm:px-5 sm:py-4 text-[9px] sm:text-[12px] font-bold text-[#111827] outline-none focus:ring-4 focus:ring-yellow-400/20 appearance-none transition-all cursor-pointer truncate"
-                                      >
-                                        <option value="">- TBA -</option>
-                                        {hostList.map(h => <option key={h.id} value={h.id}>{h.nama.toUpperCase()}</option>)}
-                                      </select>
-                                   </div>
-                                   <div className="space-y-1.5 sm:space-y-2">
-                                      <label className="text-[7px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">OP</label>
-                                      <select 
-                                        value={sched.opId} 
-                                        disabled={readOnly} 
-                                        onChange={(e) => updateSchedule(date, brand.name, slot, 'opId', e.target.value)} 
-                                        className="w-full bg-[#F9FAFB] border border-slate-100 rounded-xl sm:rounded-2xl px-2 py-2.5 sm:px-5 sm:py-4 text-[9px] sm:text-[12px] font-bold text-[#111827] outline-none focus:ring-4 focus:ring-yellow-400/20 appearance-none transition-all cursor-pointer truncate"
-                                      >
-                                        <option value="">- TBA -</option>
-                                        {opList.map(o => <option key={o.id} value={o.id}>{o.nama.toUpperCase()}</option>)}
-                                      </select>
-                                   </div>
+                              <div key={`${date}-${slot}-${brand.name}`} className="bg-white border border-slate-100 rounded-[32px] p-6 sm:p-8 space-y-6 shadow-md hover:shadow-xl transition-all">
+                                <p className="text-[12px] font-black text-[#111827] uppercase tracking-[0.15em] border-b border-slate-50 pb-3">{brand.name}</p>
+                                <div className="grid grid-cols-2 gap-6">
+                                   <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">HOST</label><select value={sched.hostId} disabled={readOnly} onChange={(e) => updateSchedule(date, brand.name, slot, 'hostId', e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 text-[11px] font-black appearance-none cursor-pointer text-black focus:ring-4 focus:ring-yellow-400/10 outline-none"><option value="">- TBA -</option>{hostList.map(h => <option key={h.id} value={h.id}>{h.nama.toUpperCase()}</option>)}</select></div>
+                                   <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">OP</label><select value={sched.opId} disabled={readOnly} onChange={(e) => updateSchedule(date, brand.name, slot, 'opId', e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 text-[11px] font-black appearance-none cursor-pointer text-black focus:ring-4 focus:ring-yellow-400/10 outline-none"><option value="">- TBA -</option>{opList.map(o => <option key={o.id} value={o.id}>{o.nama.toUpperCase()}</option>)}</select></div>
                                 </div>
                               </div>
                             );
@@ -584,23 +417,11 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {DAYS_OF_WEEK.map(day => (
                   <div key={day} className="bg-slate-50 p-6 rounded-[32px] border border-slate-100 flex flex-col h-[350px]">
-                     <div className="flex justify-between items-center mb-6 shrink-0">
-                        <span className="text-sm font-black text-slate-900 tracking-widest">{day}</span>
-                        <span className="bg-white px-3 py-1 rounded-lg text-[9px] font-black text-indigo-500 border border-slate-200">{(weeklyHolidays[day] || []).length} ORANG</span>
-                     </div>
+                     <div className="flex justify-between items-center mb-6"><span className="text-sm font-black text-slate-900 tracking-widest">{day}</span></div>
                      <div className="flex-grow overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                         {liveStaffList.map(emp => (
-                          <div 
-                            key={emp.id} 
-                            onClick={() => !readOnly && toggleHoliday(day, emp.nama)}
-                            className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${(weeklyHolidays[day] || []).includes(emp.nama) ? 'bg-indigo-500 border-indigo-600 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'}`}
-                          >
-                             <div className="flex items-center gap-3">
-                                <div className="w-7 h-7 rounded-lg overflow-hidden bg-slate-100 shrink-0">
-                                   {emp.photoBase64 ? <img src={emp.photoBase64} className="w-full h-full object-cover" /> : null}
-                                </div>
-                                <span className="text-[10px] font-bold truncate max-w-[120px]">{emp.nama.toUpperCase()}</span>
-                             </div>
+                          <div key={emp.id} onClick={() => !readOnly && toggleHoliday(day, emp.nama)} className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${(weeklyHolidays[day] || []).includes(emp.nama) ? 'bg-indigo-500 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-500'}`}>
+                             <span className="text-[10px] font-bold truncate">{emp.nama.toUpperCase()}</span>
                              {(weeklyHolidays[day] || []).includes(emp.nama) && <Icons.Plus className="w-3 h-3 rotate-45" />}
                           </div>
                         ))}
@@ -608,58 +429,26 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                   </div>
                 ))}
              </div>
+             {!readOnly && <button onClick={handleSaveHolidays} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-xs">Simpan Jadwal Libur</button>}
           </div>
         ) : activeSubTab === 'BRAND' ? (
           <div className="animate-in fade-in duration-500 space-y-8 max-w-4xl mx-auto pb-20">
             {!readOnly && (
               <div className="bg-slate-50 p-6 sm:p-10 rounded-[40px] border border-slate-100 space-y-6">
-                <div className="flex flex-col gap-1">
-                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Tambah Brand Live</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Daftar brand ini akan muncul di pilihan jadwal live streaming</p>
-                </div>
+                <div className="flex flex-col gap-1"><h3 className="text-xl font-black text-slate-900 uppercase">Tambah Brand Live</h3><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Daftar ini tersinkron dengan seluruh akun admin.</p></div>
                 <div className="flex gap-3">
-                  <input 
-                    type="text" 
-                    value={newBrandName} 
-                    onChange={e => setNewBrandName(e.target.value)} 
-                    onKeyDown={e => e.key === 'Enter' && addBrand()}
-                    placeholder="MASUKKAN NAMA BRAND BARU..."
-                    className="flex-grow bg-white border border-slate-200 rounded-2xl px-6 py-4 text-xs font-bold text-black uppercase tracking-widest outline-none focus:ring-4 focus:ring-yellow-400/20 transition-all shadow-sm"
-                  />
-                  <button 
-                    onClick={addBrand}
-                    className="bg-slate-900 text-[#FFC000] px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all hover:bg-black"
-                  >
-                    Tambah
-                  </button>
+                  <input type="text" value={newBrandName} onChange={e => setNewBrandName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addBrand()} placeholder="MASUKKAN NAMA BRAND BARU..." className="flex-grow bg-white border border-slate-200 rounded-2xl px-6 py-4 text-xs font-bold text-black uppercase outline-none" />
+                  <button onClick={addBrand} className="bg-slate-900 text-[#FFC000] px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl">TAMBAH</button>
                 </div>
               </div>
             )}
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {brands.map((b: any) => (
-                <div key={b.name} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm flex items-center justify-between group hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 group-hover:bg-yellow-50 group-hover:text-yellow-600 transition-colors">
-                      <Icons.Video className="w-5 h-5" />
-                    </div>
-                    <span className="text-sm font-black text-slate-900 uppercase tracking-widest">{b.name}</span>
-                  </div>
-                  {!readOnly && (
-                    <button 
-                      onClick={() => removeBrand(b.name)}
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-slate-200 hover:text-rose-500 hover:bg-rose-50 transition-all active:scale-90"
-                    >
-                      <Icons.Trash className="w-5 h-5" />
-                    </button>
-                  )}
+                <div key={b.name} className="bg-white p-6 rounded-[32px] border border-slate-100 flex items-center justify-between group hover:shadow-xl transition-all">
+                  <div className="flex items-center gap-4"><Icons.Video className="w-5 h-5 text-slate-300" /><span className="text-sm font-black text-slate-900 uppercase">{b.name}</span></div>
+                  {!readOnly && <button onClick={() => removeBrand(b.name)} className="w-10 h-10 rounded-full flex items-center justify-center text-slate-200 hover:text-rose-500 transition-all"><Icons.Trash className="w-5 h-5" /></button>}
                 </div>
               ))}
-              {brands.length === 0 && (
-                <div className="col-span-full py-20 text-center bg-slate-50 rounded-[40px] border-2 border-dashed border-slate-200">
-                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Belum ada brand terdaftar</p>
-                </div>
-              )}
             </div>
           </div>
         ) : null}

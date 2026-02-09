@@ -570,7 +570,7 @@ const App: React.FC = () => {
                         <div className="flex flex-col sm:flex-row gap-4 w-full">
                           {userRole === 'owner' && (
                             <div className="relative w-full sm:w-72 shrink-0">
-                               <div className="bg-[#0f172a] text-[#FFC000] px-8 py-4 sm:py-0 rounded-full text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-3 cursor-pointer shadow-xl active:scale-95 transition-all h-full min-h-[56px] sm:min-h-[80px]">
+                               <div className="bg-[#0f172a] text-[#FFC000] px-8 py-3 rounded-full text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-3 cursor-pointer shadow-xl active:scale-95 transition-all">
                                  {companyFilter === 'ALL' ? 'SEMUA COMPANY' : companyFilter}
                                  <Icons.ChevronDown className="w-3.5 h-3.5" />
                                  <select 
@@ -585,14 +585,14 @@ const App: React.FC = () => {
                             </div>
                           )}
 
-                          <div className="relative flex-grow w-full bg-white rounded-full shadow-md border border-slate-100 px-6 py-4 sm:px-8 sm:py-0 flex items-center gap-4 sm:gap-6 min-h-[56px] sm:min-h-[80px]">
-                            <Icons.Search className="w-4 h-4 sm:w-6 sm:h-6 text-slate-300 shrink-0" />
+                          <div className="relative flex-grow w-full bg-white rounded-full shadow-md border border-slate-100 px-6 py-3 flex items-center gap-4 sm:gap-6">
+                            <Icons.Search className="w-4 h-4 sm:w-5 sm:h-5 text-slate-300 shrink-0" />
                             <input 
                               type="text" 
                               placeholder="CARI NAMA ATAU ID..." 
                               value={searchQuery}
                               onChange={(e) => { setSearchQuery(e.target.value); setCurrentEmpPage(1); }}
-                              className="w-full text-xs sm:text-lg font-black text-black outline-none placeholder:text-slate-300 uppercase tracking-widest bg-transparent"
+                              className="w-full text-xs sm:text-sm font-black text-black outline-none placeholder:text-slate-300 uppercase tracking-widest bg-transparent"
                             />
                           </div>
                         </div>
