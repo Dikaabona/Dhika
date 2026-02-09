@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { Employee, AttendanceRecord } from '../types';
 import { Icons } from '../constants';
 import { supabase } from '../App';
+import { formatDateToYYYYMMDD } from '../utils/dateUtils';
 
 interface AttendanceModuleProps {
   employees: Employee[];
@@ -66,8 +67,13 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
     let cur = new Date(startDate);
     let end = new Date(endDate);
     if (isNaN(cur.getTime()) || isNaN(end.getTime())) return [];
+    
+    // Normalize to local midnight
+    cur.setHours(0,0,0,0);
+    end.setHours(0,0,0,0);
+
     while (cur <= end) {
-      dates.push(cur.toISOString().split('T')[0]);
+      dates.push(formatDateToYYYYMMDD(cur));
       cur.setDate(cur.getDate() + 1);
     }
     return dates.reverse();
@@ -226,6 +232,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
       case 'Izin': return 'bg-sky-50 text-sky-600 border-sky-100';
       case 'Alpha': return 'bg-rose-50 text-rose-600 border-rose-100 font-bold';
       case 'Cuti': return 'bg-indigo-50 text-indigo-600 border-indigo-100';
+      case 'Lembur': return 'bg-[#0f172a] text-[#FFC000] border-[#0f172a] shadow-sm';
       default: return 'bg-slate-50 text-slate-400 border-slate-100';
     }
   };
@@ -291,7 +298,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                 className="w-full bg-transparent text-[10px] font-black outline-none text-slate-800 placeholder:text-slate-300 uppercase tracking-widest"
                />
             </div>
-            <button onClick={() => { setLocalSearch(''); onStartDateChange(new Date().toISOString().split('T')[0]); onEndDateChange(new Date().toISOString().split('T')[0]); setCurrentPage(1); }} className="hidden lg:flex bg-slate-900 text-[#FFC000] px-6 h-[52px] rounded-[20px] items-center justify-center text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shrink-0">Refresh</button>
+            <button onClick={() => { setLocalSearch(''); onStartDateChange(formatDateToYYYYMMDD(new Date())); onEndDateChange(formatDateToYYYYMMDD(new Date())); setCurrentPage(1); }} className="hidden lg:flex bg-slate-900 text-[#FFC000] px-6 h-[52px] rounded-[20px] items-center justify-center text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shrink-0">Refresh</button>
           </div>
 
           {isAdmin && (
@@ -327,8 +334,8 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
             <tbody className="divide-y divide-slate-50">
               {paginatedRows.map(row => {
                 const existingRec = records.find(r => r.employeeId === row.employee.id && r.date === row.date);
-                const isToday = row.date === new Date().toISOString().split('T')[0];
-                const isPast = row.date < new Date().toISOString().split('T')[0];
+                const isToday = row.date === formatDateToYYYYMMDD(new Date());
+                const isPast = row.date < formatDateToYYYYMMDD(new Date());
                 const isWork = isWorkDay(row.date, row.employee);
                 
                 // If no record exists, default to 'Alpha' only on work days that have passed.
@@ -425,7 +432,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                 <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase">CLOCK IN</label><input type="time" value={editingRecord.clockIn || ''} onChange={e => setEditingRecord({...editingRecord, clockIn: e.target.value})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none focus:border-[#FFC000]" /></div>
                 <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase">CLOCK OUT</label><input type="time" value={editingRecord.clockOut || ''} onChange={e => setEditingRecord({...editingRecord, clockOut: e.target.value})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none focus:border-[#FFC000]" /></div>
               </div>
-              <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase">STATUS</label><select value={editingRecord.status} onChange={e => setEditingRecord({...editingRecord, status: e.target.value as any})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none appearance-none"><option value="Hadir">Hadir</option><option value="Sakit">Sakit</option><option value="Izin">Izin</option><option value="Alpha">Alpha</option><option value="Cuti">Cuti</option><option value="Libur">Libur</option></select></div>
+              <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase">STATUS</label><select value={editingRecord.status} onChange={e => setEditingRecord({...editingRecord, status: e.target.value as any})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none appearance-none"><option value="Hadir">Hadir</option><option value="Sakit">Sakit</option><option value="Izin">Izin</option><option value="Alpha">Alpha</option><option value="Cuti">Cuti</option><option value="Libur">Libur</option><option value="Lembur">Lembur</option></select></div>
             </div>
             <div className="flex gap-4"><button onClick={handleSaveEdit} className="flex-1 bg-slate-900 text-[#FFC000] py-6 rounded-[28px] font-black uppercase text-xs">Simpan</button><button onClick={() => setIsEditModalOpen(false)} className="px-8 bg-slate-100 text-slate-400 py-6 rounded-[28px] font-black uppercase text-xs">Batal</button></div>
           </div>

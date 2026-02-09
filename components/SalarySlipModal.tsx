@@ -2,7 +2,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Employee, SalaryData, AttendanceRecord } from '../types';
 import { Icons } from '../constants';
-import { parseFlexibleDate } from '../utils/dateUtils';
+import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
 import { supabase } from '../App';
 
 interface SalarySlipModalProps {
@@ -105,21 +105,24 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     rangeStart.setHours(0, 0, 0, 0);
     rangeEnd.setHours(23, 59, 59, 999);
 
+    const rangeStartStr = formatDateToYYYYMMDD(rangeStart);
+    const rangeEndStr = formatDateToYYYYMMDD(rangeEnd);
+
     const cutoffRecords = attendanceRecords.filter(r => {
       if (r.employeeId !== employee.id) return false;
-      const recDate = new Date(r.date);
-      return recDate >= rangeStart && recDate <= rangeEnd;
+      return r.date >= rangeStartStr && r.date <= rangeEndStr;
     });
 
     const summary = { alpha: 0, hadir: 0, sakit: 0, izin: 0, libur: 0, cuti: 0, totalOvertimePay: 0, overtimeHours: 0 };
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = formatDateToYYYYMMDD(new Date());
     let temp = new Date(rangeStart);
     while (temp <= rangeEnd) {
-      const dStr = temp.toISOString().split('T')[0];
+      const dStr = formatDateToYYYYMMDD(temp);
       const dayRecords = cutoffRecords.filter(r => r.date === dStr);
       const isWork = isWorkDay(temp, employee);
       const mainRecord = dayRecords.find(r => r.status !== 'Lembur');
       const overtimeRecords = dayRecords.filter(r => r.status === 'Lembur');
+      
       if (mainRecord) {
         if (mainRecord.status === 'Hadir') summary.hadir++;
         else if (mainRecord.status === 'Sakit') summary.sakit++;
@@ -138,6 +141,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           else summary.hadir++;
         }
       }
+
       overtimeRecords.forEach(ov => {
         if (ov.clockIn && ov.clockOut) {
           const startArr = ov.clockIn.split(':').map(Number);
@@ -164,8 +168,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     return Math.round((attendanceResults.alpha || 0) * dailyRate);
   }, [data.gapok, totalTunjanganOps, attendanceResults.alpha]);
 
-  const finalLemburValue = (data.lembur || 0) + attendanceResults.totalOvertimePay;
-  const totalPendapatan = (data.gapok || 0) + totalTunjanganOps + finalLemburValue + (data.bonus || 0) + (data.thr || 0);
+  const totalPendapatan = (data.gapok || 0) + totalTunjanganOps + (data.lembur || 0) + (data.bonus || 0) + (data.thr || 0);
 
   const autoBPJS = useMemo(() => Math.round(totalPendapatan * 0.02), [totalPendapatan]);
   const autoPajak = useMemo(() => {
@@ -293,7 +296,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
               <div style={{ fontSize: '12px', lineHeight: '2.0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Gaji Pokok</span><span style={{ fontWeight: '800' }}>Rp {(data.gapok || 0).toLocaleString('id-ID')}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tunjangan Ops.</span><span style={{ fontWeight: '800' }}>Rp {(totalTunjanganOps || 0).toLocaleString('id-ID')}</span></div>
-                {finalLemburValue > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Lembur ({attendanceResults.overtimeHours.toFixed(1)} jam)</span><span style={{ fontWeight: '800' }}>Rp {finalLemburValue.toLocaleString('id-ID')}</span></div>}
+                {(data.lembur || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Lembur</span><span style={{ fontWeight: '800' }}>Rp {data.lembur.toLocaleString('id-ID')}</span></div>}
                 {data.bonus > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Bonus</span><span style={{ fontWeight: '800' }}>Rp {data.bonus.toLocaleString('id-ID')}</span></div>}
                 {(data.thr || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#806000', fontWeight: '800' }}>THR</span><span style={{ color: '#806000', fontWeight: '900' }}>Rp {(data.thr || 0).toLocaleString('id-ID')}</span></div>}
                 <div style={{ borderTop: '1px solid #e2e8f0', marginTop: '6px', paddingTop: '6px', display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '13px' }}><span>Total Bruto</span><span>Rp {(totalPendapatan || 0).toLocaleString('id-ID')}</span></div>
@@ -412,25 +415,52 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                     </div>
                     <p className="text-[10px] font-black text-[#806000] uppercase tracking-[0.2em]">Tambahan Gaji</p>
                   </div>
-                  <span className="text-[9px] font-bold text-[#A68000] bg-white/50 px-3 py-1 rounded-full border border-amber-200 self-start sm:self-auto">Lembur System: {attendanceResults.overtimeHours.toFixed(1)} Jam</span>
+                  <span className="text-[9px] font-bold text-[#A68000] bg-white/50 px-3 py-1 rounded-full border border-amber-200 self-start sm:self-auto uppercase">Lembur System: {attendanceResults.overtimeHours.toFixed(1)} Jam</span>
                </div>
-               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {[
-                    { label: 'Lembur Manual', key: 'lembur' },
-                    { label: 'THR', key: 'thr' },
-                    { label: 'Bonus', key: 'bonus' }
-                  ].map((item) => (
-                    <div key={item.key} className="space-y-2">
-                      <label className="text-[9px] font-bold text-[#806000]/60 uppercase tracking-widest ml-2">{item.label}</label>
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center px-1">
+                      <label className="text-[9px] font-bold text-[#806000]/60 uppercase tracking-widest ml-1">Lembur Manual</label>
+                      {!isReadOnlyRole && (
+                        <button 
+                          onClick={() => setData(prev => ({ ...prev, lembur: attendanceResults.totalOvertimePay }))}
+                          className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md hover:bg-indigo-100 transition-all shadow-sm flex items-center gap-1 active:scale-95"
+                          title="Sinkronkan dengan lembur sistem yang disetujui"
+                        >
+                          <Icons.Plus className="w-2.5 h-2.5" /> SYNC SYSTEM (Rp {attendanceResults.totalOvertimePay.toLocaleString('id-ID')})
+                        </button>
+                      )}
+                    </div>
+                    <input 
+                      type="text" 
+                      disabled={isReadOnlyRole} 
+                      value={(data.lembur || 0).toLocaleString('id-ID')} 
+                      onChange={e => setData({...data, lembur: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
+                      className="w-full bg-white border border-[#FFD700] rounded-2xl p-4 text-xs sm:text-sm font-black text-slate-800 focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-60" 
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-bold text-[#806000]/60 uppercase tracking-widest ml-1">THR</label>
                       <input 
                         type="text" 
                         disabled={isReadOnlyRole} 
-                        value={(data[item.key as keyof SalaryData] || 0).toLocaleString('id-ID')} 
-                        onChange={e => setData({...data, [item.key]: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
+                        value={(data.thr || 0).toLocaleString('id-ID')} 
+                        onChange={e => setData({...data, thr: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
                         className="w-full bg-white border border-[#FFD700] rounded-2xl p-4 text-xs sm:text-sm font-black text-slate-800 focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-60" 
                       />
                     </div>
-                  ))}
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-bold text-[#806000]/60 uppercase tracking-widest ml-1">Bonus</label>
+                      <input 
+                        type="text" 
+                        disabled={isReadOnlyRole} 
+                        value={(data.bonus || 0).toLocaleString('id-ID')} 
+                        onChange={e => setData({...data, bonus: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
+                        className="w-full bg-white border border-[#FFD700] rounded-2xl p-4 text-xs sm:text-sm font-black text-slate-800 focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-60" 
+                      />
+                    </div>
+                  </div>
                </div>
                {!isReadOnlyRole && (
                  <button 

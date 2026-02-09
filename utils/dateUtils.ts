@@ -27,6 +27,13 @@ export const parseFlexibleDate = (dateStr: string): Date => {
   return isNaN(parsed.getTime()) ? new Date(NaN) : parsed;
 };
 
+export const formatDateToYYYYMMDD = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 export const calculateTenure = (joinDateStr: string): string => {
   const joinDate = parseFlexibleDate(joinDateStr);
   if (isNaN(joinDate.getTime())) return 'Format Salah';
@@ -85,6 +92,20 @@ export const getDaysUntilBirthday = (birthDateStr: string): number => {
   
   const diff = nextBday.getTime() - today.getTime();
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
+};
+
+/**
+ * Mendapatkan tanggal Senin di minggu saat ini dalam format ISO string.
+ * Berguna untuk sinkronisasi mingguan / reset data.
+ */
+export const getMondayISO = (d: Date): string => {
+  const date = new Date(d);
+  const day = date.getDay();
+  // Hitung selisih hari dari hari ini ke Senin (Senin = 1, Minggu = 0)
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(date.setDate(diff));
+  monday.setHours(0, 0, 0, 0);
+  return monday.toISOString().split('T')[0];
 };
 
 /**

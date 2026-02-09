@@ -19,7 +19,7 @@ import SettingsModule from './components/SettingsModule.tsx';
 import ShiftModule from './components/ShiftModule.tsx';
 import MinVisModule from './components/MinVisModule.tsx';
 import KPIModule from './components/KPIModule.tsx';
-import { getTenureYears, calculateTenure } from './utils/dateUtils.ts';
+import { getTenureYears, calculateTenure, formatDateToYYYYMMDD, getMondayISO } from './utils/dateUtils.ts';
 
 const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
 
@@ -47,9 +47,9 @@ const App: React.FC = () => {
   const [authError, setAuthError] = useState('');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
 
-  const [legalType, setLegalType] = useState<'privacy' | 'tos' | null>(null);
+  const [legalType, setLegalType] = useState<'privacy' | 'tos' | 'contact' | null>(null);
 
-  const getTodayStr = () => new Date().toISOString().split('T')[0];
+  const getTodayStr = () => formatDateToYYYYMMDD(new Date());
   
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
     const savedTab = localStorage.getItem('visibel_active_tab');
@@ -98,7 +98,7 @@ const App: React.FC = () => {
   const empRowsPerPage = 10;
 
   const currentLogo = useMemo(() => {
-    return (userCompany || '').toLowerCase() === 'seller space' ? SELLER_SPACE_LOGO : VISIBEL_LOGO;
+    return (userCompany || '').trim().toLowerCase() === 'seller space' ? SELLER_SPACE_LOGO : VISIBEL_LOGO;
   }, [userCompany]);
 
   useEffect(() => {
@@ -187,9 +187,18 @@ const App: React.FC = () => {
         buildQuery('broadcasts').order('sentAt', { ascending: false }).then(({data}) => setBroadcasts(data || [])),
         buildQuery('schedules').then(({data}) => setLiveSchedules(data || [])),
         buildQuery('content_plans').order('postingDate', { ascending: false }).then(({data}) => setContentPlans(data || [])),
-        buildQuery('shift_assignments').then(({data}) => setShiftAssignments(data || [])),
+        buildQuery('shift_assignment').then(({data}) => setShiftAssignments(data || [])),
         supabase.from('settings').select('value').eq('key', `weekly_holidays_${companyFilterVal}`).single().then(({data}) => { 
-          if (data) setWeeklyHolidays(data.value); 
+          if (data) {
+             const stored = data.value;
+             const currentMonday = getMondayISO(new Date());
+             // Sync Mingguan: Reset jika data lama (weekStart bukan Senin ini)
+             if (stored && typeof stored === 'object' && stored.weekStart === currentMonday) {
+                setWeeklyHolidays(stored.days || DEFAULT_HOLIDAYS);
+             } else {
+                setWeeklyHolidays(DEFAULT_HOLIDAYS);
+             }
+          } 
           else setWeeklyHolidays(DEFAULT_HOLIDAYS);
         })
       ];
@@ -226,23 +235,6 @@ const App: React.FC = () => {
     } catch (err: any) {
       setAuthError(err.message);
     } finally {
-      setIsAuthLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setIsAuthLoading(true);
-    setAuthError('');
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin
-        }
-      });
-      if (error) throw error;
-    } catch (err: any) {
-      setAuthError(err.message);
       setIsAuthLoading(false);
     }
   };
@@ -402,7 +394,7 @@ const App: React.FC = () => {
           alert("Tidak ada data valid yang ditemukan.");
         }
       } catch (err: any) {
-        alert("Gagal impor: " + err.message);
+        alert("Gagal menghapus: " + err.message);
       } finally {
         setIsImportingEmployees(false);
         if (employeeFileInputRef.current) employeeFileInputRef.current.value = '';
@@ -418,18 +410,6 @@ const App: React.FC = () => {
       window.open(driveUrl, '_blank');
     } catch {
       window.open('https://drive.google.com/drive/folders/1ccXLNRsTJuOyFe0F2RGq-EP6Zi5xotFV?usp=sharing', '_blank');
-    }
-  };
-
-  const handleContactAction = () => {
-    const wa = '628111743005';
-    const email = 'kontakvisibel@gmail.com';
-    const msg = encodeURIComponent(`Halo Visibel ID, saya ingin bertanya tentang layanan Sistem Manajemen untuk company ${userCompany}...`);
-    
-    if (window.confirm("Hubungi via WhatsApp? (Klik 'Batal' untuk kirim Email)")) {
-      window.open(`https://wa.me/${wa}?text=${msg}`, '_blank');
-    } else {
-      window.location.href = `mailto:${email}?subject=Informasi%20Sistem&body=${msg}`;
     }
   };
 
@@ -534,15 +514,13 @@ const App: React.FC = () => {
                 <div className="max-w-7xl mx-auto px-4">
                   <div className="flex items-center justify-between h-16 sm:h-24 gap-3">
                     <div className="flex items-center cursor-pointer shrink-0 sm:w-auto" onClick={() => setActiveTab('home')}>
-                      <img src={currentLogo} alt="Logo" className={`${ (userCompany || '').toLowerCase() === 'seller space' ? 'h-[30px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} />
+                      <img src={currentLogo} alt="Logo" className={`${ (userCompany || '').trim().toLowerCase() === 'seller space' ? 'h-[80px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} />
                     </div>
 
                     <div className="flex-1 min-w-0 flex justify-center">
                       <div className="hidden md:block bg-slate-100/60 p-1.5 rounded-full border border-slate-100 shadow-inner relative">
                         <DesktopNav />
                       </div>
-                      
-                      {/* Navigasi tengah dihilangkan pada mobile sesuai permintaan screenshot */}
                       <div className="md:hidden"></div>
                     </div>
 
@@ -560,7 +538,7 @@ const App: React.FC = () => {
               </nav>
             )}
 
-            <main className={`flex-grow w-full ${isFullscreenModule ? 'bg-white' : 'max-w-7xl mx-auto px-4 py-6 sm:py-10'}`}>
+            <main className={`flex-grow w-full overflow-y-auto ${isFullscreenModule ? 'bg-white' : 'max-w-7xl mx-auto px-4 py-6 sm:py-10'}`}>
               {activeTab === 'absen' ? (
                 <AbsenModule employee={currentUserEmployee} attendanceRecords={attendanceRecords} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'minvis' ? (
@@ -582,20 +560,19 @@ const App: React.FC = () => {
               ) : activeTab === 'settings' ? (
                 <SettingsModule userRole={userRole} userCompany={userCompany} onRefresh={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'database' ? (
-                <div className="bg-white rounded-[32px] sm:rounded-[60px] shadow-sm border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
-                  <div className="px-8 sm:px-14 py-10 sm:py-16 border-b flex flex-col items-start bg-white gap-8">
-                      <div className="flex flex-col gap-3">
-                        <h2 className="font-black text-slate-900 uppercase tracking-tight text-2xl sm:text-4xl">DATABASE KARYAWAN</h2>
-                        <span className="inline-block bg-slate-50 text-slate-400 text-[10px] font-black uppercase px-5 py-2 rounded-full tracking-widest self-start">{filteredEmployees.length} ENTRI {userRole === 'owner' ? '(GLOBAL)' : `(${userCompany})`}</span>
-                      </div>
+                <div className="bg-[#f8fafc] sm:bg-white rounded-none sm:rounded-[60px] sm:shadow-sm sm:border sm:border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
+                  {/* SEARCH & FILTER SECTION - Optimized for Screenshot */}
+                  <div className="px-5 sm:px-14 py-8 sm:py-16 flex flex-col items-center sm:items-start bg-transparent sm:bg-white gap-6">
+                      <h2 className="font-black text-slate-900 uppercase tracking-tight text-4xl sm:text-7xl -mb-4">Data Karyawan</h2>
+                      <span className="inline-block bg-white sm:bg-slate-50 text-slate-400 text-[10px] font-black uppercase px-5 py-2.5 rounded-full tracking-widest shadow-sm sm:shadow-none border border-slate-100 sm:border-none">{filteredEmployees.length} ENTRI {userRole === 'owner' ? '(GLOBAL)' : `(${userCompany})`}</span>
                       
-                      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 sm:gap-8 w-full">
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-slate-100 p-1.5 rounded-[28px] border border-slate-100 shadow-inner w-full xl:max-w-[700px]">
+                      <div className="w-full flex flex-col gap-4 max-w-lg mx-auto sm:max-w-none">
+                        <div className="flex flex-col sm:flex-row gap-4 w-full">
                           {userRole === 'owner' && (
-                            <div className="relative shrink-0">
-                               <div className="bg-[#0f172a] text-white px-8 py-4 rounded-[22px] text-[10px] font-black uppercase tracking-widest flex items-center gap-3 cursor-pointer shadow-lg active:scale-95 transition-all">
+                            <div className="relative w-full sm:w-72 shrink-0">
+                               <div className="bg-[#0f172a] text-[#FFC000] px-8 py-4 sm:py-0 rounded-full text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-3 cursor-pointer shadow-xl active:scale-95 transition-all h-full min-h-[56px] sm:min-h-[80px]">
                                  {companyFilter === 'ALL' ? 'SEMUA COMPANY' : companyFilter}
-                                 <Icons.ChevronDown className="w-3 h-3" />
+                                 <Icons.ChevronDown className="w-3.5 h-3.5" />
                                  <select 
                                   value={companyFilter} 
                                   onChange={(e) => { setCompanyFilter(e.target.value); setCurrentEmpPage(1); }}
@@ -608,159 +585,172 @@ const App: React.FC = () => {
                             </div>
                           )}
 
-                          <div className="relative flex-grow bg-white rounded-[22px] shadow-sm border border-slate-100 px-6 py-4 flex items-center gap-4 min-w-0">
-                            <Icons.Search className="w-5 h-5 text-slate-300 shrink-0" />
+                          <div className="relative flex-grow w-full bg-white rounded-full shadow-md border border-slate-100 px-6 py-4 sm:px-8 sm:py-0 flex items-center gap-4 sm:gap-6 min-h-[56px] sm:min-h-[80px]">
+                            <Icons.Search className="w-4 h-4 sm:w-6 sm:h-6 text-slate-300 shrink-0" />
                             <input 
                               type="text" 
-                              placeholder="Cari Nama atau ID..." 
+                              placeholder="CARI NAMA ATAU ID..." 
                               value={searchQuery}
                               onChange={(e) => { setSearchQuery(e.target.value); setCurrentEmpPage(1); }}
-                              className="w-full text-xs font-bold text-black outline-none placeholder:text-slate-300 uppercase tracking-widest bg-white"
+                              className="w-full text-xs sm:text-lg font-black text-black outline-none placeholder:text-slate-300 uppercase tracking-widest bg-transparent"
                             />
                           </div>
                         </div>
 
-                        <div className="flex flex-nowrap overflow-x-auto no-scrollbar gap-2 sm:gap-4 items-center shrink-0 w-full lg:w-auto pb-4 sm:pb-0">
-                          <button onClick={handleDownloadTemplate} className="bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-500 px-3 py-2.5 sm:px-5 sm:py-3.5 rounded-[18px] sm:rounded-[22px] flex items-center justify-center gap-1.5 sm:gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-sm active:scale-95 text-slate-500 whitespace-nowrap">
-                            <Icons.Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> TEMPLATE
+                        <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:justify-start w-full mt-2">
+                          <button onClick={handleDownloadTemplate} className="bg-[#e2e8f0] hover:bg-slate-300 text-slate-600 px-5 py-3 rounded-full flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest transition-all shadow-sm active:scale-95">
+                            <Icons.Download className="w-4 h-4" /> TEMPLATE
                           </button>
                           {(userRole === 'owner' || userRole === 'super' || userRole === 'admin') && (
-                            <button onClick={() => setIsFormOpen(true)} className="bg-[#FFC000] hover:bg-black text-black hover:text-white px-3 py-2.5 sm:px-5 sm:py-3.5 rounded-[18px] sm:rounded-[22px] flex items-center justify-center gap-1.5 sm:gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-amber-100 active:scale-95 whitespace-nowrap">
-                              <Icons.Plus className="w-3.5 h-3.5 sm:w-5 sm:h-5" /> TAMBAH
+                            <button onClick={() => { setEditingEmployee(null); setIsFormOpen(true); }} className="bg-[#FFC000] hover:bg-black text-black hover:text-white px-8 py-3 rounded-full flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-amber-100 active:scale-95">
+                              <Icons.Plus className="w-4 h-4" /> TAMBAH
                             </button>
                           )}
                           <input type="file" ref={employeeFileInputRef} onChange={handleImportEmployees} className="hidden" accept=".xlsx,.xls" />
-                          <button onClick={() => employeeFileInputRef.current?.click()} disabled={isImportingEmployees} className="bg-[#059669] hover:bg-[#047857] text-white px-3 py-2.5 sm:px-5 sm:py-3.5 rounded-[18px] sm:rounded-[22px] flex items-center justify-center gap-1.5 sm:gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50 whitespace-nowrap">
-                            <Icons.Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> {isImportingEmployees ? '...' : 'UNGGAH'}
+                          <button onClick={() => employeeFileInputRef.current?.click()} disabled={isImportingEmployees} className="bg-[#059669] hover:bg-[#047857] text-white px-5 py-3 rounded-full flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
+                            <Icons.Upload className="w-4 h-4" /> {isImportingEmployees ? '...' : 'UNGGAH'}
                           </button>
-                          <button onClick={handleExportAllEmployees} className="bg-[#0f172a] hover:bg-black text-white px-3 py-2.5 sm:px-5 sm:py-3.5 rounded-[18px] sm:rounded-[22px] flex items-center justify-center gap-1.5 sm:gap-2 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95 whitespace-nowrap">
-                            <Icons.Database className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> EKSPOR
+                          <button onClick={handleExportAllEmployees} className="bg-[#0f172a] hover:bg-black text-white p-3 rounded-full flex items-center justify-center shadow-md active:scale-95 w-fit justify-self-center sm:justify-self-start">
+                            <Icons.Database className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
                   </div>
-                  <div className="overflow-x-auto custom-scrollbar touch-pan-x">
-                    <table className="w-full text-left min-w-[1500px] border-separate border-spacing-0">
-                      <thead className="bg-slate-50/80 backdrop-blur-sm text-slate-500 text-[10px] uppercase font-bold tracking-[0.15em] sticky top-0 z-10">
-                        <tr>
-                          {isGlobalUser && <th className="px-14 py-6 border-b border-slate-100">COMPANY</th>}
-                          <th className="px-8 py-6 border-b border-slate-100">ID KARYAWAN</th>
-                          <th className="px-10 py-6 border-b border-slate-100">NAMA KARYAWAN</th>
-                          <th className="px-10 py-6 border-b border-slate-100">TTL</th>
-                          <th className="px-10 py-6 border-b border-slate-100">ALAMAT</th>
-                          <th className="px-8 py-6 border-b border-slate-100">NO KTP</th>
-                          <th className="px-8 py-6 border-b border-slate-100">CUTI</th>
-                          <th className="px-8 py-6 border-b border-slate-100 text-right">AKSI</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white">
-                        {paginatedEmployeesList.map((emp, idx) => {
-                          const tenureYears = getTenureYears(emp.tanggalMasuk);
-                          const leaveQuota = tenureYears >= 1 ? 12 : 0;
-                          const currentYear = new Date().getFullYear();
-                          const usedLeave = attendanceRecords.filter(r => 
-                            r.employeeId === emp.id && 
-                            r.status === 'Cuti' && 
-                            new Date(r.date).getFullYear() === currentYear
-                          ).length;
-                          const sisaCuti = Math.max(0, leaveQuota - usedLeave);
-                          
-                          return (
-                            <tr key={emp.id} className="hover:bg-slate-50/70 transition-all duration-300 group border-b border-slate-50 last:border-0">
-                              {isGlobalUser && (
-                                <td className="px-14 py-7 whitespace-nowrap">
-                                  <span className="text-sm font-bold text-slate-800 uppercase tracking-tight">{emp.company || 'VISIBEL'}</span>
-                                </td>
-                              )}
-                              <td className="px-8 py-7 whitespace-nowrap">
+
+                  {/* LIST VIEW - Minimalist for Mobile, Table for Desktop */}
+                  <div className="w-full overflow-hidden">
+                    {/* Desktop Header */}
+                    <div className="hidden md:grid grid-cols-8 bg-slate-50 text-slate-500 text-[10px] uppercase font-bold tracking-[0.15em] border-b border-slate-100 px-14 py-6 sticky top-0 z-10">
+                      <div className="col-span-2">COMPANY</div>
+                      <div className="col-span-1">ID KARYAWAN</div>
+                      <div className="col-span-2">NAMA KARYAWAN</div>
+                      <div className="col-span-1">TTL</div>
+                      <div className="col-span-1">CUTI</div>
+                      <div className="col-span-1 text-right">AKSI</div>
+                    </div>
+
+                    {/* Mobile Header (Minimalist) */}
+                    <div className="md:hidden grid grid-cols-2 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] px-8 py-4 border-b border-slate-100 bg-white shadow-sm">
+                      <div>NAMA KARYAWAN</div>
+                      <div className="text-right pr-4">ID KARYAWAN</div>
+                    </div>
+
+                    {/* Rows */}
+                    <div className="bg-white">
+                      {paginatedEmployeesList.map((emp) => {
+                        const tenureYears = getTenureYears(emp.tanggalMasuk);
+                        const leaveQuota = tenureYears >= 1 ? 12 : 0;
+                        const currentYear = new Date().getFullYear();
+                        const usedLeave = attendanceRecords.filter(r => 
+                          r.employeeId === emp.id && 
+                          r.status === 'Cuti' && 
+                          new Date(r.date).getFullYear() === currentYear
+                        ).length;
+                        const sisaCuti = Math.max(0, leaveQuota - usedLeave);
+                        
+                        return (
+                          <div key={emp.id} className="hover:bg-slate-50/70 transition-all duration-300 group border-b border-slate-50 last:border-0">
+                            {/* MOBILE ROW */}
+                            <div className="md:hidden p-6 sm:p-8 flex items-center justify-between relative group overflow-hidden">
+                              {/* Left Accent Bar */}
+                              <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-rose-500 rounded-r-full shadow-[2px_0_10px_rgba(244,63,94,0.3)]"></div>
+                              
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[14px] font-black text-slate-900 uppercase tracking-tight truncate pl-2">{emp.nama}</p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-2 mt-1 truncate">{emp.jabatan}</p>
+                              </div>
+
+                              <div className="flex items-center gap-4 shrink-0">
+                                <span className="bg-[#f1f5f9] text-slate-600 font-black text-[11px] uppercase px-5 py-2.5 rounded-full tracking-[0.1em] border border-slate-200/50 shadow-sm">
+                                  {emp.idKaryawan || 'VSB-13'}
+                                </span>
+                                
+                                {/* Quick Mobile Actions - Show on click or hover */}
+                                <div className="flex gap-1.5 ml-2">
+                                   <button onClick={() => setSlipEmployee(emp)} className="p-2 text-emerald-600 bg-emerald-50 rounded-lg active:scale-90"><Icons.Download className="w-4 h-4" /></button>
+                                   <button onClick={() => { setEditingEmployee(emp); setIsFormOpen(true); }} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg active:scale-90"><Icons.Edit className="w-4 h-4" /></button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* DESKTOP ROW */}
+                            <div className="hidden md:grid grid-cols-8 items-center px-14 py-7 gap-4">
+                              <div className="col-span-2 whitespace-nowrap">
+                                <span className="text-sm font-bold text-slate-800 uppercase tracking-tight">{emp.company || 'VISIBEL'}</span>
+                              </div>
+                              <div className="col-span-1">
                                 <span className="inline-block bg-slate-50 text-slate-700 font-black text-[10px] uppercase px-4 py-2 rounded-xl tracking-[0.1em] border border-slate-200/50 shadow-sm whitespace-nowrap">
                                   {emp.idKaryawan || 'VSB-00'}
                                 </span>
-                              </td>
-                              <td className="px-10 py-7 whitespace-nowrap">
+                              </div>
+                              <div className="col-span-2">
                                 <div className="flex items-center gap-5">
-                                    <div className="w-12 h-12 rounded-[22px] overflow-hidden border-2 border-white shadow-md bg-slate-100 shrink-0 transform group-hover:scale-105 transition-all duration-500 ring-1 ring-slate-100/50">
-                                      {emp.photoBase64 ? (
-                                        <img src={emp.photoBase64} className="w-full h-full object-cover" alt="" />
-                                      ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                          <Icons.Users className="w-5 h-5" />
-                                        </div>
-                                      )}
+                                    <div className="w-12 h-12 rounded-[22px] overflow-hidden border-2 border-white shadow-md bg-slate-100 shrink-0">
+                                      {emp.photoBase64 ? <img src={emp.photoBase64} className="w-full h-full object-cover" alt="" /> : <Icons.Users className="w-5 h-5 text-slate-300 m-auto mt-3.5" />}
                                     </div>
                                     <div className="min-w-0">
                                       <p className="font-semibold text-slate-900 text-[14px] uppercase truncate leading-tight mb-1 tracking-tight">{emp.nama}</p>
                                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{emp.jabatan}</p>
                                     </div>
                                 </div>
-                              </td>
-                              <td className="px-10 py-7 whitespace-nowrap">
-                                <div className="space-y-1">
-                                  <p className="text-[11px] font-black text-slate-800 uppercase tracking-tight leading-none">{emp.tempatLahir}</p>
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{emp.tanggalLahir}</p>
-                                </div>
-                              </td>
-                              <td className="px-10 py-7 whitespace-nowrap">
-                                <p className="text-[11px] text-slate-600 font-medium max-w-[280px] truncate uppercase tracking-tight" title={emp.alamat}>{emp.alamat}</p>
-                              </td>
-                              <td className="px-8 py-7 whitespace-nowrap">
-                                <p className="text-[11px] font-bold text-slate-800 tracking-widest opacity-80">{emp.noKtp}</p>
-                              </td>
-                              <td className="px-8 py-7 whitespace-nowrap">
+                              </div>
+                              <div className="col-span-1">
+                                <p className="text-[11px] font-black text-slate-800 uppercase tracking-tight leading-none">{emp.tempatLahir}</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-1">{emp.tanggalLahir}</p>
+                              </div>
+                              <div className="col-span-1">
                                 <span className={`inline-block font-black text-[10px] px-3 py-1 rounded-lg ${sisaCuti > 0 ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
                                   {sisaCuti} HARI
                                 </span>
-                              </td>
-                              <td className="px-8 py-7 text-right whitespace-nowrap">
-                                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-0 translate-x-2">
+                              </div>
+                              <div className="col-span-1 text-right">
+                                <div className="flex justify-end gap-2">
                                   {(userRole === 'owner' || userRole === 'super' || emp.id === currentUserEmployee?.id) && (
-                                    <button onClick={() => setSlipEmployee(emp)} className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-emerald-100 shadow-sm hover:shadow-md bg-white" title="Slip Gaji"><Icons.Download className="w-4.5 h-4.5" /></button>
+                                    <button onClick={() => setSlipEmployee(emp)} className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-emerald-100 shadow-sm bg-white" title="Slip Gaji"><Icons.Download className="w-4 h-4" /></button>
                                   )}
                                   {(userRole === 'owner' || userRole === 'super' || emp.id === currentUserEmployee?.id) && (
-                                    <button onClick={() => { setEditingEmployee(emp); setIsFormOpen(true); }} className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-cyan-100 shadow-sm hover:shadow-md bg-white" title="Edit Data"><Icons.Edit className="w-4.5 h-4.5" /></button>
+                                    <button onClick={() => { setEditingEmployee(emp); setIsFormOpen(true); }} className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-cyan-100 shadow-sm bg-white" title="Edit Data"><Icons.Edit className="w-4 h-4" /></button>
                                   )}
                                   {(userRole === 'owner' || userRole === 'super' || userRole === 'admin') && (
-                                    <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-rose-100 shadow-sm hover:shadow-md bg-white" title="Hapus"><Icons.Trash className="w-4.5 h-4.5" /></button>
+                                    <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-rose-100 shadow-sm bg-white" title="Hapus"><Icons.Trash className="w-4 h-4" /></button>
                                   )}
                                 </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                        {filteredEmployees.length === 0 && (
-                          <tr>
-                            <td colSpan={isGlobalUser ? 8 : 7} className="py-20 text-center">
-                              <div className="flex flex-col items-center justify-center space-y-4 opacity-30">
-                                <Icons.Users className="w-12 h-12" />
-                                <p className="text-xs font-black uppercase tracking-[0.4em]">Data Tidak Ditemukan</p>
                               </div>
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {filteredEmployees.length === 0 && (
+                        <div className="py-24 text-center">
+                          <div className="flex flex-col items-center justify-center space-y-4 opacity-30">
+                            <Icons.Users className="w-16 h-16" />
+                            <p className="text-sm font-black uppercase tracking-[0.4em]">Data Tidak Ditemukan</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {totalEmpPages > 1 && (
-                    <div className="px-8 sm:px-14 py-6 flex items-center justify-between border-t border-slate-100 bg-slate-50/50">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Halaman</span>
-                        <span className="text-xs font-black text-white px-3 py-1 bg-white rounded-lg shadow-sm border border-slate-200">{currentEmpPage} / {totalEmpPages}</span>
+                    <div className="px-8 sm:px-14 py-10 flex items-center justify-between border-t border-slate-100 bg-white">
+                      <div className="flex items-center gap-3">
+                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Halaman</span>
+                        <span className="text-xs font-black text-slate-900 px-4 py-2 bg-slate-50 rounded-full border border-slate-200">{currentEmpPage} / {totalEmpPages}</span>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-3">
                         <button 
                           disabled={currentEmpPage === 1}
-                          onClick={() => setCurrentEmpPage(prev => prev - 1)}
-                          className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95"
+                          onClick={() => { setCurrentEmpPage(prev => prev - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-90 flex items-center justify-center"
                         >
-                          <Icons.ChevronDown className="w-4 h-4 rotate-90" />
+                          <Icons.ChevronDown className="w-5 h-5 rotate-90" />
                         </button>
                         <button 
                           disabled={currentEmpPage === totalEmpPages}
-                          onClick={() => setCurrentEmpPage(prev => prev + 1)}
-                          className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95"
+                          onClick={() => { setCurrentEmpPage(prev => prev + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-90 flex items-center justify-center"
                         >
-                          <Icons.ChevronDown className="w-4 h-4 -rotate-90" />
+                          <Icons.ChevronDown className="w-5 h-5 -rotate-90" />
                         </button>
                       </div>
                     </div>
@@ -785,7 +775,7 @@ const App: React.FC = () => {
           </>
         )
       ) : (
-        <div className="flex-grow flex items-center justify-center p-6 animate-in fade-in duration-700 bg-[#2e2e2e]">
+        <div className="flex-grow flex items-center justify-center p-6 animate-in fade-in duration-700 bg-white">
           <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden border border-slate-100">
             <div className="bg-black p-12 text-center">
               <img src={VISIBEL_LOGO} alt="Logo" className="w-[180px] h-auto mx-auto" />
@@ -833,21 +823,23 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <footer className={`${!session ? 'bg-[#2e2e2e] border-none' : 'bg-white border-t'} py-12 sm:py-16 shrink-0`}>
+      <footer className={`py-12 sm:py-16 shrink-0 border-none transition-colors duration-700 ${session ? 'bg-[#f8fafc]' : 'bg-white'}`}>
         <div className="max-w-7xl mx-auto px-6 flex flex-col items-center gap-8">
-          <img src={currentLogo} alt="Logo" className={`h-12 sm:h-16 ${!session ? 'opacity-40' : 'opacity-20 grayscale'}`} />
-          <div className="flex flex-wrap justify-center gap-6 sm:gap-12">
-            <button onClick={() => setLegalType('privacy')} className={`text-[10px] font-bold uppercase tracking-[0.2em] transition-colors ${!session ? 'text-slate-500 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}>Kebijakan Privasi</button>
-            <button onClick={() => setLegalType('tos')} className={`text-[10px] font-bold uppercase tracking-[0.2em] transition-colors ${!session ? 'text-slate-500 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}>Syarat & Ketentuan</button>
-            <button onClick={handleContactAction} className={`text-[10px] font-bold uppercase tracking-[0.2em] transition-colors ${!session ? 'text-slate-500 hover:text-emerald-400' : 'text-slate-400 hover:text-emerald-600'}`}>Informasi Kontak</button>
+          <img src={VISIBEL_LOGO} alt="Logo" className={`h-10 sm:h-12 transition-all duration-700 ${session ? 'opacity-20 grayscale brightness-0' : 'opacity-80'}`} />
+          
+          <div className="flex flex-wrap justify-center gap-x-10 gap-y-4">
+             <button onClick={() => setLegalType('contact')} className={`text-[10px] font-black uppercase tracking-widest transition-colors ${session ? 'text-slate-400 hover:text-slate-900' : 'text-slate-500 hover:text-slate-900'}`}>Hubungi Kami</button>
+             <button onClick={() => setLegalType('privacy')} className={`text-[10px] font-black uppercase tracking-widest transition-colors ${session ? 'text-slate-400 hover:text-slate-900' : 'text-slate-500 hover:text-slate-900'}`}>Kebijakan Privasi</button>
+             <button onClick={() => setLegalType('tos')} className={`text-[10px] font-black uppercase tracking-widest transition-colors ${session ? 'text-slate-400 hover:text-slate-900' : 'text-slate-500 hover:text-slate-900'}`}>Syarat & Ketentuan</button>
           </div>
-          <p className={`text-[9px] font-bold uppercase tracking-[0.4em] text-center leading-relaxed ${!session ? 'text-slate-600' : 'text-slate-300'}`}>
-            &copy; {new Date().getFullYear()} Visibel ID • Sistem Manajemen
+
+          <p className={`text-[9px] font-bold uppercase tracking-[0.4em] text-center leading-relaxed transition-colors duration-700 ${session ? 'text-slate-300' : 'text-slate-300'}`}>
+            &copy; 2026 VISIBEL ID • SISTEM MANAJEMEN
           </p>
         </div>
       </footer>
 
-      {isFormOpen && <EmployeeForm employees={employees} initialData={editingEmployee} userRole={userRole} userCompany={userCompany} currentUserEmployee={currentUserEmployee} onSave={async (emp) => { await supabase.from('employees').upsert(emp); fetchData(session?.user?.email, true); setIsFormOpen(false); }} onCancel={() => setIsFormOpen(false)} />}
+      {isFormOpen && <EmployeeForm employees={employees} initialData={editingEmployee} userRole={userRole} userCompany={userCompany} currentUserEmployee={currentUserEmployee} onSave={async (emp) => { await supabase.from('employees').upsert(emp); setEditingEmployee(null); fetchData(session?.user?.email, true); setIsFormOpen(false); }} onCancel={() => { setEditingEmployee(null); setIsFormOpen(false); }} />}
       {slipEmployee && <SalarySlipModal employee={slipEmployee} attendanceRecords={attendanceRecords} userRole={userRole} onClose={() => setSlipEmployee(null)} onUpdate={() => fetchData(session?.user?.email, true)} weeklyHolidays={weeklyHolidays} />}
       {isAnnouncementOpen && <AnnouncementModal employees={filteredEmployees} company={userCompany} onClose={() => setIsAnnouncementOpen(false)} onSuccess={() => fetchData(session?.user?.email, true)} />}
       {legalType && <LegalModal type={legalType} onClose={() => setLegalType(null)} />}

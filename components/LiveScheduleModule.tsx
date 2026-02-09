@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { Employee, LiveSchedule, LiveReport, AttendanceRecord } from '../types';
 import { Icons, LIVE_BRANDS as INITIAL_BRANDS, TIME_SLOTS } from '../constants';
 import { supabase } from '../App';
-import { generateGoogleCalendarUrl } from '../utils/dateUtils';
+import { generateGoogleCalendarUrl, getMondayISO } from '../utils/dateUtils';
 import LiveReportModule from './LiveReportModule';
 import LiveCharts from './LiveCharts';
 
@@ -29,10 +29,39 @@ const getLocalDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
+const DEFAULT_HOLIDAYS = {
+  'SENIN': [], 'SELASA': [], 'RABU': [], 'KAMIS': [], 'JUMAT': [], 'SABTU': [], 'MINGGU': []
+};
+
 // Updated: format to YYYY/MM/DD as requested
 const formatDateToYMD = (dateStr: string) => {
   if (!dateStr || !dateStr.includes('-')) return dateStr;
   return dateStr.replace(/-/g, '/');
+};
+
+// Updated: parse YYYY/MM/DD back to ISO YYYY-MM-DD
+const parseYMDToIso = (val: any) => {
+  if (!val) return new Date().toISOString().split('T')[0];
+  if (val instanceof Date) return val.toISOString().split('T')[0];
+  
+  const str = String(val).trim();
+  if (str.includes('/')) {
+    const parts = str.split('/');
+    if (parts.length === 3) {
+      // Assuming YYYY/MM/DD format
+      const y = parts[0];
+      const m = parts[1].padStart(2, '0');
+      const d = parts[2].padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+  }
+  
+  if (!isNaN(Number(str)) && Number(str) > 30000) {
+    const date = new Date((Number(str) - 25569) * 86400 * 1000);
+    return date.toISOString().split('T')[0];
+  }
+
+  return str;
 };
 
 const isDateInRange = (target: string, start: string, end: string) => {
@@ -46,19 +75,17 @@ const DAYS_OF_WEEK = ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MIN
 
 const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, schedules, setSchedules, reports, setReports, userRole = 'employee', company, onClose, attendanceRecords = [] }) => {
   const readOnly = userRole === 'employee';
-  const [activeSubTab, setActiveSubTab] = useState<'JADWAL' | 'BRAND' | 'REPORT' | 'GRAFIK' | 'LIBUR'>('JADWAL');
+  const [activeSubTab, setActiveSubTab] = useState<'JADWAL' | 'REPORT' | 'GRAFIK' | 'LIBUR'>('JADWAL');
   const [startDate, setStartDate] = useState(getLocalDateString());
   const [endDate, setEndDate] = useState(getLocalDateString());
   const [localSearch, setLocalSearch] = useState('');
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('SEMUA BRAND');
-  const [showEmptySlots] = useState(true); 
+  const [showEmptySlots] = useState(false); // Forced false to hide empty slots by default
   const [isImporting, setIsImporting] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
   
   const [isSavingHolidays, setIsSavingHolidays] = useState(false);
-  const [weeklyHolidays, setWeeklyHolidays] = useState<Record<string, string[]>>({
-    'SENIN': [], 'SELASA': [], 'RABU': [], 'KAMIS': [], 'JUMAT': [], 'SABTU': [], 'MINGGU': []
-  });
+  const [weeklyHolidays, setWeeklyHolidays] = useState<Record<string, string[]>>(DEFAULT_HOLIDAYS);
 
   const scheduleFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -71,12 +98,23 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
     if (activeSubTab === 'LIBUR') {
       fetchHolidays();
     }
-  }, [activeSubTab]);
+  }, [activeSubTab, company]);
 
   const fetchHolidays = async () => {
     try {
       const { data } = await supabase.from('settings').select('value').eq('key', `weekly_holidays_${company}`).single();
-      if (data) setWeeklyHolidays(data.value);
+      if (data) {
+        const stored = data.value;
+        const currentMonday = getMondayISO(new Date());
+        
+        // Logic sinkronisasi otomatis: Reset jika data melewati hari Minggu (masuk minggu baru)
+        if (stored && typeof stored === 'object' && stored.weekStart === currentMonday) {
+          setWeeklyHolidays(stored.days || DEFAULT_HOLIDAYS);
+        } else {
+          // Reset ke default karena sudah ganti minggu (Logika user: Senin data sudah terbaru)
+          setWeeklyHolidays(DEFAULT_HOLIDAYS);
+        }
+      }
     } catch (e) {
       console.warn("Gagal memuat data libur.");
     }
@@ -85,12 +123,16 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   const handleSaveHolidays = async () => {
     setIsSavingHolidays(true);
     try {
+      const currentMonday = getMondayISO(new Date());
       const { error } = await supabase.from('settings').upsert({
         key: `weekly_holidays_${company}`,
-        value: weeklyHolidays
+        value: {
+          days: weeklyHolidays,
+          weekStart: currentMonday
+        }
       }, { onConflict: 'key' });
       if (error) throw error;
-      alert("Jadwal libur mingguan berhasil diperbarui!");
+      alert("Jadwal libur mingguan berhasil diperbarui untuk minggu ini!");
     } catch (err: any) {
       alert("Gagal menyimpan: " + err.message);
     } finally {
@@ -99,6 +141,19 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   };
 
   const toggleHoliday = (day: string, empName: string) => {
+    // Memastikan tidak ada yang libur 2 kali dalam 1 minggu dalam template setting
+    const isAssignedOtherDay = Object.entries(weeklyHolidays).some(([d, names]) => 
+      d !== day && (names as string[]).includes(empName)
+    );
+
+    const currentNames = weeklyHolidays[day] || [];
+    const isAlreadyOnThisDay = currentNames.includes(empName);
+
+    if (!isAlreadyOnThisDay && isAssignedOtherDay) {
+      alert(`Peringatan: ${empName.toUpperCase()} sudah memiliki jadwal libur di hari lain minggu ini. Maksimal 1 hari libur tetap per minggu.`);
+      return;
+    }
+
     setWeeklyHolidays(prev => {
       const current = prev[day] || [];
       const next = current.includes(empName) 
@@ -182,9 +237,6 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         }).filter(s => s !== null);
 
         if (rawSchedules.length > 0) {
-          // --- FIX: DEDUPLICATION LOGIC ---
-          // Menghapus data duplikat dalam file Excel sebelum di-upsert ke Supabase
-          // agar tidak terjadi error 'cannot affect row a second time'
           const uniqueSchedulesMap = new Map();
           rawSchedules.forEach((s: any) => {
             const key = `${s.date}_${s.brand}_${s.hourSlot}`;
@@ -270,42 +322,10 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
     return j.includes('OPERATOR') || j.includes('OP') || n.includes('ARIYANSYAH');
   }), [employees]);
 
-  // Updated: Restricted to only "HOST LIVE STREAMING" as per screenshot request
   const liveStaffList = useMemo(() => employees.filter(e => {
     const j = (e.jabatan || '').trim().toUpperCase();
     return j === 'HOST LIVE STREAMING';
   }), [employees]);
-
-  // Derived Holiday Logic: Union of static weeklyHolidays and actual attendance 'Libur' records
-  const syncedHolidays = useMemo(() => {
-    const dayMap = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
-    const currentHolidays: Record<string, string[]> = {
-      'SENIN': [...(weeklyHolidays['SENIN'] || [])],
-      'SELASA': [...(weeklyHolidays['SELASA'] || [])],
-      'RABU': [...(weeklyHolidays['RABU'] || [])],
-      'KAMIS': [...(weeklyHolidays['KAMIS'] || [])],
-      'JUMAT': [...(weeklyHolidays['JUMAT'] || [])],
-      'SABTU': [...(weeklyHolidays['SABTU'] || [])],
-      'MINGGU': [...(weeklyHolidays['MINGGU'] || [])]
-    };
-
-    // Auto-sync from attendance data
-    attendanceRecords.forEach(rec => {
-      if (rec.status === 'Libur') {
-        const emp = employees.find(e => e.id === rec.employeeId);
-        // Sync only for job title "host live streaming"
-        if (emp && (emp.jabatan || '').trim().toUpperCase() === 'HOST LIVE STREAMING') {
-          const date = new Date(rec.date);
-          const dayName = dayMap[date.getDay()];
-          if (dayName && currentHolidays[dayName] && !currentHolidays[dayName].includes(emp.nama)) {
-            currentHolidays[dayName].push(emp.nama);
-          }
-        }
-      }
-    });
-
-    return currentHolidays;
-  }, [weeklyHolidays, attendanceRecords, employees]);
 
   const datesInRange = useMemo(() => {
     const dates = [];
@@ -375,10 +395,14 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
           ))}
         </div>
 
+        {activeSubTab === 'LIBUR' && (
+           <p className="text-center text-[10px] font-bold text-rose-500 uppercase tracking-[0.2em] -mt-4 mb-6 animate-pulse">Data libur otomatis kadaluarsa setiap hari Senin (Update 1 Minggu Sekali)</p>
+        )}
+
         {activeSubTab === 'JADWAL' && (
           <div className="space-y-4 sm:space-y-6">
             <div className="flex flex-col md:flex-row gap-3 sm:gap-4">
-              <div className="flex-1 flex items-center bg-[#F3F4F6] border border-slate-100 rounded-[24px] sm:rounded-[28px] px-6 py-4 sm:px-8 sm:py-5 shadow-inner gap-6 sm:gap-8 overflow-x-auto no-scrollbar">
+              <div className="flex-1 flex-row flex items-center bg-[#F3F4F6] border border-slate-100 rounded-[24px] sm:rounded-[28px] px-6 py-4 sm:px-8 sm:py-5 shadow-inner gap-6 sm:gap-8 overflow-x-auto no-scrollbar">
                 <div className="flex flex-col gap-0.5 sm:gap-1 shrink-0">
                   <span className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-widest">START</span>
                   <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="text-[10px] sm:text-[12px] font-bold text-[#111827] outline-none bg-transparent cursor-pointer" />
@@ -458,20 +482,20 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         )}
       </div>
 
-      <div className="flex-grow overflow-y-auto px-6 sm:px-12 pt-6 sm:pt-10 pb-16 bg-white custom-scrollbar">
+      <div className="flex-grow overflow-y-auto px-6 sm:px-12 pt-2 sm:pt-10 pb-16 bg-white custom-scrollbar">
         {activeSubTab === 'JADWAL' ? (
-          <div className="animate-in fade-in duration-500 space-y-12 sm:space-y-16">
+          <div className="animate-in fade-in duration-500 space-y-8 sm:space-y-12">
             {datesInRange.map(date => (
-              <div key={date} className="space-y-8 sm:space-y-12">
-                <div className="flex items-center justify-center">
-                  <div className="bg-white border border-slate-100 px-8 py-3 sm:px-12 sm:py-5 rounded-full shadow-[0_10px_25px_rgba(0,0,0,0.04)]">
-                    <span className="text-[10px] sm:text-[12px] font-bold text-[#111827] uppercase tracking-[0.2em] sm:tracking-[0.3em] whitespace-nowrap">
+              <div key={date} className="space-y-4 sm:space-y-12">
+                <div className="flex items-center justify-center pt-2 sm:pt-0">
+                  <div className="bg-white border border-slate-100 px-6 py-2.5 sm:px-12 sm:py-5 rounded-full shadow-sm">
+                    <span className="text-[9px] sm:text-[12px] font-bold text-[#111827] uppercase tracking-[0.2em] sm:tracking-[0.3em] whitespace-nowrap">
                       {new Date(date).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase()}
                     </span>
                   </div>
                 </div>
                 
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   {TIME_SLOTS.map(slot => {
                     const brandsForSlot = brands.filter((brand: any) => {
                       const brandNameNorm = brand.name.trim().toUpperCase();
@@ -495,10 +519,10 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                     if (brandsForSlot.length === 0) return null;
 
                     return (
-                      <div key={`${date}-${slot}`} className="bg-slate-50/50 p-5 sm:p-8 rounded-[32px] sm:rounded-[40px] border border-slate-100 space-y-5 sm:space-y-6">
-                        <div className="flex items-center gap-4 sm:gap-6">
-                          <span className="bg-[#111827] text-yellow-400 px-4 py-2 sm:px-6 sm:py-2.5 rounded-full text-[9px] sm:text-[11px] font-bold tracking-[0.1em] sm:tracking-[0.2em] shadow-lg">{slot}</span>
-                          <div className="h-px flex-grow bg-slate-200"></div>
+                      <div key={`${date}-${slot}`} className="bg-slate-50/50 p-4 sm:p-8 rounded-[28px] sm:rounded-[40px] border border-slate-100 space-y-4 sm:space-y-6">
+                        <div className="flex items-center gap-3 sm:gap-6">
+                          <span className="bg-[#111827] text-yellow-400 px-4 py-1.5 sm:px-6 sm:py-2.5 rounded-full text-[8px] sm:text-[11px] font-bold tracking-[0.1em] sm:tracking-[0.2em] shadow-lg shrink-0">{slot}</span>
+                          <div className="h-px flex-grow bg-slate-200/60"></div>
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
@@ -506,34 +530,34 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                             const bName = brand.name.trim().toUpperCase();
                             const sched = schedules.find(s => s.date === date && (s.brand || '').trim().toUpperCase() === bName && s.hourSlot === slot) || { hostId: '', opId: '' };
                             return (
-                              <div key={`${date}-${slot}-${brand.name}`} className="bg-white border border-slate-100 rounded-[24px] sm:rounded-[32px] p-5 sm:p-8 space-y-5 sm:space-y-6 shadow-sm hover:shadow-xl transition-all">
-                                <div className="flex justify-between items-center pb-3 sm:pb-4 border-b border-slate-50">
+                              <div key={`${date}-${slot}-${brand.name}`} className="bg-white border border-slate-100 rounded-[20px] sm:rounded-[32px] p-4 sm:p-8 space-y-4 sm:space-y-6 shadow-sm hover:shadow-xl transition-all">
+                                <div className="flex justify-between items-center pb-2 sm:pb-4 border-b border-slate-50">
                                    <div className="flex flex-col">
-                                      <p className="text-[10px] sm:text-[12px] font-bold text-[#111827] tracking-widest uppercase">{brand.name}</p>
-                                      <p className="text-[8px] sm:text-[9px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">Live Segment</p>
+                                      <p className="text-[9px] sm:text-[12px] font-bold text-[#111827] tracking-widest uppercase">{brand.name}</p>
+                                      <p className="text-[7px] sm:text-[9px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">Live Segment</p>
                                    </div>
                                 </div>
                                 
                                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
                                    <div className="space-y-1.5 sm:space-y-2">
-                                      <label className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">HOST</label>
+                                      <label className="text-[7px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">HOST</label>
                                       <select 
                                         value={sched.hostId} 
                                         disabled={readOnly} 
                                         onChange={(e) => updateSchedule(date, brand.name, slot, 'hostId', e.target.value)} 
-                                        className="w-full bg-[#F9FAFB] border border-slate-100 rounded-xl sm:rounded-2xl px-3 py-3 sm:px-5 sm:py-4 text-[10px] sm:text-[12px] font-bold text-[#111827] outline-none focus:ring-4 focus:ring-yellow-400/20 appearance-none transition-all cursor-pointer"
+                                        className="w-full bg-[#F9FAFB] border border-slate-100 rounded-xl sm:rounded-2xl px-2 py-2.5 sm:px-5 sm:py-4 text-[9px] sm:text-[12px] font-bold text-[#111827] outline-none focus:ring-4 focus:ring-yellow-400/20 appearance-none transition-all cursor-pointer truncate"
                                       >
                                         <option value="">- TBA -</option>
                                         {hostList.map(h => <option key={h.id} value={h.id}>{h.nama.toUpperCase()}</option>)}
                                       </select>
                                    </div>
                                    <div className="space-y-1.5 sm:space-y-2">
-                                      <label className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">OP</label>
+                                      <label className="text-[7px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">OP</label>
                                       <select 
                                         value={sched.opId} 
                                         disabled={readOnly} 
                                         onChange={(e) => updateSchedule(date, brand.name, slot, 'opId', e.target.value)} 
-                                        className="w-full bg-[#F9FAFB] border border-slate-100 rounded-xl sm:rounded-2xl px-3 py-3 sm:px-5 sm:py-4 text-[10px] sm:text-[12px] font-bold text-[#111827] outline-none focus:ring-4 focus:ring-yellow-400/20 appearance-none transition-all cursor-pointer"
+                                        className="w-full bg-[#F9FAFB] border border-slate-100 rounded-xl sm:rounded-2xl px-2 py-2.5 sm:px-5 sm:py-4 text-[9px] sm:text-[12px] font-bold text-[#111827] outline-none focus:ring-4 focus:ring-yellow-400/20 appearance-none transition-all cursor-pointer truncate"
                                       >
                                         <option value="">- TBA -</option>
                                         {opList.map(o => <option key={o.id} value={o.id}>{o.nama.toUpperCase()}</option>)}
@@ -562,14 +586,14 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                   <div key={day} className="bg-slate-50 p-6 rounded-[32px] border border-slate-100 flex flex-col h-[350px]">
                      <div className="flex justify-between items-center mb-6 shrink-0">
                         <span className="text-sm font-black text-slate-900 tracking-widest">{day}</span>
-                        <span className="bg-white px-3 py-1 rounded-lg text-[9px] font-black text-indigo-500 border border-slate-200">{syncedHolidays[day]?.length || 0} ORANG</span>
+                        <span className="bg-white px-3 py-1 rounded-lg text-[9px] font-black text-indigo-500 border border-slate-200">{(weeklyHolidays[day] || []).length} ORANG</span>
                      </div>
                      <div className="flex-grow overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                         {liveStaffList.map(emp => (
                           <div 
                             key={emp.id} 
                             onClick={() => !readOnly && toggleHoliday(day, emp.nama)}
-                            className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${syncedHolidays[day]?.includes(emp.nama) ? 'bg-indigo-500 border-indigo-600 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'}`}
+                            className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${(weeklyHolidays[day] || []).includes(emp.nama) ? 'bg-indigo-500 border-indigo-600 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'}`}
                           >
                              <div className="flex items-center gap-3">
                                 <div className="w-7 h-7 rounded-lg overflow-hidden bg-slate-100 shrink-0">
@@ -577,7 +601,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                                 </div>
                                 <span className="text-[10px] font-bold truncate max-w-[120px]">{emp.nama.toUpperCase()}</span>
                              </div>
-                             {syncedHolidays[day]?.includes(emp.nama) && <Icons.Plus className="w-3 h-3 rotate-45" />}
+                             {(weeklyHolidays[day] || []).includes(emp.nama) && <Icons.Plus className="w-3 h-3 rotate-45" />}
                           </div>
                         ))}
                      </div>

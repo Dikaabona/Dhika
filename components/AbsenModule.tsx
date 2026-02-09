@@ -45,8 +45,8 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Case-insensitive comparison
-  const currentLogo = (company || '').toLowerCase() === 'seller space' ? SELLER_SPACE_LOGO : VISIBEL_LOGO;
+  const isSellerSpace = (company || '').trim().toLowerCase() === 'seller space';
+  const currentLogo = isSellerSpace ? SELLER_SPACE_LOGO : VISIBEL_LOGO;
 
   const getTodayLocalStr = () => {
     const now = new Date();
@@ -60,7 +60,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
 
   useEffect(() => {
     fetchSettingsAndLocate();
-    const interval = setInterval(fetchSettingsAndLocate, 15000); // Cek lokasi tiap 15 detik
+    const interval = setInterval(fetchSettingsAndLocate, 10000); // Cek lokasi tiap 10 detik
     return () => clearInterval(interval);
   }, []);
 
@@ -93,8 +93,8 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
           settings: attSettings
         });
       }, (err) => {
-        console.warn("Gagal GPS:", err.message);
-      });
+        console.warn("GPS Warning:", err.message);
+      }, { enableHighAccuracy: true });
     } catch (e) {}
   };
 
@@ -135,7 +135,8 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
       streamRef.current = stream;
       setIsCameraActive(true);
     } catch (err) {
-      console.error("Kamera tidak aktif:", err);
+      console.error("Kamera gagal diakses:", err);
+      alert("Harap izinkan akses kamera untuk melakukan absensi selfie.");
       setIsCameraActive(false);
     }
   };
@@ -149,11 +150,13 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
   };
 
   const capturePhoto = (): string | null => {
-    if (!videoRef.current || !canvasRef.current) return null;
+    if (!videoRef.current || !canvasRef.current || !isCameraActive) return null;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
-    if (!context) return null;
+    
+    // Pastikan video sudah memiliki dimensi (sudah loading)
+    if (!context || video.videoWidth === 0 || video.videoHeight === 0) return null;
 
     const SIZE = 480; 
     canvas.width = SIZE;
@@ -168,10 +171,11 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
     
     context.drawImage(video, startX, startY, minSize, minSize, 0, 0, SIZE, SIZE);
     
-    let quality = 0.7;
+    let quality = 0.6; // Turunkan sedikit untuk kestabilan mobile
     let dataUrl = canvas.toDataURL('image/jpeg', quality);
     
-    while (dataUrl.length * 0.75 > 100000 && quality > 0.05) {
+    // Safety check size
+    while (dataUrl.length * 0.75 > 80000 && quality > 0.05) {
       quality -= 0.05;
       dataUrl = canvas.toDataURL('image/jpeg', quality);
     }
@@ -204,29 +208,39 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
   const handleAbsenAction = async () => {
     if (!employee) return;
     
-    // VALIDASI LOKASI
-    // Jika tidak di dalam radius DAN (tidak ada izin global DAN tidak ada izin per individu)
+    // 1. CEK STATUS LOKASI TERBARU
     const isGlobalRemote = locationStatus.settings?.allowRemote;
     const isIndividualRemote = employee.isRemoteAllowed;
     
     if (locationStatus.settings && !locationStatus.isInside && !isGlobalRemote && !isIndividualRemote) {
-      alert(`Maaf, Anda berada di luar area ${locationStatus.settings.locationName} (${locationStatus.distance}m) and tidak memiliki izin absen remote.`);
+      alert(`Gagal Verifikasi: Anda berada di luar radius kantor (${locationStatus.distance}m) dan tidak memiliki izin absen remote.`);
       return;
     }
 
     setIsLoading(true);
 
     try {
+      // 2. CAPTURE SELFIE
       const photo = capturePhoto();
-      if (!photo) throw new Error("Kamera gagal mengambil gambar.");
+      if (!photo) {
+        setIsLoading(false);
+        alert("Gagal mengambil foto. Pastikan kamera sudah menyala dan berikan waktu 1-2 detik.");
+        return;
+      }
 
+      // 3. AMBIL KOORDINAT PREISI SAAT INI
       let locStr = "Lokasi tidak terdeteksi";
       try {
         const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000 });
+          navigator.geolocation.getCurrentPosition(resolve, reject, { 
+            timeout: 6000, 
+            enableHighAccuracy: true 
+          });
         });
-        locStr = `${position.coords.latitude}, ${position.coords.longitude} (Jarak: ${locationStatus.distance}m)`;
-      } catch (e) {}
+        locStr = `${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)} (Jarak: ${locationStatus.distance}m)`;
+      } catch (e) {
+        console.warn("GPS Timeout, using last known status");
+      }
 
       const nowTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
       const isClockIn = !localTodayRecord || !localTodayRecord.clockIn;
@@ -243,7 +257,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
       if (isClockIn) {
         updateData.clockIn = nowTime;
         updateData.photoIn = photo;
-        updateData.notes = `Verifikasi Masuk di ${locStr} ${isIndividualRemote ? '[Remote Individual]' : ''}`;
+        updateData.notes = `Verifikasi Masuk: ${locStr} ${isIndividualRemote ? '[Remote Individual]' : ''}`;
       } else {
         if (localTodayRecord.clockOut) {
           setIsLoading(false);
@@ -251,7 +265,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         }
         updateData.clockOut = nowTime;
         updateData.photoOut = photo;
-        updateData.notes = (localTodayRecord.notes || '') + ` | Keluar di ${locStr} ${isIndividualRemote ? '[Remote Individual]' : ''}`;
+        updateData.notes = (localTodayRecord.notes || '') + ` | Keluar: ${locStr} ${isIndividualRemote ? '[Remote Individual]' : ''}`;
         updateData.clockIn = localTodayRecord.clockIn;
       }
 
@@ -259,9 +273,11 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
       if (error) throw error;
       
       setLocalTodayRecord(data?.[0] || updateData);
+      alert(`Absensi ${isClockIn ? 'MASUK' : 'PULANG'} Berhasil!`);
       onSuccess();
     } catch (err: any) {
-      alert("Gagal melakukan absensi: " + err.message);
+      console.error(err);
+      alert("Sistem Error: " + (err.message || "Gagal menyimpan data ke database."));
     } finally {
       setIsLoading(false);
     }
@@ -278,7 +294,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
           <span className="text-[10px] font-black uppercase tracking-widest">Tutup</span>
         </button>
         <div className="flex flex-col items-center">
-           <img src={currentLogo} alt="Logo" className={`${ (company || '').toLowerCase() === 'seller space' ? 'h-[30px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} />
+           <img src={currentLogo} alt="Logo" className={`${ isSellerSpace ? 'h-[80px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} />
         </div>
         <div className="w-10"></div>
       </div>
@@ -303,9 +319,9 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
             {isCameraActive ? (
               <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center gap-3">
+              <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-center px-6">
                 <Icons.Camera className="w-10 h-10 text-slate-200" />
-                <p className="text-[8px] font-black uppercase tracking-[0.4em] text-slate-300">Inisialisasi...</p>
+                <p className="text-[8px] font-black uppercase tracking-[0.4em] text-slate-300">Harap Izinkan Kamera...</p>
               </div>
             )}
             <canvas ref={canvasRef} className="hidden" />
@@ -326,7 +342,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
       <div className="pb-12 pt-6 flex flex-col items-center px-10 shrink-0">
         <button 
           onClick={handleAbsenAction}
-          disabled={isLoading || isFinished}
+          disabled={isLoading || isFinished || !isCameraActive}
           className="relative group transition-all active:scale-95 disabled:opacity-30 disabled:grayscale"
         >
           <div className="bg-slate-900 text-[#FFC000] p-8 rounded-[32px] shadow-2xl shadow-slate-200 group-hover:bg-black transition-all">

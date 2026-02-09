@@ -54,7 +54,7 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
     try {
       if (shiftId === '') {
         if (existing) {
-          await supabase.from('shift_assignments').delete().eq('id', existing.id);
+          await supabase.from('shift_assignment').delete().eq('id', existing.id);
           setAssignments(prev => prev.filter(a => a.id !== existing.id));
         }
         return;
@@ -67,7 +67,7 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
         company
       };
 
-      const { data, error } = await supabase.from('shift_assignments').upsert(
+      const { data, error } = await supabase.from('shift_assignment').upsert(
         existing ? { ...newAssignment, id: existing.id } : newAssignment
       ).select();
 
@@ -116,9 +116,9 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
     }
 
     const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Log Shift");
-    XLSX.writeFile(wb, `Shift_${company}_${startDate}_to_${endDate}.xlsx`);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, ws, "Log Shift");
+    XLSX.writeFile(workbook, `Shift_${company}_${startDate}_to_${endDate}.xlsx`);
   };
 
   const handleDownloadTemplate = () => {
@@ -163,7 +163,7 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
         }).filter(a => a !== null);
 
         if (newAssignments.length > 0) {
-          const { data: inserted, error } = await supabase.from('shift_assignments').upsert(newAssignments, { onConflict: 'employeeId,date' }).select();
+          const { data: inserted, error } = await supabase.from('shift_assignment').upsert(newAssignments, { onConflict: 'employeeId,date' }).select();
           if (error) throw error;
           
           setAssignments(prev => {

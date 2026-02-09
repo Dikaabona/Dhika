@@ -29,6 +29,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   userCompany,
   onNavigate,
   onOpenBroadcast,
+  onOpenDrive
 }) => {
   const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super' || isOwner;
@@ -165,7 +166,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               )}
             </div>
             <div className="absolute -right-6 -bottom-6 opacity-10">
-               <Icons.Fingerprint className="w-32 h-32 text-white" />
+               <Icons.Megaphone className="w-32 h-32 text-white" />
             </div>
           </div>
         </div>
@@ -227,44 +228,70 @@ const Dashboard: React.FC<DashboardProps> = ({
            <div className="absolute top-0 right-0 w-48 h-48 bg-slate-50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 opacity-50"></div>
         </div>
 
-        {isSuper && (
-          <div className="grid grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex items-center gap-6">
-              <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 shadow-inner">
-                <Icons.Users className="w-7 h-7" />
+        <div className="space-y-4">
+           <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight ml-2">DATA KARYAWAN</h2>
+           {isSuper && (
+             <div className="grid grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+               <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex items-center gap-6">
+                 <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 shadow-inner">
+                   <Icons.Users className="w-7 h-7" />
+                 </div>
+                 <div>
+                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Total Karyawan</p>
+                   <p className="text-3xl font-black text-slate-900 leading-none">{employees.length}</p>
+                 </div>
+               </div>
+               <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex items-center gap-6">
+                 <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500 shadow-inner">
+                   <Icons.Users className="w-7 h-7" />
+                 </div>
+                 <div>
+                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Karyawan Baru</p>
+                   <p className="text-3xl font-black text-slate-900 leading-none">{employees.filter(e => {
+                     if (!e.tanggalMasuk) return false;
+                     const parts = e.tanggalMasuk.split('/');
+                     const joinDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                     const thirtyDaysAgo = new Date();
+                     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                     return joinDate > thirtyDaysAgo;
+                   }).length}</p>
+                 </div>
+               </div>
+               <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex items-center gap-6">
+                 <div className="w-14 h-14 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-500 shadow-inner">
+                   <Icons.Cake className="w-7 h-7" />
+                 </div>
+                 <div>
+                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Ulang Tahun</p>
+                   <p className="text-3xl font-black text-slate-900 leading-none">{employees.filter(emp => getDaysUntilBirthday(emp.tanggalLahir) <= 7).length}</p>
+                 </div>
+               </div>
+             </div>
+           )}
+        </div>
+
+        {/* Action Row for Desktop - Updated with Custom Gdrive Icon & Text */}
+        <div className="flex gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+           <button 
+             onClick={onOpenDrive}
+             className="flex-1 bg-[#0f172a] text-white p-6 rounded-[36px] border border-white/5 shadow-2xl flex items-center justify-center gap-6 group hover:bg-black transition-all active:scale-95"
+           >
+              <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center shrink-0">
+                 <img src="https://lh3.googleusercontent.com/d/1LmoGYgq9y5JQPWAf9eEHXMiK-8jBaoSr" className="w-7 h-7 object-contain" alt="Google Drive" />
               </div>
-              <div>
-                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Total Karyawan</p>
-                <p className="text-3xl font-black text-slate-900 leading-none">{employees.length}</p>
+              <p className="text-xl font-black uppercase tracking-tight">Google Drive</p>
+           </button>
+
+           <button 
+             onClick={onOpenBroadcast}
+             className="flex-1 bg-[#FFC000] text-black p-6 rounded-[36px] shadow-xl shadow-amber-100 flex items-center justify-center gap-6 group hover:bg-black hover:text-[#FFC000] transition-all active:scale-95"
+           >
+              <div className="w-12 h-12 bg-black/5 group-hover:bg-[#FFC000]/10 rounded-xl flex items-center justify-center shrink-0">
+                 <Icons.Megaphone className="w-7 h-7" />
               </div>
-            </div>
-            <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex items-center gap-6">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500 shadow-inner">
-                <Icons.Users className="w-7 h-7" />
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Karyawan Baru</p>
-                <p className="text-3xl font-black text-slate-900 leading-none">{employees.filter(e => {
-                  if (!e.tanggalMasuk) return false;
-                  const parts = e.tanggalMasuk.split('/');
-                  const joinDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-                  const thirtyDaysAgo = new Date();
-                  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                  return joinDate > thirtyDaysAgo;
-                }).length}</p>
-              </div>
-            </div>
-            <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex items-center gap-6">
-              <div className="w-14 h-14 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-500 shadow-inner">
-                <Icons.Cake className="w-7 h-7" />
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Ulang Tahun</p>
-                <p className="text-3xl font-black text-slate-900 leading-none">{employees.filter(emp => getDaysUntilBirthday(emp.tanggalLahir) <= 7).length}</p>
-              </div>
-            </div>
-          </div>
-        )}
+              <p className="text-xl font-black uppercase tracking-tight">Broadcast</p>
+           </button>
+        </div>
 
         <div className="w-full bg-[#0f172a] rounded-[48px] p-0.5 shadow-2xl overflow-hidden border border-white/5">
           <div className="p-10 text-white relative">

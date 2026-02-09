@@ -10,7 +10,21 @@ interface SettingsModuleProps {
   onRefresh: () => void;
 }
 
-type SubTab = 'MAPS' | 'ROLE';
+type SubTab = 'MAPS' | 'ROLE' | 'KPI';
+
+interface CustomCriteria {
+  id: string;
+  name: string;
+  weight: number;
+}
+
+interface KPISystemData {
+  criteria: CustomCriteria[];
+  attendanceWeight: number;
+  contentWeight: number;
+  gmvWeight: number;
+  scores: Record<string, Record<string, Record<string, number>>>;
+}
 
 const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, onRefresh }) => {
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('MAPS');
@@ -25,6 +39,16 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     allowRemote: false
   });
   
+  const [kpiSystem, setKpiSystem] = useState<KPISystemData>({ 
+    criteria: [], 
+    attendanceWeight: 25,
+    contentWeight: 25,
+    gmvWeight: 25,
+    scores: {} 
+  });
+  const [newCriteriaName, setNewCriteriaName] = useState('');
+  const [newCriteriaWeight, setNewCriteriaWeight] = useState(10);
+  
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,6 +60,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
 
   useEffect(() => {
     fetchSettingsAndEmployees();
+    fetchKPIConfig();
     if (isOwner) fetchAllCompanies();
   }, [selectedCompany, isOwner]);
 
@@ -43,7 +68,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     try {
       const { data, error } = await supabase.from('employees').select('company');
       if (error) throw error;
-      // Added type assertion to any[] and then to string[] to resolve the 'unknown[]' inference error
       const unique = Array.from(new Set((data as any[]).map(e => e.company || 'Visibel'))).sort() as string[];
       setAllCompanies(unique);
     } catch (err) {
@@ -79,6 +103,26 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     }
   };
 
+  const fetchKPIConfig = async () => {
+    try {
+      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const { data } = await supabase.from('settings').select('value').eq('key', `kpi_system_${targetCompany}`).single();
+      if (data) {
+        const val = data.value;
+        setKpiSystem({
+          criteria: val.criteria || [],
+          attendanceWeight: val.attendanceWeight ?? 25,
+          contentWeight: val.contentWeight ?? 25,
+          gmvWeight: val.gmvWeight ?? 25,
+          scores: val.scores || {}
+        });
+      }
+      else setKpiSystem({ criteria: [], attendanceWeight: 25, contentWeight: 25, gmvWeight: 25, scores: {} });
+    } catch (e) {
+      setKpiSystem({ criteria: [], attendanceWeight: 25, contentWeight: 25, gmvWeight: 25, scores: {} });
+    }
+  };
+
   const handleSaveSettings = async () => {
     setIsSaving(true);
     try {
@@ -95,6 +139,47 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSaveKPISystem = async (newData: KPISystemData) => {
+    setIsSaving(true);
+    try {
+      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const { error } = await supabase.from('settings').upsert({
+        key: `kpi_system_${targetCompany}`,
+        value: newData
+      }, { onConflict: 'key' });
+      if (error) throw error;
+      setKpiSystem(newData);
+    } catch (err: any) {
+      alert("Gagal menyimpan kriteria KPI: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAddCriteria = () => {
+    if (!newCriteriaName.trim()) return;
+    const newCriteria: CustomCriteria = {
+      id: `crit-${Date.now()}`,
+      name: newCriteriaName.trim().toUpperCase(),
+      weight: newCriteriaWeight
+    };
+    const updated = { ...kpiSystem, criteria: [...kpiSystem.criteria, newCriteria] };
+    handleSaveKPISystem(updated);
+    setNewCriteriaName('');
+    setNewCriteriaWeight(10);
+  };
+
+  const handleDeleteCriteria = (id: string) => {
+    if (!confirm('Hapus kriteria ini? Nilai yang sudah ada juga akan terhapus.')) return;
+    const updated = { ...kpiSystem, criteria: kpiSystem.criteria.filter(c => c.id !== id) };
+    handleSaveKPISystem(updated);
+  };
+
+  const handleUpdateComponentWeight = (field: string, value: number) => {
+    const updated = { ...kpiSystem, [field]: value };
+    setKpiSystem(updated);
   };
 
   const handleUpdateRole = async (empId: string, newRole: string) => {
@@ -165,6 +250,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     );
   }
 
+  const totalKPIWeight = kpiSystem.attendanceWeight + kpiSystem.contentWeight + kpiSystem.gmvWeight + kpiSystem.criteria.reduce((s, c) => s + (c.weight || 0), 0);
+
   return (
     <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
       <div className="bg-white rounded-[48px] p-8 sm:p-12 shadow-sm border border-slate-100">
@@ -203,19 +290,25 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                     ROLE
                   </button>
                 )}
+                {canAccessRoleManagement && (
+                  <button 
+                    onClick={() => setActiveSubTab('KPI')} 
+                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'KPI' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    KPI
+                  </button>
+                )}
               </div>
             </div>
           </div>
           
-          {activeSubTab === 'MAPS' && (
-            <button 
-              onClick={handleSaveSettings}
-              disabled={isSaving}
-              className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-10 py-5 rounded-3xl font-black text-[10px] sm:text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-4"
-            >
-              {isSaving ? 'Menyimpan...' : <><Icons.Database className="w-4 h-4"/> Simpan Konfigurasi</>}
-            </button>
-          )}
+          <button 
+            onClick={activeSubTab === 'KPI' ? () => handleSaveKPISystem(kpiSystem) : handleSaveSettings}
+            disabled={isSaving}
+            className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-10 py-5 rounded-3xl font-black text-[10px] sm:text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-4"
+          >
+            {isSaving ? 'Menyimpan...' : <><Icons.Database className="w-4 h-4"/> Simpan Konfigurasi</>}
+          </button>
         </div>
 
         {activeSubTab === 'MAPS' ? (
@@ -308,7 +401,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
               </div>
             </div>
           </div>
-        ) : (
+        ) : activeSubTab === 'ROLE' ? (
           <div className="animate-in fade-in duration-300 space-y-10">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                <div className="space-y-2">
@@ -379,6 +472,149 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                      ))}
                   </tbody>
                </table>
+            </div>
+          </div>
+        ) : (
+          <div className="animate-in fade-in duration-300 space-y-12">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div className="space-y-2">
+                 <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Pengaturan Perhitungan KPI</h3>
+                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Atur rumus perhitungan dan bobot (%) untuk setiap kategori penilaian.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+               <div className="space-y-8">
+                  <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-8 h-fit">
+                    <div className="space-y-4">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tambah Kriteria Baru</label>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <input 
+                          type="text" 
+                          value={newCriteriaName} 
+                          onChange={e => setNewCriteriaName(e.target.value)} 
+                          placeholder="NAMA KRITERIA (Sikap, S.I.A...)" 
+                          className="flex-grow bg-white border border-slate-200 px-6 py-4 rounded-2xl text-[11px] font-black uppercase outline-none focus:ring-4 focus:ring-indigo-500/10 text-black shadow-sm" 
+                        />
+                        <div className="flex gap-3">
+                          <div className="relative">
+                            <input 
+                              type="number" 
+                              value={newCriteriaWeight} 
+                              onChange={e => setNewCriteriaWeight(parseInt(e.target.value) || 0)} 
+                              className="w-20 bg-white border border-slate-200 px-4 py-4 rounded-2xl text-[11px] font-black text-center outline-none focus:ring-4 focus:ring-indigo-500/10 text-black shadow-sm" 
+                            />
+                            <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[7px] font-black text-indigo-400 uppercase">Bobot %</span>
+                          </div>
+                          <button 
+                            onClick={handleAddCriteria}
+                            disabled={isSaving}
+                            className="bg-[#0f172a] text-[#FFC000] px-6 rounded-2xl shadow-xl active:scale-90 transition-all disabled:opacity-50"
+                          >
+                            <Icons.Plus className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Kriteria Manual Aktif ({kpiSystem.criteria.length})</h3>
+                      <div className="space-y-3">
+                        {kpiSystem.criteria.map(c => (
+                          <div key={c.id} className="flex items-center justify-between bg-white p-5 rounded-2xl border border-slate-100 group shadow-sm">
+                            <div className="flex items-baseline gap-3">
+                              <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest">{c.name}</span>
+                              <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-tighter">({c.weight}%)</span>
+                            </div>
+                            <button 
+                              onClick={() => handleDeleteCriteria(c.id)} 
+                              disabled={isSaving}
+                              className="text-rose-400 hover:text-rose-600 transition-all p-2 rounded-lg hover:bg-rose-50 disabled:opacity-50"
+                            >
+                              <Icons.Trash className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                        {kpiSystem.criteria.length === 0 && (
+                          <div className="py-12 text-center bg-white/50 border-2 border-dashed border-slate-200 rounded-3xl">
+                            <Icons.Sparkles className="w-10 h-10 mx-auto text-slate-200 mb-2" />
+                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Belum Ada Kriteria</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-8 rounded-[40px] border border-slate-100 space-y-6">
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Bobot Komponen Standar (%)</h3>
+                    <div className="grid grid-cols-3 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-[8px] font-black text-slate-300 uppercase tracking-widest ml-1">Presensi</label>
+                        <input 
+                          type="number" 
+                          value={kpiSystem.attendanceWeight} 
+                          onChange={e => handleUpdateComponentWeight('attendanceWeight', parseInt(e.target.value) || 0)}
+                          className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-black text-center text-slate-900 outline-none" 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[8px] font-black text-slate-300 uppercase tracking-widest ml-1">Konten (Creator)</label>
+                        <input 
+                          type="number" 
+                          value={kpiSystem.contentWeight} 
+                          onChange={e => handleUpdateComponentWeight('contentWeight', parseInt(e.target.value) || 0)}
+                          className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-black text-center text-slate-900 outline-none" 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[8px] font-black text-slate-300 uppercase tracking-widest ml-1">GMV (Host)</label>
+                        <input 
+                          type="number" 
+                          value={kpiSystem.gmvWeight} 
+                          onChange={e => handleUpdateComponentWeight('gmvWeight', parseInt(e.target.value) || 0)}
+                          className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-black text-center text-slate-900 outline-none" 
+                        />
+                      </div>
+                    </div>
+                  </div>
+               </div>
+
+               <div className="space-y-6">
+                  <div className="bg-indigo-50 p-8 rounded-[40px] border border-indigo-100">
+                     <h4 className="text-sm font-black text-indigo-900 uppercase tracking-tight mb-4">Informasi Perhitungan</h4>
+                     <ul className="space-y-4">
+                        <li className="flex gap-3 text-xs font-medium text-indigo-800">
+                           <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0"></div>
+                           <span>KPI dihitung berdasarkan bobot persentase di samping. Sistem akan menormalkan total bobot menjadi 100% secara otomatis.</span>
+                        </li>
+                        <li className="flex gap-3 text-xs font-medium text-indigo-800">
+                           <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0"></div>
+                           <span><b>Rumus Creator:</b> Presensi + Konten + Manual Criteria.</span>
+                        </li>
+                        <li className="flex gap-3 text-xs font-medium text-indigo-800">
+                           <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0"></div>
+                           <span><b>Rumus Host:</b> Presensi + GMV + Manual Criteria.</span>
+                        </li>
+                        <li className="flex gap-3 text-xs font-medium text-indigo-800">
+                           <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0"></div>
+                           <span><b>Total Bobot Aktif:</b> <span className={`px-2 py-0.5 rounded-lg font-black ${totalKPIWeight === 100 ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>{totalKPIWeight}%</span></span>
+                        </li>
+                     </ul>
+                  </div>
+                  
+                  <div className="bg-slate-900 p-8 rounded-[40px] text-white shadow-2xl relative overflow-hidden group">
+                     <div className="relative z-10 space-y-4">
+                        <div className="flex items-center gap-3">
+                           <div className="p-2 bg-[#FFC000] rounded-xl text-black">
+                              <Icons.Sparkles className="w-5 h-5" />
+                           </div>
+                           <h4 className="text-[10px] font-black tracking-widest uppercase text-[#FFC000]">Status Konfigurasi</h4>
+                        </div>
+                        <p className="text-xl font-black uppercase tracking-tight leading-snug">Data KPI tersimpan untuk unit bisnis: {isOwner ? selectedCompany : userCompany}</p>
+                     </div>
+                     <div className="absolute top-0 right-0 w-32 h-32 bg-[#FFC000]/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000"></div>
+                  </div>
+               </div>
             </div>
           </div>
         )}

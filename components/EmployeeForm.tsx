@@ -8,7 +8,7 @@ interface EmployeeFormProps {
   employees: Employee[];
   userRole: string;
   userCompany: string;
-  currentUserEmployee: Employee | null; // Tambahkan prop ini
+  currentUserEmployee: Employee | null; 
   onSave: (employee: Employee) => void;
   onCancel: () => void;
 }
@@ -16,13 +16,7 @@ interface EmployeeFormProps {
 const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, userRole, userCompany, currentUserEmployee, onSave, onCancel }) => {
   const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super';
-  
-  // Role 'admin' di sistem ini sekarang diperlakukan seperti karyawan untuk edit data (hanya data sendiri)
-  // Kecuali jika admin tersebut adalah Super Admin resmi
   const isSystemAdmin = isOwner || isSuper;
-  
-  // Logic: Apakah user sedang mengedit datanya sendiri?
-  const isEditingSelf = initialData?.id === currentUserEmployee?.id;
 
   const [formData, setFormData] = useState<Omit<Employee, 'id'>>({
     idKaryawan: '',
@@ -57,18 +51,29 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
         isRemoteAllowed: rest.isRemoteAllowed || false
       });
     } else {
-      const generateNextSequentialId = (list: Employee[]) => {
+      const generateNextSequentialId = (list: Employee[], currentCompany: string) => {
+        const isSellerSpace = currentCompany.toLowerCase().includes('seller space');
+        const prefix = isSellerSpace ? 'SS-' : 'VID-';
+        const regex = new RegExp(`${prefix}(\\d+)`);
+
         const ids = list
           .map(e => {
-            const match = (e.idKaryawan || '').match(/VID-(\d+)/);
+            const match = (e.idKaryawan || '').match(regex);
             return match ? parseInt(match[1], 10) : null;
           })
           .filter((id): id is number => id !== null);
-        const maxId = ids.length > 0 ? Math.max(...ids) : 7250;
-        return `VID-${maxId + 1}`;
+
+        const defaultStart = isSellerSpace ? 0 : 7250;
+        const maxId = ids.length > 0 ? Math.max(...ids) : defaultStart;
+        const nextNum = maxId + 1;
+        
+        if (isSellerSpace) {
+          return `SS-${nextNum.toString().padStart(2, '0')}`;
+        }
+        return `VID-${nextNum}`;
       };
       
-      const nextId = generateNextSequentialId(employees);
+      const nextId = generateNextSequentialId(employees, userCompany);
       const today = new Date();
       const formattedToday = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
       
@@ -87,7 +92,6 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target as HTMLInputElement;
     
-    // Field yang hanya boleh diedit oleh Super Admin / Owner
     const restrictedFields = ['idKaryawan', 'jabatan', 'tanggalMasuk', 'hutang', 'company', 'isRemoteAllowed'];
     
     if (!isSystemAdmin && restrictedFields.includes(name)) return;
@@ -151,7 +155,8 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     e.preventDefault();
     onSave({
       ...formData,
-      id: initialData?.id || Date.now().toString()
+      // Gunakan ID yang lebih unik untuk database alih-alih Date.now sederhana
+      id: initialData?.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     });
   };
 

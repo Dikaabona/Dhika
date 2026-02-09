@@ -3,6 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Submission, Employee, Broadcast, AttendanceRecord } from '../types.ts';
 import { Icons } from '../constants.tsx';
 import { supabase } from '../App.tsx';
+import { formatDateToYYYYMMDD } from '../utils/dateUtils.ts';
 
 interface InboxProps {
   submissions: Submission[];
@@ -45,7 +46,7 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
       last.setHours(0, 0, 0, 0);
 
       while (current <= last) {
-        dates.push(current.toISOString().split('T')[0]);
+        dates.push(formatDateToYYYYMMDD(current));
         current.setDate(current.getDate() + 1);
       }
 

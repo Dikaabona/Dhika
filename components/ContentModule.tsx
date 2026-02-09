@@ -240,8 +240,11 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     const finalTitle = `${formData.brand} - ${formData.postingDate || 'No Date'}`;
     const reportId = editingPlan?.id || `REP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     
+    // FIX: Destructure to remove jamUpload from DB payload while keeping it in memory
+    const { jamUpload, ...formDataRest } = formData;
+
     const dataToSave = { 
-      ...formData, 
+      ...formDataRest, 
       title: finalTitle, 
       id: reportId, 
       status: 'Selesai' as const,
@@ -249,7 +252,9 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       comments: Number(formData.comments || 0),
       views: Number(formData.views || 0),
       saves: Number(formData.saves || 0),
-      shares: Number(formData.shares || 0)
+      shares: Number(formData.shares || 0),
+      // Optional: append jamUpload to notes if you don't want to lose the info
+      notes: `${formData.notes || ''}${jamUpload ? ` [Time: ${jamUpload}]` : ''}`.trim()
     };
 
     try {
@@ -260,14 +265,17 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         throw error;
       }
       
+      // Update state with the FULL data (including jamUpload for local display)
+      const fullDataForState: ContentPlan = { ...dataToSave, jamUpload };
+      
       setPlans(prev => {
         const idx = prev.findIndex(p => p.id === reportId);
         if (idx !== -1) {
           const updated = [...prev];
-          updated[idx] = dataToSave as ContentPlan;
+          updated[idx] = fullDataForState;
           return updated;
         }
-        return [dataToSave as ContentPlan, ...prev];
+        return [fullDataForState, ...prev];
       });
       setIsModalOpen(false);
       setDbStatus('sync');
@@ -400,21 +408,32 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         const workbook = XLSX.read(data, { type: 'array' });
         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         
-        const newReports = jsonData.map((row: any) => {
-          const brand = String(row['BRAND'] || '').toUpperCase();
-          const postingDate = row['TANGGAL POSTING'] ? (row['TANGGAL POSTING'] instanceof Date ? row['TANGGAL POSTING'].toISOString().split('T')[0] : String(row['TANGGAL POSTING'])) : new Date().toISOString().split('T')[0];
+        const rawParsedReports = jsonData.map((row: any) => {
+          const brand = String(row['BRAND'] || '').toUpperCase().trim();
+          if (!brand) return null;
+
+          const postingDate = row['TANGGAL POSTING'] 
+            ? (row['TANGGAL POSTING'] instanceof Date ? row['TANGGAL POSTING'].toISOString().split('T')[0] : String(row['TANGGAL POSTING'])) 
+            : new Date().toISOString().split('T')[0];
           
+          const jamUpload = String(row['JAM UPLOAD'] || '19:00');
+          const platform = String(row['PLATFORM'] || 'TikTok');
+          const link = String(row['LINK POSTINGAN'] || '').trim();
+          
+          // Deterministic Key for Deduplication and Mapping
+          const externalKey = `${brand}_${postingDate}_${platform}`;
+
           return {
-            id: `REP-IMP-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+            externalKey,
             title: `${brand} - ${postingDate}`,
             brand: brand,
             company: String(row['COMPANY'] || company),
-            platform: String(row['PLATFORM'] || 'TikTok'),
+            platform: platform,
             postingDate: postingDate,
-            jamUpload: String(row['JAM UPLOAD'] || '19:00'),
+            jamUpload: jamUpload,
             creatorId: findCreatorIdByName(row['CREATOR']),
             contentPillar: String(row['PILLAR'] || 'Entertainment'),
-            linkPostingan: String(row['LINK POSTINGAN'] || ''),
+            linkPostingan: link,
             views: Number(row['VIEWS'] || 0),
             likes: Number(row['LIKES'] || 0),
             comments: Number(row['COMMENTS'] || 0),
@@ -422,12 +441,41 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
             shares: Number(row['SHARES'] || 0),
             status: 'Selesai'
           };
-        });
+        }).filter(r => r !== null);
 
-        if (newReports.length > 0) {
-          const { error } = await supabase.from('content_plans').upsert(newReports);
+        if (rawParsedReports.length > 0) {
+          // 1. Internal Deduplication (pilih yang view-nya paling banyak jika ada duplikat dalam 1 file)
+          const fileDeduper = new Map<string, any>();
+          rawParsedReports.forEach(r => {
+            const existing = fileDeduper.get(r!.externalKey);
+            if (!existing || r!.views > existing.views) {
+              fileDeduper.set(r!.externalKey, r);
+            }
+          });
+
+          // 2. Map to database records (link to existing ID if match brand/date/platform)
+          const existingInDbMap = new Map<string, string>(); // brand_date_platform -> id
+          plans.forEach(p => {
+            const key = `${p.brand}_${p.postingDate}_${p.platform}`;
+            if (p.id) existingInDbMap.set(key, p.id);
+          });
+
+          const finalToUpsert: any[] = [];
+          fileDeduper.forEach((report, key) => {
+            const existingId = existingInDbMap.get(key);
+            // FIX: Remove jamUpload before sending to Supabase
+            const { jamUpload, externalKey, ...dbPayload } = report;
+            finalToUpsert.push({
+              ...dbPayload,
+              id: existingId || `REP-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+              notes: `${dbPayload.notes || ''}${jamUpload ? ` [Time: ${jamUpload}]` : ''}`.trim()
+            });
+          });
+
+          const { data: inserted, error } = await supabase.from('content_plans').upsert(finalToUpsert).select();
           if (error) throw error;
-          alert(`Berhasil memproses ${newReports.length} laporan konten!`);
+          
+          alert(`Berhasil memproses ${inserted?.length} laporan konten!`);
           const { data: updated } = await supabase.from('content_plans').select('*').order('postingDate', { ascending: false });
           if (updated) setPlans(updated);
         }

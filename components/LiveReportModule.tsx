@@ -265,7 +265,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
         const workbook = XLSX.read(data, { type: 'array', cellDates: true });
         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         
-        const MAX_INT = 2147483647; // Postgres standard Integer limit
+        const MAX_INT = 2147483647; 
 
         const rawParsedReports = jsonData.map((row: any) => {
           if (!row['BRAND'] || !row['ROOM ID'] || String(row['ROOM ID']).includes('CONTOH_')) return null;
@@ -298,9 +298,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
         }).filter(r => r !== null) as Omit<LiveReport, 'id'>[];
 
         if (rawParsedReports.length > 0) {
-          // --- LOGIKA ANTI-DOUBLE IMPORT (2 TAHAP SELEKSI) ---
-          
-          // 1. Seleksi Tahap 1: Deduplikasi Internal File (Pilih GMV tertinggi jika Room ID sama)
+          // 1. Deduplikasi Internal File (Pilih data dengan GMV tertinggi jika Room ID sama dalam satu file)
           const fileDeduperMap = new Map<string, Omit<LiveReport, 'id'>>();
           rawParsedReports.forEach(report => {
             const existingInFile = fileDeduperMap.get(report.roomId);
@@ -309,35 +307,24 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
             }
           });
 
-          // 2. Seleksi Tahap 2: Bandingkan dengan Database (State Saat Ini)
+          // 2. Hubungkan dengan ID database jika sudah ada
           const finalToUpsert: Partial<LiveReport>[] = [];
-          /* Fix: explicitly type the Map to prevent type inference errors in forEach */
           const existingInDbMap = new Map<string, LiveReport>(reports.map(r => [r.roomId, r]));
 
           fileDeduperMap.forEach((newReport, roomId) => {
             const existingInDb = existingInDbMap.get(roomId);
             if (existingInDb) {
-              // Jika Room ID sama, cek GMV. Jika GMV berbeda -> Update. 
-              // Jika Room ID sama dan GMV sama -> Lewati (Double Data).
-              if (newReport.gmv !== existingInDb.gmv) {
-                finalToUpsert.push({ ...newReport, id: existingInDb.id });
-              }
+              // Jika sudah ada di database, tambahkan ID agar terjadi UPDATE bukan INSERT baru
+              finalToUpsert.push({ ...newReport, id: existingInDb.id });
             } else {
-              // Data baru murni
+              // Jika data murni baru
               finalToUpsert.push(newReport);
             }
           });
 
-          if (finalToUpsert.length === 0) {
-            alert("Tidak ada data baru atau data dengan GMV berbeda untuk diimpor.");
-            setIsImporting(false);
-            return;
-          }
-
           const { data: inserted, error } = await supabase.from('live_reports').upsert(finalToUpsert).select();
           if (error) throw error;
           
-          // Update state tanpa reload jika memungkinkan
           setReports(prev => {
             const updated = [...prev];
             inserted?.forEach(item => {
@@ -348,7 +335,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
             return updated.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
           });
           
-          alert(`Sukses! ${inserted?.length || 0} data berhasil diproses (seleksi GMV & proteksi duplikat aktif).`);
+          alert(`Sukses! ${inserted?.length || 0} data berhasil diproses.`);
         } else {
           alert("Tidak ada data valid yang ditemukan dalam file.");
         }
