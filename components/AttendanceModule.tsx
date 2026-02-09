@@ -345,7 +345,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl overflow-hidden border-2 border-white shadow-sm shrink-0 bg-slate-50">
-                            {row.employee.photoBase64 || row.employee.avatarUrl ? <img src={row.employee.photoBase64 || row.employee.avatarUrl} className="w-full h-full object-cover" alt="" /> : <Icons.Users className="w-4 h-4 text-slate-200" />}
+                            {row.employee.photoBase64 || row.employee.avatarUrl ? <img src={row.employee.photoBase64 || row.employee.avatarUrl} className="w-full h-full object-cover" alt="" /> : <Icons.Users className="w-5 h-5 text-slate-300 m-auto mt-3.5" />}
                          </div>
                          <div className="min-w-0">
                             <p className="text-[10px] sm:text-[11px] font-black uppercase text-slate-900 truncate max-w-[150px]">{row.employee.nama}</p>
@@ -378,7 +378,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
           </table>
         </div>
 
-        {/* MOBILE LIST VIEW - Rapi, Ukuran Kotak Lebih Besar (Screenshot 1) */}
+        {/* MOBILE LIST VIEW - Rapi & Elegant (Screenshot Reference) */}
         <div className="md:hidden divide-y divide-slate-100">
           {paginatedRows.map(row => {
             const existingRec = records.find(r => r.employeeId === row.employee.id && r.date === row.date);
@@ -392,47 +392,51 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
             }) as AttendanceRecord;
 
             return (
-              <div key={`${row.employee.id}-${row.date}`} className={`p-7 flex items-center justify-between gap-4 transition-all ${isToday ? 'bg-amber-50/20' : 'bg-white'}`}>
-                 <div className="flex items-center gap-6 flex-grow min-w-0">
-                   {/* Left Date Info */}
-                   <div className="shrink-0 border-l-4 border-[#FFC000] pl-4 py-2 min-w-[85px]">
-                      <p className="text-[12px] font-black text-slate-900 leading-none">{row.date}</p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em] mt-1.5">{new Date(row.date).toLocaleDateString('id-ID', { weekday: 'short' }).toUpperCase()}</p>
+              <div key={`${row.employee.id}-${row.date}`} className={`p-6 flex flex-col gap-5 transition-all ${isToday ? 'bg-amber-50/10' : 'bg-white'}`}>
+                 <div className="flex items-center justify-between gap-4">
+                   {/* Left Date Section */}
+                   <div className="shrink-0 border-l-4 border-[#FFC000] pl-4 py-1.5 min-w-[90px]">
+                      <p className="text-[11px] font-black text-slate-900 leading-none">{row.date}</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">{new Date(row.date).toLocaleDateString('id-ID', { weekday: 'short' }).toUpperCase()}</p>
                    </div>
 
-                   {/* Middle Avatar & Identity */}
-                   <div className="flex items-center gap-4 min-w-0">
-                      <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-white shadow-sm shrink-0 bg-slate-50">
-                         {row.employee.photoBase64 || row.employee.avatarUrl ? <img src={row.employee.photoBase64 || row.employee.avatarUrl} className="w-full h-full object-cover" alt="" /> : <Icons.Users className="w-5 h-5 text-slate-200 m-auto mt-3.5" />}
-                      </div>
-                      <div className="min-w-0">
-                         <p className="text-[13px] font-black uppercase text-slate-900 truncate tracking-tight leading-tight mb-1">{row.employee.nama}</p>
-                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter truncate mb-2">{row.employee.jabatan}</p>
-                         {/* INFO JAM MASUK & PULANG (Perbesar Ukuran Font Sesuai Screenshot 1) */}
-                         <div className="flex gap-6 items-center">
-                            <div className="flex flex-col">
-                               <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">In</span>
-                               <span className={`text-[11px] font-black ${rec.clockIn ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockIn || '--:--'}</span>
-                            </div>
-                            <div className="flex flex-col">
-                               <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Out</span>
-                               <span className={`text-[11px] font-black ${rec.clockOut ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockOut || '--:--'}</span>
-                            </div>
-                         </div>
-                      </div>
-                   </div>
+                   {/* Status Badge */}
+                   <span className={`inline-block text-[8px] font-black uppercase px-3 py-1.5 rounded-lg border shadow-sm transition-all ${getStatusStyle(rec.status)}`}>{rec.status}</span>
                  </div>
 
-                 {/* Right Status & Quick Actions */}
-                 <div className="flex flex-col items-end gap-3 shrink-0">
-                    <span className={`inline-block text-[8px] font-black uppercase px-3 py-1.5 rounded-lg border shadow-sm transition-all ${getStatusStyle(rec.status)}`}>{rec.status}</span>
-                    <div className="flex gap-2">
-                      {rec.id && (rec.clockIn || rec.clockOut) && (
-                         <button onClick={() => fetchRecordPhoto(rec.id!, rec.clockIn ? 'photoIn' : 'photoOut')} className="p-2.5 bg-slate-50 text-slate-300 rounded-xl hover:text-[#FFC000] transition-colors"><Icons.Camera className="w-4 h-4"/></button>
-                      )}
-                      {isAdmin && (
-                         <button onClick={() => { setEditingRecord(rec); setIsEditModalOpen(true); }} className="p-2.5 bg-indigo-50 text-indigo-500 rounded-xl active:scale-90 transition-transform"><Icons.Edit className="w-4 h-4"/></button>
-                      )}
+                 <div className="flex items-center gap-5">
+                    {/* Avatar */}
+                    <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-slate-50 shadow-md shrink-0 bg-slate-50">
+                       {row.employee.photoBase64 || row.employee.avatarUrl ? <img src={row.employee.photoBase64 || row.employee.avatarUrl} className="w-full h-full object-cover" alt="" /> : <Icons.Users className="w-6 h-6 text-slate-200 m-auto mt-4" />}
+                    </div>
+
+                    {/* Identity & Times */}
+                    <div className="flex-grow min-w-0">
+                       <div className="flex flex-col mb-3">
+                          <p className="text-[14px] font-black uppercase text-slate-900 truncate tracking-tight leading-tight">{row.employee.nama}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter truncate mt-0.5">{row.employee.jabatan}</p>
+                       </div>
+
+                       <div className="flex items-center gap-8">
+                          <div className="flex flex-col">
+                             <span className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Masuk</span>
+                             <span className={`text-[12px] font-black ${rec.clockIn ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockIn || '--:--'}</span>
+                          </div>
+                          <div className="flex flex-col">
+                             <span className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Pulang</span>
+                             <span className={`text-[12px] font-black ${rec.clockOut ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockOut || '--:--'}</span>
+                          </div>
+                       </div>
+                    </div>
+
+                    {/* Actions Group - Bottom Right Positioned */}
+                    <div className="flex flex-col items-end justify-end self-end gap-2.5">
+                       {rec.id && (rec.clockIn || rec.clockOut) && (
+                          <button onClick={() => fetchRecordPhoto(rec.id!, rec.clockIn ? 'photoIn' : 'photoOut')} className="p-2.5 bg-slate-50 text-slate-300 rounded-xl hover:text-[#FFC000] border border-slate-100 transition-colors active:scale-90"><Icons.Camera className="w-4 h-4"/></button>
+                       )}
+                       {isAdmin && (
+                          <button onClick={() => { setEditingRecord(rec); setIsEditModalOpen(true); }} className="p-2.5 bg-indigo-50 text-indigo-500 rounded-xl active:scale-90 border border-indigo-100 transition-transform"><Icons.Edit className="w-4 h-4"/></button>
+                       )}
                     </div>
                  </div>
               </div>
@@ -450,22 +454,22 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
           <div className="bg-slate-50/50 px-6 sm:px-10 py-5 flex items-center justify-between border-t border-slate-100">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Halaman</span>
-              <span className="text-xs font-black text-slate-900 px-3 py-1 bg-white rounded-lg shadow-sm border border-slate-200">{currentPage} / {totalPages}</span>
+              <span className="text-xs font-black text-slate-900 px-4 py-2 bg-white rounded-lg shadow-sm border border-slate-200">{currentPage} / {totalPages}</span>
             </div>
             <div className="flex gap-2">
               <button 
                 disabled={currentPage === 1}
                 onClick={() => { setCurrentPage(prev => prev - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95"
+                className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
               >
-                <Icons.ChevronDown className="w-4 h-4 rotate-90" />
+                <Icons.ChevronDown className="w-5 h-5 rotate-90" />
               </button>
               <button 
                 disabled={currentPage === totalPages}
                 onClick={() => { setCurrentPage(prev => prev + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95"
+                className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
               >
-                <Icons.ChevronDown className="w-4 h-4 -rotate-90" />
+                <Icons.ChevronDown className="w-5 h-5 -rotate-90" />
               </button>
             </div>
           </div>
@@ -476,15 +480,15 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
           <div className="bg-white rounded-[48px] p-10 w-full max-w-md space-y-10 shadow-2xl animate-in zoom-in-95 duration-500">
-            <div className="text-center"><h3 className="text-2xl font-black uppercase text-slate-900">Koreksi Absensi</h3></div>
+            <div className="text-center"><h3 className="text-2xl font-black uppercase text-slate-900 tracking-tight">Koreksi Absensi</h3></div>
             <div className="space-y-8">
               <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase">CLOCK IN</label><input type="time" value={editingRecord.clockIn || ''} onChange={e => setEditingRecord({...editingRecord, clockIn: e.target.value})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none focus:border-[#FFC000] text-black" /></div>
-                <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase">CLOCK OUT</label><input type="time" value={editingRecord.clockOut || ''} onChange={e => setEditingRecord({...editingRecord, clockOut: e.target.value})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none focus:border-[#FFC000] text-black" /></div>
+                <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">CLOCK IN</label><input type="time" value={editingRecord.clockIn || ''} onChange={e => setEditingRecord({...editingRecord, clockIn: e.target.value})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none focus:border-[#FFC000] text-black shadow-inner" /></div>
+                <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">CLOCK OUT</label><input type="time" value={editingRecord.clockOut || ''} onChange={e => setEditingRecord({...editingRecord, clockOut: e.target.value})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none focus:border-[#FFC000] text-black shadow-inner" /></div>
               </div>
-              <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase">STATUS</label><select value={editingRecord.status} onChange={e => setEditingRecord({...editingRecord, status: e.target.value as any})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none appearance-none text-black"><option value="Hadir">Hadir</option><option value="Sakit">Sakit</option><option value="Izin">Izin</option><option value="Alpha">Alpha</option><option value="Cuti">Cuti</option><option value="Libur">Libur</option><option value="Lembur">Lembur</option></select></div>
+              <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">STATUS</label><select value={editingRecord.status} onChange={e => setEditingRecord({...editingRecord, status: e.target.value as any})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none appearance-none text-black shadow-inner"><option value="Hadir">Hadir</option><option value="Sakit">Sakit</option><option value="Izin">Izin</option><option value="Alpha">Alpha</option><option value="Cuti">Cuti</option><option value="Libur">Libur</option><option value="Lembur">Lembur</option></select></div>
             </div>
-            <div className="flex gap-4"><button onClick={handleSaveEdit} className="flex-1 bg-slate-900 text-[#FFC000] py-6 rounded-[28px] font-black uppercase text-xs">Simpan</button><button onClick={() => setIsEditModalOpen(false)} className="px-8 bg-slate-100 text-slate-400 py-6 rounded-[28px] font-black uppercase text-xs">Batal</button></div>
+            <div className="flex gap-4"><button onClick={handleSaveEdit} className="flex-1 bg-slate-900 text-[#FFC000] py-6 rounded-[28px] font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Simpan</button><button onClick={() => setIsEditModalOpen(false)} className="px-8 bg-slate-100 text-slate-400 py-6 rounded-[28px] font-black uppercase text-xs active:scale-95 transition-all">Batal</button></div>
           </div>
         </div>
       )}

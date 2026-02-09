@@ -268,7 +268,11 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
 
   const hostList = useMemo(() => employees.filter(e => (e.jabatan || '').toUpperCase().includes('HOST')), [employees]);
   const opList = useMemo(() => employees.filter(e => (e.jabatan || '').toUpperCase().includes('OP') || (e.nama || '').toUpperCase().includes('ARIYANSYAH')), [employees]);
-  const liveStaffList = useMemo(() => employees.filter(e => (e.jabatan || '').toUpperCase() === 'HOST LIVE STREAMING'), [employees]);
+  
+  const liveStaffList = useMemo(() => employees.filter(e => {
+    const jabatan = (e.jabatan || '').toUpperCase();
+    return jabatan === 'HOST LIVE STREAMING' || jabatan.includes('OPERATOR') || jabatan.includes('OP');
+  }), [employees]);
 
   const datesInRange = useMemo(() => {
     const dates = [];
@@ -416,20 +420,32 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
           <div className="animate-in fade-in duration-500 space-y-8">
              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {DAYS_OF_WEEK.map(day => (
-                  <div key={day} className="bg-slate-50 p-6 rounded-[32px] border border-slate-100 flex flex-col h-[350px]">
+                  <div key={day} className="bg-slate-50 p-6 rounded-[32px] border border-slate-100 flex flex-col h-[450px]">
                      <div className="flex justify-between items-center mb-6"><span className="text-sm font-black text-slate-900 tracking-widest">{day}</span></div>
-                     <div className="flex-grow overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                        {liveStaffList.map(emp => (
-                          <div key={emp.id} onClick={() => !readOnly && toggleHoliday(day, emp.nama)} className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${(weeklyHolidays[day] || []).includes(emp.nama) ? 'bg-indigo-500 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-500'}`}>
-                             <span className="text-[10px] font-bold truncate">{emp.nama.toUpperCase()}</span>
-                             {(weeklyHolidays[day] || []).includes(emp.nama) && <Icons.Plus className="w-3 h-3 rotate-45" />}
+                     <div className="flex-grow overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                        {liveStaffList
+                          .filter(emp => !readOnly || (weeklyHolidays[day] || []).includes(emp.nama))
+                          .map(emp => (
+                            <div key={emp.id} onClick={() => !readOnly && toggleHoliday(day, emp.nama)} className={`p-5 rounded-[22px] border transition-all cursor-pointer flex items-center justify-between shadow-sm active:scale-95 ${(weeklyHolidays[day] || []).includes(emp.nama) ? 'bg-indigo-500 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'}`}>
+                               <div className="flex flex-col min-w-0">
+                                  <span className="text-[12px] font-black truncate">{emp.nama.toUpperCase()}</span>
+                                  <span className={`text-[8px] font-bold uppercase tracking-widest mt-1 opacity-60 ${(weeklyHolidays[day] || []).includes(emp.nama) ? 'text-indigo-100' : 'text-slate-400'}`}>{emp.jabatan}</span>
+                               </div>
+                               {(weeklyHolidays[day] || []).includes(emp.nama) && <Icons.Plus className="w-4 h-4 rotate-45" />}
+                            </div>
+                          ))
+                        }
+                        {readOnly && (weeklyHolidays[day] || []).length === 0 && (
+                          <div className="flex flex-col items-center justify-center py-10 opacity-20">
+                             <Icons.Database className="w-8 h-8 mb-2" />
+                             <p className="text-[8px] font-black uppercase tracking-widest">Tidak Ada Jadwal Libur</p>
                           </div>
-                        ))}
+                        )}
                      </div>
                   </div>
                 ))}
              </div>
-             {!readOnly && <button onClick={handleSaveHolidays} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-xs">Simpan Jadwal Libur</button>}
+             {!readOnly && <button onClick={handleSaveHolidays} className="w-full bg-slate-900 text-[#FFC000] py-6 rounded-3xl font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-[0.98] transition-all">Simpan Jadwal Libur</button>}
           </div>
         ) : activeSubTab === 'BRAND' ? (
           <div className="animate-in fade-in duration-500 space-y-8 max-w-4xl mx-auto pb-20">

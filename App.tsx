@@ -187,12 +187,11 @@ const App: React.FC = () => {
         buildQuery('broadcasts').order('sentAt', { ascending: false }).then(({data}) => setBroadcasts(data || [])),
         buildQuery('schedules').then(({data}) => setLiveSchedules(data || [])),
         buildQuery('content_plans').order('postingDate', { ascending: false }).then(({data}) => setContentPlans(data || [])),
-        buildQuery('shift_assignment').then(({data}) => setShiftAssignments(data || [])),
+        buildQuery('shift_assignments').then(({data}) => setShiftAssignments(data || [])),
         supabase.from('settings').select('value').eq('key', `weekly_holidays_${companyFilterVal}`).single().then(({data}) => { 
           if (data) {
              const stored = data.value;
              const currentMonday = getMondayISO(new Date());
-             // Sync Mingguan: Reset jika data lama (weekStart bukan Senin ini)
              if (stored && typeof stored === 'object' && stored.weekStart === currentMonday) {
                 setWeeklyHolidays(stored.days || DEFAULT_HOLIDAYS);
              } else {

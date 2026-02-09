@@ -163,7 +163,10 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { data, error } = await supabase.from('live_reports').upsert(editingReport ? { ...formData, id: editingReport.id } : formData).select();
+      // Perbaikan: Pastikan ada ID untuk data baru
+      const reportId = editingReport?.id || `LIVE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const { data, error } = await supabase.from('live_reports').upsert({ ...formData, id: reportId }).select();
+      
       if (error) throw error;
       setReports(prev => {
         if (editingReport) return prev.map(r => r.id === editingReport.id ? data[0] : r);
@@ -298,7 +301,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
         }).filter(r => r !== null) as Omit<LiveReport, 'id'>[];
 
         if (rawParsedReports.length > 0) {
-          // 1. Deduplikasi Internal File (Pilih data dengan GMV tertinggi jika Room ID sama dalam satu file)
+          // 1. Deduplikasi Internal File
           const fileDeduperMap = new Map<string, Omit<LiveReport, 'id'>>();
           rawParsedReports.forEach(report => {
             const existingInFile = fileDeduperMap.get(report.roomId);
@@ -314,11 +317,13 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
           fileDeduperMap.forEach((newReport, roomId) => {
             const existingInDb = existingInDbMap.get(roomId);
             if (existingInDb) {
-              // Jika sudah ada di database, tambahkan ID agar terjadi UPDATE bukan INSERT baru
               finalToUpsert.push({ ...newReport, id: existingInDb.id });
             } else {
-              // Jika data murni baru
-              finalToUpsert.push(newReport);
+              // Perbaikan: Generate ID untuk baris baru hasil impor
+              finalToUpsert.push({ 
+                ...newReport, 
+                id: `LIVE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` 
+              });
             }
           });
 
