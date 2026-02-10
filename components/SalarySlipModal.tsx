@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Employee, SalaryData, AttendanceRecord } from '../types';
 import { Icons } from '../constants';
@@ -291,7 +290,6 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
               <p style={{ fontSize: '12px', fontWeight: '900', color: '#806000', margin: '2px 0 0 0' }}>{employee.idKaryawan}</p>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: '8px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', margin: '0' }}>JABATAN</p>
               <p style={{ fontSize: '18px', fontWeight: '900', margin: '2px 0 8px 0' }}>{employee.jabatan}</p>
               <p style={{ fontSize: '8px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', margin: '0' }}>NO. REKENING</p>
               <p style={{ fontSize: '12px', fontWeight: '700', color: '#334155', margin: '2px 0 0 0' }}>{employee.noRekening} ({employee.bank})</p>
@@ -378,9 +376,9 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                   disabled={isReadOnlyRole} 
                   value={formatCurrencyValue(data.gapok)} 
                   onChange={e => setData({...data, gapok: parseCurrencyInput(e.target.value)})} 
-                  className="w-full bg-[#f8fafc] border-2 border-slate-100 rounded-[28px] p-5 sm:p-6 text-2xl sm:text-3xl font-black text-slate-900 outline-none shadow-inner focus:border-[#FFC000] focus:bg-white transition-all disabled:opacity-60" 
+                  className="w-full bg-[#f8fafc] border-2 border-slate-100 rounded-[28px] py-5 pl-16 sm:py-6 sm:pl-24 text-2xl sm:text-3xl font-black text-slate-900 outline-none shadow-inner focus:border-[#FFC000] focus:bg-white transition-all disabled:opacity-60" 
                 />
-                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 font-black text-lg pointer-events-none hidden sm:block">Rp</span>
+                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 font-black text-lg pointer-events-none block">Rp</span>
               </div>
             </div>
 

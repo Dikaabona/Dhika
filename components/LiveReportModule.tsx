@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, LiveReport } from '../types';
@@ -42,6 +41,12 @@ const parseYMDToIso = (val: any) => {
   return str;
 };
 
+const getSevenDaysAgoStr = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 7);
+  return d.toISOString().split('T')[0];
+};
+
 const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports, setReports, userRole, company, onClose }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingReport, setEditingReport] = useState<LiveReport | null>(null);
@@ -50,7 +55,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
   const getTodayStr = () => new Date().toISOString().split('T')[0];
-  const [startDate, setStartDate] = useState(getTodayStr());
+  const [startDate, setStartDate] = useState(getSevenDaysAgoStr());
   const [endDate, setEndDate] = useState(getTodayStr());
   
   const [isImporting, setIsImporting] = useState(false);
@@ -159,7 +164,6 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Jika edit, kirim ID. Jika baru, ID biarkan kosong agar Supabase (gen_random_uuid) yang buat.
       const payload = editingReport ? { ...formData, id: editingReport.id } : formData;
       const { data, error } = await supabase.from('live_reports').upsert(payload).select();
       
@@ -312,7 +316,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
             if (existingInDb) {
               finalToUpsert.push({ ...newReport, id: existingInDb.id });
             } else {
-              // Biarkan ID kosong agar Supabase otomatis membuat UUID baru via gen_random_uuid()
+              // Leave ID empty to let Supabase handle UUID generation
               finalToUpsert.push(newReport);
             }
           });
@@ -344,7 +348,6 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
 
   return (
     <div className="flex flex-col bg-transparent space-y-6">
-      {/* ... (sisanya sama seperti sebelumnya) ... */}
       <div className="flex flex-col gap-4">
         <div className="relative w-full">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">

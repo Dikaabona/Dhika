@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icons } from '../constants';
 import { supabase } from '../App';
@@ -53,6 +52,10 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [searchEmp, setSearchEmp] = useState('');
+
+  // Pagination for ROLE management
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super';
@@ -242,6 +245,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     );
   }, [employees, searchEmp]);
 
+  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
+  const paginatedEmployees = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredEmployees.slice(start, start + itemsPerPage);
+  }, [filteredEmployees, currentPage, itemsPerPage]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -418,7 +427,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                     type="text" 
                     placeholder="CARI NAMA..." 
                     value={searchEmp}
-                    onChange={e => setSearchEmp(e.target.value)}
+                    onChange={e => { setSearchEmp(e.target.value); setCurrentPage(1); }}
                     className="w-full bg-slate-50 border border-slate-200 pl-11 pr-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none focus:ring-4 focus:ring-yellow-400/10 text-black"
                   />
                </div>
@@ -435,7 +444,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                      </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                     {filteredEmployees.map(emp => (
+                     {paginatedEmployees.map(emp => (
                        <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-10 py-5 whitespace-nowrap">
                              <div className="flex items-center gap-4">
@@ -474,6 +483,34 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                   </tbody>
                </table>
             </div>
+
+            {/* Pagination UI for Roles */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-10 py-6 border-t border-slate-100">
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Halaman</span>
+                  <span className="text-xs font-black text-slate-900 px-4 py-2 bg-slate-50 rounded-full border border-slate-200">
+                    {currentPage} / {totalPages}
+                  </span>
+                </div>
+                <div className="flex gap-3">
+                  <button 
+                    disabled={currentPage === 1}
+                    onClick={() => { setCurrentPage(prev => prev - 1); }}
+                    className="w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
+                  >
+                    <Icons.ChevronDown className="w-5 h-5 rotate-90" />
+                  </button>
+                  <button 
+                    disabled={currentPage === totalPages}
+                    onClick={() => { setCurrentPage(prev => prev + 1); }}
+                    className="w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
+                  >
+                    <Icons.ChevronDown className="w-5 h-5 -rotate-90" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="animate-in fade-in duration-300 space-y-12">

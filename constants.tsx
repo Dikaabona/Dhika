@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { Shift } from './types';
 
 export const BANK_OPTIONS = [
   'BCA', 'Mandiri', 'BNI', 'BRI', 'BRI (Syariah)', 'BSI', 'BJB', 'BTN', 'CIMB Niaga', 'Permata', 'Danamon', 'OCBC NISP', 'Jenius', 'SeaBank'
@@ -19,6 +20,13 @@ export const TIME_SLOTS = [
   '12.00 - 13.00', '13.00 - 14.00', '14.00 - 15.00', '15.00 - 16.00',
   '16.00 - 17.00', '17.00 - 18.00', '18.00 - 19.00', '19.00 - 20.00',
   '20.00 - 21.00', '21.00 - 22.00', '22.00 - 23.00', '23.00 - 00.00'
+];
+
+export const DEFAULT_SHIFTS: Shift[] = [
+  { id: '1', name: 'Shift Pagi', startTime: '08:00', endTime: '16:00', color: 'bg-emerald-500' },
+  { id: '2', name: 'Shift Siang', startTime: '12:00', endTime: '20:00', color: 'bg-amber-500' },
+  { id: '3', name: 'Shift Malam', startTime: '16:00', endTime: '00:00', color: 'bg-indigo-500' },
+  { id: '4', name: 'Full Day', startTime: '09:00', endTime: '18:00', color: 'bg-rose-500' },
 ];
 
 export const Icons = {
@@ -118,5 +126,14 @@ export const Icons = {
   ),
   Cpu: ({ className }: { className?: string }) => (
     <svg className={className} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>
+  ),
+  Send: ({ className }: { className?: string }) => (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+  ),
+  Check: ({ className }: { className?: string }) => (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  ),
+  AlertCircle: ({ className }: { className?: string }) => (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
   )
 };

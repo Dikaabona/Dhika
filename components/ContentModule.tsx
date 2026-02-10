@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, ContentPlan } from '../types';
@@ -10,7 +9,7 @@ interface ContentModuleProps {
   employees: Employee[];
   plans: ContentPlan[];
   setPlans: React.Dispatch<React.SetStateAction<ContentPlan[]>>;
-  searchQuery?: string;
+  searchQuery: string;
   userRole?: string;
   currentEmployee?: Employee | null;
   company: string;
@@ -238,44 +237,36 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     if (!hasFullAccess) return;
 
     const finalTitle = `${formData.brand} - ${formData.postingDate || 'No Date'}`;
-    const reportId = editingPlan?.id || `REP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    
-    // FIX: Destructure to remove jamUpload from DB payload while keeping it in memory
     const { jamUpload, ...formDataRest } = formData;
 
-    const dataToSave = { 
+    const dataToSave: any = { 
       ...formDataRest, 
       title: finalTitle, 
-      id: reportId, 
       status: 'Selesai' as const,
       likes: Number(formData.likes || 0),
       comments: Number(formData.comments || 0),
       views: Number(formData.views || 0),
       saves: Number(formData.saves || 0),
       shares: Number(formData.shares || 0),
-      // Optional: append jamUpload to notes if you don't want to lose the info
       notes: `${formData.notes || ''}${jamUpload ? ` [Time: ${jamUpload}]` : ''}`.trim()
     };
 
+    if (editingPlan?.id) dataToSave.id = editingPlan.id;
+
     try {
-      const { error } = await supabase.from('content_plans').upsert(dataToSave);
+      const { data, error } = await supabase.from('content_plans').upsert(dataToSave).select();
       
-      if (error) {
-        console.error("Supabase Error Detail:", error);
-        throw error;
-      }
+      if (error) throw error;
       
-      // Update state with the FULL data (including jamUpload for local display)
-      const fullDataForState: ContentPlan = { ...dataToSave, jamUpload };
-      
+      const savedRecord = data[0];
       setPlans(prev => {
-        const idx = prev.findIndex(p => p.id === reportId);
+        const idx = prev.findIndex(p => p.id === savedRecord.id);
         if (idx !== -1) {
           const updated = [...prev];
-          updated[idx] = fullDataForState;
+          updated[idx] = savedRecord;
           return updated;
         }
-        return [fullDataForState, ...prev];
+        return [savedRecord, ...prev];
       });
       setIsModalOpen(false);
       setDbStatus('sync');
@@ -420,7 +411,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           const platform = String(row['PLATFORM'] || 'TikTok');
           const link = String(row['LINK POSTINGAN'] || '').trim();
           
-          // Deterministic Key for Deduplication and Mapping
           const externalKey = `${brand}_${postingDate}_${platform}`;
 
           return {
@@ -444,7 +434,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         }).filter(r => r !== null);
 
         if (rawParsedReports.length > 0) {
-          // 1. Internal Deduplication (pilih yang view-nya paling banyak jika ada duplikat dalam 1 file)
           const fileDeduper = new Map<string, any>();
           rawParsedReports.forEach(r => {
             const existing = fileDeduper.get(r!.externalKey);
@@ -453,8 +442,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
             }
           });
 
-          // 2. Map to database records (link to existing ID if match brand/date/platform)
-          const existingInDbMap = new Map<string, string>(); // brand_date_platform -> id
+          const existingInDbMap = new Map<string, string>();
           plans.forEach(p => {
             const key = `${p.brand}_${p.postingDate}_${p.platform}`;
             if (p.id) existingInDbMap.set(key, p.id);
@@ -463,13 +451,13 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           const finalToUpsert: any[] = [];
           fileDeduper.forEach((report, key) => {
             const existingId = existingInDbMap.get(key);
-            // FIX: Remove jamUpload before sending to Supabase
             const { jamUpload, externalKey, ...dbPayload } = report;
-            finalToUpsert.push({
+            const item: any = {
               ...dbPayload,
-              id: existingId || `REP-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
               notes: `${dbPayload.notes || ''}${jamUpload ? ` [Time: ${jamUpload}]` : ''}`.trim()
-            });
+            };
+            if (existingId) item.id = existingId;
+            finalToUpsert.push(item);
           });
 
           const { data: inserted, error } = await supabase.from('content_plans').upsert(finalToUpsert).select();
@@ -539,7 +527,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         </div>
       )}
 
-      {/* HEADER SECTION */}
       <div className="bg-white rounded-[32px] sm:rounded-[48px] shadow-sm border border-slate-100 overflow-hidden">
         <div className="px-6 sm:px-12 py-8 sm:py-14 border-b flex flex-col items-start bg-white gap-6 sm:gap-10">
             <div className="flex flex-col gap-2 sm:gap-3">
@@ -686,7 +673,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         </div>
       )}
 
-      {/* STATS CARDS - SLIDER */}
       <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 no-scrollbar scroll-smooth snap-x">
         {brandStats.map(bs => (
           <div key={bs.name} className="min-w-[280px] sm:min-w-[320px] bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[36px] border border-slate-100 shadow-sm space-y-5 sm:space-y-6 transition-all hover:shadow-xl hover:-translate-y-1 relative group overflow-hidden snap-start shrink-0">
@@ -714,11 +700,11 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
             </div>
             <div className="flex items-center justify-between pt-4 border-t border-slate-50 relative z-10">
                <div className="flex flex-col gap-0.5 sm:gap-1">
-                  <span className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest">DEADLINE</span>
+                  <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">DEADLINE</span>
                   <span className="text-[10px] sm:text-[11px] font-black text-slate-700">{bs.quotaDeadline || '-'}</span>
                </div>
                <div className="flex flex-col text-right gap-0.5 sm:gap-1">
-                  <span className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest">UPLOAD TIME</span>
+                  <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">UPLOAD TIME</span>
                   <span className="text-[10px] sm:text-[11px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg self-end">{bs.jamUpload || '-'}</span>
                </div>
             </div>
@@ -727,7 +713,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         ))}
       </div>
 
-      {/* DATA TABLE */}
       <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto no-scrollbar scroll-smooth">
           <table className="w-full text-left min-w-[1000px] border-separate border-spacing-0">
@@ -827,7 +812,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         </div>
       </div>
 
-      {/* MODAL FORM */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[150] flex items-center justify-center p-4">
           <div className="bg-white rounded-[40px] sm:rounded-[56px] shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-500 border border-white/20">

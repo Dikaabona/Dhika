@@ -1,8 +1,7 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, Shift, ShiftAssignment } from '../types';
-import { Icons } from '../constants';
+import { Icons, DEFAULT_SHIFTS } from '../constants';
 import { supabase } from '../App';
 import { formatDateToYYYYMMDD } from '../utils/dateUtils';
 
@@ -14,13 +13,6 @@ interface ShiftModuleProps {
   company: string;
   onClose: () => void;
 }
-
-const DEFAULT_SHIFTS: Shift[] = [
-  { id: '1', name: 'Shift Pagi', startTime: '08:00', endTime: '16:00', color: 'bg-emerald-500' },
-  { id: '2', name: 'Shift Siang', startTime: '12:00', endTime: '20:00', color: 'bg-amber-500' },
-  { id: '3', name: 'Shift Malam', startTime: '16:00', endTime: '00:00', color: 'bg-indigo-500' },
-  { id: '4', name: 'Full Day', startTime: '09:00', endTime: '18:00', color: 'bg-rose-500' },
-];
 
 const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAssignments, userRole, company, onClose }) => {
   const isAdmin = userRole === 'owner' || userRole === 'super' || userRole === 'admin';
@@ -131,9 +123,9 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
     });
 
     const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Log Shift");
-    XLSX.writeFile(wb, `Shift_${company}_${startDate}_to_${endDate}.xlsx`);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, ws, "Log Shift");
+    XLSX.writeFile(workbook, `Shift_${company}_${startDate}_to_${endDate}.xlsx`);
   };
 
   const handleDownloadTemplate = () => {
@@ -240,7 +232,8 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
                   <div className="flex gap-2">
                     <button onClick={handleDownloadTemplate} className="bg-slate-100 text-slate-500 px-6 py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-sm">Template</button>
                     <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".xlsx,.xls" />
-                    <button onClick={() => fileInputRef.current?.click()} className="bg-emerald-500 text-white px-6 py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-lg">Import</button>
+                    {/* Fix: Changed importFileInputRef to fileInputRef to match the declared ref name */}
+                    <button onClick={() => fileInputRef.current?.click()} className="bg-emerald-50 text-white px-6 py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-lg">Import</button>
                     <button onClick={handleExport} className="bg-slate-900 text-white px-6 py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-lg">Export</button>
                   </div>
                 )}

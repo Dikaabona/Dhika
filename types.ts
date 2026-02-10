@@ -25,6 +25,14 @@ export interface Employee {
   salaryConfig?: Omit<SalaryData, 'month' | 'year'>;
 }
 
+export interface CalendarEvent {
+  id?: string;
+  title: string;
+  description?: string;
+  date: string;
+  company: string;
+}
+
 export type AttendanceStatus = 'Hadir' | 'Sakit' | 'Izin' | 'Alpha' | 'Libur' | 'Cuti' | 'Lembur' | 'Reimburse';
 
 export interface AttendanceRecord {
@@ -142,6 +150,19 @@ export interface ContentPlan {
   screenshotBase64?: string;
 }
 
+export interface InventoryItem {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  stock: number;
+  minStock: number;
+  unit: string;
+  price: number;
+  company: string;
+  lastUpdated?: string;
+}
+
 export type SortField = 'nama' | 'tanggalMasuk' | 'bank';
 export type SortOrder = 'asc' | 'desc';
 
@@ -163,5 +184,5 @@ export interface SalaryData {
   potonganLain: number;
 }
 
-export type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'submissions' | 'inbox' | 'settings' | 'shift' | 'minvis' | 'kpi';
+export type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'submissions' | 'inbox' | 'settings' | 'shift' | 'minvis' | 'kpi' | 'inventory' | 'calendar';
 export type UserRole = 'owner' | 'super' | 'admin' | 'employee';

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { createClient, Session } from '@supabase/supabase-js';
@@ -7,6 +6,7 @@ import { Icons, BANK_OPTIONS } from './constants.tsx';
 import EmployeeForm from './components/EmployeeForm.tsx';
 import Dashboard from './components/Dashboard.tsx';
 import SalarySlipModal from './components/SalarySlipModal.tsx';
+import BulkSalaryModal from './components/BulkSalaryModal.tsx';
 import AttendanceModule from './components/AttendanceModule.tsx';
 import AnnouncementModal from './components/AnnouncementModal.tsx';
 import LiveScheduleModule from './components/LiveScheduleModule.tsx';
@@ -19,21 +19,21 @@ import SettingsModule from './components/SettingsModule.tsx';
 import ShiftModule from './components/ShiftModule.tsx';
 import MinVisModule from './components/MinVisModule.tsx';
 import KPIModule from './components/KPIModule.tsx';
+import CalendarModule from './components/CalendarModule.tsx';
+import InventoryModule from './components/InventoryModule.tsx';
 import { getTenureYears, calculateTenure, formatDateToYYYYMMDD, getMondayISO } from './utils/dateUtils.ts';
 
 const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
 
-// --- KONFIGURASI LOGO ---
 const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
 const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
 
-// --- KONFIGURASI SUPABASE ---
 const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://rcrtknakiwvfkmnwvdvf.supabase.co').trim();
 const SUPABASE_ANON_KEY = (process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcnRrbmFraXd2Zmttbnd2ZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2NjEyODYsImV4cCI6MjA4NTIzNzI4Nn0.Ca9m25c9K0_J_kCRphGSaECGs8CGz4-zUpVoA_rIERA').trim();
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const App: React.FC = () => {
+export const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<UserRole>('employee');
   const [currentUserEmployee, setCurrentUserEmployee] = useState<Employee | null>(null);
@@ -41,8 +41,8 @@ const App: React.FC = () => {
   
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
+  const [loginEmailInput, setLoginEmailInput] = useState('');
+  const [loginPasswordInput, setLoginPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState('');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
@@ -78,8 +78,6 @@ const App: React.FC = () => {
   
   const [isDesktopDropdownOpen, setIsDesktopDropdownOpen] = useState(false);
   const [isDesktopModulOpen, setIsDesktopModulOpen] = useState(false);
-  const [isMobileDropdownOpen, setIsMobileDropdownOpen] = useState(false);
-  const [isMobileModulOpen, setIsMobileModulOpen] = useState(false);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [companyFilter, setCompanyFilter] = useState<string>('ALL');
@@ -87,18 +85,14 @@ const App: React.FC = () => {
   const [isAnnouncementOpen, setIsAnnouncementOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [slipEmployee, setSlipEmployee] = useState<Employee | null>(null);
+  const [isBulkSalaryOpen, setIsBulkSalaryOpen] = useState(false);
 
   const desktopDropdownRef = useRef<HTMLDivElement>(null);
   const desktopModulRef = useRef<HTMLDivElement>(null);
-  const mobileDropdownRef = useRef<HTMLDivElement>(null);
-  const mobileModulRef = useRef<HTMLDivElement>(null);
   const employeeFileInputRef = useRef<HTMLInputElement>(null);
 
   const [currentEmpPage, setCurrentEmpPage] = useState(1);
   const empRowsPerPage = 10;
-
-  const [loginEmailInput, setLoginEmailInput] = useState('');
-  const [loginPasswordInput, setLoginPasswordInput] = useState('');
 
   const currentLogo = useMemo(() => {
     return (userCompany || '').trim().toLowerCase() === 'seller space' ? SELLER_SPACE_LOGO : VISIBEL_LOGO;
@@ -112,12 +106,6 @@ const App: React.FC = () => {
       if (desktopModulRef.current && !desktopModulRef.current.contains(event.target as Node)) {
         setIsDesktopModulOpen(false);
       }
-      if (mobileDropdownRef.current && !mobileDropdownRef.current.contains(event.target as Node)) {
-        setIsMobileDropdownOpen(false);
-      }
-      if (mobileModulRef.current && !mobileModulRef.current.contains(event.target as Node)) {
-        setIsMobileModulOpen(false);
-      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -126,12 +114,9 @@ const App: React.FC = () => {
   const getRoleBasedOnEmail = (email: string, dbRole?: string): UserRole => {
     const emailLower = (email || '').toLowerCase().trim();
     if (emailLower === OWNER_EMAIL.toLowerCase()) return 'owner';
-    
     if (dbRole) return dbRole as UserRole;
-    
     if (emailLower === 'rezaajidharma@gmail.com') return 'super';
     if (emailLower === 'fikryadityar93@gmail.com' || emailLower === 'ariyansyah02122002@gmail.com') return 'admin';
-    
     return 'employee';
   };
 
@@ -141,13 +126,12 @@ const App: React.FC = () => {
       return;
     }
     if (!isSilent) setIsLoadingData(true);
-    
     const targetEmail = (userEmail || session?.user?.email || '').toLowerCase().trim();
 
     try {
       const { data: empData, error: empError } = await supabase
         .from('employees')
-        .select('id, idKaryawan, nama, jabatan, email, tempatLahir, tanggalLahir, alamat, noKtp, noHandphone, tanggalMasuk, bank, noRekening, namaDiRekening, company, avatarUrl, hutang, isRemoteAllowed, role');
+        .select('id, idKaryawan, nama, jabatan, email, tempatLahir, tanggalLahir, alamat, noKtp, noHandphone, tanggalMasuk, bank, noRekening, namaDiRekening, company, avatarUrl, hutang, isRemoteAllowed, role, salaryConfig');
       
       if (empError) throw empError;
       
@@ -157,18 +141,14 @@ const App: React.FC = () => {
 
       if (targetEmail) {
         currentEmp = allEmployees.find(e => (e.email || '').toLowerCase().trim() === targetEmail) || null;
-        
         if (currentEmp) {
           detectedCompany = currentEmp.company || 'Visibel';
           setUserCompany(detectedCompany);
-          
-          // Lazy load foto HANYA untuk user yang sedang login (untuk tampilan header)
           const { data: photoData } = await supabase.from('employees').select('photoBase64').eq('id', currentEmp.id).single();
           setCurrentUserEmployee({ ...currentEmp, photoBase64: photoData?.photoBase64 });
         } else {
           setCurrentUserEmployee(null);
         }
-        
         const currentRole = getRoleBasedOnEmail(targetEmail, currentEmp?.role);
         setUserRole(currentRole);
       }
@@ -210,20 +190,6 @@ const App: React.FC = () => {
       await Promise.all(fetchPromises);
     } catch (err: any) {
       setFetchError("Gagal sinkronisasi data.");
-    } finally {
-      setIsLoadingData(false);
-    }
-  };
-
-  const handleEditEmployee = async (emp: Employee) => {
-    setIsLoadingData(true);
-    try {
-      const { data, error } = await supabase.from('employees').select('*').eq('id', emp.id).single();
-      if (error) throw error;
-      setEditingEmployee(data);
-      setIsFormOpen(true);
-    } catch (err: any) {
-      alert("Gagal memuat data lengkap: " + err.message);
     } finally {
       setIsLoadingData(false);
     }
@@ -302,6 +268,20 @@ const App: React.FC = () => {
     return 0;
   }, [submissions, userRole]);
 
+  const handleEditEmployee = async (emp: Employee) => {
+    setIsLoadingData(true);
+    try {
+      const { data, error } = await supabase.from('employees').select('*').eq('id', emp.id).single();
+      if (error) throw error;
+      setEditingEmployee(data);
+      setIsFormOpen(true);
+    } catch (err: any) {
+      alert("Gagal memuat data lengkap: " + err.message);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
   const handleDeleteEmployee = async (id: string) => {
     if (!confirm('Hapus karyawan ini secara permanen?')) return;
     try {
@@ -329,7 +309,13 @@ const App: React.FC = () => {
       'TANGGAL MASUK': emp.tanggalMasuk,
       'BANK': emp.bank,
       'REKENING': emp.noRekening,
-      'HUTANG': emp.hutang
+      'HUTANG': emp.hutang,
+      'GAJI POKOK': emp.salaryConfig?.gapok || 0,
+      'TUNJANGAN MAKAN': emp.salaryConfig?.tunjanganMakan || 0,
+      'TUNJANGAN TRANSPORT': emp.salaryConfig?.tunjanganTransport || 0,
+      'TUNJANGAN KOMUNIKASI': emp.salaryConfig?.tunjanganKomunikasi || 0,
+      'TUNJANGAN KESEHATAN': emp.salaryConfig?.tunjanganKesehatan || 0,
+      'TUNJANGAN JABATAN': emp.salaryConfig?.tunjanganJabatan || 0
     }));
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
@@ -353,7 +339,13 @@ const App: React.FC = () => {
         'TANGGAL MASUK': '01/01/2024',
         'BANK': 'BCA',
         'REKENING': '1234567890',
-        'HUTANG': 0
+        'HUTANG': 0,
+        'GAJI POKOK': 0,
+        'TUNJANGAN MAKAN': 0,
+        'TUNJANGAN TRANSPORT': 0,
+        'TUNJANGAN KOMUNIKASI': 0,
+        'TUNJANGAN KESEHATAN': 0,
+        'TUNJANGAN JABATAN': 0
       }
     ];
     const ws = XLSX.utils.json_to_sheet(template);
@@ -375,15 +367,17 @@ const App: React.FC = () => {
         
         const MAX_INT = 2147483647; 
 
+        const parseNum = (val: any) => {
+          if (typeof val === 'number') return val;
+          const p = parseInt(String(val || '0').replace(/[^0-9]/g, ''), 10);
+          return isNaN(p) ? 0 : p;
+        };
+
         const newEmployees = jsonData.map((row: any) => {
           let rawHutang = row['HUTANG'] || 0;
-          let cleanHutang = 0;
-          if (typeof rawHutang === 'number') {
-            cleanHutang = rawHutang > 1000000000000 ? 0 : Math.min(rawHutang, MAX_INT);
-          } else {
-            const parsed = parseInt(String(rawHutang).replace(/[^0-9]/g, ''), 10);
-            cleanHutang = isNaN(parsed) ? 0 : (parsed > 1000000000000 ? 0 : Math.min(parsed, MAX_INT));
-          }
+          let cleanHutang = parseNum(rawHutang);
+          if (cleanHutang > 1000000000000) cleanHutang = 0;
+          else cleanHutang = Math.min(cleanHutang, MAX_INT);
 
           return {
             id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -400,7 +394,16 @@ const App: React.FC = () => {
             tanggalMasuk: String(row['TANGGAL MASUK'] || ''),
             bank: String(row['BANK'] || 'BCA'),
             noRekening: String(row['REKENING'] || ''),
-            hutang: cleanHutang
+            hutang: cleanHutang,
+            salaryConfig: {
+              gapok: parseNum(row['GAJI POKOK']),
+              tunjanganMakan: parseNum(row['TUNJANGAN MAKAN']),
+              tunjanganTransport: parseNum(row['TUNJANGAN TRANSPORT']),
+              tunjanganKomunikasi: parseNum(row['TUNJANGAN KOMUNIKASI']),
+              tunjanganKesehatan: parseNum(row['TUNJANGAN KESEHATAN']),
+              tunjanganJabatan: parseNum(row['TUNJANGAN JABATAN']),
+              bpjstk: 0, pph21: 0, lembur: 0, bonus: 0, thr: 0, potonganHutang: 0, potonganLain: 0
+            }
           };
         }).filter(emp => emp.nama && emp.email && (userRole === 'owner' || emp.company === userCompany));
 
@@ -413,7 +416,7 @@ const App: React.FC = () => {
           alert("Tidak ada data valid yang ditemukan.");
         }
       } catch (err: any) {
-        alert("Gagal menghapus: " + err.message);
+        alert("Gagal mengimpor: " + err.message);
       } finally {
         setIsImportingEmployees(false);
         if (employeeFileInputRef.current) employeeFileInputRef.current.value = '';
@@ -432,68 +435,77 @@ const App: React.FC = () => {
     }
   };
 
-  const isFullscreenModule = (activeTab as string) === 'absen' || (activeTab as string) === 'minvis';
+  const isFullscreenModule = activeTab === 'absen' || activeTab === 'minvis';
   const isAttendanceActive = ['absen', 'attendance', 'submissions', 'shift'].includes(activeTab);
-  const isModulActive = ['schedule', 'content', 'minvis'].includes(activeTab);
+  const isModulActive = ['schedule', 'content', 'minvis', 'calendar'].includes(activeTab);
 
   const isUnregistered = useMemo(() => {
     if (!session || isLoadingData) return false;
     return !currentUserEmployee && userRole === 'employee';
   }, [session, isLoadingData, currentUserEmployee, userRole]);
 
-  const isGlobalUser = userRole === 'owner';
   const isAdminAccess = userRole === 'owner' || userRole === 'super' || userRole === 'admin';
   const isHighAdminAccess = userRole === 'owner' || userRole === 'super';
 
-  const DesktopNav = () => (
-    <div className="flex items-center flex-nowrap">
-      <button onClick={() => setActiveTab('home')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'home' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>HOME</button>
-      <button onClick={() => setActiveTab('database')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'database' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>DATABASE</button>
-      <div className="relative" ref={desktopDropdownRef}>
-        <button onClick={() => setIsDesktopDropdownOpen(!isDesktopDropdownOpen)} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${isAttendanceActive ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-          PRESENSI <Icons.ChevronDown className={`w-3.5 h-3.5 transition-transform ${isDesktopDropdownOpen ? 'rotate-180' : ''}`} />
-        </button>
-        {isDesktopDropdownOpen && (
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
-            <button onClick={() => { setActiveTab('absen'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">ABSEN SEKARANG</button>
-            {userRole !== 'employee' && (
-              <>
+  const DesktopNav = () => {
+    const isSellerSpace = (userCompany || '').trim().toLowerCase() === 'seller space';
+
+    return (
+      <div className="flex items-center flex-nowrap">
+        <button onClick={() => setActiveTab('home')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'home' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>HOME</button>
+        <button onClick={() => setActiveTab('database')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'database' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>DATABASE</button>
+        <div className="relative" ref={desktopDropdownRef}>
+          <button onClick={() => setIsDesktopDropdownOpen(!isDesktopDropdownOpen)} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${isAttendanceActive ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+            PRESENSI <Icons.ChevronDown className={`w-3.5 h-3.5 transition-transform ${isDesktopDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {isDesktopDropdownOpen && (
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+              <button onClick={() => { setActiveTab('absen'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">ABSEN SEKARANG</button>
+              {userRole !== 'employee' && (
+                <>
+                  <div className="h-px bg-slate-50 w-full"></div>
+                  <button onClick={() => { setActiveTab('shift'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">JADWAL SHIFT</button>
+                </>
+              )}
+              <div className="h-px bg-slate-50 w-full"></div>
+              <button onClick={() => { setActiveTab('attendance'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">DATA ABSENSI</button>
+              <div className="h-px bg-slate-50 w-full"></div>
+              <button onClick={() => { setActiveTab('submissions'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">FORM PENGAJUAN</button>
+            </div>
+          )}
+        </div>
+
+        {/* Menu CONTENT di-hide jika company Seller Space */}
+        {!isSellerSpace && (
+          <div className="relative" ref={desktopModulRef}>
+            <button onClick={() => setIsDesktopModulOpen(!isDesktopModulOpen)} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${isModulActive ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+              CONTENT <Icons.ChevronDown className={`w-3.5 h-3.5 transition-transform ${isDesktopModulOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {isDesktopModulOpen && (
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+                <button onClick={() => { setActiveTab('schedule'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">LIVE STREAMING</button>
                 <div className="h-px bg-slate-50 w-full"></div>
-                <button onClick={() => { setActiveTab('shift'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">JADWAL SHIFT</button>
-              </>
+                <button onClick={() => { setActiveTab('content'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">SHORT VIDEO</button>
+                <div className="h-px bg-slate-50 w-full"></div>
+                {/* CALENDAR dihapus dari dropdown ini sesuai permintaan */}
+                <button onClick={() => { setActiveTab('minvis'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-[#FFC000] hover:text-black transition-colors text-[#334155]">MINVIS (AI)</button>
+              </div>
             )}
-            <div className="h-px bg-slate-50 w-full"></div>
-            <button onClick={() => { setActiveTab('attendance'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">DATA ABSENSI</button>
-            <div className="h-px bg-slate-50 w-full"></div>
-            <button onClick={() => { setActiveTab('submissions'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">FORM PENGAJUAN</button>
           </div>
         )}
-      </div>
 
-      <div className="relative" ref={desktopModulRef}>
-        <button onClick={() => setIsDesktopModulOpen(!isDesktopModulOpen)} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${isModulActive ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-          CONTENT <Icons.ChevronDown className={`w-3.5 h-3.5 transition-transform ${isDesktopModulOpen ? 'rotate-180' : ''}`} />
-        </button>
-        {isDesktopModulOpen && (
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
-            <button onClick={() => { setActiveTab('schedule'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">LIVE STREAMING</button>
-            <div className="h-px bg-slate-50 w-full"></div>
-            <button onClick={() => { setActiveTab('content'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">SHORT VIDEO</button>
-            <div className="h-px bg-slate-50 w-full"></div>
-            <button onClick={() => { setActiveTab('minvis'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-[#FFC000] hover:text-black transition-colors text-[#334155]">MINVIS (AI)</button>
-          </div>
+        {isHighAdminAccess && (
+          <button onClick={() => setActiveTab('inventory')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'inventory' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>ASET</button>
+        )}
+        {isHighAdminAccess && (
+          <button onClick={() => setActiveTab('kpi')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'kpi' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>KPI</button>
+        )}
+        {isHighAdminAccess && (
+          <button onClick={() => setActiveTab('settings')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>SETTING</button>
         )}
       </div>
-
-      {isHighAdminAccess && (
-        <button onClick={() => setActiveTab('kpi')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'kpi' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>PERFORMANCE KPI</button>
-      )}
-
-      {isHighAdminAccess && (
-        <button onClick={() => setActiveTab('settings')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>SETTING</button>
-      )}
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc]">
@@ -535,14 +547,11 @@ const App: React.FC = () => {
                     <div className="flex items-center cursor-pointer shrink-0 sm:w-auto" onClick={() => setActiveTab('home')}>
                       <img src={currentLogo} alt="Logo" className={`${ (userCompany || '').trim().toLowerCase() === 'seller space' ? 'h-[80px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} />
                     </div>
-
                     <div className="flex-1 min-w-0 flex justify-center">
                       <div className="hidden md:block bg-slate-100/60 p-1.5 rounded-full border border-slate-100 shadow-inner relative">
                         <DesktopNav />
                       </div>
-                      <div className="md:hidden"></div>
                     </div>
-
                     <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 w-[75px] sm:w-auto justify-end">
                       <button onClick={() => setActiveTab('inbox')} className={`p-2 sm:p-3.5 rounded-full relative shadow-sm border transition-all ${activeTab === 'inbox' ? 'bg-slate-900 text-[#FFC000] border-slate-900' : 'bg-slate-50 text-slate-400 border-slate-100 hover:bg-white'}`}>
                         <Icons.Mail className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
@@ -562,6 +571,10 @@ const App: React.FC = () => {
                 <AbsenModule employee={currentUserEmployee} attendanceRecords={attendanceRecords} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'minvis' ? (
                 <MinVisModule onClose={() => setActiveTab('home')} />
+              ) : activeTab === 'inventory' ? (
+                <InventoryModule company={userCompany} userRole={userRole} onClose={() => setActiveTab('home')} />
+              ) : activeTab === 'calendar' ? (
+                <CalendarModule employees={employees} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'kpi' ? (
                 <KPIModule employees={employees} attendanceRecords={attendanceRecords} contentPlans={contentPlans} liveReports={liveReports} userRole={userRole} currentEmployee={currentUserEmployee} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'shift' ? (
@@ -580,11 +593,9 @@ const App: React.FC = () => {
                 <SettingsModule userRole={userRole} userCompany={userCompany} onRefresh={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'database' ? (
                 <div className="bg-[#f8fafc] sm:bg-white rounded-none sm:rounded-[60px] sm:shadow-sm sm:border sm:border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
-                  {/* SEARCH & FILTER SECTION - Optimized for Screenshot */}
                   <div className="px-5 sm:px-14 py-8 sm:py-16 flex flex-col items-center sm:items-start bg-transparent sm:bg-white gap-6">
                       <h2 className="font-black text-slate-900 uppercase tracking-tight text-4xl sm:text-7xl -mb-4">Data Karyawan</h2>
                       <span className="inline-block bg-white sm:bg-slate-50 text-slate-400 text-[10px] font-black uppercase px-5 py-2.5 rounded-full tracking-widest shadow-sm sm:shadow-none border border-slate-100 sm:border-none">{filteredEmployees.length} ENTRI {userRole === 'owner' ? '(GLOBAL)' : `(${userCompany})`}</span>
-                      
                       <div className="w-full flex flex-col gap-4 max-w-lg mx-auto sm:max-w-none">
                         <div className="flex flex-col sm:flex-row gap-4 w-full">
                           {userRole === 'owner' && (
@@ -603,7 +614,6 @@ const App: React.FC = () => {
                                </div>
                             </div>
                           )}
-
                           <div className="relative flex-grow w-full bg-white rounded-full shadow-md border border-slate-100 px-6 py-3 flex items-center gap-4 sm:gap-6">
                             <Icons.Search className="w-4 h-4 sm:w-5 sm:h-5 text-slate-300 shrink-0" />
                             <input 
@@ -615,7 +625,6 @@ const App: React.FC = () => {
                             />
                           </div>
                         </div>
-
                         <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:justify-start w-full mt-2">
                           <button onClick={handleDownloadTemplate} className="bg-[#e2e8f0] hover:bg-slate-300 text-slate-600 px-5 py-3 rounded-full flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest transition-all shadow-sm active:scale-95">
                             <Icons.Download className="w-4 h-4" /> TEMPLATE
@@ -629,16 +638,20 @@ const App: React.FC = () => {
                           <button onClick={() => employeeFileInputRef.current?.click()} disabled={isImportingEmployees} className="bg-[#059669] hover:bg-[#047857] text-white px-5 py-3 rounded-full flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
                             <Icons.Upload className="w-4 h-4" /> {isImportingEmployees ? '...' : 'UNGGAH'}
                           </button>
-                          <button onClick={handleExportAllEmployees} className="bg-[#0f172a] hover:bg-black text-white p-3 rounded-full flex items-center justify-center shadow-md active:scale-95 w-fit justify-self-center sm:justify-self-start">
-                            <Icons.Database className="w-4 h-4" />
-                          </button>
+                          <div className="flex gap-2">
+                            <button onClick={handleExportAllEmployees} className="bg-[#0f172a] hover:bg-black text-white p-3 rounded-full flex items-center justify-center shadow-md active:scale-95" title="Export Database">
+                              <Icons.Database className="w-4 h-4" />
+                            </button>
+                            {isAdminAccess && (
+                              <button onClick={() => setIsBulkSalaryOpen(true)} className="bg-[#6366f1] hover:bg-[#4f46e5] text-white p-3 rounded-full flex items-center justify-center shadow-md active:scale-95" title="Kirim Semua Slip">
+                                <Icons.Send className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                   </div>
-
-                  {/* LIST VIEW - Minimalist for Mobile, Table for Desktop */}
                   <div className="w-full overflow-hidden">
-                    {/* Desktop Header */}
                     <div className="hidden md:grid grid-cols-8 bg-slate-50 text-slate-500 text-[10px] uppercase font-bold tracking-[0.15em] border-b border-slate-100 px-14 py-6 sticky top-0 z-10">
                       <div className="col-span-2">COMPANY</div>
                       <div className="col-span-1">ID KARYAWAN</div>
@@ -647,106 +660,53 @@ const App: React.FC = () => {
                       <div className="col-span-1">CUTI</div>
                       <div className="col-span-1 text-right">AKSI</div>
                     </div>
-
-                    {/* Mobile Header (Minimalist) */}
-                    <div className="md:hidden grid grid-cols-2 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] px-8 py-4 border-b border-slate-100 bg-white shadow-sm">
-                      <div>NAMA KARYAWAN</div>
-                      <div className="text-right pr-4">ID KARYAWAN</div>
-                    </div>
-
-                    {/* Rows */}
                     <div className="bg-white">
                       {paginatedEmployeesList.map((emp) => {
-                        const tenureYears = getTenureYears(emp.tanggalMasuk);
-                        const leaveQuota = tenureYears >= 1 ? 12 : 0;
-                        const currentYear = new Date().getFullYear();
-                        const usedLeave = attendanceRecords.filter(r => 
-                          r.employeeId === emp.id && 
-                          r.status === 'Cuti' && 
-                          new Date(r.date).getFullYear() === currentYear
-                        ).length;
+                        const tenureY = getTenureYears(emp.tanggalMasuk);
+                        const leaveQuota = tenureY >= 1 ? 12 : 0;
+                        const usedLeave = attendanceRecords.filter(r => r.employeeId === emp.id && r.status === 'Cuti' && new Date(r.date).getFullYear() === new Date().getFullYear()).length;
                         const sisaCuti = Math.max(0, leaveQuota - usedLeave);
-                        
                         return (
-                          <div key={emp.id} className="hover:bg-slate-50/70 transition-all duration-300 group border-b border-slate-50 last:border-0">
-                            {/* MOBILE ROW */}
+                          <div key={emp.id} className="hover:bg-slate-50/70 transition-all duration-300 border-b border-slate-50 last:border-0">
                             <div className="md:hidden p-6 flex items-center justify-between relative group overflow-hidden">
-                              {/* Left Accent Bar */}
                               <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-rose-500 rounded-r-full shadow-[2px_0_10px_rgba(244,63,94,0.3)]"></div>
-                              
                               <div className="flex-1 min-w-0">
                                 <p className="text-[14px] font-black text-slate-900 uppercase tracking-tight truncate pl-2">{emp.nama}</p>
                                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-2 mt-1 truncate">{emp.jabatan}</p>
                               </div>
-
                               <div className="flex items-center gap-4 shrink-0">
-                                <span className="bg-[#f1f5f9] text-slate-600 font-black text-[11px] uppercase px-5 py-2.5 rounded-full tracking-[0.1em] border border-slate-200/50 shadow-sm">
-                                  {emp.idKaryawan || 'VSB-13'}
-                                </span>
-                                
-                                {/* Quick Mobile Actions - Show on click or hover */}
+                                <span className="bg-[#f1f5f9] text-slate-600 font-black text-[11px] uppercase px-5 py-2.5 rounded-full tracking-[0.1em] border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span>
                                 <div className="flex gap-1.5 ml-2">
-                                   <button onClick={() => setSlipEmployee(emp)} className="p-2 text-emerald-600 bg-emerald-50 rounded-lg active:scale-90"><Icons.Download className="w-4 h-4" /></button>
-                                   <button onClick={() => handleEditEmployee(emp)} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg active:scale-90"><Icons.Edit className="w-4 h-4" /></button>
+                                   <button onClick={() => setSlipEmployee(emp)} className="p-2 text-emerald-600 bg-emerald-50 rounded-lg"><Icons.Download className="w-4 h-4" /></button>
+                                   <button onClick={() => handleEditEmployee(emp)} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg"><Icons.Edit className="w-4 h-4" /></button>
                                 </div>
                               </div>
                             </div>
-
-                            {/* DESKTOP ROW */}
                             <div className="hidden md:grid grid-cols-8 items-center px-14 py-7 gap-4">
-                              <div className="col-span-2 whitespace-nowrap">
-                                <span className="text-sm font-bold text-slate-800 uppercase tracking-tight">{emp.company || 'VISIBEL'}</span>
-                              </div>
-                              <div className="col-span-1">
-                                <span className="inline-block bg-slate-50 text-slate-700 font-black text-[10px] uppercase px-4 py-2 rounded-xl tracking-[0.1em] border border-slate-200/50 shadow-sm whitespace-nowrap">
-                                  {emp.idKaryawan || 'VSB-00'}
-                                </span>
-                              </div>
+                              <div className="col-span-2"><span className="text-sm font-bold text-slate-800 uppercase">{emp.company}</span></div>
+                              <div className="col-span-1"><span className="inline-block bg-slate-50 text-slate-700 font-black text-[10px] uppercase px-4 py-2 rounded-xl border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span></div>
                               <div className="col-span-2">
-                                <div className="flex items-center gap-5">
-                                    <div className="min-w-0">
-                                      <p className="font-semibold text-slate-900 text-[14px] uppercase truncate leading-tight mb-1 tracking-tight">{emp.nama}</p>
-                                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{emp.jabatan}</p>
-                                    </div>
-                                </div>
+                                <p className="font-semibold text-slate-900 text-[14px] uppercase truncate">{emp.nama}</p>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{emp.jabatan}</p>
                               </div>
                               <div className="col-span-1">
-                                <p className="text-[11px] font-black text-slate-800 uppercase tracking-tight leading-none">{emp.tempatLahir}</p>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-1">{emp.tanggalLahir}</p>
+                                <p className="text-[11px] font-black text-slate-800 uppercase">{emp.tempatLahir}</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{emp.tanggalLahir}</p>
                               </div>
-                              <div className="col-span-1">
-                                <span className={`inline-block font-black text-[10px] px-3 py-1 rounded-lg ${sisaCuti > 0 ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
-                                  {sisaCuti} HARI
-                                </span>
-                              </div>
+                              <div className="col-span-1"><span className={`inline-block font-black text-[10px] px-3 py-1 rounded-lg ${sisaCuti > 0 ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>{sisaCuti} HARI</span></div>
                               <div className="col-span-1 text-right">
                                 <div className="flex justify-end gap-2">
-                                  {(userRole === 'owner' || userRole === 'super' || emp.id === currentUserEmployee?.id) && (
-                                    <button onClick={() => setSlipEmployee(emp)} className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-emerald-100 shadow-sm bg-white" title="Slip Gaji"><Icons.Download className="w-4 h-4" /></button>
-                                  )}
-                                  {(userRole === 'owner' || userRole === 'super' || emp.id === currentUserEmployee?.id) && (
-                                    <button onClick={() => handleEditEmployee(emp)} className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-cyan-100 shadow-sm bg-white" title="Edit Data"><Icons.Edit className="w-4 h-4" /></button>
-                                  )}
-                                  {(userRole === 'owner' || userRole === 'super') && (
-                                    <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-rose-100 shadow-sm bg-white" title="Hapus"><Icons.Trash className="w-4 h-4" /></button>
-                                  )}
+                                  <button onClick={() => setSlipEmployee(emp)} className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white"><Icons.Download className="w-4 h-4" /></button>
+                                  <button onClick={() => handleEditEmployee(emp)} className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white"><Icons.Edit className="w-4 h-4" /></button>
+                                  {isHighAdminAccess && <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white"><Icons.Trash className="w-4 h-4" /></button>}
                                 </div>
                               </div>
                             </div>
                           </div>
                         );
                       })}
-                      {filteredEmployees.length === 0 && (
-                        <div className="py-24 text-center">
-                          <div className="flex flex-col items-center justify-center space-y-4 opacity-30">
-                            <Icons.Users className="w-16 h-16" />
-                            <p className="text-sm font-black uppercase tracking-[0.4em]">Data Tidak Ditemukan</p>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
-
                   {totalEmpPages > 1 && (
                     <div className="px-8 sm:px-14 py-10 flex items-center justify-between border-t border-slate-100 bg-white">
                       <div className="flex items-center gap-3">
@@ -754,38 +714,16 @@ const App: React.FC = () => {
                         <span className="text-xs font-black text-slate-900 px-4 py-2 bg-slate-50 rounded-full border border-slate-200">{currentEmpPage} / {totalEmpPages}</span>
                       </div>
                       <div className="flex gap-3">
-                        <button 
-                          disabled={currentEmpPage === 1}
-                          onClick={() => { setCurrentEmpPage(prev => prev - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                          className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-90 flex items-center justify-center"
-                        >
-                          <Icons.ChevronDown className="w-5 h-5 rotate-90" />
-                        </button>
-                        <button 
-                          disabled={currentEmpPage === totalEmpPages}
-                          onClick={() => { setCurrentEmpPage(prev => prev + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                          className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-90 flex items-center justify-center"
-                        >
-                          <Icons.ChevronDown className="w-5 h-5 -rotate-90" />
-                        </button>
+                        {/* Fix: Changed setCurrentPage to setCurrentEmpPage */}
+                        <button disabled={currentEmpPage === 1} onClick={() => setCurrentEmpPage(prev => prev - 1)} className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 flex items-center justify-center"><Icons.ChevronDown className="w-5 h-5 rotate-90" /></button>
+                        {/* Fix: Changed setCurrentPage to setCurrentEmpPage */}
+                        <button disabled={currentEmpPage === totalEmpPages} onClick={() => setCurrentEmpPage(prev => prev + 1)} className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 flex items-center justify-center"><Icons.ChevronDown className="w-5 h-5 -rotate-90" /></button>
                       </div>
                     </div>
                   )}
                 </div>
               ) : (
-                <Dashboard 
-                  employees={filteredEmployees} 
-                  submissions={submissions} 
-                  broadcasts={broadcasts} 
-                  userRole={userRole} 
-                  currentUserEmployee={currentUserEmployee} 
-                  contentPlans={contentPlans} 
-                  onNavigate={setActiveTab} 
-                  userCompany={userCompany}
-                  onOpenBroadcast={() => setIsAnnouncementOpen(true)}
-                  onOpenDrive={handleOpenDrive}
-                  contentBrandConfigs={[]}
-                />
+                <Dashboard employees={filteredEmployees} submissions={submissions} broadcasts={broadcasts} userRole={userRole} currentUserEmployee={currentUserEmployee} contentPlans={contentPlans} attendanceRecords={attendanceRecords} shiftAssignments={shiftAssignments} onNavigate={setActiveTab} userCompany={userCompany} onOpenBroadcast={() => setIsAnnouncementOpen(true)} onOpenDrive={handleOpenDrive} />
               )}
             </main>
           </>
@@ -793,13 +731,9 @@ const App: React.FC = () => {
       ) : (
         <div className="flex-grow flex items-center justify-center p-6 animate-in fade-in duration-700 bg-white">
           <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden border border-slate-100">
-            <div className="bg-black p-12 text-center">
-              <img src={VISIBEL_LOGO} alt="Logo" className="w-[180px] h-auto mx-auto" />
-            </div>
+            <div className="bg-black p-12 text-center"><img src={VISIBEL_LOGO} alt="Logo" className="w-[180px] h-auto mx-auto" /></div>
             <form onSubmit={(e) => { e.preventDefault(); handleAuth(loginEmailInput, loginPasswordInput, isRegisterMode, isForgotPasswordMode); }} className="p-10 space-y-8">
-              <h2 className="text-2xl font-bold text-[#0f172a] text-center uppercase tracking-[0.3em]">
-                {isForgotPasswordMode ? 'RESET' : isRegisterMode ? 'DAFTAR BARU' : 'LOGIN'}
-              </h2>
+              <h2 className="text-2xl font-bold text-[#0f172a] text-center uppercase tracking-[0.3em]">{isForgotPasswordMode ? 'RESET' : isRegisterMode ? 'DAFTAR BARU' : 'LOGIN'}</h2>
               <div className="space-y-6">
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">EMAIL TERDAFTAR</label>
@@ -810,53 +744,37 @@ const App: React.FC = () => {
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">KATA SANDI</label>
                     <div className="relative">
                       <input required type={showPassword ? 'text' : 'password'} value={loginPasswordInput} onChange={(e) => setLoginPasswordInput(e.target.value)} placeholder="••••••••" className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#FFC000] text-sm font-medium text-black transition-all" />
-                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400">
-                        <Icons.Search className="w-5 h-5" />
-                      </button>
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search className="w-5 h-5" /></button>
                     </div>
                   </div>
                 )}
               </div>
               {authError && <p className="text-xs text-red-600 text-center font-bold">{authError}</p>}
-              <div className="space-y-4">
-                <button disabled={isAuthLoading} type="submit" className="w-full bg-[#0f172a] text-white py-5 rounded-3xl font-bold text-xs uppercase tracking-[0.4em] shadow-xl active:scale-[0.98] transition-all hover:bg-black">
-                  {isAuthLoading ? 'MENGHUBUNGKAN...' : 'MASUK'}
-                </button>
-              </div>
-
-              <div className="text-center flex-col gap-4 pt-2 flex">
-                <button type="button" onClick={() => { setIsRegisterMode(!isRegisterMode); setIsForgotPasswordMode(false); }} className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hover:text-slate-900 transition-colors">
-                  {isRegisterMode ? 'KEMBALI KE LOGIN' : 'DAFTAR BARU'}
-                </button>
-                {!isRegisterMode && (
-                  <button type="button" onClick={() => setIsForgotPasswordMode(!isForgotPasswordMode)} className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hover:text-slate-900 transition-colors">
-                    {isForgotPasswordMode ? 'KEMBALI KE LOGIN' : 'LUPA PASSWORD?'}
-                  </button>
-                )}
+              <button disabled={isAuthLoading} type="submit" className="w-full bg-[#0f172a] text-white py-5 rounded-3xl font-bold text-xs uppercase tracking-[0.4em] shadow-xl hover:bg-black transition-all">{isAuthLoading ? 'MENGHUBUNGKAN...' : 'MASUK'}</button>
+              <div className="text-center flex flex-col gap-4 pt-2">
+                <button type="button" onClick={() => { setIsRegisterMode(!isRegisterMode); setIsForgotPasswordMode(false); }} className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hover:text-slate-900 transition-colors">{isRegisterMode ? 'KEMBALI KE LOGIN' : 'DAFTAR BARU'}</button>
+                {!isRegisterMode && <button type="button" onClick={() => setIsForgotPasswordMode(!isForgotPasswordMode)} className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hover:text-slate-900 transition-colors">{isForgotPasswordMode ? 'KEMBALI KE LOGIN' : 'LUPA PASSWORD?'}</button>}
               </div>
             </form>
           </div>
         </div>
       )}
 
-      <footer className={`py-12 sm:py-16 shrink-0 border-none transition-colors duration-700 ${session ? 'bg-[#f8fafc]' : 'bg-white'}`}>
+      <footer className={`pt-4 pb-12 sm:py-16 shrink-0 border-none transition-colors duration-700 ${session ? 'bg-[#f8fafc]' : 'bg-white'}`}>
         <div className="max-w-7xl mx-auto px-6 flex flex-col items-center gap-8">
           <img src={VISIBEL_LOGO} alt="Logo" className={`h-10 sm:h-12 transition-all duration-700 ${session ? 'opacity-20 grayscale brightness-0' : 'opacity-80'}`} />
-          
           <div className="flex flex-wrap justify-center gap-x-10 gap-y-4">
-             <button onClick={() => setLegalType('contact')} className={`text-[10px] font-black uppercase tracking-widest transition-colors ${session ? 'text-slate-400 hover:text-slate-900' : 'text-slate-500 hover:text-slate-900'}`}>Hubungi Kami</button>
-             <button onClick={() => setLegalType('privacy')} className={`text-[10px] font-black uppercase tracking-widest transition-colors ${session ? 'text-slate-400 hover:text-slate-900' : 'text-slate-500 hover:text-slate-900'}`}>Kebijakan Privasi</button>
-             <button onClick={() => setLegalType('tos')} className={`text-[10px] font-black uppercase tracking-widest transition-colors ${session ? 'text-slate-400 hover:text-slate-900' : 'text-slate-500 hover:text-slate-900'}`}>Syarat & Ketentuan</button>
+             <button onClick={() => setLegalType('contact')} className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-900">Hubungi Kami</button>
+             <button onClick={() => setLegalType('privacy')} className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-900">Kebijakan Privasi</button>
+             <button onClick={() => setLegalType('tos')} className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-900">Syarat & Ketentuan</button>
           </div>
-
-          <p className={`text-[9px] font-bold uppercase tracking-[0.4em] text-center leading-relaxed transition-colors duration-700 ${session ? 'text-slate-300' : 'text-slate-300'}`}>
-            &copy; 2026 VISIBEL ID • SISTEM MANAJEMEN
-          </p>
+          <p className="text-[9px] font-bold uppercase tracking-[0.4em] text-center text-slate-300">&copy; 2026 VISIBEL ID • SISTEM MANAJEMEN</p>
         </div>
       </footer>
 
       {isFormOpen && <EmployeeForm employees={employees} initialData={editingEmployee} userRole={userRole} userCompany={userCompany} currentUserEmployee={currentUserEmployee} onSave={async (emp) => { await supabase.from('employees').upsert(emp); fetchData(session?.user?.email, true); setIsFormOpen(false); }} onCancel={() => setIsFormOpen(false)} />}
       {slipEmployee && <SalarySlipModal employee={slipEmployee} attendanceRecords={attendanceRecords} userRole={userRole} onClose={() => setSlipEmployee(null)} onUpdate={() => fetchData(session?.user?.email, true)} weeklyHolidays={weeklyHolidays} />}
+      {isBulkSalaryOpen && <BulkSalaryModal employees={filteredEmployees} attendanceRecords={attendanceRecords} userRole={userRole} company={userCompany} weeklyHolidays={weeklyHolidays} onClose={() => setIsBulkSalaryOpen(false)} />}
       {isAnnouncementOpen && <AnnouncementModal employees={filteredEmployees} company={userCompany} onClose={() => setIsAnnouncementOpen(false)} onSuccess={() => fetchData(session?.user?.email, true)} />}
       {legalType && <LegalModal type={legalType} onClose={() => setLegalType(null)} />}
     </div>

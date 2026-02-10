@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, LiveSchedule, LiveReport, AttendanceRecord } from '../types';
@@ -26,6 +25,15 @@ const getLocalDateString = () => {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getSevenDaysAgoString = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 7);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
@@ -73,11 +81,11 @@ const DAYS_OF_WEEK = ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MIN
 const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, schedules, setSchedules, reports, setReports, userRole = 'employee', company, onClose, attendanceRecords = [] }) => {
   const readOnly = userRole === 'employee';
   const [activeSubTab, setActiveSubTab] = useState<'JADWAL' | 'REPORT' | 'GRAFIK' | 'LIBUR' | 'BRAND'>('JADWAL');
-  const [startDate, setStartDate] = useState(getLocalDateString());
+  const [startDate, setStartDate] = useState(getSevenDaysAgoString());
   const [endDate, setEndDate] = useState(getLocalDateString());
   const [localSearch, setLocalSearch] = useState('');
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('SEMUA BRAND');
-  const [showEmptySlots] = useState(false);
+  const [showEmptySlots] = useState(true); // Default to true to show grid as requested
   const [isImporting, setIsImporting] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
   
@@ -204,7 +212,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
     reader.onload = async (event) => {
       try {
         const data = new Uint8Array(event.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+        const workbook = XLSX.read(data, { type: 'array' });
         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         
         const rawSchedules = jsonData.map((row: any) => {
