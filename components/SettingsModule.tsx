@@ -27,7 +27,7 @@ interface KPISystemData {
 }
 
 const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, onRefresh }) => {
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>('MAPS');
+  const [activeSubTab, setActiveSubTab] = useState<SubTab>('ROLE');
   const [selectedCompany, setSelectedCompany] = useState<string>(userCompany);
   const [allCompanies, setAllCompanies] = useState<string[]>([]);
   
@@ -145,11 +145,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     setIsSaving(true);
     try {
       const targetCompany = isOwner ? selectedCompany : userCompany;
-      const { error } = await supabase.from('settings').upsert({
+      const { error: settingsError } = await supabase.from('settings').upsert({
         key: `kpi_system_${targetCompany}`,
         value: newData
       }, { onConflict: 'key' });
-      if (error) throw error;
+      if (settingsError) throw settingsError;
       setKpiSystem(newData);
     } catch (err: any) {
       alert("Gagal menyimpan kriteria KPI: " + err.message);
@@ -276,12 +276,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                 )}
               </div>
               <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner mt-4 w-fit">
-                <button 
-                  onClick={() => setActiveSubTab('MAPS')} 
-                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'MAPS' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  MAPS
-                </button>
                 {canAccessRoleManagement && (
                   <button 
                     onClick={() => setActiveSubTab('ROLE')} 
@@ -298,6 +292,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                     KPI
                   </button>
                 )}
+                <button 
+                  onClick={() => setActiveSubTab('MAPS')} 
+                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'MAPS' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  MAPS
+                </button>
               </div>
             </div>
           </div>
@@ -375,8 +375,15 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
             </div>
 
             <div className="space-y-8">
-              <div className="p-4 bg-slate-50 rounded-[40px] border border-slate-100 aspect-video overflow-hidden relative shadow-inner">
-                  <iframe width="100%" height="100%" frameBorder="0" scrolling="no" src={`https://maps.google.com/maps?q=${settings.latitude},${settings.longitude}&hl=id&z=16&output=embed`}></iframe>
+              <div className="p-10 bg-slate-50 rounded-[40px] border border-slate-100 aspect-video flex flex-col items-center justify-center text-center gap-4 shadow-inner relative overflow-hidden">
+                  <div className="bg-white/80 backdrop-blur-md p-8 rounded-3xl border border-slate-200 shadow-xl z-10 max-w-xs">
+                    <Icons.MapPin className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">Live Map Disabled</p>
+                    <p className="text-xs font-medium text-slate-400 leading-relaxed">Peta dinonaktifkan untuk menghemat penggunaan data (egress). Gunakan tombol Preview untuk melihat di tab baru.</p>
+                  </div>
+                  <div className="absolute inset-0 opacity-5 pointer-events-none">
+                    <Icons.Map className="w-full h-full" />
+                  </div>
               </div>
               <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 flex flex-col h-[300px]">
                  <h4 className="text-[11px] font-black text-slate-900 uppercase mb-4 tracking-widest">Izin Remote (Individu)</h4>
@@ -384,9 +391,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                     {employees.map(emp => (
                       <div key={emp.id} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center justify-between shadow-sm">
                          <div className="flex items-center gap-3 truncate">
-                            <div className="w-8 h-8 rounded-lg overflow-hidden border bg-slate-50 shrink-0">
-                               {emp.photoBase64 ? <img src={emp.photoBase64} className="w-full h-full object-cover" /> : null}
-                            </div>
                             <p className="text-[10px] font-black text-slate-900 uppercase truncate">{emp.nama}</p>
                          </div>
                          <button 
@@ -435,9 +439,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                        <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-10 py-5 whitespace-nowrap">
                              <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-100 bg-white shadow-sm shrink-0">
-                                   {emp.photoBase64 ? <img src={emp.photoBase64} className="w-full h-full object-cover" /> : null}
-                                </div>
                                 <div>
                                    <p className="text-[11px] font-black text-slate-900 uppercase">{emp.nama}</p>
                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">{emp.idKaryawan}</p>

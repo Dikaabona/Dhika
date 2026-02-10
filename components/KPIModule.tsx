@@ -158,7 +158,6 @@ const KPIModule: React.FC<KPIModuleProps> = ({
     attEnd.setHours(23,59,59,999);
 
     // Perhitungan Rentang Tanggal Konten (Cut off 25)
-    // Berarti periode adalah 26 bulan lalu sampai 25 bulan ini
     const contentStart = new Date(selectedYear, selectedMonth - 1, 26);
     const contentEnd = new Date(selectedYear, selectedMonth, 25);
     contentStart.setHours(0,0,0,0);
@@ -324,13 +323,6 @@ const KPIModule: React.FC<KPIModuleProps> = ({
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-4">
                   <div className="relative shrink-0">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl overflow-hidden border-2 border-slate-50 shadow-sm bg-slate-50 flex items-center justify-center">
-                      {data.photoBase64 ? (
-                        <img src={data.photoBase64} className="w-full h-full object-cover" alt="" />
-                      ) : (
-                        <Icons.Users className="w-5 h-5 text-slate-200" />
-                      )}
-                    </div>
                     <div className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-slate-900 text-[#FFC000] rounded-full flex items-center justify-center text-[9px] font-black border border-white shadow-sm">
                       {(currentPage - 1) * itemsPerPage + idx + 1}
                     </div>

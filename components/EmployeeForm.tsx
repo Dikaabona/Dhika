@@ -42,6 +42,8 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     contractDocBase64: ''
   });
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   useEffect(() => {
     if (initialData) {
       const { id, ...rest } = initialData;
@@ -89,11 +91,16 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     }
   }, [initialData, employees, userCompany]);
 
+  const formatCurrencyInput = (value: string) => {
+    const numericValue = value.replace(/\D/g, '');
+    if (!numericValue) return '0';
+    return new Intl.NumberFormat('id-ID').format(parseInt(numericValue));
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target as HTMLInputElement;
     
     const restrictedFields = ['idKaryawan', 'jabatan', 'tanggalMasuk', 'hutang', 'company', 'isRemoteAllowed'];
-    
     if (!isSystemAdmin && restrictedFields.includes(name)) return;
 
     if (type === 'checkbox') {
@@ -102,12 +109,28 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
       return;
     }
 
-    if (['noRekening', 'noKtp', 'noHandphone', 'hutang'].includes(name)) {
+    if (name === 'hutang') {
       const numericValue = value.replace(/\D/g, '');
-      setFormData(prev => ({ ...prev, [name]: name === 'hutang' ? Number(numericValue) : numericValue }));
+      setFormData(prev => ({ ...prev, [name]: Number(numericValue) }));
       return;
     }
+
+    if (['noRekening', 'noKtp', 'noHandphone'].includes(name)) {
+      const numericValue = value.replace(/\D/g, '');
+      setFormData(prev => ({ ...prev, [name]: numericValue }));
+      return;
+    }
+
     setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Clear error for field when typing
+    if (errors[name]) {
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'photo') => {
@@ -151,11 +174,35 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     reader.readAsDataURL(file);
   };
 
+  const validate = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    
+    // Tempat Lahir Required
+    if (!formData.tempatLahir.trim()) {
+      newErrors.tempatLahir = "Tempat lahir wajib diisi.";
+    }
+
+    // Tanggal Lahir DD/MM/YYYY validation
+    const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
+    if (!dateRegex.test(formData.tanggalLahir)) {
+      newErrors.tanggalLahir = "Format harus DD/MM/YYYY (contoh: 01/01/1995).";
+    }
+
+    // Nomor KTP 16 Digits validation
+    if (formData.noKtp.length !== 16) {
+      newErrors.noKtp = "Nomor KTP harus tepat 16 digit.";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validate()) return;
+
     onSave({
       ...formData,
-      // Gunakan ID yang lebih unik untuk database alih-alih Date.now sederhana
       id: initialData?.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     });
   };
@@ -219,11 +266,13 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tempat Lahir</label>
-                <input required name="tempatLahir" value={formData.tempatLahir} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+                <input required name="tempatLahir" value={formData.tempatLahir} onChange={handleChange} className={`w-full px-5 py-3 bg-slate-50 border rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all ${errors.tempatLahir ? 'border-rose-500' : 'border-slate-100'}`} />
+                {errors.tempatLahir && <p className="text-[10px] text-rose-500 font-bold uppercase">{errors.tempatLahir}</p>}
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tanggal Lahir</label>
-                <input required name="tanggalLahir" value={formData.tanggalLahir} onChange={handleChange} placeholder="DD/MM/YYYY" className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tanggal Lahir (DD/MM/YYYY)</label>
+                <input required name="tanggalLahir" value={formData.tanggalLahir} onChange={handleChange} placeholder="01/01/1995" className={`w-full px-5 py-3 bg-slate-50 border rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all ${errors.tanggalLahir ? 'border-rose-500' : 'border-slate-100'}`} />
+                {errors.tanggalLahir && <p className="text-[10px] text-rose-500 font-bold uppercase">{errors.tanggalLahir}</p>}
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
@@ -233,15 +282,15 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
                   )}
                 </div>
                 <input required type="email" name="email" value={formData.email} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
-                <p className="text-[8px] text-slate-400 font-bold uppercase leading-tight italic">Penting: Masukkan email Gmail yang akan digunakan karyawan untuk login via Google.</p>
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Nomor HP</label>
                 <input required name="noHandphone" value={formData.noHandphone} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Nomor KTP</label>
-                <input required name="noKtp" value={formData.noKtp} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Nomor KTP (16 Digit)</label>
+                <input required name="noKtp" value={formData.noKtp} onChange={handleChange} maxLength={16} className={`w-full px-5 py-3 bg-slate-50 border rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all ${errors.noKtp ? 'border-rose-500' : 'border-slate-100'}`} />
+                {errors.noKtp && <p className="text-[10px] text-rose-500 font-bold uppercase">{errors.noKtp}</p>}
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tanggal Masuk</label>
@@ -249,7 +298,10 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total Hutang Karyawan (Rp)</label>
-                <input name="hutang" readOnly={!isSystemAdmin} value={formData.hutang || 0} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-black text-black outline-none focus:bg-white transition-all text-lg disabled:opacity-70" />
+                <div className="relative">
+                  <input name="hutang" readOnly={!isSystemAdmin} value={formatCurrencyInput(String(formData.hutang || 0))} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-black text-black outline-none focus:bg-white transition-all text-lg disabled:opacity-70 pl-12" />
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-xs">Rp</span>
+                </div>
               </div>
               <div className="flex items-center gap-3 bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
                 <input 

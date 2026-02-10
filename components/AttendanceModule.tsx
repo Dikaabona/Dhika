@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, AttendanceRecord } from '../types';
@@ -223,6 +222,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
       case 'Alpha': return 'bg-rose-50 text-rose-600 border-rose-100 font-bold';
       case 'Cuti': return 'bg-indigo-50 text-indigo-600 border-indigo-100';
       case 'Lembur': return 'bg-[#0f172a] text-[#FFC000] border-[#0f172a] shadow-sm';
+      case 'Reimburse': return 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100';
       default: return 'bg-slate-50 text-slate-400 border-slate-100';
     }
   };
@@ -344,9 +344,6 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
-                         <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl overflow-hidden border-2 border-white shadow-sm shrink-0 bg-slate-50">
-                            {row.employee.photoBase64 || row.employee.avatarUrl ? <img src={row.employee.photoBase64 || row.employee.avatarUrl} className="w-full h-full object-cover" alt="" /> : <Icons.Users className="w-5 h-5 text-slate-300 m-auto mt-3.5" />}
-                         </div>
                          <div className="min-w-0">
                             <p className="text-[10px] sm:text-[11px] font-black uppercase text-slate-900 truncate max-w-[150px]">{row.employee.nama}</p>
                             <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate">{row.employee.jabatan}</p>
@@ -359,13 +356,13 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                     <td className="px-3 py-4">
                       <div className="flex items-center gap-2">
                         <span className={`text-[10px] font-black ${rec.clockIn ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockIn || '--:--'}</span>
-                        {rec.id && rec.clockIn && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoIn')} className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"><Icons.Camera className="w-3 h-3" /></button>}
+                        {rec.id && (rec.clockIn || rec.photoIn) && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoIn')} className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"><Icons.Camera className="w-3 h-3" /></button>}
                       </div>
                     </td>
                     <td className="px-3 py-4">
                       <div className="flex items-center gap-2">
                         <span className={`text-[10px] font-black ${rec.clockOut ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockOut || '--:--'}</span>
-                        {rec.id && rec.clockOut && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoOut')} className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"><Icons.Camera className="w-3 h-3" /></button>}
+                        {rec.id && (rec.clockOut || rec.photoOut) && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoOut')} className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"><Icons.Camera className="w-3 h-3" /></button>}
                       </div>
                     </td>
                     <td className="px-6 sm:px-10 py-4 text-right">
@@ -405,11 +402,6 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                  </div>
 
                  <div className="flex items-center gap-5">
-                    {/* Avatar */}
-                    <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-slate-50 shadow-md shrink-0 bg-slate-50">
-                       {row.employee.photoBase64 || row.employee.avatarUrl ? <img src={row.employee.photoBase64 || row.employee.avatarUrl} className="w-full h-full object-cover" alt="" /> : <Icons.Users className="w-6 h-6 text-slate-200 m-auto mt-4" />}
-                    </div>
-
                     {/* Identity & Times */}
                     <div className="flex-grow min-w-0">
                        <div className="flex flex-col mb-3">
@@ -431,8 +423,8 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
 
                     {/* Actions Group - Bottom Right Positioned */}
                     <div className="flex flex-col items-end justify-end self-end gap-2.5">
-                       {rec.id && (rec.clockIn || rec.clockOut) && (
-                          <button onClick={() => fetchRecordPhoto(rec.id!, rec.clockIn ? 'photoIn' : 'photoOut')} className="p-2.5 bg-slate-50 text-slate-300 rounded-xl hover:text-[#FFC000] border border-slate-100 transition-colors active:scale-90"><Icons.Camera className="w-4 h-4"/></button>
+                       {rec.id && (rec.clockIn || rec.clockOut || rec.photoIn || rec.photoOut) && (
+                          <button onClick={() => fetchRecordPhoto(rec.id!, rec.photoIn ? 'photoIn' : (rec.photoOut ? 'photoOut' : (rec.clockIn ? 'photoIn' : 'photoOut')))} className="p-2.5 bg-slate-50 text-slate-300 rounded-xl hover:text-[#FFC000] border border-slate-100 transition-colors active:scale-90"><Icons.Camera className="w-4 h-4"/></button>
                        )}
                        {isAdmin && (
                           <button onClick={() => { setEditingRecord(rec); setIsEditModalOpen(true); }} className="p-2.5 bg-indigo-50 text-indigo-500 rounded-xl active:scale-90 border border-indigo-100 transition-transform"><Icons.Edit className="w-4 h-4"/></button>
@@ -486,7 +478,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                 <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">CLOCK IN</label><input type="time" value={editingRecord.clockIn || ''} onChange={e => setEditingRecord({...editingRecord, clockIn: e.target.value})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none focus:border-[#FFC000] text-black shadow-inner" /></div>
                 <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">CLOCK OUT</label><input type="time" value={editingRecord.clockOut || ''} onChange={e => setEditingRecord({...editingRecord, clockOut: e.target.value})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none focus:border-[#FFC000] text-black shadow-inner" /></div>
               </div>
-              <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">STATUS</label><select value={editingRecord.status} onChange={e => setEditingRecord({...editingRecord, status: e.target.value as any})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none appearance-none text-black shadow-inner"><option value="Hadir">Hadir</option><option value="Sakit">Sakit</option><option value="Izin">Izin</option><option value="Alpha">Alpha</option><option value="Cuti">Cuti</option><option value="Libur">Libur</option><option value="Lembur">Lembur</option></select></div>
+              <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">STATUS</label><select value={editingRecord.status} onChange={e => setEditingRecord({...editingRecord, status: e.target.value as any})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none appearance-none text-black shadow-inner"><option value="Hadir">Hadir</option><option value="Sakit">Sakit</option><option value="Izin">Izin</option><option value="Alpha">Alpha</option><option value="Cuti">Cuti</option><option value="Libur">Libur</option><option value="Lembur">Lembur</option><option value="Reimburse">Reimburse</option></select></div>
             </div>
             <div className="flex gap-4"><button onClick={handleSaveEdit} className="flex-1 bg-slate-900 text-[#FFC000] py-6 rounded-[28px] font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Simpan</button><button onClick={() => setIsEditModalOpen(false)} className="px-8 bg-slate-100 text-slate-400 py-6 rounded-[28px] font-black uppercase text-xs active:scale-95 transition-all">Batal</button></div>
           </div>

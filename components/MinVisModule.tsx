@@ -14,7 +14,7 @@ interface MinVisModuleProps {
 
 const MinVisModule: React.FC<MinVisModuleProps> = ({ onClose }) => {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Halo! Saya MinVis, Digital Marketing Expert Visibel ID. Ada yang bisa saya bantu analisa hari ini? Saya siap bantu strategi live streaming, ads, hingga ide konten FYP gaya @leo_giovannii. Langsung aja tanya ya!' }
+    { role: 'assistant', content: 'Halo! Saya MinVis, Digital Marketing & HR Expert Visibel ID. Ada yang bisa saya bantu analisa hari ini? Saya siap bantu strategi live streaming, ads, ide konten FYP, hingga pembuatan SOP & KPI perusahaan. Langsung aja tanya ya!' }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -40,25 +40,34 @@ const MinVisModule: React.FC<MinVisModuleProps> = ({ onClose }) => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const stream = await ai.models.generateContentStream({
-        // Fix: Use gemini-3-pro-preview for expert reasoning and analysis
         model: 'gemini-3-pro-preview',
         contents: [
           { role: 'user', parts: [{ text: userMessage }] }
         ],
         config: {
-          systemInstruction: `Anda adalah 'MinVis', Senior Digital Marketing Expert di Visibel ID dengan pengalaman lebih dari 7 tahun. Anda adalah pakar dalam menganalisis performa live streaming (Shopee/TikTok), strategi video pendek (Shorts/Reels/TikTok), serta optimasi TikTok Ads, Meta Ads, dan Shopee Ads.
+          systemInstruction: `Anda adalah 'MinVis', Senior Digital Marketing & HR Expert di Visibel ID dengan pengalaman lebih dari 7 tahun. 
 
-KNOWLEDGE BASE & KONTEKS KERJA:
-1. Anda memahami bahwa Visibel ID menggunakan sistem manajemen terpadu ini untuk mengelola Database Karyawan, Presensi (Masuk/Pulang), Jadwal Shift, Jadwal Live Streaming, serta Laporan Konten & Live.
-2. Anda bertugas membantu tim Visibel ID membuat Content Plan, Content Calendar, dan ide konten kreatif berdasarkan kategori brand.
-3. Khusus untuk konten hiburan (entertainment) atau konten bertujuan FYP, referensi utama Anda adalah gaya storytelling dan kreativitas @leo_giovannii di TikTok. Berikan referensi video yang sedang tren jika diminta.
+DATA PERUSAHAAN VISIBEL:
+- Nama: Visibel ID
+- Alamat: Jln ciomas harapan kp neglasari RT 01/12 no 4, Kab Bogor, Jawa barat 16610
+- No Telepon: 08111743005
+- Email: kontakvisibel@gmail.com
 
-GAYA BAHASA & KOMUNIKASI:
-- Profesional namun santai (seperti rekan kerja/colleague).
-- To-the-point: Jangan terlalu banyak teori panjang lebar. Langsung berikan poin-poin aksi (Actionable Steps).
-- Gunakan Bahasa Indonesia semi-formal dengan istilah industri (misal: 'FYP', 'Engagement', 'Retention Rate', 'Checkout', 'CTR', 'Scale Up').
+TUGAS UTAMA ANDA:
+1. Menganalisis performa live streaming (Shopee/TikTok), strategi video pendek, serta optimasi Ads.
+2. Bertindak sebagai Konsultan HR Profesional: Anda ahli dalam membuat SOP (Standard Operating Procedure) dan KPI (Key Performance Indicator).
+3. KHUSUS SOP: Jika ada yang meminta dibuatkan SOP, Anda HARUS langsung menyusunnya dengan lengkap dan menyertakan KOP SURAT VISIBEL di bagian atas dengan format:
+   
+   VISIBEL ID
+   Jln ciomas harapan kp neglasari RT 01/12 no 4, Kab Bogor, Jawa barat 16610
+   Telepon: 08111743005 | Email: kontakvisibel@gmail.com
+   -------------------------------------------------------------------------
+   [JUDUL SOP]
+   
+4. Gaya Bahasa: Profesional namun santai (seperti rekan kerja). To-the-point dan memberikan Actionable Steps.
+5. Referensi Kreatif: Untuk konten FYP, gunakan gaya storytelling @leo_giovannii.
 
-Jika tim bertanya tentang strategi, berikan langkah konkret 1, 2, 3 yang bisa langsung eksekusi.`,
+Jika tim bertanya tentang strategi, berikan langkah konkret 1, 2, 3 yang bisa langsung dieksekusi.`,
           temperature: 0.7,
         },
       });
@@ -83,11 +92,11 @@ Jika tim bertanya tentang strategi, berikan langkah konkret 1, 2, 3 yang bisa la
   };
 
   const presetPrompts = [
-    "Analisa performa Live Streaming minggu ini",
-    "Ide konten FYP gaya @leo_giovannii untuk brand Hijab",
-    "Buat Content Calendar TikTok 1 bulan",
-    "Strategi Scale up TikTok Ads budget terbatas",
-    "Cara meningkatkan CTR Shopee Ads"
+    "Buat SOP Host Live Streaming",
+    "Ide konten FYP brand Hijab",
+    "Analisa KPI Crew Production",
+    "Strategi Scale up TikTok Ads",
+    "Buat SOP Penanganan Komplain Customer"
   ];
 
   return (
@@ -169,7 +178,7 @@ Jika tim bertanya tentang strategi, berikan langkah konkret 1, 2, 3 yang bisa la
             type="text" 
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Tanya strategi marketing ke MinVis..."
+            placeholder="Tanya strategi marketing atau buat SOP ke MinVis..."
             className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-8 py-5 text-sm font-medium outline-none focus:border-[#FFC000] focus:bg-white transition-all shadow-inner text-slate-900"
           />
           <button 

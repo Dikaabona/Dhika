@@ -14,13 +14,11 @@ interface LiveReportModuleProps {
   onClose: () => void;
 }
 
-// Updated: format to YYYY/MM/DD
 const formatDateToYMD = (dateStr: string) => {
   if (!dateStr || !dateStr.includes('-')) return dateStr;
   return dateStr.replace(/-/g, '/');
 };
 
-// Updated: parse YYYY/MM/DD back to ISO YYYY-MM-DD
 const parseYMDToIso = (val: any) => {
   if (!val) return new Date().toISOString().split('T')[0];
   if (val instanceof Date) return val.toISOString().split('T')[0];
@@ -29,7 +27,6 @@ const parseYMDToIso = (val: any) => {
   if (str.includes('/')) {
     const parts = str.split('/');
     if (parts.length === 3) {
-      // Assuming YYYY/MM/DD format
       const y = parts[0];
       const m = parts[1].padStart(2, '0');
       const d = parts[2].padStart(2, '0');
@@ -117,7 +114,6 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
     });
   }, [reports, selectedBrand, startDate, endDate, searchQuery, employees]);
 
-  // Checklist Logics
   const toggleSelect = (id: string) => {
     const next = new Set(selectedIds);
     if (next.has(id)) next.delete(id);
@@ -163,9 +159,9 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Perbaikan: Pastikan ada ID untuk data baru
-      const reportId = editingReport?.id || `LIVE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const { data, error } = await supabase.from('live_reports').upsert({ ...formData, id: reportId }).select();
+      // Jika edit, kirim ID. Jika baru, ID biarkan kosong agar Supabase (gen_random_uuid) yang buat.
+      const payload = editingReport ? { ...formData, id: editingReport.id } : formData;
+      const { data, error } = await supabase.from('live_reports').upsert(payload).select();
       
       if (error) throw error;
       setReports(prev => {
@@ -211,7 +207,6 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
 
   const handleExport = () => {
     let dataToExport = filteredReports.map((r) => ({
-      // Updated: format to YYYY/MM/DD
       'TANGGAL': formatDateToYMD(r.tanggal),
       'BRAND': r.brand,
       'ROOM ID': r.roomId,
@@ -301,7 +296,6 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
         }).filter(r => r !== null) as Omit<LiveReport, 'id'>[];
 
         if (rawParsedReports.length > 0) {
-          // 1. Deduplikasi Internal File
           const fileDeduperMap = new Map<string, Omit<LiveReport, 'id'>>();
           rawParsedReports.forEach(report => {
             const existingInFile = fileDeduperMap.get(report.roomId);
@@ -310,7 +304,6 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
             }
           });
 
-          // 2. Hubungkan dengan ID database jika sudah ada
           const finalToUpsert: Partial<LiveReport>[] = [];
           const existingInDbMap = new Map<string, LiveReport>(reports.map(r => [r.roomId, r]));
 
@@ -319,11 +312,8 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
             if (existingInDb) {
               finalToUpsert.push({ ...newReport, id: existingInDb.id });
             } else {
-              // Perbaikan: Generate ID untuk baris baru hasil impor
-              finalToUpsert.push({ 
-                ...newReport, 
-                id: `LIVE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` 
-              });
+              // Biarkan ID kosong agar Supabase otomatis membuat UUID baru via gen_random_uuid()
+              finalToUpsert.push(newReport);
             }
           });
 
@@ -341,12 +331,9 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
           });
           
           alert(`Sukses! ${inserted?.length || 0} data berhasil diproses.`);
-        } else {
-          alert("Tidak ada data valid yang ditemukan dalam file.");
         }
       } catch (err: any) { 
-        console.error(err);
-        alert("Gagal import: " + (err.message || "Pastikan format file benar.")); 
+        alert("Gagal import: " + err.message); 
       } finally { 
         setIsImporting(false); 
         if (fileInputRef.current) fileInputRef.current.value = ''; 
@@ -357,6 +344,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
 
   return (
     <div className="flex flex-col bg-transparent space-y-6">
+      {/* ... (sisanya sama seperti sebelumnya) ... */}
       <div className="flex flex-col gap-4">
         <div className="relative w-full">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">

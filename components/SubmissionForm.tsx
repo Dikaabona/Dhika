@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Employee, AttendanceStatus, Submission } from '../types';
 import { Icons } from '../constants';
@@ -19,6 +18,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
   const [overtimeBrand, setOvertimeBrand] = useState('');
   const [overtimeStart, setOvertimeStart] = useState('17:00');
   const [overtimeEnd, setOvertimeEnd] = useState('20:00');
+
+  const [reimburseAmount, setReimburseAmount] = useState('');
   
   const [docBase64, setDocBase64] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -46,11 +47,18 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
       return;
     }
 
+    if (status === 'Reimburse' && (!reimburseAmount || !docBase64)) {
+      alert("Silakan isi nominal dan unggah bukti kwitansi.");
+      return;
+    }
+
     setIsLoading(true);
     try {
       let finalNotes = notes;
       if (status === 'Lembur') {
         finalNotes = `BRAND: ${overtimeBrand.toUpperCase()} | JAM: ${overtimeStart} - ${overtimeEnd} | ALASAN: ${notes || '-'}`;
+      } else if (status === 'Reimburse') {
+        finalNotes = `NOMINAL: Rp ${new Intl.NumberFormat('id-ID').format(Number(reimburseAmount.replace(/\D/g, '')))} | ALASAN: ${notes || '-'}`;
       }
 
       const newSubmission: Submission = {
@@ -59,9 +67,9 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
         company: company,
         type: status,
         startDate,
-        endDate: status === 'Lembur' ? startDate : endDate,
+        endDate: (status === 'Lembur' || status === 'Reimburse') ? startDate : endDate,
         notes: finalNotes,
-        docBase64: status === 'Sakit' ? (docBase64 || undefined) : undefined,
+        docBase64: (status === 'Sakit' || status === 'Reimburse') ? (docBase64 || undefined) : undefined,
         status: 'Pending',
         submittedAt: new Date().toISOString()
       };
@@ -71,9 +79,14 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
       if (error) throw error;
 
       const waNumber = '6285717393436';
-      const detailMsg = status === 'Lembur' 
-        ? `Lembur di ${overtimeBrand.toUpperCase()} (${overtimeStart}-${overtimeEnd}) pada tanggal ${startDate}`
-        : `${status} dari tanggal ${startDate} sampai ${endDate}`;
+      let detailMsg = '';
+      if (status === 'Lembur') {
+        detailMsg = `Lembur di ${overtimeBrand.toUpperCase()} (${overtimeStart}-${overtimeEnd}) pada tanggal ${startDate}`;
+      } else if (status === 'Reimburse') {
+        detailMsg = `Reimburse senilai Rp ${new Intl.NumberFormat('id-ID').format(Number(reimburseAmount.replace(/\D/g, '')))} pada tanggal ${startDate}`;
+      } else {
+        detailMsg = `${status} dari tanggal ${startDate} sampai ${endDate}`;
+      }
         
       const message = `Halo Admin ${company}, saya ${employee.nama} mengajukan ${detailMsg}. Alasan: ${notes || '-'}. Mohon konfirmasinya melalui portal HR. Terima kasih.`;
       const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`;
@@ -82,6 +95,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
       alert("Pengajuan Berhasil Dikirim!");
       setNotes('');
       setOvertimeBrand('');
+      setReimburseAmount('');
       setDocBase64(null);
       onSuccess();
     } catch (err: any) {
@@ -91,28 +105,33 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
     }
   };
 
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, '');
+    setReimburseAmount(val);
+  };
+
   return (
     <div className="max-w-2xl mx-auto bg-white p-6 sm:p-12 rounded-[40px] sm:rounded-[60px] shadow-sm border border-slate-50">
       <form onSubmit={handleSubmit} className="space-y-10">
-        <div className="space-y-5">
+        <div className="space-y-6">
           <div className="flex items-center gap-3 ml-2">
-            <div className="w-1.5 h-1.5 bg-[#FFC000] rounded-full"></div>
-            <label className="text-[11px] font-black text-slate-900 uppercase tracking-[0.25em]">Jenis Pengajuan</label>
+            <div className="w-1.5 h-1.5 bg-[#FFC000] rounded-full shadow-[0_0_8px_#FFC000]"></div>
+            <label className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em]">Jenis Pengajuan</label>
           </div>
           
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {(['Cuti', 'Izin', 'Sakit', 'Lembur'] as AttendanceStatus[]).map(s => (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+            {(['Cuti', 'Izin', 'Sakit', 'Lembur', 'Reimburse'] as AttendanceStatus[]).map((s, idx) => (
               <button 
                 key={s} 
                 type="button"
                 onClick={() => setStatus(s)}
-                className={`relative py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.15em] transition-all border-2 flex flex-col items-center justify-center gap-2 shadow-sm ${
+                className={`relative py-8 sm:py-6 rounded-[28px] sm:rounded-[32px] font-black text-[11px] uppercase tracking-[0.15em] transition-all border-2 flex flex-col items-center justify-center gap-3 active:scale-95 ${
                   status === s 
                   ? 'bg-[#0f172a] text-[#FFC000] border-[#0f172a] shadow-xl -translate-y-1' 
-                  : 'bg-white text-slate-400 border-slate-100 hover:bg-slate-50 hover:border-slate-200'
-                }`}
+                  : 'bg-white text-slate-300 border-slate-50 shadow-sm hover:border-slate-200'
+                } ${idx === 4 ? 'col-span-2 sm:col-span-1' : ''}`}
               >
-                {status === s && <div className="w-1.5 h-1.5 bg-[#FFC000] rounded-full animate-pulse mb-1"></div>}
+                <div className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${status === s ? 'bg-[#FFC000] scale-125 shadow-[0_0_8px_#FFC000]' : 'bg-transparent'}`}></div>
                 {s}
               </button>
             ))}
@@ -173,6 +192,47 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
                 </div>
              </div>
           </div>
+        ) : status === 'Reimburse' ? (
+          <div className="space-y-8 animate-in fade-in slide-in-from-top-4 duration-500">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Tanggal Kwitansi</label>
+                  <div className="bg-slate-50 border border-slate-100 px-6 py-4.5 rounded-[24px] flex items-center justify-center shadow-sm focus-within:border-[#FFC000] transition-all">
+                    <input 
+                      required 
+                      type="date" 
+                      value={startDate} 
+                      onChange={e => setStartDate(e.target.value)} 
+                      className="w-full text-xs sm:text-sm font-black text-slate-900 bg-transparent outline-none cursor-pointer text-center" 
+                    />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Nominal (Rp)</label>
+                  <div className="bg-slate-50 border border-slate-100 px-6 py-4.5 rounded-[24px] flex items-center shadow-sm focus-within:border-[#FFC000] transition-all">
+                    <span className="text-slate-400 font-black text-xs mr-2">Rp</span>
+                    <input 
+                      required 
+                      type="text" 
+                      value={new Intl.NumberFormat('id-ID').format(Number(reimburseAmount || 0))}
+                      onChange={handleAmountChange} 
+                      placeholder="0"
+                      className="w-full text-xs sm:text-sm font-black text-slate-900 bg-transparent outline-none" 
+                    />
+                  </div>
+                </div>
+             </div>
+             
+             <div className="space-y-4">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Unggah Bukti Nota / Kwitansi</label>
+                <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" id="receipt-upload" />
+                <label htmlFor="receipt-upload" className={`flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-[32px] cursor-pointer transition-all ${docBase64 ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200 hover:border-[#FFC000] hover:bg-slate-100/50'}`}>
+                  <div className={docBase64 ? 'text-emerald-600' : 'text-slate-400'}><Icons.Image className="w-10 h-10" /></div>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mt-4 text-center">{docBase64 ? 'BUKTI BERHASIL DIUNGGAH' : 'KLIK UNTUK UNGGAH FOTO NOTA'}</p>
+                  {docBase64 && <div className="mt-4 px-4 py-1.5 bg-emerald-100 text-emerald-700 text-[8px] font-black rounded-full uppercase">Siap Dikirim</div>}
+                </label>
+             </div>
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 animate-in fade-in duration-500">
             <div className="space-y-3">
@@ -218,7 +278,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Keterangan / Alasan</label>
           <div className="bg-slate-100 p-2.5 rounded-[32px] shadow-inner">
             <textarea 
-              required={status !== 'Lembur'} 
+              required={status !== 'Lembur' && status !== 'Reimburse'} 
               rows={5} 
               value={notes} 
               onChange={e => setNotes(e.target.value)} 

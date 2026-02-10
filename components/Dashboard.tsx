@@ -61,11 +61,11 @@ const Dashboard: React.FC<DashboardProps> = ({
       { id: 'content', label: 'Short Video', icon: <Icons.Image className="w-6 h-6" />, tab: 'content' },
       { id: 'minvis', label: 'MinVis AI', icon: <Icons.Cpu className="w-6 h-6" />, tab: 'minvis' },
       { id: 'database', label: 'Database', icon: <Icons.Users className="w-6 h-6" />, tab: 'database' },
-      { id: 'settings', label: 'Pengaturan', icon: <Icons.Settings className="w-6 h-6" />, tab: 'settings' },
     ];
 
     if (isSuper) {
       base.push({ id: 'kpi', label: 'KPI Performance', icon: <Icons.Sparkles className="w-6 h-6" />, tab: 'kpi' });
+      base.push({ id: 'settings', label: 'Pengaturan', icon: <Icons.Settings className="w-6 h-6" />, tab: 'settings' });
     }
 
     return base;
@@ -175,7 +175,9 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="space-y-4 px-2">
           <div className="flex justify-between items-center px-2">
             <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">Menu Utama</h4>
-            <button onClick={() => onNavigate('settings')} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">UBAH</button>
+            {isSuper && (
+              <button onClick={() => onNavigate('settings')} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">UBAH</button>
+            )}
           </div>
           <div className="grid grid-cols-4 gap-x-2 gap-y-6">
             {menuItems.map((item) => (
@@ -336,7 +338,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   <div className="text-slate-400 p-4 rounded-[24px] bg-white/5 shrink-0">
                     <Icons.Sparkles className="w-7 h-7" />
                   </div>
-                  <p className="text-xl font-black text-slate- uppercase tracking-tight">
+                  <p className="text-xl font-black text-slate-400 uppercase tracking-tight">
                     BELUM ADA NOTIFIKASI MENDESAK SAAT INI.
                   </p>
                 </div>

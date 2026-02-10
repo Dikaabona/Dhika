@@ -1,4 +1,3 @@
-
 export interface Employee {
   id: string;
   idKaryawan: string;
@@ -26,7 +25,7 @@ export interface Employee {
   salaryConfig?: Omit<SalaryData, 'month' | 'year'>;
 }
 
-export type AttendanceStatus = 'Hadir' | 'Sakit' | 'Izin' | 'Alpha' | 'Libur' | 'Cuti' | 'Lembur';
+export type AttendanceStatus = 'Hadir' | 'Sakit' | 'Izin' | 'Alpha' | 'Libur' | 'Cuti' | 'Lembur' | 'Reimburse';
 
 export interface AttendanceRecord {
   id?: string;

@@ -97,6 +97,9 @@ const App: React.FC = () => {
   const [currentEmpPage, setCurrentEmpPage] = useState(1);
   const empRowsPerPage = 10;
 
+  const [loginEmailInput, setLoginEmailInput] = useState('');
+  const [loginPasswordInput, setLoginPasswordInput] = useState('');
+
   const currentLogo = useMemo(() => {
     return (userCompany || '').trim().toLowerCase() === 'seller space' ? SELLER_SPACE_LOGO : VISIBEL_LOGO;
   }, [userCompany]);
@@ -144,7 +147,7 @@ const App: React.FC = () => {
     try {
       const { data: empData, error: empError } = await supabase
         .from('employees')
-        .select('*');
+        .select('id, idKaryawan, nama, jabatan, email, tempatLahir, tanggalLahir, alamat, noKtp, noHandphone, tanggalMasuk, bank, noRekening, namaDiRekening, company, avatarUrl, hutang, isRemoteAllowed, role');
       
       if (empError) throw empError;
       
@@ -158,7 +161,10 @@ const App: React.FC = () => {
         if (currentEmp) {
           detectedCompany = currentEmp.company || 'Visibel';
           setUserCompany(detectedCompany);
-          setCurrentUserEmployee(currentEmp);
+          
+          // Lazy load foto HANYA untuk user yang sedang login (untuk tampilan header)
+          const { data: photoData } = await supabase.from('employees').select('photoBase64').eq('id', currentEmp.id).single();
+          setCurrentUserEmployee({ ...currentEmp, photoBase64: photoData?.photoBase64 });
         } else {
           setCurrentUserEmployee(null);
         }
@@ -181,13 +187,13 @@ const App: React.FC = () => {
       };
 
       const fetchPromises = [
-        buildQuery('attendance').order('date', { ascending: false }).then(({data}) => setAttendanceRecords(data || [])),
-        buildQuery('live_reports').order('tanggal', { ascending: false }).then(({data}) => setLiveReports(data || [])),
-        buildQuery('submissions').order('submittedAt', { ascending: false }).then(({data}) => setSubmissions(data || [])),
-        buildQuery('broadcasts').order('sentAt', { ascending: false }).then(({data}) => setBroadcasts(data || [])),
-        buildQuery('schedules').then(({data}) => setLiveSchedules(data || [])),
-        buildQuery('content_plans').order('postingDate', { ascending: false }).then(({data}) => setContentPlans(data || [])),
-        buildQuery('shift_assignments').then(({data}) => setShiftAssignments(data || [])),
+        supabase.from('attendance').select('id, employeeId, company, date, status, clockIn, clockOut, notes').order('date', { ascending: false }).limit(300).then(({data}) => setAttendanceRecords(data || [])),
+        buildQuery('live_reports').order('tanggal', { ascending: false }).limit(200).then(({data}) => setLiveReports(data || [])),
+        buildQuery('submissions').order('submittedAt', { ascending: false }).limit(100).then(({data}) => setSubmissions(data || [])),
+        buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(50).then(({data}) => setBroadcasts(data || [])),
+        buildQuery('schedules').limit(300).then(({data}) => setLiveSchedules(data || [])),
+        supabase.from('content_plans').select('id, title, brand, company, platform, creatorId, deadline, status, postingDate, jamUpload, linkPostingan, likes, comments, views, saves, shares').order('postingDate', { ascending: false }).limit(200).then(({data}) => setContentPlans(data || [])),
+        buildQuery('shift_assignments').limit(500).then(({data}) => setShiftAssignments(data || [])),
         supabase.from('settings').select('value').eq('key', `weekly_holidays_${companyFilterVal}`).single().then(({data}) => { 
           if (data) {
              const stored = data.value;
@@ -204,6 +210,20 @@ const App: React.FC = () => {
       await Promise.all(fetchPromises);
     } catch (err: any) {
       setFetchError("Gagal sinkronisasi data.");
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
+  const handleEditEmployee = async (emp: Employee) => {
+    setIsLoadingData(true);
+    try {
+      const { data, error } = await supabase.from('employees').select('*').eq('id', emp.id).single();
+      if (error) throw error;
+      setEditingEmployee(data);
+      setIsFormOpen(true);
+    } catch (err: any) {
+      alert("Gagal memuat data lengkap: " + err.message);
     } finally {
       setIsLoadingData(false);
     }
@@ -469,7 +489,7 @@ const App: React.FC = () => {
         <button onClick={() => setActiveTab('kpi')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'kpi' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>PERFORMANCE KPI</button>
       )}
 
-      {isAdminAccess && (
+      {isHighAdminAccess && (
         <button onClick={() => setActiveTab('settings')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>SETTING</button>
       )}
     </div>
@@ -605,7 +625,7 @@ const App: React.FC = () => {
                               <Icons.Plus className="w-4 h-4" /> TAMBAH
                             </button>
                           )}
-                          <input type="file" ref={employeeFileInputRef} onChange={handleImportEmployees} className="hidden" accept=".xlsx,.xls" />
+                          <input type="file" ref={employeeFileInputRef} onChange={handleImportEmployees} className="hidden" accept=".xlsx,.xlsx" />
                           <button onClick={() => employeeFileInputRef.current?.click()} disabled={isImportingEmployees} className="bg-[#059669] hover:bg-[#047857] text-white px-5 py-3 rounded-full flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
                             <Icons.Upload className="w-4 h-4" /> {isImportingEmployees ? '...' : 'UNGGAH'}
                           </button>
@@ -650,7 +670,7 @@ const App: React.FC = () => {
                         return (
                           <div key={emp.id} className="hover:bg-slate-50/70 transition-all duration-300 group border-b border-slate-50 last:border-0">
                             {/* MOBILE ROW */}
-                            <div className="md:hidden p-6 sm:p-8 flex items-center justify-between relative group overflow-hidden">
+                            <div className="md:hidden p-6 flex items-center justify-between relative group overflow-hidden">
                               {/* Left Accent Bar */}
                               <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-rose-500 rounded-r-full shadow-[2px_0_10px_rgba(244,63,94,0.3)]"></div>
                               
@@ -667,7 +687,7 @@ const App: React.FC = () => {
                                 {/* Quick Mobile Actions - Show on click or hover */}
                                 <div className="flex gap-1.5 ml-2">
                                    <button onClick={() => setSlipEmployee(emp)} className="p-2 text-emerald-600 bg-emerald-50 rounded-lg active:scale-90"><Icons.Download className="w-4 h-4" /></button>
-                                   <button onClick={() => { setEditingEmployee(emp); setIsFormOpen(true); }} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg active:scale-90"><Icons.Edit className="w-4 h-4" /></button>
+                                   <button onClick={() => handleEditEmployee(emp)} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg active:scale-90"><Icons.Edit className="w-4 h-4" /></button>
                                 </div>
                               </div>
                             </div>
@@ -684,9 +704,6 @@ const App: React.FC = () => {
                               </div>
                               <div className="col-span-2">
                                 <div className="flex items-center gap-5">
-                                    <div className="w-12 h-12 rounded-[22px] overflow-hidden border-2 border-white shadow-md bg-slate-100 shrink-0">
-                                      {emp.photoBase64 ? <img src={emp.photoBase64} className="w-full h-full object-cover" alt="" /> : <Icons.Users className="w-5 h-5 text-slate-300 m-auto mt-3.5" />}
-                                    </div>
                                     <div className="min-w-0">
                                       <p className="font-semibold text-slate-900 text-[14px] uppercase truncate leading-tight mb-1 tracking-tight">{emp.nama}</p>
                                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{emp.jabatan}</p>
@@ -708,9 +725,9 @@ const App: React.FC = () => {
                                     <button onClick={() => setSlipEmployee(emp)} className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-emerald-100 shadow-sm bg-white" title="Slip Gaji"><Icons.Download className="w-4 h-4" /></button>
                                   )}
                                   {(userRole === 'owner' || userRole === 'super' || emp.id === currentUserEmployee?.id) && (
-                                    <button onClick={() => { setEditingEmployee(emp); setIsFormOpen(true); }} className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-cyan-100 shadow-sm bg-white" title="Edit Data"><Icons.Edit className="w-4 h-4" /></button>
+                                    <button onClick={() => handleEditEmployee(emp)} className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-cyan-100 shadow-sm bg-white" title="Edit Data"><Icons.Edit className="w-4 h-4" /></button>
                                   )}
-                                  {(userRole === 'owner' || userRole === 'super' || userRole === 'admin') && (
+                                  {(userRole === 'owner' || userRole === 'super') && (
                                     <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-rose-100 shadow-sm bg-white" title="Hapus"><Icons.Trash className="w-4 h-4" /></button>
                                   )}
                                 </div>
@@ -779,20 +796,20 @@ const App: React.FC = () => {
             <div className="bg-black p-12 text-center">
               <img src={VISIBEL_LOGO} alt="Logo" className="w-[180px] h-auto mx-auto" />
             </div>
-            <form onSubmit={(e) => { e.preventDefault(); handleAuth(loginEmail, loginPassword, isRegisterMode, isForgotPasswordMode); }} className="p-10 space-y-8">
+            <form onSubmit={(e) => { e.preventDefault(); handleAuth(loginEmailInput, loginPasswordInput, isRegisterMode, isForgotPasswordMode); }} className="p-10 space-y-8">
               <h2 className="text-2xl font-bold text-[#0f172a] text-center uppercase tracking-[0.3em]">
                 {isForgotPasswordMode ? 'RESET' : isRegisterMode ? 'DAFTAR BARU' : 'LOGIN'}
               </h2>
               <div className="space-y-6">
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">EMAIL TERDAFTAR</label>
-                  <input required type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} placeholder="admin@visibel.id" className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#FFC000] text-sm font-medium text-black transition-all" />
+                  <input required type="email" value={loginEmailInput} onChange={(e) => setLoginEmailInput(e.target.value)} placeholder="admin@visibel.id" className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#FFC000] text-sm font-medium text-black transition-all" />
                 </div>
                 {!isForgotPasswordMode && (
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">KATA SANDI</label>
                     <div className="relative">
-                      <input required type={showPassword ? 'text' : 'password'} value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="••••••••" className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#FFC000] text-sm font-medium text-black transition-all" />
+                      <input required type={showPassword ? 'text' : 'password'} value={loginPasswordInput} onChange={(e) => setLoginPasswordInput(e.target.value)} placeholder="••••••••" className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#FFC000] text-sm font-medium text-black transition-all" />
                       <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400">
                         <Icons.Search className="w-5 h-5" />
                       </button>
@@ -838,7 +855,7 @@ const App: React.FC = () => {
         </div>
       </footer>
 
-      {isFormOpen && <EmployeeForm employees={employees} initialData={editingEmployee} userRole={userRole} userCompany={userCompany} currentUserEmployee={currentUserEmployee} onSave={async (emp) => { await supabase.from('employees').upsert(emp); setEditingEmployee(null); fetchData(session?.user?.email, true); setIsFormOpen(false); }} onCancel={() => { setEditingEmployee(null); setIsFormOpen(false); }} />}
+      {isFormOpen && <EmployeeForm employees={employees} initialData={editingEmployee} userRole={userRole} userCompany={userCompany} currentUserEmployee={currentUserEmployee} onSave={async (emp) => { await supabase.from('employees').upsert(emp); fetchData(session?.user?.email, true); setIsFormOpen(false); }} onCancel={() => setIsFormOpen(false)} />}
       {slipEmployee && <SalarySlipModal employee={slipEmployee} attendanceRecords={attendanceRecords} userRole={userRole} onClose={() => setSlipEmployee(null)} onUpdate={() => fetchData(session?.user?.email, true)} weeklyHolidays={weeklyHolidays} />}
       {isAnnouncementOpen && <AnnouncementModal employees={filteredEmployees} company={userCompany} onClose={() => setIsAnnouncementOpen(false)} onSuccess={() => fetchData(session?.user?.email, true)} />}
       {legalType && <LegalModal type={legalType} onClose={() => setLegalType(null)} />}

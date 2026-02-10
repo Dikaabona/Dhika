@@ -61,6 +61,14 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const previewSlipRef = useRef<HTMLDivElement>(null);
   const hiddenSlipRef = useRef<HTMLDivElement>(null);
 
+  const formatCurrencyValue = (num: number) => {
+    return new Intl.NumberFormat('id-ID').format(num);
+  };
+
+  const parseCurrencyInput = (val: string) => {
+    return parseInt(val.replace(/\./g, '')) || 0;
+  };
+
   const monthMap: Record<string, number> = {
     'Januari': 0, 'Februari': 1, 'Maret': 2, 'April': 3, 'Mei': 4, 'Juni': 5,
     'Juli': 6, 'Agustus': 7, 'September': 8, 'Oktober': 9, 'November': 10, 'Desember': 11
@@ -368,8 +376,8 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                 <input 
                   type="text" 
                   disabled={isReadOnlyRole} 
-                  value={(data.gapok || 0).toLocaleString('id-ID')} 
-                  onChange={e => setData({...data, gapok: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
+                  value={formatCurrencyValue(data.gapok)} 
+                  onChange={e => setData({...data, gapok: parseCurrencyInput(e.target.value)})} 
                   className="w-full bg-[#f8fafc] border-2 border-slate-100 rounded-[28px] p-5 sm:p-6 text-2xl sm:text-3xl font-black text-slate-900 outline-none shadow-inner focus:border-[#FFC000] focus:bg-white transition-all disabled:opacity-60" 
                 />
                 <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 font-black text-lg pointer-events-none hidden sm:block">Rp</span>
@@ -397,8 +405,8 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                     <input 
                       type="text" 
                       disabled={isReadOnlyRole} 
-                      value={(data[item.key as keyof SalaryData] || 0).toLocaleString('id-ID')} 
-                      onChange={e => setData({...data, [item.key]: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
+                      value={formatCurrencyValue(data[item.key as keyof SalaryData] as number)} 
+                      onChange={e => setData({...data, [item.key]: parseCurrencyInput(e.target.value)})} 
                       className="w-full bg-white border border-sky-200 rounded-2xl p-4 text-xs sm:text-sm font-black text-slate-800 focus:border-sky-400 outline-none shadow-sm disabled:opacity-60" 
                     />
                   </div>
@@ -427,15 +435,15 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                           className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md hover:bg-indigo-100 transition-all shadow-sm flex items-center gap-1 active:scale-95"
                           title="Sinkronkan dengan lembur sistem yang disetujui"
                         >
-                          <Icons.Plus className="w-2.5 h-2.5" /> SYNC SYSTEM (Rp {attendanceResults.totalOvertimePay.toLocaleString('id-ID')})
+                          <Icons.Plus className="w-2.5 h-2.5" /> SYNC (Rp {attendanceResults.totalOvertimePay.toLocaleString('id-ID')})
                         </button>
                       )}
                     </div>
                     <input 
                       type="text" 
                       disabled={isReadOnlyRole} 
-                      value={(data.lembur || 0).toLocaleString('id-ID')} 
-                      onChange={e => setData({...data, lembur: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
+                      value={formatCurrencyValue(data.lembur)} 
+                      onChange={e => setData({...data, lembur: parseCurrencyInput(e.target.value)})} 
                       className="w-full bg-white border border-[#FFD700] rounded-2xl p-4 text-xs sm:text-sm font-black text-slate-800 focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-60" 
                     />
                   </div>
@@ -445,8 +453,8 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                       <input 
                         type="text" 
                         disabled={isReadOnlyRole} 
-                        value={(data.thr || 0).toLocaleString('id-ID')} 
-                        onChange={e => setData({...data, thr: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
+                        value={formatCurrencyValue(data.thr)} 
+                        onChange={e => setData({...data, thr: parseCurrencyInput(e.target.value)})} 
                         className="w-full bg-white border border-[#FFD700] rounded-2xl p-4 text-xs sm:text-sm font-black text-slate-800 focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-60" 
                       />
                     </div>
@@ -455,21 +463,13 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                       <input 
                         type="text" 
                         disabled={isReadOnlyRole} 
-                        value={(data.bonus || 0).toLocaleString('id-ID')} 
-                        onChange={e => setData({...data, bonus: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
+                        value={formatCurrencyValue(data.bonus)} 
+                        onChange={e => setData({...data, bonus: parseCurrencyInput(e.target.value)})} 
                         className="w-full bg-white border border-[#FFD700] rounded-2xl p-4 text-xs sm:text-sm font-black text-slate-800 focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-60" 
                       />
                     </div>
                   </div>
                </div>
-               {!isReadOnlyRole && (
-                 <button 
-                  onClick={calculateTHRValue} 
-                  className="w-full bg-[#FFC000] hover:bg-black hover:text-[#FFC000] text-black text-[10px] font-black py-4 rounded-[22px] border border-[#cc9a00]/30 shadow-md active:scale-[0.98] transition-all uppercase tracking-widest"
-                 >
-                   AUTO HITUNG THR
-                 </button>
-               )}
             </div>
 
             {/* ABSENSI & BPJS */}
@@ -479,20 +479,17 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                 <div className="space-y-3 bg-rose-50/50 p-6 rounded-[32px] border border-rose-100 relative overflow-hidden group">
                   <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest block relative z-10">HARI ALPHA ({attendanceResults.alpha})</label>
                   <p className="text-2xl sm:text-3xl font-black text-rose-700 relative z-10">Rp {potonganAbsensi.toLocaleString('id-ID')}</p>
-                  <Icons.Trash className="absolute -right-4 -bottom-4 w-20 h-20 text-rose-100 opacity-50 transform -rotate-12 group-hover:scale-110 transition-transform" />
                 </div>
                 <div className="space-y-4">
                   <div className="flex items-center gap-3 mb-1">
-                    <div className="relative inline-flex items-center cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        id="toggle-bpjstk" 
-                        disabled={isReadOnlyRole} 
-                        checked={isBPJSTKActive} 
-                        onChange={(e) => setIsBPJSTKActive(e.target.checked)} 
-                        className="w-6 h-6 rounded-lg border-slate-200 text-[#FFC000] focus:ring-[#FFC000] transition-all cursor-pointer" 
-                      />
-                    </div>
+                    <input 
+                      type="checkbox" 
+                      id="toggle-bpjstk" 
+                      disabled={isReadOnlyRole} 
+                      checked={isBPJSTKActive} 
+                      onChange={(e) => setIsBPJSTKActive(e.target.checked)} 
+                      className="w-6 h-6 rounded-lg border-slate-200 text-[#FFC000] focus:ring-[#FFC000] transition-all cursor-pointer" 
+                    />
                     <label htmlFor="toggle-bpjstk" className="text-[10px] font-black text-slate-400 uppercase tracking-widest cursor-pointer">BPJSTK (2%)</label>
                   </div>
                   <div className={`transition-all duration-500 ${isBPJSTKActive ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-30 pointer-events-none'}`}>
@@ -500,43 +497,12 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                        <input 
                         type="text" 
                         disabled={!isBPJSTKActive || isReadOnlyRole} 
-                        value={(data.bpjstk || 0).toLocaleString('id-ID')} 
-                        onChange={e => setData({...data, bpjstk: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
+                        value={formatCurrencyValue(data.bpjstk)} 
+                        onChange={e => setData({...data, bpjstk: parseCurrencyInput(e.target.value)})} 
                         className="flex-grow bg-white border-2 border-amber-100 rounded-2xl p-4 text-sm font-black text-slate-900 shadow-sm focus:border-amber-400 outline-none" 
                        />
-                      {!isReadOnlyRole && (
-                        <button 
-                          onClick={() => setData({...data, bpjstk: autoBPJS})} 
-                          className="bg-amber-500 text-white p-4 rounded-2xl hover:bg-amber-600 transition-colors shadow-lg active:scale-90"
-                        >
-                          <Icons.Sparkles className="w-5 h-5"/>
-                        </button>
-                      )}
                     </div>
                   </div>
-                </div>
-              </div>
-              <div className="pt-4 border-t border-slate-100">
-                <div className="space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Potongan PPh 21</label>
-                    {!isReadOnlyRole && (
-                      <button 
-                        onClick={() => setData({...data, pph21: autoPajak})} 
-                        className="text-[9px] font-black text-[#FFC000] bg-slate-900 px-6 py-2.5 rounded-xl active:scale-95 transition-all shadow-md uppercase tracking-widest"
-                      >
-                        HITUNG OTOMATIS
-                      </button>
-                    )}
-                  </div>
-                  <input 
-                    type="text" 
-                    disabled={isReadOnlyRole} 
-                    value={(data.pph21 || 0).toLocaleString('id-ID')} 
-                    onChange={e => setData({...data, pph21: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
-                    className="w-full bg-white border-2 border-slate-100 rounded-[22px] p-4 text-sm font-black text-slate-900 shadow-sm focus:border-indigo-400 outline-none disabled:opacity-60" 
-                    placeholder="Pajak Bulanan..." 
-                  />
                 </div>
               </div>
             </div>
@@ -558,9 +524,9 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                   <input 
                     type="text" 
                     disabled={isReadOnlyRole} 
-                    value={(data.potonganHutang || 0).toLocaleString('id-ID')} 
+                    value={formatCurrencyValue(data.potonganHutang)} 
                     onChange={e => {
-                      const val = parseInt(e.target.value.replace(/\./g, '')) || 0;
+                      const val = parseCurrencyInput(e.target.value);
                       setData({...data, potonganHutang: Math.min(employee.hutang || 0, val)});
                     }} 
                     className="w-full bg-white border-2 border-rose-100 rounded-2xl p-4 text-sm font-black text-rose-600 focus:border-rose-400 outline-none shadow-sm disabled:opacity-60" 
@@ -571,8 +537,8 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                   <input 
                     type="text" 
                     disabled={isReadOnlyRole} 
-                    value={(data.potonganLain || 0).toLocaleString('id-ID')} 
-                    onChange={e => setData({...data, potonganLain: parseInt(e.target.value.replace(/\./g, '')) || 0})} 
+                    value={formatCurrencyValue(data.potonganLain)} 
+                    onChange={e => setData({...data, potonganLain: parseCurrencyInput(e.target.value)})} 
                     className="w-full bg-white border-2 border-slate-100 rounded-2xl p-4 text-sm font-black text-slate-800 focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-60" 
                   />
                 </div>
@@ -581,7 +547,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           </div>
         </div>
 
-        {/* SUMMARY SECTION - STICKY FOR MOBILE */}
+        {/* SUMMARY SECTION */}
         <div className="bg-white border-t-2 border-slate-50 flex flex-col shrink-0">
           <div className="bg-[#0f172a] px-6 sm:px-10 py-5 sm:py-7 text-white flex justify-between items-center border-l-[12px] sm:border-l-[16px] border-[#FFC000] shadow-[0_-10px_30px_rgba(0,0,0,0.1)] relative z-10">
             <div>
@@ -613,23 +579,6 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
             >
               LIHAT PRATINJAU SLIP
             </button>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <button 
-                type="button" 
-                onClick={() => window.open(`https://wa.me/${employee.noHandphone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Halo ${employee.nama},\n\nSlip Gaji ${data.month} Anda sudah terbit.\n\nTotal diterima: Rp ${takeHomePay.toLocaleString('id-ID')}\n\nSilakan cek detailnya di portal HR.\nTerima kasih.`)}`)} 
-                className="bg-emerald-500 hover:bg-emerald-600 text-white py-4.5 rounded-[20px] font-black text-[10px] sm:text-xs uppercase flex items-center justify-center gap-3 active:scale-[0.98] transition-all shadow-md"
-              >
-                <Icons.Mail className="w-4 h-4" /> WA
-              </button>
-              <button 
-                type="button" 
-                onClick={handleSendEmail} 
-                className="bg-indigo-600 hover:bg-indigo-700 text-white py-4.5 rounded-[20px] font-black text-[10px] sm:text-xs uppercase flex items-center justify-center gap-3 active:scale-[0.98] transition-all shadow-md"
-              >
-                <Icons.FileText className="w-4 h-4" /> EMAIL
-              </button>
-            </div>
           </div>
         </div>
       </div>
