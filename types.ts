@@ -1,3 +1,4 @@
+
 export interface Employee {
   id: string;
   idKaryawan: string;
@@ -24,6 +25,7 @@ export interface Employee {
   ktpDocType?: 'image' | 'pdf';
   contractDocBase64?: string;
   salaryConfig?: Omit<SalaryData, 'month' | 'year'>;
+  deleted_at?: string | null; // Properti baru untuk soft delete
 }
 
 export interface CalendarEvent {

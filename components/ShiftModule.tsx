@@ -77,7 +77,8 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
     try {
       if (shiftId === '') {
         if (existing) {
-          await supabase.from('shift_assignments').delete().eq('id', existing.id);
+          const { error } = await supabase.from('shift_assignments').delete().eq('id', existing.id);
+          if (error) throw error;
           setAssignments(prev => prev.filter(a => a.id !== existing.id));
         }
         return;
@@ -91,7 +92,8 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
       };
 
       const { data, error } = await supabase.from('shift_assignments').upsert(
-        existing ? { ...newAssignment, id: existing.id } : newAssignment
+        existing ? { ...newAssignment, id: existing.id } : newAssignment,
+        { onConflict: 'employeeId,date' }
       ).select();
 
       if (error) throw error;
@@ -110,6 +112,106 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
     }
   };
 
+  const parseExcelDate = (val: any) => {
+    if (!val) return '';
+    if (val instanceof Date) return formatDateToYYYYMMDD(val);
+    
+    // Handle excel numeric date
+    if (typeof val === 'number') {
+      const date = new Date((val - 25569) * 86400 * 1000);
+      return formatDateToYYYYMMDD(date);
+    }
+
+    const str = String(val).trim();
+    if (str.includes('/')) {
+      const parts = str.split('/');
+      // DD/MM/YYYY
+      if (parts[0].length <= 2) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      // YYYY/MM/DD
+      return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+    }
+    return str;
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsImporting(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        
+        const newAssignmentsRaw = jsonData.map((row: any) => {
+          // Normalize headers (case-insensitive)
+          const keys = Object.keys(row);
+          const idKey = keys.find(k => k.toUpperCase() === 'ID KARYAWAN');
+          const shiftKey = keys.find(k => k.toUpperCase() === 'SHIFT');
+          const dateKey = keys.find(k => k.toUpperCase() === 'TANGGAL');
+
+          if (!idKey || !shiftKey || !dateKey) return null;
+
+          const empIdKaryawan = String(row[idKey]).trim();
+          const shiftNameInput = String(row[shiftKey]).trim();
+          const rawDate = row[dateKey];
+
+          const emp = employees.find(e => String(e.idKaryawan).trim() === empIdKaryawan);
+          const shift = shifts.find(s => s.name.toLowerCase().trim() === shiftNameInput.toLowerCase());
+          const formattedDate = parseExcelDate(rawDate);
+
+          if (!emp || !shift || !formattedDate) return null;
+          
+          return { 
+            employeeId: emp.id, 
+            date: formattedDate, 
+            shiftId: shift.id, 
+            company: company 
+          };
+        }).filter((a): a is ShiftAssignment => a !== null);
+
+        if (newAssignmentsRaw.length > 0) {
+          // Deduplicate by employeeId and date to prevent internal conflict in the batch
+          const dedupedMap = new Map<string, ShiftAssignment>();
+          newAssignmentsRaw.forEach(item => {
+            const key = `${item.employeeId}_${item.date}`;
+            dedupedMap.set(key, item);
+          });
+          const finalBatch = Array.from(dedupedMap.values());
+
+          const { data: upsertedData, error } = await supabase
+            .from('shift_assignments')
+            .upsert(finalBatch, { onConflict: 'employeeId,date' })
+            .select();
+
+          if (error) throw error;
+          
+          // Update local state without full reload
+          setAssignments(prev => {
+            const updated = [...prev];
+            upsertedData?.forEach(newItem => {
+              const idx = updated.findIndex(a => a.employeeId === newItem.employeeId && a.date === newItem.date);
+              if (idx !== -1) updated[idx] = newItem;
+              else updated.push(newItem);
+            });
+            return updated;
+          });
+
+          alert(`Berhasil mengimpor ${finalBatch.length} jadwal shift!`);
+        } else {
+          alert("Tidak ada data valid untuk diimpor. Pastikan header sesuai: TANGGAL, ID KARYAWAN, SHIFT");
+        }
+      } catch (err: any) { 
+        alert("Gagal impor: " + err.message); 
+      } finally { 
+        setIsImporting(false); 
+        if (fileInputRef.current) fileInputRef.current.value = ''; 
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
   const handleExport = () => {
     const dataToExport = tableRows.map(row => {
       const dayAssignment = assignments.find(a => a.employeeId === row.employee.id && a.date === row.date);
@@ -123,45 +225,17 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
     });
 
     const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, ws, "Log Shift");
-    XLSX.writeFile(workbook, `Shift_${company}_${startDate}_to_${endDate}.xlsx`);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Log Shift");
+    XLSX.writeFile(wb, `Shift_${company}_${startDate}_to_${endDate}.xlsx`);
   };
 
   const handleDownloadTemplate = () => {
-    const template = [{ 'TANGGAL': '2026-02-06', 'ID KARYAWAN': 'VID-7251', 'NAMA': 'NAMA CONTOH', 'SHIFT': 'Shift Pagi' }];
+    const template = [{ 'TANGGAL': '2026-02-06', 'ID KARYAWAN': employees[0]?.idKaryawan || 'VID-7251', 'SHIFT': shifts[0]?.name || 'Shift Pagi' }];
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template Shift");
     XLSX.writeFile(wb, `Template_Shift_${company}.xlsx`);
-  };
-
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsImporting(true);
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const data = new Uint8Array(event.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-        
-        const newAssignments = jsonData.map((row: any) => {
-          const emp = employees.find(e => e.idKaryawan === String(row['ID KARYAWAN']));
-          const shift = shifts.find(s => s.name.toLowerCase() === String(row['SHIFT']).toLowerCase());
-          if (!emp || !shift) return null;
-          return { employeeId: emp.id, date: String(row['TANGGAL']), shiftId: shift.id, company: company };
-        }).filter(a => a !== null);
-
-        if (newAssignments.length > 0) {
-          const { error } = await supabase.from('shift_assignments').upsert(newAssignments, { onConflict: 'employeeId,date' }).select();
-          if (error) throw error;
-          location.reload();
-        }
-      } catch (err: any) { alert("Gagal impor: " + err.message); } finally { setIsImporting(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
-    };
-    reader.readAsArrayBuffer(file);
   };
 
   const handleSaveConfig = () => {
@@ -232,7 +306,9 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
                   <div className="flex gap-2">
                     <button onClick={handleDownloadTemplate} className="bg-slate-100 text-slate-500 px-6 py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-sm">Template</button>
                     <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".xlsx,.xls" />
-                    <button onClick={() => fileInputRef.current?.click()} className="bg-emerald-50 text-black px-6 py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-lg">Import</button>
+                    <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="bg-emerald-50 text-emerald-600 px-6 py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-lg flex items-center gap-2">
+                      <Icons.Upload className="w-4 h-4" /> {isImporting ? '...' : 'Import'}
+                    </button>
                     <button onClick={handleExport} className="bg-slate-900 text-white px-6 py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-lg">Export</button>
                   </div>
                 )}

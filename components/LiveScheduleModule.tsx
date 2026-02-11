@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { Employee, LiveSchedule, LiveReport, AttendanceRecord } from '../types';
 import { Icons, LIVE_BRANDS as INITIAL_BRANDS, TIME_SLOTS } from '../constants';
 import { supabase } from '../App';
-import { generateGoogleCalendarUrl, getMondayISO, getSundayISO } from '../utils/dateUtils';
+import { generateGoogleCalendarUrl, getMondayISO, getSundayISO, formatDateToYYYYMMDD } from '../utils/dateUtils';
 import LiveReportModule from './LiveReportModule';
 import LiveCharts from './LiveCharts';
 
@@ -46,23 +46,6 @@ const formatDateToYMD = (dateStr: string) => {
   return dateStr.replace(/-/g, '/');
 };
 
-const parseYMDToIso = (val: any) => {
-  if (!val) return new Date().toISOString().split('T')[0];
-  if (val instanceof Date) return val.toISOString().split('T')[0];
-  
-  const str = String(val).trim();
-  if (str.includes('/')) {
-    const parts = str.split('/');
-    if (parts.length === 3) {
-      const y = parts[0];
-      const m = parts[1].padStart(2, '0');
-      const d = parts[2].padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    }
-  }
-  return str;
-};
-
 const isDateInRange = (target: string, start: string, end: string) => {
   const t = new Date(target).getTime();
   const s = new Date(start).getTime();
@@ -79,15 +62,13 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   const [endDate, setEndDate] = useState(getLocalDateString());
   const [localSearch, setLocalSearch] = useState('');
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('SEMUA BRAND');
-  const [showEmptySlots] = useState(true); 
+  const [showEmptySlots, setShowEmptySlots] = useState(false); 
   const [isImporting, setIsImporting] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
   
-  // States for Libur tab - Default set to current week (Mon-Sun)
   const [holidayStartDate, setHolidayStartDate] = useState(getMondayISO(new Date()));
   const [holidayEndDate, setHolidayEndDate] = useState(getSundayISO(new Date()));
 
-  const [isSavingHolidays, setIsSavingHolidays] = useState(false);
   const [weeklyHolidays, setWeeklyHolidays] = useState<Record<string, string[]>>(DEFAULT_HOLIDAYS);
   const [brands, setBrands] = useState<any[]>(INITIAL_BRANDS);
 
@@ -150,9 +131,37 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
 
   const findEmployeeIdByName = (name: string) => {
     const search = String(name || '').trim().toUpperCase();
-    if (!search || search === 'TBA') return '';
+    if (!search || search === 'TBA' || search === '-') return '';
     const match = employees.find(e => e.nama.toUpperCase() === search || e.nama.toUpperCase().includes(search));
     return match ? match.id : '';
+  };
+
+  const parseExcelDate = (val: any) => {
+    if (!val) return '';
+    if (val instanceof Date) return formatDateToYYYYMMDD(val);
+    
+    // Handle excel numeric date
+    if (typeof val === 'number') {
+      const date = new Date((val - 25569) * 86400 * 1000);
+      return formatDateToYYYYMMDD(date);
+    }
+
+    const str = String(val).trim();
+    if (str.includes('/')) {
+      const parts = str.split('/');
+      if (parts.length === 3) {
+        if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+    }
+    if (str.includes('-')) {
+      const parts = str.split('-');
+      if (parts.length === 3) {
+        if (parts[0].length === 4) return str;
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+    }
+    return str;
   };
 
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -163,46 +172,54 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
     reader.onload = async (event) => {
       try {
         const data = new Uint8Array(event.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         
         const rawSchedules = jsonData.map((row: any) => {
-          let formattedDate = '';
-          const rawDate = row['TANGGAL'];
-          if (rawDate instanceof Date) {
-            formattedDate = rawDate.toISOString().split('T')[0];
-          } else {
-            const parts = String(rawDate).split('/');
-            if (parts.length === 3) formattedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-          }
-          
-          if (!formattedDate || !row['BRAND'] || !row['SLOT WAKTU']) return null;
+          const formattedDate = parseExcelDate(row['TANGGAL']);
+          const brand = String(row['BRAND'] || '').trim().toUpperCase();
+          const hourSlot = String(row['SLOT WAKTU'] || '').trim();
+
+          if (!formattedDate || !brand || !hourSlot) return null;
           
           return {
             date: formattedDate,
-            brand: String(row['BRAND']).trim().toUpperCase(),
-            hourSlot: String(row['SLOT WAKTU']).trim(),
+            brand: brand,
+            hourSlot: hourSlot,
             hostId: findEmployeeIdByName(row['NAMA HOST']),
             opId: findEmployeeIdByName(row['NAMA OPERATOR']),
             company: company
           };
-        }).filter(s => s !== null);
+        }).filter((s): s is LiveSchedule => s !== null);
 
-        const uniqueMap = new Map();
-        rawSchedules.forEach((item: any) => {
-          const key = `${item.date}_${item.brand}_${item.hourSlot}`;
-          uniqueMap.set(key, item);
-        });
-        const finalSchedules = Array.from(uniqueMap.values());
+        if (rawSchedules.length > 0) {
+          const uniqueMap = new Map<string, LiveSchedule>();
+          rawSchedules.forEach((item) => {
+            const key = `${item.date}_${item.brand}_${item.hourSlot}`;
+            uniqueMap.set(key, item);
+          });
+          const finalBatch = Array.from(uniqueMap.values());
 
-        if (finalSchedules.length > 0) {
-          const { error } = await supabase
+          const { data: upsertedData, error } = await supabase
             .from('schedules')
-            .upsert(finalSchedules, { onConflict: 'date,brand,hourSlot' });
+            .upsert(finalBatch, { onConflict: 'date,brand,hourSlot' })
+            .select();
           
           if (error) throw error;
-          alert(`Berhasil mengimpor ${finalSchedules.length} jadwal!`);
-          location.reload();
+
+          setSchedules(prev => {
+            const updated = [...prev];
+            upsertedData?.forEach(newItem => {
+              const idx = updated.findIndex(s => s.date === newItem.date && s.brand === newItem.brand && s.hourSlot === newItem.hourSlot);
+              if (idx !== -1) updated[idx] = newItem;
+              else updated.push(newItem);
+            });
+            return updated;
+          });
+
+          alert(`Berhasil mengimpor ${finalBatch.length} jadwal!`);
+        } else {
+          alert("Tidak ada data valid yang ditemukan. Pastikan kolom TANGGAL, BRAND, dan SLOT WAKTU terisi.");
         }
       } catch (err: any) { 
         alert("Gagal impor: " + err.message); 
@@ -216,18 +233,34 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
 
   const handleExportExcel = () => {
     const exportedData = schedules.filter(s => isDateInRange(s.date, startDate, endDate));
-    if (exportedData.length === 0) return alert("Data tidak ditemukan.");
+    if (exportedData.length === 0) return alert("Data tidak ditemukan untuk rentang tanggal ini.");
     const dataToExport = exportedData.sort((a, b) => a.date.localeCompare(b.date)).map(s => ({
-      'TANGGAL': formatDateToYMD(s.date),
+      'TANGGAL': s.date,
       'BRAND': s.brand.toUpperCase(),
       'SLOT WAKTU': s.hourSlot,
-      'NAMA HOST': employeeMap[s.hostId] || 'TBA',
-      'NAMA OPERATOR': employeeMap[s.opId] || 'TBA'
+      'NAMA HOST': employeeMap[s.hostId] || '-',
+      'NAMA OPERATOR': employeeMap[s.opId] || '-'
     }));
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Jadwal Live");
-    XLSX.writeFile(wb, `Jadwal_Live_${company}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Log Shift");
+    XLSX.writeFile(wb, `Jadwal_Live_${company}_${startDate}_to_${endDate}.xlsx`);
+  };
+
+  const handleDownloadScheduleTemplate = () => {
+    const template = [
+      {
+        'TANGGAL': formatDateToYYYYMMDD(new Date()),
+        'BRAND': brands[0]?.name || 'HITJAB',
+        'SLOT WAKTU': TIME_SLOTS[0],
+        'NAMA HOST': employees[0]?.nama || 'NAMA HOST',
+        'NAMA OPERATOR': employees[1]?.nama || 'NAMA OPERATOR'
+      }
+    ];
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template Jadwal");
+    XLSX.writeFile(wb, `Template_Jadwal_Live_${company}.xlsx`);
   };
 
   const hostList = useMemo(() => employees.filter(e => (e.jabatan || '').toUpperCase().includes('HOST')), [employees]);
@@ -260,7 +293,6 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
     } catch (err: any) { alert("Gagal update: " + err.message); }
   };
 
-  // Logic for Libur tab with date range
   const holidayDates = useMemo(() => {
     const dates = [];
     let cur = new Date(holidayStartDate);
@@ -276,7 +308,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   const holidayListByDate = useMemo(() => {
     return holidayDates.map(dateStr => {
       const d = new Date(dateStr);
-      const dayIndex = (d.getDay() + 6) % 7; // Shift Sunday from 0 to 6
+      const dayIndex = (d.getDay() + 6) % 7; 
       const dayName = DAYS_OF_WEEK[dayIndex];
       const names = weeklyHolidays[dayName] || [];
       return { date: dateStr, day: dayName, names };
@@ -329,10 +361,25 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
               </div>
             </div>
             {!readOnly && (
-              <div className="flex gap-3 sm:gap-4">
-                <input type="file" ref={scheduleFileInputRef} onChange={handleImportExcel} className="hidden" accept=".xlsx,.xls" />
-                <button onClick={() => scheduleFileInputRef.current?.click()} disabled={isImporting} className="flex-1 bg-[#EFF6FF] text-blue-700 px-4 py-3 rounded-[16px] text-[8px] sm:text-[11px] font-bold uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 hover:bg-blue-100 transition-all disabled:opacity-50"><Icons.Upload className="w-4 h-4" /> IMPORT</button>
-                <button onClick={handleExportExcel} className="flex-1 bg-[#ECFDF5] text-emerald-700 px-4 py-3 rounded-[16px] text-[8px] sm:text-[11px] font-bold uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 hover:bg-emerald-100 transition-all"><Icons.Download className="w-4 h-4" /> EKSPOR</button>
+              <div className="flex flex-col gap-4">
+                <div className="flex gap-3 sm:gap-4">
+                  <button onClick={handleDownloadScheduleTemplate} className="flex-1 bg-slate-50 text-slate-500 px-4 py-3 rounded-[16px] text-[8px] sm:text-[11px] font-bold uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 hover:bg-slate-100 transition-all"><Icons.Download className="w-4 h-4" /> TEMPLATE</button>
+                  <input type="file" ref={scheduleFileInputRef} onChange={handleImportExcel} className="hidden" accept=".xlsx,.xls" />
+                  <button onClick={() => scheduleFileInputRef.current?.click()} disabled={isImporting} className="flex-1 bg-[#EFF6FF] text-blue-700 px-4 py-3 rounded-[16px] text-[8px] sm:text-[11px] font-bold uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 hover:bg-blue-100 transition-all disabled:opacity-50">
+                    <Icons.Upload className="w-4 h-4" /> {isImporting ? 'IMPORTING...' : 'IMPORT'}
+                  </button>
+                  <button onClick={handleExportExcel} className="flex-1 bg-[#ECFDF5] text-emerald-700 px-4 py-3 rounded-[16px] text-[8px] sm:text-[11px] font-bold uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 hover:bg-emerald-100 transition-all"><Icons.Download className="w-4 h-4" /> EKSPOR</button>
+                </div>
+                <div className="flex items-center gap-3 justify-center px-4 py-2 bg-slate-50 rounded-2xl w-fit mx-auto border border-slate-100">
+                  <input 
+                    type="checkbox" 
+                    id="toggle-empty" 
+                    checked={showEmptySlots} 
+                    onChange={e => setShowEmptySlots(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" 
+                  />
+                  <label htmlFor="toggle-empty" className="text-[9px] font-black text-slate-500 uppercase tracking-widest cursor-pointer">Tampilkan Slot Kosong</label>
+                </div>
               </div>
             )}
           </div>
@@ -359,50 +406,68 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
       <div className="flex-grow overflow-y-auto px-6 sm:px-12 pt-2 pb-16 bg-white custom-scrollbar">
         {activeSubTab === 'JADWAL' ? (
           <div className="space-y-10">
-            {datesInRange.map(date => (
-              <div key={date} className="space-y-6">
-                <div className="flex items-center justify-center">
-                  <div className="bg-white border border-slate-100 px-10 py-3 rounded-full shadow-md">
-                    <span className="text-[12px] font-black text-[#111827] uppercase tracking-[0.2em]">{new Date(date).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase()}</span>
+            {datesInRange.map(date => {
+              const hasContentAtAll = TIME_SLOTS.some(slot => {
+                return brands.some(b => {
+                  const brandNameNorm = b.name.toUpperCase();
+                  if (selectedBrandFilter !== 'SEMUA BRAND' && brandNameNorm !== selectedBrandFilter) return false;
+                  const sched = schedules.find(s => s.date === date && s.brand === brandNameNorm && s.hourSlot === slot);
+                  if (localSearch) {
+                    const h = sched ? (employeeMap[sched.hostId] || '').toLowerCase() : '';
+                    const o = sched ? (employeeMap[sched.opId] || '').toLowerCase() : '';
+                    return h.includes(localSearch.toLowerCase()) || o.includes(localSearch.toLowerCase()) || brandNameNorm.includes(localSearch.toUpperCase());
+                  }
+                  return (sched && (sched.hostId || sched.opId));
+                });
+              });
+
+              if (!hasContentAtAll && !showEmptySlots) return null;
+
+              return (
+                <div key={date} className="space-y-6">
+                  <div className="flex items-center justify-center">
+                    <div className="bg-white border border-slate-100 px-10 py-3 rounded-full shadow-md">
+                      <span className="text-[12px] font-black text-[#111827] uppercase tracking-[0.2em]">{new Date(date).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase()}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-8">
+                    {TIME_SLOTS.map(slot => {
+                      const brandsForSlot = brands.filter(b => {
+                        const brandNameNorm = b.name.toUpperCase();
+                        if (selectedBrandFilter !== 'SEMUA BRAND' && brandNameNorm !== selectedBrandFilter) return false;
+                        const sched = schedules.find(s => s.date === date && s.brand === brandNameNorm && s.hourSlot === slot);
+                        if (localSearch) {
+                          const h = sched ? (employeeMap[sched.hostId] || '').toLowerCase() : '';
+                          const o = sched ? (employeeMap[sched.opId] || '').toLowerCase() : '';
+                          return h.includes(localSearch.toLowerCase()) || o.includes(localSearch.toLowerCase()) || brandNameNorm.includes(localSearch.toUpperCase());
+                        }
+                        return (sched && (sched.hostId || sched.opId)) || showEmptySlots;
+                      });
+                      if (brandsForSlot.length === 0) return null;
+                      return (
+                        <div key={`${date}-${slot}`} className="bg-slate-50/70 p-6 rounded-[32px] border border-slate-100 space-y-6">
+                          <div className="flex items-center gap-4"><span className="bg-[#111827] text-yellow-400 px-6 py-2 rounded-full text-[10px] font-black tracking-widest">{slot}</span><div className="h-px flex-grow bg-slate-200"></div></div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {brandsForSlot.map((brand: any) => {
+                              const sched = schedules.find(s => s.date === date && s.brand === brand.name.toUpperCase() && s.hourSlot === slot) || { hostId: '', opId: '' };
+                              return (
+                                <div key={`${date}-${slot}-${brand.name}`} className="bg-white border border-slate-100 rounded-[24px] p-6 space-y-4 shadow-sm hover:shadow-md transition-all">
+                                  <p className="text-[10px] font-black text-[#111827] uppercase tracking-widest border-b pb-2">{brand.name}</p>
+                                  <div className="grid grid-cols-2 gap-4">
+                                     <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 uppercase">HOST</label><select value={sched.hostId} disabled={readOnly} onChange={(e) => updateSchedule(date, brand.name, slot, 'hostId', e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-3 text-[10px] font-black appearance-none cursor-pointer text-black outline-none"><option value=""></option>{hostList.map(h => <option key={h.id} value={h.id}>{h.nama.toUpperCase()}</option>)}</select></div>
+                                     <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 uppercase">OP</label><select value={sched.opId} disabled={readOnly} onChange={(e) => updateSchedule(date, brand.name, slot, 'opId', e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-3 text-[10px] font-black appearance-none cursor-pointer text-black outline-none"><option value=""></option>{opList.map(o => <option key={o.id} value={o.id}>{o.nama.toUpperCase()}</option>)}</select></div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-                <div className="space-y-8">
-                  {TIME_SLOTS.map(slot => {
-                    const brandsForSlot = brands.filter(b => {
-                      const brandNameNorm = b.name.toUpperCase();
-                      if (selectedBrandFilter !== 'SEMUA BRAND' && brandNameNorm !== selectedBrandFilter) return false;
-                      const sched = schedules.find(s => s.date === date && s.brand === brandNameNorm && s.hourSlot === slot);
-                      if (localSearch) {
-                        const h = sched ? (employeeMap[sched.hostId] || '').toLowerCase() : '';
-                        const o = sched ? (employeeMap[sched.opId] || '').toLowerCase() : '';
-                        return h.includes(localSearch.toLowerCase()) || o.includes(localSearch.toLowerCase()) || brandNameNorm.includes(localSearch.toUpperCase());
-                      }
-                      return (sched && (sched.hostId || sched.opId)) || showEmptySlots;
-                    });
-                    if (brandsForSlot.length === 0) return null;
-                    return (
-                      <div key={`${date}-${slot}`} className="bg-slate-50/70 p-6 rounded-[32px] border border-slate-100 space-y-6">
-                        <div className="flex items-center gap-4"><span className="bg-[#111827] text-yellow-400 px-6 py-2 rounded-full text-[10px] font-black tracking-widest">{slot}</span><div className="h-px flex-grow bg-slate-200"></div></div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {brandsForSlot.map((brand: any) => {
-                            const sched = schedules.find(s => s.date === date && s.brand === brand.name.toUpperCase() && s.hourSlot === slot) || { hostId: '', opId: '' };
-                            return (
-                              <div key={`${date}-${slot}-${brand.name}`} className="bg-white border border-slate-100 rounded-[24px] p-6 space-y-4 shadow-sm hover:shadow-md transition-all">
-                                <p className="text-[10px] font-black text-[#111827] uppercase tracking-widest border-b pb-2">{brand.name}</p>
-                                <div className="grid grid-cols-2 gap-4">
-                                   <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 uppercase">HOST</label><select value={sched.hostId} disabled={readOnly} onChange={(e) => updateSchedule(date, brand.name, slot, 'hostId', e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-3 text-[10px] font-black appearance-none cursor-pointer text-black outline-none"><option value="">- TBA -</option>{hostList.map(h => <option key={h.id} value={h.id}>{h.nama.toUpperCase()}</option>)}</select></div>
-                                   <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 uppercase">OP</label><select value={sched.opId} disabled={readOnly} onChange={(e) => updateSchedule(date, brand.name, slot, 'opId', e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-3 text-[10px] font-black appearance-none cursor-pointer text-black outline-none"><option value="">- TBA -</option>{opList.map(o => <option key={o.id} value={o.id}>{o.nama.toUpperCase()}</option>)}</select></div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : activeSubTab === 'REPORT' ? (
           <LiveReportModule employees={employees} reports={reports} setReports={setReports} userRole={userRole} company={company} onClose={() => setActiveSubTab('JADWAL')} />
@@ -410,7 +475,6 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
           <LiveCharts reports={reports} employees={employees} />
         ) : activeSubTab === 'LIBUR' ? (
           <div className="space-y-12">
-            {/* View Table Based on Range */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {holidayListByDate.map(item => (
                 <div key={item.date} className="bg-slate-50 p-6 rounded-[32px] border border-slate-100 animate-in zoom-in-95 duration-300">

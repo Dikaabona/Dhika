@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icons } from '../constants';
 import { supabase } from '../App';
@@ -23,6 +22,7 @@ interface KPISystemData {
   attendanceWeight: number;
   contentWeight: number;
   gmvWeight: number;
+  lateWeight: number;
   scores: Record<string, Record<string, Record<string, number>>>;
 }
 
@@ -44,6 +44,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     attendanceWeight: 25,
     contentWeight: 25,
     gmvWeight: 25,
+    lateWeight: 25,
     scores: {} 
   });
   const [newCriteriaName, setNewCriteriaName] = useState('');
@@ -58,11 +59,9 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const [searchEmp, setSearchEmp] = useState('');
   const [searchRemote, setSearchRemote] = useState('');
 
-  // Pagination for ROLE management
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Pagination for REMOTE management (MAPS tab)
   const [remotePage, setRemotePage] = useState(1);
   const remoteItemsPerPage = 5;
 
@@ -100,7 +99,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
         .single();
       
       if (settingsError && settingsError.code !== 'PGRST116') throw settingsError;
-      // Fixed: Explicit type assertion for settingsData.value as it's from JSON column
       if (settingsData) setSettings(settingsData.value as AttendanceSettings);
 
       let query = supabase.from('employees').select('*').order('nama', { ascending: true });
@@ -122,19 +120,19 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
       const targetCompany = isOwner ? selectedCompany : userCompany;
       const { data } = await supabase.from('settings').select('value').eq('key', `kpi_system_${targetCompany}`).single();
       if (data) {
-        // Fixed: Added cast to any for val to handle unknown property access from Supabase JSON result
         const val = data.value as any;
         setKpiSystem({
           criteria: val.criteria || [],
           attendanceWeight: val.attendanceWeight ?? 25,
           contentWeight: val.contentWeight ?? 25,
           gmvWeight: val.gmvWeight ?? 25,
+          lateWeight: val.lateWeight ?? 0,
           scores: val.scores || {}
         });
       }
-      else setKpiSystem({ criteria: [], attendanceWeight: 25, contentWeight: 25, gmvWeight: 25, scores: {} });
+      else setKpiSystem({ criteria: [], attendanceWeight: 25, contentWeight: 25, gmvWeight: 25, lateWeight: 0, scores: {} });
     } catch (e) {
-      setKpiSystem({ criteria: [], attendanceWeight: 25, contentWeight: 25, gmvWeight: 25, scores: {} });
+      setKpiSystem({ criteria: [], attendanceWeight: 25, contentWeight: 25, gmvWeight: 25, lateWeight: 0, scores: {} });
     }
   };
 
@@ -142,7 +140,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     try {
       const targetCompany = isOwner ? selectedCompany : userCompany;
       const { data } = await supabase.from('settings').select('value').eq('key', `divisions_${targetCompany}`).single();
-      // Fixed: Added type assertion as string[] for data.value to fix unknown type issues
       if (data && Array.isArray(data.value)) {
         setDivisions(data.value as string[]);
       } else {
@@ -181,6 +178,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
       }, { onConflict: 'key' });
       if (settingsError) throw settingsError;
       setKpiSystem(newData);
+      alert("Konfigurasi KPI berhasil disimpan!");
     } catch (err: any) {
       alert("Gagal menyimpan kriteria KPI: " + err.message);
     } finally {
@@ -310,7 +308,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     divisions.forEach(div => {
       structure[div] = employees.filter(e => e.division === div);
     });
-    // Karyawan tanpa divisi
     const noDiv = employees.filter(e => !e.division || !divisions.includes(e.division));
     if (noDiv.length > 0) structure['TIDAK TERDAFTAR'] = noDiv;
     return structure;
@@ -324,7 +321,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     );
   }
 
-  const totalKPIWeight = kpiSystem.attendanceWeight + kpiSystem.contentWeight + kpiSystem.gmvWeight + kpiSystem.criteria.reduce((s, c) => s + (c.weight || 0), 0);
+  const totalKPIWeight = kpiSystem.attendanceWeight + kpiSystem.contentWeight + kpiSystem.gmvWeight + kpiSystem.lateWeight + (kpiSystem.criteria as CustomCriteria[]).reduce((s, c) => s + (c.weight || 0), 0);
 
   return (
     <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
@@ -482,7 +479,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                     )}
                  </div>
 
-                 {/* Pagination for Remote List - 5 items per page */}
                  {totalRemotePages > 1 && (
                    <div className="flex items-center justify-between px-2 pt-4 border-t border-slate-100">
                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{remotePage} / {totalRemotePages}</span>
@@ -577,7 +573,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                </table>
             </div>
 
-            {/* Pagination UI for Roles */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between px-10 py-6 border-t border-slate-100">
                 <div className="flex items-center gap-3">
@@ -649,10 +644,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                     </div>
 
                     <div className="space-y-4">
-                      {/* Fixed: Added explicit cast to CustomCriteria[] to fix Property 'length' does not exist on type 'unknown' error */}
                       <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Kriteria Manual Aktif ({(kpiSystem.criteria as CustomCriteria[]).length})</h3>
                       <div className="space-y-3">
-                        {/* Fixed: Added explicit cast to CustomCriteria[] to fix Property 'map' does not exist on type 'unknown' error */}
                         {(kpiSystem.criteria as CustomCriteria[]).map(c => (
                           <div key={c.id} className="flex items-center justify-between bg-white p-5 rounded-2xl border border-slate-100 group shadow-sm">
                             <div className="flex items-baseline gap-3">
@@ -668,7 +661,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                             </button>
                           </div>
                         ))}
-                        {/* Fixed: Added explicit cast to CustomCriteria[] to fix Property 'length' does not exist on type 'unknown' error */}
                         {(kpiSystem.criteria as CustomCriteria[]).length === 0 && (
                           <div className="py-12 text-center bg-white/50 border-2 border-dashed border-slate-200 rounded-3xl">
                             <Icons.Sparkles className="w-10 h-10 mx-auto text-slate-200 mb-2" />
@@ -681,13 +673,22 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
 
                   <div className="bg-white p-8 rounded-[40px] border border-slate-100 space-y-6">
                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Bobot Komponen Standar (%)</h3>
-                    <div className="grid grid-cols-3 gap-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                       <div className="space-y-2">
                         <label className="text-[8px] font-black text-slate-300 uppercase tracking-widest ml-1">Presensi</label>
                         <input 
                           type="number" 
                           value={kpiSystem.attendanceWeight} 
                           onChange={e => handleUpdateComponentWeight('attendanceWeight', parseInt(e.target.value) || 0)}
+                          className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-black text-center text-slate-900 outline-none" 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[8px] font-black text-slate-300 uppercase tracking-widest ml-1">Tepat Waktu</label>
+                        <input 
+                          type="number" 
+                          value={kpiSystem.lateWeight} 
+                          onChange={e => handleUpdateComponentWeight('lateWeight', parseInt(e.target.value) || 0)}
                           className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-black text-center text-slate-900 outline-none" 
                         />
                       </div>
@@ -723,11 +724,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                         </li>
                         <li className="flex gap-3 text-xs font-medium text-indigo-800">
                            <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0"></div>
-                           <span><b>Rumus Creator:</b> Presensi + Konten + Manual Criteria.</span>
+                           <span><b>Rumus Creator:</b> Presensi + Tepat Waktu + Konten + Manual Criteria.</span>
                         </li>
                         <li className="flex gap-3 text-xs font-medium text-indigo-800">
                            <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0"></div>
-                           <span><b>Rumus Host:</b> Presensi + GMV + Manual Criteria.</span>
+                           <span><b>Rumus Host:</b> Presensi + Tepat Waktu + GMV + Manual Criteria.</span>
                         </li>
                         <li className="flex gap-3 text-xs font-medium text-indigo-800">
                            <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0"></div>
@@ -784,10 +785,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                      </div>
 
                      <div className="space-y-4">
-                        {/* Fixed: Added explicit cast to string[] to fix Property 'length' does not exist on type 'unknown' error */}
                         <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Daftar Divisi Terdaftar ({(divisions as string[]).length})</h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                           {/* Fixed: Added explicit cast to string[] to fix Property 'map' does not exist on type 'unknown' error */}
                            {(divisions as string[]).map(d => (
                              <div key={d} className="flex items-center justify-between bg-white p-5 rounded-2xl border border-slate-100 group shadow-sm">
                                 <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest">{d}</span>
@@ -800,7 +799,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                                 </button>
                              </div>
                            ))}
-                           {/* Fixed: Added explicit cast to string[] to fix Property 'length' does not exist on type 'unknown' error */}
                            {(divisions as string[]).length === 0 && (
                              <div className="col-span-full py-16 text-center bg-white/50 border-2 border-dashed border-slate-200 rounded-3xl opacity-30">
                                 <Icons.Database className="w-12 h-12 mx-auto mb-2" />
@@ -837,7 +835,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Fixed: Added explicit cast for Object.entries results to fix potential unknown type inference in some TS environments */}
               {(Object.entries(orgStructure) as [string, Employee[]][]).map(([divName, members]) => (
                 <div key={divName} className="bg-slate-50 p-6 rounded-[32px] border border-slate-100 flex flex-col h-full">
                   <div className="flex items-center justify-between mb-6 border-b border-slate-200 pb-4">

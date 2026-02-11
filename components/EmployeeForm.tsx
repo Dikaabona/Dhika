@@ -46,17 +46,24 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
   const [divisions, setDivisions] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Sinkronisasi divisi berdasarkan pilihan Company di form
   useEffect(() => {
-    fetchDivisions();
-  }, [userCompany]);
+    if (formData.company) {
+      fetchDivisions(formData.company);
+    }
+  }, [formData.company]);
 
-  const fetchDivisions = async () => {
+  const fetchDivisions = async (targetCompany: string) => {
     try {
-      const { data } = await supabase.from('settings').select('value').eq('key', `divisions_${userCompany}`).single();
+      const { data } = await supabase.from('settings').select('value').eq('key', `divisions_${targetCompany}`).single();
       if (data && Array.isArray(data.value)) {
         setDivisions(data.value);
+      } else {
+        setDivisions([]);
       }
-    } catch (e) {}
+    } catch (e) {
+      setDivisions([]);
+    }
   };
 
   useEffect(() => {
@@ -74,6 +81,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
         const regex = new RegExp(`${prefix}(\\d+)`);
 
         const ids = list
+          .filter(e => (e.company || '').toLowerCase() === currentCompany.toLowerCase())
           .map(e => {
             const match = (e.idKaryawan || '').match(regex);
             return match ? parseInt(match[1], 10) : null;
@@ -90,7 +98,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
         return `VID-${nextNum}`;
       };
       
-      const nextId = generateNextSequentialId(employees, userCompany);
+      const nextId = generateNextSequentialId(employees, formData.company);
       const today = new Date();
       const formattedToday = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
       
@@ -99,7 +107,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
         idKaryawan: nextId,
         avatarUrl: '',
         tanggalMasuk: formattedToday,
-        company: userCompany,
+        company: formData.company || userCompany,
         hutang: 0,
         isRemoteAllowed: false
       }));
@@ -334,7 +342,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
                   onChange={handleChange}
                   className="w-5 h-5 rounded border-emerald-200 text-emerald-600 focus:ring-emerald-500" 
                 />
-                <label className="text-[10px] font-black text-emerald-800 font-black uppercase tracking-widest">Izinkan Absen Remote (Individu)</label>
+                <label className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Izinkan Absen Remote (Individu)</label>
               </div>
             </div>
             

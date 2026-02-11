@@ -1,7 +1,6 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
-import { Employee, AttendanceRecord, ContentPlan, LiveReport } from '../types';
-import { Icons } from '../constants';
+import { Employee, AttendanceRecord, ContentPlan, LiveReport, ShiftAssignment } from '../types';
+import { Icons, DEFAULT_SHIFTS } from '../constants';
 import { supabase } from '../App';
 
 interface KPIModuleProps {
@@ -9,6 +8,7 @@ interface KPIModuleProps {
   attendanceRecords: AttendanceRecord[];
   contentPlans: ContentPlan[];
   liveReports: LiveReport[];
+  shiftAssignments: ShiftAssignment[];
   userRole: string;
   currentEmployee: Employee | null;
   company: string;
@@ -26,6 +26,7 @@ interface KPISystemData {
   attendanceWeight: number;
   contentWeight: number;
   gmvWeight: number;
+  lateWeight: number;
   scores: Record<string, Record<string, Record<string, number>>>; // YYYY-MM -> employeeId -> criteriaId -> score
 }
 
@@ -33,7 +34,8 @@ const KPIModule: React.FC<KPIModuleProps> = ({
   employees, 
   attendanceRecords, 
   contentPlans, 
-  liveReports, 
+  liveReports,
+  shiftAssignments,
   userRole, 
   currentEmployee, 
   company, 
@@ -51,6 +53,7 @@ const KPIModule: React.FC<KPIModuleProps> = ({
     attendanceWeight: 25, 
     contentWeight: 25, 
     gmvWeight: 25, 
+    lateWeight: 25,
     scores: {} 
   });
   const [isLoadingSystem, setIsLoadingSystem] = useState(true);
@@ -64,7 +67,6 @@ const KPIModule: React.FC<KPIModuleProps> = ({
   ];
 
   const isAdmin = userRole !== 'employee';
-  // HANYA super admin dan owner yang bisa merubah penilaian manual
   const isHighAdmin = userRole === 'owner' || userRole === 'super';
   const isOwner = userRole === 'owner';
 
@@ -84,6 +86,7 @@ const KPIModule: React.FC<KPIModuleProps> = ({
           attendanceWeight: val.attendanceWeight ?? 25,
           contentWeight: val.contentWeight ?? 25,
           gmvWeight: val.gmvWeight ?? 25,
+          lateWeight: val.lateWeight ?? 0,
           scores: val.scores || {}
         });
       }
@@ -151,20 +154,17 @@ const KPIModule: React.FC<KPIModuleProps> = ({
   const kpiData = useMemo(() => {
     const monthKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
     
-    // Perhitungan Rentang Tanggal Kehadiran (29 - 28)
     const attStart = new Date(selectedYear, selectedMonth - 1, 29);
     const attEnd = new Date(selectedYear, selectedMonth, 28);
     attStart.setHours(0,0,0,0);
     attEnd.setHours(23,59,59,999);
 
-    // Perhitungan Rentang Tanggal Konten (Cut off 25)
     const contentStart = new Date(selectedYear, selectedMonth - 1, 26);
     const contentEnd = new Date(selectedYear, selectedMonth, 25);
     contentStart.setHours(0,0,0,0);
     contentEnd.setHours(23,59,59,999);
 
     return targetEmployees.map(emp => {
-      // Logic Presensi (29-28)
       const monthRecords = attendanceRecords.filter(r => {
         const d = new Date(r.date);
         return r.employeeId === emp.id && d >= attStart && d <= attEnd;
@@ -172,7 +172,28 @@ const KPIModule: React.FC<KPIModuleProps> = ({
       const presentDays = monthRecords.filter(r => r.status === 'Hadir').length;
       const attendanceScore = monthRecords.length > 0 ? (presentDays / monthRecords.length) * 100 : 0;
 
-      // Logic Konten (Cut off tgl 25, Target 50 video)
+      // Logic Ketepatan Waktu (Punctuality)
+      const punctualityScore = monthRecords.filter(r => r.status === 'Hadir').length > 0
+        ? (() => {
+            let lateCount = 0;
+            const daysHadir = monthRecords.filter(r => r.status === 'Hadir');
+            daysHadir.forEach(r => {
+              const assignment = shiftAssignments.find(a => a.employeeId === emp.id && a.date === r.date);
+              if (assignment && r.clockIn) {
+                const shift = DEFAULT_SHIFTS.find(s => s.id === assignment.shiftId);
+                if (shift) {
+                  const [clockH, clockM] = r.clockIn.split(':').map(Number);
+                  const [shiftH, shiftM] = shift.startTime.split(':').map(Number);
+                  const clockTotal = clockH * 60 + clockM;
+                  const shiftTotal = shiftH * 60 + shiftM;
+                  if (clockTotal > shiftTotal) lateCount++;
+                }
+              }
+            });
+            return ((daysHadir.length - lateCount) / daysHadir.length) * 100;
+          })()
+        : 0;
+
       const monthContent = contentPlans.filter(p => {
         if (!p.postingDate) return false;
         const d = new Date(p.postingDate);
@@ -180,7 +201,6 @@ const KPIModule: React.FC<KPIModuleProps> = ({
       });
       const contentCount = monthContent.length;
 
-      // Logic Live GMV (Mengikuti bulan kalender standar)
       const monthLive = liveReports.filter(l => {
         const d = new Date(l.tanggal);
         return l.hostId === emp.id && d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
@@ -195,13 +215,13 @@ const KPIModule: React.FC<KPIModuleProps> = ({
       const isHost = (emp.jabatan || '').toUpperCase().includes('HOST');
       const isCreator = (emp.jabatan || '').toUpperCase().includes('CREATOR');
       
-      // WEIGHTED SCORE CALCULATION
       const attW = kpiSystem.attendanceWeight || 0;
+      const lateW = kpiSystem.lateWeight || 0;
       const contW = kpiSystem.contentWeight || 0;
       const gmvW = kpiSystem.gmvWeight || 0;
 
-      let weightedSum = (attendanceScore * (attW / 100));
-      let totalWeightUsed = attW;
+      let weightedSum = (attendanceScore * (attW / 100)) + (punctualityScore * (lateW / 100));
+      let totalWeightUsed = attW + lateW;
 
       if (isCreator) {
         const contentScore = Math.min(100, (contentCount / 50) * 100);
@@ -220,12 +240,12 @@ const KPIModule: React.FC<KPIModuleProps> = ({
         totalWeightUsed += m.weight;
       });
 
-      // Normalize if total weight isn't 100%
       const finalScore = totalWeightUsed > 0 ? weightedSum * (100 / totalWeightUsed) : 0;
 
       return {
         ...emp,
         attendanceScore,
+        punctualityScore,
         presentDays,
         contentCount,
         totalGMV,
@@ -235,7 +255,7 @@ const KPIModule: React.FC<KPIModuleProps> = ({
         finalScore
       };
     }).sort((a, b) => b.finalScore - a.finalScore);
-  }, [targetEmployees, attendanceRecords, contentPlans, liveReports, selectedMonth, selectedYear, kpiSystem]);
+  }, [targetEmployees, attendanceRecords, contentPlans, liveReports, shiftAssignments, selectedMonth, selectedYear, kpiSystem]);
 
   const totalPages = Math.ceil(kpiData.length / itemsPerPage);
   const paginatedKpiData = useMemo(() => {
@@ -244,7 +264,6 @@ const KPIModule: React.FC<KPIModuleProps> = ({
 
   return (
     <div className="animate-in fade-in duration-500 bg-[#f8fafc] space-y-4 sm:space-y-6">
-      {/* Header Section */}
       <div className="bg-white border rounded-[24px] sm:rounded-[40px] shadow-sm border-slate-100 overflow-hidden">
         <div className="px-5 py-6 sm:px-10 sm:py-8">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
@@ -315,7 +334,6 @@ const KPIModule: React.FC<KPIModuleProps> = ({
         </div>
       </div>
 
-      {/* Employee KPI List */}
       <div className="space-y-3 sm:space-y-4">
         {paginatedKpiData.map((data, idx) => (
           <div key={data.id} className="bg-white p-4 sm:p-6 rounded-[28px] sm:rounded-[36px] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 group">
@@ -329,18 +347,18 @@ const KPIModule: React.FC<KPIModuleProps> = ({
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-sm sm:text-lg font-black text-black uppercase tracking-tight truncate whitespace-nowrap">{data.nama}</h3>
+                      <h3 className="text-sm sm:text-lg font-black text-black uppercase tracking-tight truncate">{data.nama}</h3>
                       {isHighAdmin && (
                         <button 
                           onClick={() => openScoring(data)}
-                          className="p-1.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all shrink-0 bg-slate-50"
+                          className="p-1.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all bg-slate-50"
                           title="Input Nilai Manual"
                         >
                           <Icons.Edit className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
-                    <p className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-widest truncate whitespace-nowrap">{data.jabatan} • {data.company}</p>
+                    <p className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-widest truncate">{data.jabatan} • {data.company}</p>
                   </div>
                 </div>
                 <div className="text-right shrink-0">
@@ -356,18 +374,22 @@ const KPIModule: React.FC<KPIModuleProps> = ({
                 ></div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 pt-1">
+              <div className="grid grid-cols-4 gap-2 pt-1">
                 <div className="flex flex-col items-center bg-slate-50 py-2 rounded-xl border border-slate-100/50">
-                  <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 whitespace-nowrap">Presensi</p>
+                  <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 truncate w-full text-center px-1">Presensi</p>
                   <p className="text-[10px] sm:text-xs font-black text-slate-900 whitespace-nowrap">{data.attendanceScore.toFixed(1)}%</p>
                 </div>
+                <div className="flex flex-col items-center bg-slate-50 py-2 rounded-xl border border-slate-100/50">
+                  <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 truncate w-full text-center px-1">Tepat Waktu</p>
+                  <p className="text-[10px] sm:text-xs font-black text-slate-900 whitespace-nowrap">{data.punctualityScore.toFixed(1)}%</p>
+                </div>
                 <div className={`flex flex-col items-center bg-slate-50 py-2 rounded-xl border border-slate-100/50 ${!data.isCreator ? 'opacity-20' : ''}`}>
-                  <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 whitespace-nowrap">Output (Target 50)</p>
+                  <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 truncate w-full text-center px-1">Video</p>
                   <p className="text-[10px] sm:text-xs font-black text-slate-900 whitespace-nowrap">{data.isCreator ? `${data.contentCount}` : '-'}</p>
                 </div>
                 <div className={`flex flex-col items-center bg-slate-50 py-2 rounded-xl border border-slate-100/50 ${!data.isHost ? 'opacity-20' : ''}`}>
-                  <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 whitespace-nowrap">Live GMV</p>
-                  <p className="text-[10px] sm:text-xs font-black text-slate-900 truncate max-w-full whitespace-nowrap">
+                  <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 truncate w-full text-center px-1">GMV</p>
+                  <p className="text-[10px] sm:text-xs font-black text-slate-900 whitespace-nowrap">
                     {data.isHost ? `Rp ${(data.totalGMV / 1000000).toFixed(1)}M` : '-'}
                   </p>
                 </div>
@@ -384,7 +406,6 @@ const KPIModule: React.FC<KPIModuleProps> = ({
         )}
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-4 pt-4 pb-24">
           <button 
@@ -407,7 +428,6 @@ const KPIModule: React.FC<KPIModuleProps> = ({
         </div>
       )}
 
-      {/* Individual Scoring Modal - ONLY FOR HIGH ADMIN */}
       {scoringEmployee && (
         <div className="fixed inset-0 bg-[#0f172a]/95 backdrop-blur-md flex items-center justify-center p-4 z-[310]">
           <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[85vh]">

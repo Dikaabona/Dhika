@@ -101,12 +101,23 @@ const Dashboard: React.FC<DashboardProps> = ({
   const saldoCuti = useMemo(() => {
     if (tenureYears < 1 || !currentUserEmployee) return 0;
     const currentYear = new Date().getFullYear();
+    
+    // Penyesuaian Manual
+    const name = currentUserEmployee.nama.toLowerCase();
+    let adjustment = 0;
+    if (name.includes('fikry aditya rizky')) adjustment = 2;
+    else if (name.includes('iskandar juliana')) adjustment = 3;
+    else if (name.includes('muhammad ariyansyah')) adjustment = 2;
+    else if (name.includes('adinda salsabilla')) adjustment = 3;
+    else if (name.includes('pajar sidik')) adjustment = 1;
+
     const used = attendanceRecords.filter(r => 
       r.employeeId === currentUserEmployee.id && 
       r.status === 'Cuti' && 
       new Date(r.date).getFullYear() === currentYear
     ).length;
-    return 12 - used;
+    
+    return Math.max(0, 12 - used - adjustment);
   }, [tenureYears, currentUserEmployee, attendanceRecords]);
 
   // Icons for Grid Menu
@@ -124,7 +135,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     if (isSuper) {
       base.push({ id: 'kpi', label: 'KPI Performance', icon: <Icons.Sparkles className="w-5 h-5" />, tab: 'kpi' });
-      base.push({ id: 'settings', label: 'Pengaturan', icon: <Icons.Settings className="w-5 h-5" />, tab: 'settings' });
+      // Remove settings from mobile menu grid as requested
     }
 
     return base;
@@ -272,7 +283,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </p>
                   <div className="flex items-center gap-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">
                     <span>PROSES SEKARANG</span>
-                    <Icons.ChevronDown className="w-3 h-3 -rotate-90" />
+                    <Icons.ChevronDown className="w-3.5 h-3.5 -rotate-90" />
                   </div>
                 </button>
               ) : (
@@ -294,12 +305,9 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="space-y-4 px-2 pb-2">
           <div className="flex justify-between items-center px-2">
             <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em]">Menu Utama</h4>
-            {isSuper && (
-              <button onClick={() => onNavigate('settings')} className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">UBAH</button>
-            )}
           </div>
           <div className="grid grid-cols-4 gap-x-2 gap-y-5">
-            {menuItems.filter(i => i.tab !== 'absen' && i.tab !== 'shift' && i.tab !== 'database' && i.tab !== 'kpi').map((item) => (
+            {menuItems.filter(i => i.tab !== 'absen' && i.tab !== 'shift' && i.tab !== 'database' && i.tab !== 'kpi' && i.tab !== 'settings').map((item) => (
               <button 
                 key={item.id} 
                 onClick={() => onNavigate(item.tab)}

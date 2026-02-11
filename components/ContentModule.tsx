@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, ContentPlan } from '../types';
-import { Icons, LIVE_BRANDS as INITIAL_BRANDS } from '../constants';
+import { Icons } from '../constants';
 import { supabase } from '../App';
 import { generateGoogleCalendarUrl } from '../utils/dateUtils';
 
@@ -52,35 +52,38 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   const [isSavingBrands, setIsSavingBrands] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
   
-  const [brands, setBrands] = useState<any[]>(() => {
-    const saved = localStorage.getItem('content_brands_config');
-    if (saved) return JSON.parse(saved);
-    return INITIAL_BRANDS.map(b => ({ name: b.name, target: 0, quotaDeadline: '', jamUpload: '19:00' }));
-  });
+  const [brands, setBrands] = useState<any[]>([]);
 
   useEffect(() => {
     fetchCloudConfigs();
-  }, []);
+  }, [company]);
 
   const fetchCloudConfigs = async () => {
     try {
-      const { data, error } = await supabase.from('settings').select('*');
-      if (error) return;
+      const { data, error } = await supabase.from('settings').select('*').eq('key', `content_brands_config_${company}`).single();
+      if (error && error.code !== 'PGRST116') throw error;
 
-      const contentBrands = data.find(s => s.key === 'content_brands_config')?.value;
-      if (contentBrands) {
-        setBrands(contentBrands);
-        localStorage.setItem('content_brands_config', JSON.stringify(contentBrands));
+      if (data?.value) {
+        setBrands(data.value);
+      } else {
+        // Default fallbacks
+        setBrands([
+          { name: 'HITJAB', target: 30, quotaDeadline: '', jamUpload: '19:00' },
+          { name: 'NAMASKARA', target: 30, quotaDeadline: '', jamUpload: '19:00' },
+          { name: 'SECONDSHAPE', target: 30, quotaDeadline: '', jamUpload: '19:00' }
+        ]);
       }
     } catch (err) {
       console.warn("Gagal memuat config cloud content.");
     }
   };
 
-  const saveConfigToCloud = async (key: string, value: any) => {
-    localStorage.setItem(key, JSON.stringify(value));
+  const saveConfigToCloud = async (value: any) => {
     try {
-      const { error } = await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' });
+      const { error } = await supabase.from('settings').upsert({ 
+        key: `content_brands_config_${company}`, 
+        value 
+      }, { onConflict: 'key' });
       if (error) throw error;
       return true;
     } catch (err) {
@@ -91,7 +94,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
 
   const persistBrandsUpdate = async (updatedBrands: any[]) => {
     setIsSavingBrands(true);
-    const success = await saveConfigToCloud('content_brands_config', updatedBrands);
+    const success = await saveConfigToCloud(updatedBrands);
     if (success) {
       setBrands(updatedBrands);
     } else {
@@ -101,13 +104,13 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   };
 
   const addBrand = async () => {
-    const trimmed = newBrandName.trim();
+    const trimmed = newBrandName.trim().toUpperCase();
     if (!trimmed) return;
-    if (brands.some((b: any) => b.name.toLowerCase() === trimmed.toLowerCase())) {
+    if (brands.some((b: any) => b.name === trimmed)) {
       alert("Brand sudah ada!");
       return;
     }
-    const updatedBrands = [...brands, { name: trimmed.toUpperCase(), target: 0, quotaDeadline: '', jamUpload: '19:00' }];
+    const updatedBrands = [...brands, { name: trimmed, target: 30, quotaDeadline: '', jamUpload: '19:00' }];
     await persistBrandsUpdate(updatedBrands);
     setNewBrandName('');
   };
@@ -125,11 +128,11 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
 
   const handleSaveSpecificBrand = async (name: string) => {
     setIsSavingBrands(true);
-    const success = await saveConfigToCloud('content_brands_config', brands);
+    const success = await saveConfigToCloud(brands);
     if (success) {
-      alert(`Config brand ${name} berhasil disimpan!`);
+      alert(`Config brand ${name} berhasil disimpan di Cloud!`);
     } else {
-      alert("Gagal menyimpan perubahan.");
+      alert("Gagal menyimpan perubahan ke Cloud.");
     }
     setIsSavingBrands(false);
   };
@@ -152,7 +155,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
 
   const [formData, setFormData] = useState<Omit<ContentPlan, 'id'>>({
     title: '',
-    brand: brands[0]?.name || '',
+    brand: '',
     company: company,
     platform: 'TikTok',
     creatorId: '',
@@ -173,21 +176,19 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     screenshotBase64: ''
   });
 
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
-
   const brandStats = useMemo(() => {
     return brands.map(brand => {
-      const doneThisMonth = plans.filter(p => {
+      const filteredPlansByRange = plans.filter(p => {
         if (!p.postingDate || p.brand !== brand.name) return false;
-        const pDate = new Date(p.postingDate);
-        return pDate.getMonth() === currentMonth && pDate.getFullYear() === currentYear;
-      }).length;
-      const remaining = Math.max(0, (brand.target || 0) - doneThisMonth);
-      const progress = brand.target > 0 ? (doneThisMonth / brand.target) * 100 : 0;
-      return { ...brand, done: doneThisMonth, remaining, progress: Math.min(100, progress) };
+        return p.postingDate >= startDate && p.postingDate <= endDate;
+      });
+      const done = filteredPlansByRange.length;
+      const target = brand.target || 30;
+      const remaining = Math.max(0, target - done);
+      const progress = target > 0 ? (done / target) * 100 : 0;
+      return { ...brand, done, remaining, progress: Math.min(100, progress) };
     });
-  }, [brands, plans, currentMonth, currentYear]);
+  }, [brands, plans, startDate, endDate]);
 
   const filteredPlans = useMemo(() => {
     const finalSearch = (localSearch || globalSearch).toLowerCase();
@@ -225,7 +226,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         jamUpload: plan.jamUpload || '19:00',
         captionHashtag: plan.captionHashtag || '',
         linkPostingan: plan.linkPostingan || '',
-        brand: plan.brand || brands[0]?.name || '',
+        brand: plan.brand || (brands[0]?.name || ''),
         creatorId: plan.creatorId || (isCreator ? currentEmployee?.id || '' : '')
       });
     } else {
@@ -294,9 +295,9 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       });
       setIsModalOpen(false);
       setDbStatus('sync');
+      alert("Data berhasil disimpan ke Cloud Database!");
     } catch (err: any) {
       alert("Gagal menyimpan ke database: " + (err.message || "Kesalahan tidak diketahui"));
-      setDbStatus('local');
     }
   };
 
@@ -412,6 +413,36 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     XLSX.writeFile(workbook, `Template_Report_Konten_${company}.xlsx`);
   };
 
+  const parseExcelDate = (val: any) => {
+    if (!val) return new Date().toISOString().split('T')[0];
+    if (val instanceof Date) return val.toISOString().split('T')[0];
+    
+    const str = String(val).trim();
+    if (str.includes('/')) {
+      const parts = str.split('/');
+      if (parts.length === 3) {
+        // Assume YYYY/MM/DD or DD/MM/YYYY
+        if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+    }
+    if (str.includes('-')) {
+      const parts = str.split('-');
+      if (parts.length === 3) {
+        if (parts[0].length === 4) return str;
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+    }
+    
+    // Excel numeric date fallback
+    if (!isNaN(Number(str)) && Number(str) > 30000) {
+      const date = new Date((Number(str) - 25569) * 86400 * 1000);
+      return date.toISOString().split('T')[0];
+    }
+
+    return str;
+  };
+
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -420,25 +451,26 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     reader.onload = async (event) => {
       try {
         const data = new Uint8Array(event.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         
+        const MAX_INT = 2147483647;
+
         const rawParsedReports = jsonData.map((row: any) => {
           const brand = String(row['BRAND'] || '').toUpperCase().trim();
           if (!brand) return null;
 
-          const postingDate = row['TANGGAL POSTING'] 
-            ? (row['TANGGAL POSTING'] instanceof Date ? row['TANGGAL POSTING'].toISOString().split('T')[0] : String(row['TANGGAL POSTING'])) 
-            : new Date().toISOString().split('T')[0];
-          
+          const postingDate = parseExcelDate(row['TANGGAL POSTING']);
           const jamUpload = String(row['JAM UPLOAD'] || '19:00');
           const platform = String(row['PLATFORM'] || 'TikTok');
           const link = String(row['LINK POSTINGAN'] || '').trim();
           
-          const externalKey = `${brand}_${postingDate}_${platform}`;
+          const cleanInt = (v: any) => {
+            const parsed = parseInt(String(v || '0').replace(/[^0-9]/g, ''), 10);
+            return isNaN(parsed) ? 0 : Math.min(parsed, MAX_INT);
+          };
 
           return {
-            externalKey,
             title: `${brand} - ${postingDate}`,
             brand: brand,
             company: String(row['COMPANY'] || company),
@@ -448,46 +480,41 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
             creatorId: findCreatorIdByName(row['CREATOR']),
             contentPillar: String(row['PILLAR'] || 'Entertainment'),
             linkPostingan: link,
-            views: Number(row['VIEWS'] || 0),
-            likes: Number(row['LIKES'] || 0),
-            comments: Number(row['COMMENTS'] || 0),
-            saves: Number(row['SAVES'] || 0),
-            shares: Number(row['SHARES'] || 0),
+            views: cleanInt(row['VIEWS']),
+            likes: cleanInt(row['LIKES']),
+            comments: cleanInt(row['COMMENTS']),
+            saves: cleanInt(row['SAVES']),
+            shares: cleanInt(row['SHARES']),
             status: 'Selesai'
           };
         }).filter(r => r !== null);
 
         if (rawParsedReports.length > 0) {
-          const fileDeduper = new Map<string, any>();
-          rawParsedReports.forEach(r => {
-            const existing = fileDeduper.get(r!.externalKey);
-            if (!existing || r!.views > existing.views) {
-              fileDeduper.set(r!.externalKey, r);
-            }
-          });
-
+          // Identify existing records to update instead of duplicate
           const existingInDbMap = new Map<string, string>();
           plans.forEach(p => {
-            const key = `${p.brand}_${p.postingDate}_${p.platform}`;
+            const key = `${p.brand}_${p.postingDate}_${p.platform}`.toLowerCase();
             if (p.id) existingInDbMap.set(key, p.id);
           });
 
-          const finalToUpsert: any[] = [];
-          fileDeduper.forEach((report, key) => {
+          const finalToUpsert: any[] = rawParsedReports.map(report => {
+            const key = `${report!.brand}_${report!.postingDate}_${report!.platform}`.toLowerCase();
             const existingId = existingInDbMap.get(key);
-            const { jamUpload, externalKey, ...dbPayload } = report;
+            const { jamUpload, ...dbPayload } = report!;
             const item: any = {
               ...dbPayload,
               notes: `${dbPayload.notes || ''}${jamUpload ? ` [Time: ${jamUpload}]` : ''}`.trim()
             };
             if (existingId) item.id = existingId;
-            finalToUpsert.push(item);
+            return item;
           });
 
           const { data: inserted, error } = await supabase.from('content_plans').upsert(finalToUpsert).select();
           if (error) throw error;
           
-          alert(`Berhasil memproses ${inserted?.length} laporan konten!`);
+          alert(`Berhasil memproses ${inserted?.length} laporan ke Cloud Database!`);
+          
+          // Refresh data from DB
           const { data: updated } = await supabase.from('content_plans').select('*').order('postingDate', { ascending: false });
           if (updated) setPlans(updated);
         }
@@ -593,7 +620,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                 <div className="relative shrink-0">
                    <div className="bg-[#0f172a] text-white px-5 sm:px-8 py-3.5 sm:py-4.5 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] text-[9px] sm:text-[11px] font-black uppercase tracking-widest flex items-center gap-2 sm:gap-3 cursor-pointer shadow-lg active:scale-95 transition-all">
                      <span className="truncate max-w-[80px] sm:max-w-none">{selectedBrandFilter === 'ALL' ? 'SEMUA' : selectedBrandFilter}</span>
-                     <Icons.ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                     <Icons.ChevronDown className="w-3.5 h-3.5" />
                      <select 
                       value={selectedBrandFilter} 
                       onChange={(e) => { setSelectedBrandFilter(e.target.value); setCurrentPage(1); }}
@@ -776,7 +803,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
               </tr>
             </thead>
             <tbody className="bg-white">
-              {/* Fix: Use paginatedPlans instead of undefined paginatedReports */}
               {paginatedPlans.map(plan => {
                 const er = calculateEngagementRate(plan);
                 const erValue = parseFloat(er);
@@ -847,7 +873,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                   </tr>
                 );
               })}
-              {/* Fix: Use paginatedPlans instead of undefined paginatedReports */}
               {paginatedPlans.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-10 py-32 text-center">

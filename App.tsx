@@ -29,8 +29,14 @@ const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
 const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
 const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
 
-const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://rcrtknakiwvfkmnwvdvf.supabase.co').trim();
-const SUPABASE_ANON_KEY = (process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcnRrbmFraXd2Zmttbnd2ZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2NjEyODYsImV4cCI6MjA4NTIzNzI4Nn0.Ca9m25c9K0_J_kCRphGSaECGs8CGz4-zUpVoA_rIERA').trim();
+// Sanitasi URL & Key: Menghapus spasi atau karakter newline yang sering terbawa saat copy-paste
+const sanitizeConfig = (val: string | undefined, fallback: string) => {
+  if (!val) return fallback.trim();
+  return val.replace(/[\n\r\s\t]/g, '').trim();
+};
+
+const SUPABASE_URL = sanitizeConfig(process.env.SUPABASE_URL, 'https://rcrtknakiwvfkmnwvdvf.supabase.co');
+const SUPABASE_ANON_KEY = sanitizeConfig(process.env.SUPABASE_ANON_KEY, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcnRrbmFraXd2Zmttbnd2ZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2NjEyODYsImV4cCI6MjA4NTIzNzI4Nn0.Ca9m25c9K0_J_kCRphGSaECGs8CGz4-zUpVoA_rIERA');
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -124,16 +130,19 @@ export const App: React.FC = () => {
 
   const fetchData = async (userEmail?: string, isSilent: boolean = false) => {
     if (!navigator.onLine) {
-      setFetchError("Anda sedang offline.");
+      setFetchError("Anda sedang offline. Periksa koneksi internet Anda.");
       return;
     }
+
     if (!isSilent) setIsLoadingData(true);
+    setFetchError(null);
     const targetEmail = (userEmail || session?.user?.email || '').toLowerCase().trim();
 
     try {
       const { data: empData, error: empError } = await supabase
         .from('employees')
-        .select('id, idKaryawan, nama, jabatan, email, tempatLahir, tanggalLahir, alamat, noKtp, noHandphone, tanggalMasuk, bank, noRekening, namaDiRekening, company, avatarUrl, hutang, isRemoteAllowed, role, salaryConfig');
+        .select('*')
+        .is('deleted_at', null);
       
       if (empError) throw empError;
       
@@ -146,8 +155,7 @@ export const App: React.FC = () => {
         if (currentEmp) {
           detectedCompany = currentEmp.company || 'Visibel';
           setUserCompany(detectedCompany);
-          const { data: photoData } = await supabase.from('employees').select('photoBase64').eq('id', currentEmp.id).single();
-          setCurrentUserEmployee({ ...currentEmp, photoBase64: photoData?.photoBase64 });
+          setCurrentUserEmployee(currentEmp);
         } else {
           setCurrentUserEmployee(null);
         }
@@ -159,8 +167,7 @@ export const App: React.FC = () => {
       const isOwner = activeUserRole === 'owner';
       const companyFilterVal = detectedCompany;
 
-      const companyEmployees = allEmployees.filter(e => isOwner || (e.company || 'Visibel') === companyFilterVal);
-      setEmployees(companyEmployees);
+      setEmployees(allEmployees);
 
       const buildQuery = (table: string) => {
         let q = supabase.from(table).select('*');
@@ -169,13 +176,13 @@ export const App: React.FC = () => {
       };
 
       const fetchPromises = [
-        supabase.from('attendance').select('id, employeeId, company, date, status, clockIn, clockOut, notes').order('date', { ascending: false }).limit(300).then(({data}) => setAttendanceRecords(data || [])),
-        buildQuery('live_reports').order('tanggal', { ascending: false }).limit(200).then(({data}) => setLiveReports(data || [])),
-        buildQuery('submissions').order('submittedAt', { ascending: false }).limit(100).then(({data}) => setSubmissions(data || [])),
-        buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(50).then(({data}) => setBroadcasts(data || [])),
-        buildQuery('schedules').limit(300).then(({data}) => setLiveSchedules(data || [])),
-        supabase.from('content_plans').select('id, title, brand, company, platform, creatorId, deadline, status, postingDate, jamUpload, linkPostingan, likes, comments, views, saves, shares').order('postingDate', { ascending: false }).limit(200).then(({data}) => setContentPlans(data || [])),
-        buildQuery('shift_assignments').limit(500).then(({data}) => setShiftAssignments(data || [])),
+        supabase.from('attendance').select('*').order('date', { ascending: false }).limit(300).then(({data, error}) => { if(error) throw error; setAttendanceRecords(data || []); }),
+        buildQuery('live_reports').order('tanggal', { ascending: false }).limit(200).then(({data, error}) => { if(error) throw error; setLiveReports(data || []); }),
+        buildQuery('submissions').order('submittedAt', { ascending: false }).limit(100).then(({data, error}) => { if(error) throw error; setSubmissions(data || []); }),
+        buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(50).then(({data, error}) => { if(error) throw error; setBroadcasts(data || []); }),
+        buildQuery('schedules').limit(300).then(({data, error}) => { if(error) throw error; setLiveSchedules(data || []); }),
+        supabase.from('content_plans').select('*').order('postingDate', { ascending: false }).limit(200).then(({data, error}) => { if(error) throw error; setContentPlans(data || []); }),
+        buildQuery('shift_assignments').limit(500).then(({data, error}) => { if(error) throw error; setShiftAssignments(data || []); }),
         supabase.from('settings').select('value').eq('key', `weekly_holidays_${companyFilterVal}`).single().then(({data}) => { 
           if (data) {
              const stored = data.value;
@@ -191,7 +198,17 @@ export const App: React.FC = () => {
       ];
       await Promise.all(fetchPromises);
     } catch (err: any) {
-      setFetchError("Gagal sinkronisasi data.");
+      console.error("Fetch error detail:", err);
+      const msg = err.message || '';
+      if (msg.includes('Failed to fetch') || err.name === 'TypeError') {
+        setFetchError("Gagal Terhubung ke Server. Kemungkinan penyebab: 1. Matikan AdBlocker/uBlock untuk situs ini. 2. Periksa apakah URL Supabase di environment sudah benar. 3. Masalah koneksi internet.");
+      } else if (msg.includes('row-level security') || msg.includes('RLS')) {
+        setFetchError("Izin Akses Ditolak (RLS). Silakan jalankan SQL Script Policy di Dashboard Supabase.");
+      } else if (msg.includes('column') || msg.includes('relation')) {
+        setFetchError("Struktur database belum lengkap. Jalankan SQL: ALTER TABLE employees ADD COLUMN division text;");
+      } else {
+        setFetchError(`Koneksi Terganggu: ${msg}`);
+      }
     } finally {
       setIsLoadingData(false);
     }
@@ -277,8 +294,8 @@ export const App: React.FC = () => {
       baseList = baseList.filter(emp => emp.id === currentUserEmployee.id);
     }
     return baseList.filter(emp => 
-      emp.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      emp.idKaryawan.toLowerCase().includes(searchQuery.toLowerCase())
+      (emp.nama || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (emp.idKaryawan || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [employees, searchQuery, userRole, currentUserEmployee, companyFilter]);
 
@@ -320,17 +337,22 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteEmployee = async (id: string) => {
-    if (!confirm('Hapus karyawan ini secara permanen?')) return;
+    if (!confirm('Pindahkan karyawan ini ke Tempat Sampah?')) return;
     try {
-      const { error } = await supabase.from('employees').delete().eq('id', id);
+      const { error } = await supabase
+        .from('employees')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
+        
       if (error) throw error;
       fetchData(session?.user?.email, true);
     } catch (err: any) {
-      alert("Gagal menghapus: " + err.message);
+      alert("Gagal memindahkan ke sampah: " + err.message);
     }
   };
 
   const handleExportAllEmployees = () => {
+    if (filteredEmployees.length === 0) return alert("Tidak ada data untuk diekspor.");
     const dataToExport = filteredEmployees.map(emp => ({
       'COMPANY': emp.company,
       'ID KARYAWAN': emp.idKaryawan,
@@ -339,6 +361,7 @@ export const App: React.FC = () => {
       'TANGGAL LAHIR': emp.tanggalLahir,
       'ALAMAT': emp.alamat,
       'NO KTP': emp.noKtp,
+      'DIVISI': emp.division || '-',
       'JABATAN': emp.jabatan,
       'EMAIL': emp.email,
       'NO HP': emp.noHandphone,
@@ -346,13 +369,7 @@ export const App: React.FC = () => {
       'TANGGAL MASUK': emp.tanggalMasuk,
       'BANK': emp.bank,
       'REKENING': emp.noRekening,
-      'HUTANG': emp.hutang,
-      'GAJI POKOK': emp.salaryConfig?.gapok || 0,
-      'TUNJANGAN MAKAN': emp.salaryConfig?.tunjanganMakan || 0,
-      'TUNJANGAN TRANSPORT': emp.salaryConfig?.tunjanganTransport || 0,
-      'TUNJANGAN KOMUNIKASI': emp.salaryConfig?.tunjanganKomunikasi || 0,
-      'TUNJANGAN KESEHATAN': emp.salaryConfig?.tunjanganKesehatan || 0,
-      'TUNJANGAN JABATAN': emp.salaryConfig?.tunjanganJabatan || 0
+      'HUTANG': emp.hutang
     }));
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
@@ -371,18 +388,18 @@ export const App: React.FC = () => {
         'ALAMAT': 'JL. CONTOH NO 123',
         'NO KTP': '3201000000000001',
         'NO HP': '081234567890',
-        'JABATAN': 'STAFF',
+        'DIVISI': 'OFFICE',
         'EMAIL': 'contoh@visibel.id',
         'TANGGAL MASUK': '01/01/2024',
         'BANK': 'BCA',
         'REKENING': '1234567890',
-        'HUTANG': 0,
-        'GAJI POKOK': 0,
-        'TUNJANGAN MAKAN': 0,
-        'TUNJANGAN TRANSPORT': 0,
-        'TUNJANGAN KOMUNIKASI': 0,
+        'GAPOK': 5000000,
+        'TUNJANGAN MAKAN': 500000,
+        'TUNJANGAN TRANSPORT': 300000,
+        'TUNJANGAN KOMUNIKASI': 200000,
         'TUNJANGAN KESEHATAN': 0,
-        'TUNJANGAN JABATAN': 0
+        'TUNJANGAN JABATAN': 0,
+        'HUTANG': 0
       }
     ];
     const ws = XLSX.utils.json_to_sheet(template);
@@ -416,29 +433,32 @@ export const App: React.FC = () => {
           if (cleanHutang > 1000000000000) cleanHutang = 0;
           else cleanHutang = Math.min(cleanHutang, MAX_INT);
 
+          const division = String(row['DIVISI'] || '');
+
           return {
-            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             company: String(row['COMPANY'] || userCompany),
             idKaryawan: String(row['ID KARYAWAN'] || ''),
             nama: String(row['NAMA'] || ''),
             tempatLahir: String(row['TEMPAT LAHIR'] || ''),
-            tanggalLahir: String(row['TANGGAL LALHIR'] || ''),
+            tanggalLahir: String(row['TANGGAL LAHIR'] || ''),
             alamat: String(row['ALAMAT'] || ''),
             noKtp: String(row['NO KTP'] || ''),
             noHandphone: String(row['NO HP'] || ''),
-            jabatan: String(row['JABATAN'] || ''),
+            division: division,
+            jabatan: String(row['JABATAN'] || division || 'Staff'),
             email: String(row['EMAIL'] || '').toLowerCase().trim(),
             tanggalMasuk: String(row['TANGGAL MASUK'] || ''),
             bank: String(row['BANK'] || 'BCA'),
             noRekening: String(row['REKENING'] || ''),
             hutang: cleanHutang,
+            deleted_at: null,
             salaryConfig: {
-              gapok: parseNum(row['GAJI POKOK']),
-              tunjanganMakan: parseNum(row['TUNJANGAN MAKAN']),
-              tunjanganTransport: parseNum(row['TUNJANGAN TRANSPORT']),
-              tunjanganKomunikasi: parseNum(row['TUNJANGAN KOMUNIKASI']),
-              tunjanganKesehatan: parseNum(row['TUNJANGAN KESEHATAN']),
-              tunjanganJabatan: parseNum(row['TUNJANGAN JABATAN']),
+              gapok: parseNum(row['GAPOK'] || 0),
+              tunjanganMakan: parseNum(row['TUNJANGAN MAKAN'] || 0),
+              tunjanganTransport: parseNum(row['TUNJANGAN TRANSPORT'] || 0),
+              tunjanganKomunikasi: parseNum(row['TUNJANGAN KOMUNIKASI'] || 0),
+              tunjanganKesehatan: parseNum(row['TUNJANGAN KESEHATAN'] || 0),
+              tunjanganJabatan: parseNum(row['TUNJANGAN JABATAN'] || 0),
               bpjstk: 0, pph21: 0, lembur: 0, bonus: 0, thr: 0, potonganHutang: 0, potonganLain: 0
             }
           };
@@ -446,14 +466,22 @@ export const App: React.FC = () => {
 
         if (newEmployees.length > 0) {
           const { error } = await supabase.from('employees').upsert(newEmployees, { onConflict: 'email' });
-          if (error) throw error;
-          alert(`Berhasil mengimpor ${newEmployees.length} data karyawan!`);
+          if (error) {
+             if (error.message.includes('row-level security') || error.message.includes('policy')) {
+               throw new Error("Gagal: Izin akses ditolak (RLS). Harap jalankan SQL Script Policy di dashboard Supabase agar aplikasi diizinkan menyimpan data.");
+             }
+             if (error.message.includes('column') && error.message.includes('division')) {
+               throw new Error("Gagal: Kolom 'division' tidak ditemukan. Harap jalankan SQL: ALTER TABLE employees ADD COLUMN division text;");
+             }
+             throw error;
+          }
+          alert(`Berhasil memproses ${newEmployees.length} data karyawan ke cloud!`);
           fetchData(session?.user?.email, true);
         } else {
-          alert("Tidak ada data valid yang ditemukan.");
+          alert("Tidak ada data valid yang ditemukan dalam file Excel.");
         }
       } catch (err: any) {
-        alert("Gagal mengimpor: " + err.message);
+        alert(err.message);
       } finally {
         setIsImportingEmployees(false);
         if (employeeFileInputRef.current) employeeFileInputRef.current.value = '';
@@ -478,6 +506,7 @@ export const App: React.FC = () => {
 
   const isUnregistered = useMemo(() => {
     if (!session || isLoadingData) return false;
+    if (session.user.email?.toLowerCase() === OWNER_EMAIL.toLowerCase()) return false;
     return !currentUserEmployee && userRole === 'employee';
   }, [session, isLoadingData, currentUserEmployee, userRole]);
 
@@ -602,7 +631,19 @@ export const App: React.FC = () => {
             )}
 
             <main className={`flex-grow w-full overflow-y-auto ${isFullscreenModule ? 'bg-white' : 'max-w-7xl mx-auto px-4 py-6 sm:py-10'}`}>
-              {activeTab === 'absen' ? (
+              {fetchError ? (
+                <div className="p-10 text-center space-y-4">
+                   <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto">
+                      <Icons.AlertCircle className="w-10 h-10" />
+                   </div>
+                   <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Koneksi Bermasalah</h2>
+                   <p className="text-slate-500 max-w-lg mx-auto leading-relaxed">{fetchError}</p>
+                   <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
+                      <button onClick={() => fetchData(session?.user?.email)} className="bg-slate-900 text-white px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all">Coba Muat Ulang</button>
+                      <button onClick={() => supabase.auth.signOut()} className="bg-white border border-slate-200 text-slate-400 px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95">Keluar Akun</button>
+                   </div>
+                </div>
+              ) : activeTab === 'absen' ? (
                 <AbsenModule employee={currentUserEmployee} attendanceRecords={attendanceRecords} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'minvis' ? (
                 <MinVisModule onClose={() => setActiveTab('home')} />
@@ -611,7 +652,7 @@ export const App: React.FC = () => {
               ) : activeTab === 'calendar' ? (
                 <CalendarModule employees={employees} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'kpi' ? (
-                <KPIModule employees={employees} attendanceRecords={attendanceRecords} contentPlans={contentPlans} liveReports={liveReports} userRole={userRole} currentEmployee={currentUserEmployee} company={userCompany} onClose={() => setActiveTab('home')} />
+                <KPIModule employees={employees} attendanceRecords={attendanceRecords} contentPlans={contentPlans} liveReports={liveReports} shiftAssignments={shiftAssignments} userRole={userRole} currentEmployee={currentUserEmployee} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'shift' ? (
                 <ShiftModule employees={employees} assignments={shiftAssignments} setAssignments={setShiftAssignments} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'attendance' ? (
@@ -669,7 +710,7 @@ export const App: React.FC = () => {
                               <Icons.Plus className="w-4 h-4" /> TAMBAH
                             </button>
                           )}
-                          <input type="file" ref={employeeFileInputRef} onChange={handleImportEmployees} className="hidden" accept=".xlsx,.xlsx" />
+                          <input type="file" ref={employeeFileInputRef} onChange={handleImportEmployees} className="hidden" accept=".xlsx,.xls" />
                           <button onClick={() => employeeFileInputRef.current?.click()} disabled={isImportingEmployees} className="bg-[#059669] hover:bg-[#047857] text-white px-5 py-3 rounded-full flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
                             <Icons.Upload className="w-4 h-4" /> {isImportingEmployees ? '...' : 'UNGGAH'}
                           </button>
@@ -686,78 +727,103 @@ export const App: React.FC = () => {
                         </div>
                       </div>
                   </div>
-                  <div className="w-full overflow-hidden">
-                    <div className="hidden md:grid grid-cols-8 bg-slate-50 text-slate-500 text-[10px] uppercase font-bold tracking-[0.15em] border-b border-slate-100 px-14 py-6 sticky top-0 z-10">
-                      <div className="col-span-1">ID</div>
-                      <div className="col-span-2">NAMA KARYAWAN</div>
-                      <div className="col-span-1">TTL</div>
-                      <div className="col-span-2">ALAMAT</div>
-                      <div className="col-span-1">SALDO CUTI</div>
-                      <div className="col-span-1 text-right">AKSI</div>
+
+                  {filteredEmployees.length === 0 ? (
+                    <div className="py-32 text-center flex flex-col items-center gap-6 animate-in fade-in duration-1000">
+                      <div className="w-24 h-24 bg-slate-50 text-slate-200 rounded-full flex items-center justify-center shadow-inner">
+                        <Icons.Database className="w-12 h-12" />
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-xs font-black text-slate-300 uppercase tracking-[0.4em]">Database Masih Kosong</p>
+                        <p className="text-[10px] text-slate-400 font-bold max-w-xs mx-auto">Silakan klik tombol <span className="text-emerald-500 font-black">UNGGAH</span> untuk mengimpor file Excel atau klik <span className="text-amber-500 font-black">TAMBAH</span> untuk input manual.</p>
+                      </div>
                     </div>
-                    <div className="bg-white">
-                      {paginatedEmployeesList.map((emp) => {
-                        return (
-                          <div key={emp.id} className="hover:bg-slate-50/70 transition-all duration-300 border-b border-slate-50 last:border-0">
-                            <div className="md:hidden p-6 flex items-center justify-between relative group overflow-hidden">
-                              <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-rose-500 rounded-r-full shadow-[2px_0_10px_rgba(244,63,94,0.3)]"></div>
-                              <div className="flex-1 min-w-0" onClick={() => handleViewEmployee(emp)}>
-                                <p className="text-[14px] font-black text-slate-900 uppercase tracking-tight truncate pl-2">{emp.nama}</p>
-                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-2 mt-1 truncate">{emp.jabatan}</p>
+                  ) : (
+                    <div className="w-full overflow-hidden">
+                      <div className="hidden md:grid grid-cols-8 bg-slate-50 text-slate-500 text-[10px] uppercase font-bold tracking-[0.15em] border-b border-slate-100 px-14 py-6 sticky top-0 z-10">
+                        <div className="col-span-1">ID</div>
+                        <div className="col-span-2">NAMA KARYAWAN</div>
+                        <div className="col-span-1">TTL</div>
+                        <div className="col-span-2">ALAMAT</div>
+                        <div className="col-span-1">SALDO CUTI</div>
+                        <div className="col-span-1 text-right">AKSI</div>
+                      </div>
+                      <div className="bg-white">
+                        {paginatedEmployeesList.map((emp) => {
+                          return (
+                            <div key={emp.id} className="hover:bg-slate-50/70 transition-all duration-300 border-b border-slate-50 last:border-0">
+                              <div className="md:hidden p-6 flex items-center justify-between relative group overflow-hidden">
+                                <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-rose-500 rounded-r-full shadow-[2px_0_10px_rgba(244,63,94,0.3)]"></div>
+                                <div className="flex-1 min-w-0" onClick={() => handleViewEmployee(emp)}>
+                                  <p className="text-[14px] font-black text-slate-900 uppercase tracking-tight truncate pl-2">{emp.nama}</p>
+                                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-2 mt-1 truncate">{emp.jabatan}</p>
+                                </div>
+                                <div className="flex items-center gap-4 shrink-0">
+                                  <span className="bg-[#f1f5f9] text-slate-600 font-black text-[11px] uppercase px-5 py-2.5 rounded-full tracking-[0.1em] border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span>
+                                  <div className="flex gap-1.5 ml-2">
+                                     <button onClick={() => setSlipEmployee(emp)} className="p-2 text-emerald-600 bg-emerald-50 rounded-lg"><Icons.Download className="w-4 h-4" /></button>
+                                     {userRole !== 'employee' && (
+                                       <button onClick={() => handleEditEmployee(emp)} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg"><Icons.Edit className="w-4 h-4" /></button>
+                                     )}
+                                  </div>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-4 shrink-0">
-                                <span className="bg-[#f1f5f9] text-slate-600 font-black text-[11px] uppercase px-5 py-2.5 rounded-full tracking-[0.1em] border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span>
-                                <div className="flex gap-1.5 ml-2">
-                                   <button onClick={() => setSlipEmployee(emp)} className="p-2 text-emerald-600 bg-emerald-50 rounded-lg"><Icons.Download className="w-4 h-4" /></button>
-                                   {userRole !== 'employee' && (
-                                     <button onClick={() => handleEditEmployee(emp)} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg"><Icons.Edit className="w-4 h-4" /></button>
-                                   )}
+                              <div className="hidden md:grid grid-cols-8 items-center px-14 py-7 gap-4">
+                                <div className="col-span-1"><span className="inline-block bg-slate-50 text-slate-700 font-black text-[10px] uppercase px-4 py-2 rounded-xl border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span></div>
+                                <div className="col-span-2">
+                                  <p className="font-semibold text-slate-900 text-[14px] uppercase truncate cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleViewEmployee(emp)}>{emp.nama}</p>
+                                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{emp.jabatan}</p>
+                                </div>
+                                <div className="col-span-1">
+                                  <p className="text-[11px] font-black text-slate-800 uppercase">{emp.tempatLahir}</p>
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{emp.tanggalLahir}</p>
+                                </div>
+                                <div className="col-span-2">
+                                  <p className="text-[11px] text-slate-600 line-clamp-2 uppercase font-medium">{emp.alamat}</p>
+                                </div>
+                                <div className="col-span-1">
+                                  <p className="text-[11px] font-black text-slate-800 font-mono">
+                                    {(() => {
+                                      const tenure = getTenureYears(emp.tanggalMasuk);
+                                      if (tenure < 1) return '0 Hari';
+                                      
+                                      // Penyesuaian Manual
+                                      const name = emp.nama.toLowerCase();
+                                      let adjustment = 0;
+                                      if (name.includes('fikry aditya rizky')) adjustment = 2;
+                                      else if (name.includes('iskandar juliana')) adjustment = 3;
+                                      else if (name.includes('muhammad ariyansyah')) adjustment = 2;
+                                      else if (name.includes('adinda salsabilla')) adjustment = 3;
+                                      else if (name.includes('pajar sidik')) adjustment = 1;
+
+                                      const used = attendanceRecords.filter(r => 
+                                        r.employeeId === emp.id && 
+                                        r.status === 'Cuti' && 
+                                        new Date(r.date).getFullYear() === new Date().getFullYear()
+                                      ).length;
+                                      
+                                      return `${Math.max(0, 12 - used - adjustment)} Hari`;
+                                    })()}
+                                  </p>
+                                </div>
+                                <div className="col-span-1 text-right">
+                                  <div className="flex justify-end gap-2">
+                                    <button onClick={() => handleViewEmployee(emp)} className="p-2.5 text-slate-400 hover:bg-slate-100 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Info Karyawan"><Icons.Info className="w-4 h-4" /></button>
+                                    <button onClick={() => setSlipEmployee(emp)} className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Download Slip"><Icons.Download className="w-4 h-4" /></button>
+                                    {userRole !== 'employee' && (
+                                      <button onClick={() => handleEditEmployee(emp)} className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Edit Karyawan"><Icons.Edit className="w-4 h-4" /></button>
+                                    )}
+                                    {isHighAdminAccess && <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2.5 text-rose-500 hover:bg-rose-100 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Hapus Karyawan"><Icons.Trash className="w-4 h-4" /></button>}
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                            <div className="hidden md:grid grid-cols-8 items-center px-14 py-7 gap-4">
-                              <div className="col-span-1"><span className="inline-block bg-slate-50 text-slate-700 font-black text-[10px] uppercase px-4 py-2 rounded-xl border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span></div>
-                              <div className="col-span-2">
-                                <p className="font-semibold text-slate-900 text-[14px] uppercase truncate cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleViewEmployee(emp)}>{emp.nama}</p>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{emp.jabatan}</p>
-                              </div>
-                              <div className="col-span-1">
-                                <p className="text-[11px] font-black text-slate-800 uppercase">{emp.tempatLahir}</p>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{emp.tanggalLahir}</p>
-                              </div>
-                              <div className="col-span-2">
-                                <p className="text-[11px] text-slate-600 line-clamp-2 uppercase font-medium">{emp.alamat}</p>
-                              </div>
-                              <div className="col-span-1">
-                                <p className="text-[11px] font-black text-slate-800 font-mono">
-                                  {(() => {
-                                    const tenure = getTenureYears(emp.tanggalMasuk);
-                                    if (tenure < 1) return '0 Hari';
-                                    const used = attendanceRecords.filter(r => 
-                                      r.employeeId === emp.id && 
-                                      r.status === 'Cuti' && 
-                                      new Date(r.date).getFullYear() === new Date().getFullYear()
-                                    ).length;
-                                    return `${12 - used} Hari`;
-                                  })()}
-                                </p>
-                              </div>
-                              <div className="col-span-1 text-right">
-                                <div className="flex justify-end gap-2">
-                                  <button onClick={() => handleViewEmployee(emp)} className="p-2.5 text-slate-400 hover:bg-slate-100 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Info Karyawan"><Icons.Info className="w-4 h-4" /></button>
-                                  <button onClick={() => setSlipEmployee(emp)} className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Download Slip"><Icons.Download className="w-4 h-4" /></button>
-                                  {userRole !== 'employee' && (
-                                    <button onClick={() => handleEditEmployee(emp)} className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Edit Karyawan"><Icons.Edit className="w-4 h-4" /></button>
-                                  )}
-                                  {isHighAdminAccess && <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2.5 text-rose-500 hover:bg-rose-100 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Hapus Karyawan"><Icons.Trash className="w-4 h-4" /></button>}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
+                  )}
+
                   {totalEmpPages > 1 && (
                     <div className="px-8 sm:px-14 py-10 flex items-center justify-between border-t border-slate-100 bg-white">
                       <div className="flex items-center gap-3">
