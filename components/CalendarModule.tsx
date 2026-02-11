@@ -153,37 +153,37 @@ const CalendarModule: React.FC<CalendarModuleProps> = ({ employees, userRole, co
 
   return (
     <div className="max-w-5xl mx-auto space-y-10 animate-in fade-in duration-500 pb-20 px-4 sm:px-0">
-      <div className="bg-white rounded-[40px] sm:rounded-[48px] p-8 sm:p-12 shadow-sm border border-slate-100 overflow-hidden">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-12">
-          <div className="flex items-center gap-6">
-             <div className="bg-[#0f172a] p-5 rounded-3xl text-[#FFC000] shadow-xl">
-                <Icons.Calendar className="w-8 h-8" />
+      <div className="bg-white rounded-[40px] sm:rounded-[48px] p-6 sm:p-12 shadow-sm border border-slate-100 overflow-hidden">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-8 sm:mb-12">
+          <div className="flex items-center gap-4 sm:gap-6">
+             <div className="bg-[#0f172a] p-3.5 sm:p-5 rounded-[20px] sm:rounded-3xl text-[#FFC000] shadow-xl shrink-0">
+                <Icons.Calendar className="w-6 h-6 sm:w-8 sm:h-8" />
              </div>
-             <div>
-                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 uppercase tracking-tight leading-none">Internal Calendar</h2>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.4em] mt-3">Company Events & Birthdays</p>
+             <div className="min-w-0">
+                <h2 className="text-xl sm:text-3xl font-black text-slate-900 uppercase tracking-tight leading-tight">Internal Calendar</h2>
+                <p className="text-[8px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] sm:tracking-[0.4em] mt-1 sm:mt-3 whitespace-nowrap">Company Events & Birthdays</p>
              </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
           <div className="lg:col-span-2 space-y-8">
-             <div className="flex items-center justify-between bg-slate-50 p-6 rounded-[32px] border border-slate-100 shadow-inner">
-                <button onClick={() => changeMonth(-1)} className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all shadow-sm active:scale-90">
-                   <Icons.ChevronDown className="w-6 h-6 rotate-90" />
+             <div className="flex items-center justify-between bg-slate-50 p-4 sm:p-6 rounded-[28px] sm:rounded-[32px] border border-slate-100 shadow-inner">
+                <button onClick={() => changeMonth(-1)} className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all shadow-sm active:scale-90">
+                   <Icons.ChevronDown className="w-5 h-5 sm:w-6 sm:h-6 rotate-90" />
                 </button>
                 <div className="text-center">
-                   <h3 className="text-xl sm:text-2xl font-black text-[#0f172a] uppercase tracking-widest">{monthNames[currentDate.getMonth()]}</h3>
-                   <p className="text-sm font-bold text-slate-400">{currentDate.getFullYear()}</p>
+                   <h3 className="text-lg sm:text-2xl font-black text-[#0f172a] uppercase tracking-widest">{monthNames[currentDate.getMonth()]}</h3>
+                   <p className="text-xs sm:text-sm font-bold text-slate-400">{currentDate.getFullYear()}</p>
                 </div>
-                <button onClick={() => changeMonth(1)} className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all shadow-sm active:scale-90">
-                   <Icons.ChevronDown className="w-6 h-6 -rotate-90" />
+                <button onClick={() => changeMonth(1)} className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all shadow-sm active:scale-90">
+                   <Icons.ChevronDown className="w-5 h-5 sm:w-6 sm:h-6 -rotate-90" />
                 </button>
              </div>
 
-             <div className="grid grid-cols-7 gap-2">
-                {["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"].map(d => (
-                  <div key={d} className="text-center py-2 text-[10px] font-black text-slate-300 uppercase tracking-widest">{d}</div>
+             <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                {["MIN", "SEN", "SEL", "RAB", "KAM", "JUM", "SAB"].map(d => (
+                  <div key={d} className="text-center py-2 text-[8px] sm:text-[10px] font-black text-slate-300 uppercase tracking-widest">{d}</div>
                 ))}
                 {calendarDays.map((dateObj, idx) => {
                   const dateStr = formatDateToYYYYMMDD(new Date(dateObj.year, dateObj.month, dateObj.day));
@@ -195,16 +195,16 @@ const CalendarModule: React.FC<CalendarModuleProps> = ({ employees, userRole, co
                     <div 
                       key={idx} 
                       onClick={() => handleOpenModal(dateStr, dayEvents[0])}
-                      className={`aspect-square p-2 border border-slate-50 rounded-2xl flex flex-col items-center justify-center relative transition-all ${dateObj.current ? 'bg-white hover:bg-slate-50 cursor-pointer' : 'bg-slate-50/30 opacity-20'}`}
+                      className={`aspect-square p-1 sm:p-2 border border-slate-50 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center relative transition-all ${dateObj.current ? 'bg-white hover:bg-slate-50 cursor-pointer' : 'bg-slate-50/30 opacity-20'}`}
                     >
-                       <span className={`text-xs sm:text-sm font-black ${dateObj.current ? 'text-slate-900' : 'text-slate-300'} ${isToday ? 'bg-[#FFC000] text-black w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full shadow-lg shadow-amber-100' : ''}`}>{dateObj.day}</span>
+                       <span className={`text-[10px] sm:text-sm font-black ${dateObj.current ? 'text-slate-900' : 'text-slate-300'} ${isToday ? 'bg-[#FFC000] text-black w-6 h-6 sm:w-10 sm:h-10 flex items-center justify-center rounded-full shadow-lg shadow-amber-100' : ''}`}>{dateObj.day}</span>
                        
-                       <div className="absolute bottom-1 flex gap-1">
+                       <div className="absolute bottom-1 flex gap-0.5 sm:gap-1">
                           {bdays.length > 0 && (
-                            <div className="w-1.5 h-1.5 bg-rose-500 rounded-full shadow-[0_0_8px_rgba(244,63,94,0.5)]"></div>
+                            <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-rose-500 rounded-full shadow-[0_0_8px_rgba(244,63,94,0.5)]"></div>
                           )}
                           {dayEvents.length > 0 && (
-                            <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(79,70,229,0.5)]"></div>
+                            <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(79,70,229,0.5)]"></div>
                           )}
                        </div>
 
@@ -219,7 +219,8 @@ const CalendarModule: React.FC<CalendarModuleProps> = ({ employees, userRole, co
              </div>
           </div>
 
-          <div className="space-y-8">
+          {/* Sembunyikan blok ini di mobile agar lebih rapi */}
+          <div className="hidden lg:block space-y-8">
              <div className="bg-[#FFFBEB] p-8 rounded-[40px] border border-amber-100 shadow-sm">
                 <h4 className="text-[11px] font-black text-[#806000] uppercase tracking-[0.2em] mb-6">Ulang Tahun & Reminder</h4>
                 <div className="space-y-4 max-h-[400px] overflow-y-auto no-scrollbar">

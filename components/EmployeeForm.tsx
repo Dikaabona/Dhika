@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Employee } from '../types';
 import { BANK_OPTIONS, Icons } from '../constants';
+import { supabase } from '../App';
 
 interface EmployeeFormProps {
   initialData: Employee | null;
@@ -22,6 +22,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     idKaryawan: '',
     nama: '',
     jabatan: '',
+    division: '',
     email: '',
     tempatLahir: '',
     tanggalLahir: '',
@@ -42,7 +43,21 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     contractDocBase64: ''
   });
 
+  const [divisions, setDivisions] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    fetchDivisions();
+  }, [userCompany]);
+
+  const fetchDivisions = async () => {
+    try {
+      const { data } = await supabase.from('settings').select('value').eq('key', `divisions_${userCompany}`).single();
+      if (data && Array.isArray(data.value)) {
+        setDivisions(data.value);
+      }
+    } catch (e) {}
+  };
 
   useEffect(() => {
     if (initialData) {
@@ -261,6 +276,13 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
                 <input required name="nama" value={formData.nama} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
               </div>
               <div className="space-y-2">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Divisi</label>
+                <select name="division" value={formData.division} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all">
+                  <option value="">Pilih Divisi...</option>
+                  {divisions.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Jabatan</label>
                 <input required name="jabatan" readOnly={!isSystemAdmin} value={formData.jabatan} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all disabled:opacity-70" />
               </div>
@@ -312,7 +334,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
                   onChange={handleChange}
                   className="w-5 h-5 rounded border-emerald-200 text-emerald-600 focus:ring-emerald-500" 
                 />
-                <label className="text-[10px] text-emerald-800 font-black uppercase tracking-widest">Izinkan Absen Remote (Individu)</label>
+                <label className="text-[10px] font-black text-emerald-800 font-black uppercase tracking-widest">Izinkan Absen Remote (Individu)</label>
               </div>
             </div>
             

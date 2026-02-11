@@ -1,4 +1,3 @@
-
 export const parseFlexibleDate = (dateStr: string): Date => {
   if (!dateStr) return new Date(NaN);
   
@@ -106,6 +105,19 @@ export const getMondayISO = (d: Date): string => {
   const monday = new Date(date.setDate(diff));
   monday.setHours(0, 0, 0, 0);
   return monday.toISOString().split('T')[0];
+};
+
+/**
+ * Mendapatkan tanggal Minggu di akhir minggu saat ini dalam format ISO string.
+ */
+export const getSundayISO = (d: Date): string => {
+  const date = new Date(d);
+  const day = date.getDay();
+  // Hitung selisih hari dari hari ini ke Minggu (Minggu = 0 atau 7)
+  const diff = date.getDate() + (day === 0 ? 0 : 7 - day);
+  const sunday = new Date(date.setDate(diff));
+  sunday.setHours(23, 59, 59, 999);
+  return sunday.toISOString().split('T')[0];
 };
 
 /**

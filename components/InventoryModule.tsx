@@ -49,7 +49,8 @@ const InventoryModule: React.FC<InventoryModuleProps> = ({ company, userRole, on
   const fetchCompanies = async () => {
     try {
       const { data } = await supabase.from('employees').select('company');
-      const unique = Array.from(new Set((data || []).map(e => e.company || 'Visibel'))).sort();
+      // Added type assertion as string[] to resolve assignment error
+      const unique = Array.from(new Set((data || []).map((e: any) => e.company || 'Visibel'))).sort() as string[];
       setAllCompanies(unique);
     } catch (e) {}
   };

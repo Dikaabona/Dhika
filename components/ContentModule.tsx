@@ -32,9 +32,21 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [isProcessingExcel, setIsProcessingExcel] = useState(false);
   const [localSearch, setLocalSearch] = useState('');
+
+  // Date Range State
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(1); // Awal bulan ini
+    return d.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   
   const screenshotInputRef = useRef<HTMLInputElement>(null);
   const contentFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 10;
 
   const [isManagingBrands, setIsManagingBrands] = useState(false);
   const [isSavingBrands, setIsSavingBrands] = useState(false);
@@ -182,9 +194,21 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     return plans.filter(p => {
       const matchesSearch = (p.brand || '').toLowerCase().includes(finalSearch) || (p.title || '').toLowerCase().includes(finalSearch);
       const matchesBrand = selectedBrandFilter === 'ALL' || p.brand === selectedBrandFilter;
-      return matchesSearch && matchesBrand;
+      
+      // Filter Tanggal
+      const matchesDate = (!startDate || (p.postingDate && p.postingDate >= startDate)) && 
+                          (!endDate || (p.postingDate && p.postingDate <= endDate));
+
+      return matchesSearch && matchesBrand && matchesDate;
     });
-  }, [plans, globalSearch, localSearch, selectedBrandFilter]);
+  }, [plans, globalSearch, localSearch, selectedBrandFilter, startDate, endDate]);
+
+  // Paginated Data
+  const totalPages = Math.ceil(filteredPlans.length / rowsPerPage);
+  const paginatedPlans = useMemo(() => {
+    const start = (currentPage - 1) * rowsPerPage;
+    return filteredPlans.slice(start, start + rowsPerPage);
+  }, [filteredPlans, currentPage]);
 
   const handleOpenModal = (plan?: ContentPlan) => {
     if (plan) {
@@ -326,7 +350,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           let quality = 0.7;
           let dataUrl = canvas.toDataURL('image/jpeg', quality);
           
-          while (dataUrl.length * 0.75 > 100000 && quality > 0.1) {
+          while (dataUrl.length * 0.75 > 80000 && quality > 0.1) {
             quality -= 0.1;
             dataUrl = canvas.toDataURL('image/jpeg', quality);
           }
@@ -343,7 +367,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       alert("Tidak ada data laporan untuk diekspor.");
       return;
     }
-    const dataToExport = plans.map(p => ({
+    const dataToExport = filteredPlans.map(p => ({
       'BRAND': p.brand,
       'PLATFORM': p.platform,
       'TANGGAL POSTING': p.postingDate,
@@ -383,9 +407,9 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       }
     ];
     const ws = XLSX.utils.json_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Template Laporan Konten");
-    XLSX.writeFile(wb, `Template_Report_Konten_${company}.xlsx`);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, ws, "Template Laporan Konten");
+    XLSX.writeFile(workbook, `Template_Report_Konten_${company}.xlsx`);
   };
 
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -529,12 +553,37 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
 
       <div className="bg-white rounded-[32px] sm:rounded-[48px] shadow-sm border border-slate-100 overflow-hidden">
         <div className="px-6 sm:px-12 py-8 sm:py-14 border-b flex flex-col items-start bg-white gap-6 sm:gap-10">
-            <div className="flex flex-col gap-2 sm:gap-3">
-              <h2 className="font-black text-slate-900 uppercase tracking-tight text-2xl sm:text-5xl">Content Hub</h2>
-              <div className="flex items-center gap-3">
-                <span className="inline-block bg-slate-100 text-slate-500 text-[8px] sm:text-[10px] font-black uppercase px-4 sm:px-6 py-2 sm:2.5 rounded-full tracking-[0.2em] self-start">Production & Performance</span>
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full ${dbStatus === 'sync' ? 'bg-emerald-50 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-amber-50 animate-pulse'}`}></div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-6">
+              <div className="flex flex-col gap-2 sm:gap-3">
+                <h2 className="font-black text-slate-900 uppercase tracking-tight text-2xl sm:text-5xl">Content Hub</h2>
+                <div className="flex items-center gap-3">
+                  <span className="inline-block bg-slate-100 text-slate-500 text-[8px] sm:text-[10px] font-black uppercase px-4 sm:px-6 py-2 sm:2.5 rounded-full tracking-[0.2em] self-start">Production & Performance</span>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full ${dbStatus === 'sync' ? 'bg-emerald-50 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-amber-50 animate-pulse'}`}></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* DATE RANGE PICKER */}
+              <div className="flex items-center gap-3 px-6 py-3 bg-slate-50 rounded-[22px] shadow-inner border border-slate-100 shrink-0">
+                <div className="flex flex-col items-start min-w-[100px]">
+                  <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Mulai</span>
+                  <input 
+                    type="date" 
+                    value={startDate} 
+                    onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }} 
+                    className="bg-transparent text-[10px] sm:text-xs font-black outline-none text-slate-900 cursor-pointer" 
+                  />
+                </div>
+                <div className="h-8 w-px bg-slate-200"></div>
+                <div className="flex flex-col items-start min-w-[100px]">
+                  <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Sampai</span>
+                  <input 
+                    type="date" 
+                    value={endDate} 
+                    onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }} 
+                    className="bg-transparent text-[10px] sm:text-xs font-black outline-none text-slate-900 cursor-pointer" 
+                  />
                 </div>
               </div>
             </div>
@@ -547,7 +596,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                      <Icons.ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                      <select 
                       value={selectedBrandFilter} 
-                      onChange={(e) => setSelectedBrandFilter(e.target.value)}
+                      onChange={(e) => { setSelectedBrandFilter(e.target.value); setCurrentPage(1); }}
                       className="absolute inset-0 opacity-0 cursor-pointer"
                      >
                         <option value="ALL">SEMUA BRAND</option>
@@ -562,7 +611,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                     type="text" 
                     placeholder="CARI..." 
                     value={localSearch}
-                    onChange={(e) => setLocalSearch(e.target.value)}
+                    onChange={(e) => { setLocalSearch(e.target.value); setCurrentPage(1); }}
                     className="w-full text-[10px] sm:text-xs font-black text-slate-800 outline-none placeholder:text-slate-300 uppercase tracking-widest bg-white"
                   />
                 </div>
@@ -727,7 +776,8 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
               </tr>
             </thead>
             <tbody className="bg-white">
-              {filteredPlans.map(plan => {
+              {/* Fix: Use paginatedPlans instead of undefined paginatedReports */}
+              {paginatedPlans.map(plan => {
                 const er = calculateEngagementRate(plan);
                 const erValue = parseFloat(er);
                 return (
@@ -797,7 +847,8 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                   </tr>
                 );
               })}
-              {filteredPlans.length === 0 && (
+              {/* Fix: Use paginatedPlans instead of undefined paginatedReports */}
+              {paginatedPlans.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-10 py-32 text-center">
                     <div className="flex flex-col items-center justify-center space-y-4 opacity-30">
@@ -810,6 +861,32 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
             </tbody>
           </table>
         </div>
+
+        {/* Pagination UI */}
+        {totalPages > 1 && (
+          <div className="px-10 py-6 flex items-center justify-between border-t border-slate-100 bg-slate-50/30">
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Halaman</span>
+              <span className="text-xs font-black text-slate-900 px-5 py-2 bg-white rounded-xl shadow-sm border border-slate-200">{currentPage} / {totalPages}</span>
+            </div>
+            <div className="flex gap-3">
+              <button 
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => prev - 1)}
+                className="w-12 h-12 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
+              >
+                <Icons.ChevronDown className="w-6 h-6 rotate-90" />
+              </button>
+              <button 
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => prev + 1)}
+                className="w-12 h-12 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
+              >
+                <Icons.ChevronDown className="w-6 h-6 -rotate-90" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {isModalOpen && (

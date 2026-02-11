@@ -3,6 +3,7 @@ export interface Employee {
   idKaryawan: string;
   nama: string;
   jabatan: string;
+  division?: string;
   email: string;
   tempatLahir: string;
   tanggalLahir: string;

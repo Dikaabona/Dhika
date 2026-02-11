@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { Submission, Employee, Broadcast, AttendanceRecord } from '../types.ts';
 import { Icons } from '../constants.tsx';
@@ -19,7 +18,6 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
   const [historyPage, setHistoryPage] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Detect mobile device for dynamic pagination size
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
@@ -50,24 +48,12 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
         current.setDate(current.getDate() + 1);
       }
 
-      let clockIn: string | undefined = undefined;
-      let clockOut: string | undefined = undefined;
-
-      if (sub.type === 'Lembur') {
-        const timeMatch = sub.notes.match(/JAM: (\d{2}:\d{2}) - (\d{2}:\d{2})/);
-        if (timeMatch) {
-          clockIn = timeMatch[1];
-          clockOut = timeMatch[2];
-        }
-      }
-
+      // Logic updated: Do not set or change clockIn/clockOut times for Overtime approvals
       const attendanceRecords: Partial<AttendanceRecord>[] = dates.map(date => ({
         employeeId: sub.employeeId,
         company: sub.company,
         date,
         status: sub.type,
-        clockIn,
-        clockOut,
         notes: `Pengajuan disetujui: ${sub.notes}`
       }));
 

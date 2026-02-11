@@ -232,8 +232,7 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
                   <div className="flex gap-2">
                     <button onClick={handleDownloadTemplate} className="bg-slate-100 text-slate-500 px-6 py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-sm">Template</button>
                     <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".xlsx,.xls" />
-                    {/* Fix: Changed importFileInputRef to fileInputRef to match the declared ref name */}
-                    <button onClick={() => fileInputRef.current?.click()} className="bg-emerald-50 text-white px-6 py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-lg">Import</button>
+                    <button onClick={() => fileInputRef.current?.click()} className="bg-emerald-50 text-black px-6 py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-lg">Import</button>
                     <button onClick={handleExport} className="bg-slate-900 text-white px-6 py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-lg">Export</button>
                   </div>
                 )}

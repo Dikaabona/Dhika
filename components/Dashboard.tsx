@@ -18,6 +18,7 @@ interface DashboardProps {
   onNavigate: (tab: any) => void;
   onOpenBroadcast?: () => void;
   onOpenDrive?: () => void;
+  onViewProfile?: (emp: Employee) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -32,7 +33,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   userCompany,
   onNavigate,
   onOpenBroadcast,
-  onOpenDrive
+  onOpenDrive,
+  onViewProfile
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const isOwner = userRole === 'owner';
@@ -62,6 +64,29 @@ const Dashboard: React.FC<DashboardProps> = ({
     return DEFAULT_SHIFTS.find(s => s.id === assignment.shiftId);
   }, [shiftAssignments, currentUserEmployee]);
 
+  const isLate = useMemo(() => {
+    if (!todayRecord?.clockIn || !todayShift?.startTime) return false;
+    // Simple HH:MM comparison
+    return todayRecord.clockIn > todayShift.startTime;
+  }, [todayRecord, todayShift]);
+
+  const lateEmployeesCount = useMemo(() => {
+    const todayStr = formatDateToYYYYMMDD(new Date());
+    const todayRecords = attendanceRecords.filter(r => r.date === todayStr && r.clockIn);
+    
+    let count = 0;
+    todayRecords.forEach(record => {
+      const assignment = (shiftAssignments || []).find(a => a.employeeId === record.employeeId && a.date === todayStr);
+      if (assignment) {
+        const shift = DEFAULT_SHIFTS.find(s => s.id === assignment.shiftId);
+        if (shift && record.clockIn! > shift.startTime) {
+          count++;
+        }
+      }
+    });
+    return count;
+  }, [attendanceRecords, shiftAssignments]);
+
   const tenureYears = useMemo(() => {
     if (!currentUserEmployee?.tanggalMasuk) return 0;
     const parts = currentUserEmployee.tanggalMasuk.split('/');
@@ -73,7 +98,16 @@ const Dashboard: React.FC<DashboardProps> = ({
     return Math.max(0, years);
   }, [currentUserEmployee]);
 
-  const saldoCuti = tenureYears >= 1 ? 12 : 0;
+  const saldoCuti = useMemo(() => {
+    if (tenureYears < 1 || !currentUserEmployee) return 0;
+    const currentYear = new Date().getFullYear();
+    const used = attendanceRecords.filter(r => 
+      r.employeeId === currentUserEmployee.id && 
+      r.status === 'Cuti' && 
+      new Date(r.date).getFullYear() === currentYear
+    ).length;
+    return 12 - used;
+  }, [tenureYears, currentUserEmployee, attendanceRecords]);
 
   // Icons for Grid Menu
   const menuItems = useMemo(() => {
@@ -102,9 +136,12 @@ const Dashboard: React.FC<DashboardProps> = ({
       {/* --- MOBILE VIEW (Hidden on Desktop) --- */}
       <div className="md:hidden space-y-5 animate-in fade-in duration-500">
         
-        {/* User Profile Header - Optimized */}
-        <div className="flex items-center gap-3 px-2">
-          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-md bg-slate-100 shrink-0">
+        {/* User Profile Header - Optimized & Clickable */}
+        <div 
+          onClick={() => currentUserEmployee && onViewProfile && onViewProfile(currentUserEmployee)}
+          className="flex items-center gap-3 px-2 cursor-pointer group active:scale-95 transition-transform"
+        >
+          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-md bg-slate-100 shrink-0 group-hover:border-amber-400 transition-colors">
             {currentUserEmployee?.photoBase64 ? (
               <img src={currentUserEmployee.photoBase64} alt="Profile" className="w-full h-full object-cover" />
             ) : (
@@ -114,7 +151,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
           </div>
           <div className="flex flex-col min-w-0">
-            <h2 className="text-base font-black text-slate-900 leading-tight uppercase truncate">
+            <h2 className="text-base font-black text-slate-900 leading-tight uppercase truncate group-hover:text-amber-500 transition-colors">
               {currentUserEmployee?.nama || 'User'}
             </h2>
             <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">
@@ -141,20 +178,26 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
 
               {/* JADWAL SHIFT SECTION */}
-              <div className="w-full flex justify-center">
+              <div className="w-full flex flex-col items-center gap-2">
                 <div className="bg-indigo-50 px-4 py-2 rounded-full border border-indigo-100 flex items-center gap-2">
                   <Icons.Clock className="w-3 h-3 text-indigo-500" />
                   <span className="text-[9px] font-black text-indigo-700 uppercase tracking-widest whitespace-nowrap">
                     Jadwal Shift: {todayShift ? `${todayShift.name.toUpperCase()} (${todayShift.startTime} - ${todayShift.endTime})` : 'TIDAK ADA SHIFT'}
                   </span>
                 </div>
+                {isLate && (
+                  <div className="bg-rose-50 text-rose-600 px-3 py-1 rounded-lg border border-rose-100 animate-pulse flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 bg-rose-500 rounded-full"></div>
+                    <span className="text-[10px] font-black uppercase tracking-widest">TERLAMBAT</span>
+                  </div>
+                )}
               </div>
 
               <div className="w-full grid grid-cols-2 gap-3">
                 <div className="bg-slate-50 p-3.5 rounded-[20px] border border-slate-100 flex flex-col items-center gap-0.5">
                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Clock In</span>
-                   <p className="text-base font-black text-slate-800">{todayRecord?.clockIn || '--:--'}</p>
-                   {todayRecord?.clockIn && <div className="mt-0.5 w-1 h-1 bg-emerald-500 rounded-full"></div>}
+                   <p className={`text-base font-black ${isLate ? 'text-rose-600' : 'text-slate-800'}`}>{todayRecord?.clockIn || '--:--'}</p>
+                   {todayRecord?.clockIn && <div className={`mt-0.5 w-1 h-1 ${isLate ? 'bg-rose-500' : 'bg-emerald-500'} rounded-full`}></div>}
                 </div>
                 <div className="bg-slate-50 p-3.5 rounded-[20px] border border-slate-100 flex flex-col items-center gap-0.5">
                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Clock Out</span>
@@ -256,7 +299,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
           </div>
           <div className="grid grid-cols-4 gap-x-2 gap-y-5">
-            {menuItems.filter(i => i.tab !== 'absen').map((item) => (
+            {menuItems.filter(i => i.tab !== 'absen' && i.tab !== 'shift' && i.tab !== 'database' && i.tab !== 'kpi').map((item) => (
               <button 
                 key={item.id} 
                 onClick={() => onNavigate(item.tab)}
@@ -310,7 +353,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                  <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">USER ACCESS</p>
                  <p className="text-xs font-black text-slate-900 uppercase tracking-widest">{userRole}</p>
               </div>
-              <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-[20px] flex items-center justify-center text-slate-300 shadow-sm">
+              <div 
+                onClick={() => currentUserEmployee && onViewProfile && onViewProfile(currentUserEmployee)}
+                className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-[20px] flex items-center justify-center text-slate-300 shadow-sm cursor-pointer hover:border-amber-400 transition-colors active:scale-90"
+              >
                  <Icons.Users className="w-6 h-6" />
               </div>
            </div>
@@ -320,13 +366,13 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="space-y-4">
            <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight ml-2">DATA KARYAWAN</h2>
            {isSuper && (
-             <div className="grid grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <div className="grid grid-cols-4 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex items-center gap-6">
                  <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 shadow-inner">
                    <Icons.Users className="w-7 h-7" />
                  </div>
                  <div>
-                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Total Karyawan</p>
+                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1 whitespace-nowrap">Total Karyawan</p>
                    <p className="text-3xl font-black text-slate-900 leading-none">{employees.length}</p>
                  </div>
                </div>
@@ -335,7 +381,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                    <Icons.Users className="w-7 h-7" />
                  </div>
                  <div>
-                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Karyawan Baru</p>
+                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1 whitespace-nowrap">Karyawan Baru</p>
                    <p className="text-3xl font-black text-slate-900 leading-none">{employees.filter(e => {
                      if (!e.tanggalMasuk) return false;
                      const parts = e.tanggalMasuk.split('/');
@@ -348,10 +394,19 @@ const Dashboard: React.FC<DashboardProps> = ({
                </div>
                <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex items-center gap-6">
                  <div className="w-14 h-14 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-500 shadow-inner">
+                   <Icons.AlertCircle className="w-7 h-7" />
+                 </div>
+                 <div>
+                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1 whitespace-nowrap">Karyawan Telat</p>
+                   <p className="text-3xl font-black text-rose-600 leading-none">{lateEmployeesCount}</p>
+                 </div>
+               </div>
+               <div className="bg-white p-8 rounded-[40px] shadow-sm border border-sky-100 flex items-center gap-6">
+                 <div className="w-14 h-14 rounded-2xl bg-sky-50 flex items-center justify-center text-sky-500 shadow-inner">
                    <Icons.Cake className="w-7 h-7" />
                  </div>
                  <div>
-                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Ulang Tahun</p>
+                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1 whitespace-nowrap">Ulang Tahun</p>
                    <p className="text-3xl font-black text-slate-900 leading-none">{employees.filter(emp => getDaysUntilBirthday(emp.tanggalLahir) <= 7).length}</p>
                  </div>
                </div>
@@ -433,7 +488,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               ) : (
                 <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[36px] p-8 flex items-center gap-8">
                   <div className="text-slate-400 p-4 rounded-[24px] bg-white/5 shrink-0">
-                    <Icons.Sparkles className="w-7 h-7" />
+                    <Icons.Sparkles className="text-slate-400 w-7 h-7" />
                   </div>
                   <p className="text-xl font-black text-slate-400 uppercase tracking-tight">
                     BELUM ADA NOTIFIKASI MENDESAK SAAT INI.

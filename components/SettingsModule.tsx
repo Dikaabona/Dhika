@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icons } from '../constants';
 import { supabase } from '../App';
@@ -9,7 +10,7 @@ interface SettingsModuleProps {
   onRefresh: () => void;
 }
 
-type SubTab = 'MAPS' | 'ROLE' | 'KPI';
+type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'STRUKTUR';
 
 interface CustomCriteria {
   id: string;
@@ -49,13 +50,21 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const [newCriteriaWeight, setNewCriteriaWeight] = useState(10);
   
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [divisions, setDivisions] = useState<string[]>([]);
+  const [newDivisionName, setNewDivisionName] = useState('');
+  
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [searchEmp, setSearchEmp] = useState('');
+  const [searchRemote, setSearchRemote] = useState('');
 
   // Pagination for ROLE management
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // Pagination for REMOTE management (MAPS tab)
+  const [remotePage, setRemotePage] = useState(1);
+  const remoteItemsPerPage = 5;
 
   const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super';
@@ -64,6 +73,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   useEffect(() => {
     fetchSettingsAndEmployees();
     fetchKPIConfig();
+    fetchDivisions();
     if (isOwner) fetchAllCompanies();
   }, [selectedCompany, isOwner]);
 
@@ -90,7 +100,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
         .single();
       
       if (settingsError && settingsError.code !== 'PGRST116') throw settingsError;
-      if (settingsData) setSettings(settingsData.value);
+      // Fixed: Explicit type assertion for settingsData.value as it's from JSON column
+      if (settingsData) setSettings(settingsData.value as AttendanceSettings);
 
       let query = supabase.from('employees').select('*').order('nama', { ascending: true });
       query = query.eq('company', targetCompany);
@@ -111,7 +122,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
       const targetCompany = isOwner ? selectedCompany : userCompany;
       const { data } = await supabase.from('settings').select('value').eq('key', `kpi_system_${targetCompany}`).single();
       if (data) {
-        const val = data.value;
+        // Fixed: Added cast to any for val to handle unknown property access from Supabase JSON result
+        const val = data.value as any;
         setKpiSystem({
           criteria: val.criteria || [],
           attendanceWeight: val.attendanceWeight ?? 25,
@@ -123,6 +135,21 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
       else setKpiSystem({ criteria: [], attendanceWeight: 25, contentWeight: 25, gmvWeight: 25, scores: {} });
     } catch (e) {
       setKpiSystem({ criteria: [], attendanceWeight: 25, contentWeight: 25, gmvWeight: 25, scores: {} });
+    }
+  };
+
+  const fetchDivisions = async () => {
+    try {
+      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const { data } = await supabase.from('settings').select('value').eq('key', `divisions_${targetCompany}`).single();
+      // Fixed: Added type assertion as string[] for data.value to fix unknown type issues
+      if (data && Array.isArray(data.value)) {
+        setDivisions(data.value as string[]);
+      } else {
+        setDivisions([]);
+      }
+    } catch (e) {
+      setDivisions([]);
     }
   };
 
@@ -180,6 +207,41 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     handleSaveKPISystem(updated);
   };
 
+  const handleAddDivision = async () => {
+    const name = newDivisionName.trim().toUpperCase();
+    if (!name) return;
+    if (divisions.includes(name)) {
+      alert("Divisi sudah ada!");
+      return;
+    }
+    const updated = [...divisions, name];
+    await saveDivisionsToCloud(updated);
+    setNewDivisionName('');
+  };
+
+  const handleRemoveDivision = async (name: string) => {
+    if (!confirm(`Hapus divisi "${name}"?`)) return;
+    const updated = divisions.filter(d => d !== name);
+    await saveDivisionsToCloud(updated);
+  };
+
+  const saveDivisionsToCloud = async (updated: string[]) => {
+    setIsSaving(true);
+    try {
+      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const { error } = await supabase.from('settings').upsert({
+        key: `divisions_${targetCompany}`,
+        value: updated
+      }, { onConflict: 'key' });
+      if (error) throw error;
+      setDivisions(updated);
+    } catch (err: any) {
+      alert("Gagal menyimpan divisi: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleUpdateComponentWeight = (field: string, value: number) => {
     const updated = { ...kpiSystem, [field]: value };
     setKpiSystem(updated);
@@ -217,27 +279,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     }
   };
 
-  const getCurrentGPS = () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation tidak didukung browser ini.");
-      return;
-    }
-    navigator.geolocation.getCurrentPosition((pos) => {
-      setSettings({
-        ...settings,
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude
-      });
-    }, (err) => {
-      alert("Gagal mendeteksi lokasi: " + err.message);
-    });
-  };
-
-  const openGoogleMapsPicker = () => {
-    const url = `https://www.google.com/maps/search/?api=1&query=${settings.latitude},${settings.longitude}`;
-    window.open(url, '_blank');
-  };
-
   const filteredEmployees = useMemo(() => {
     return employees.filter(e => 
       e.nama.toLowerCase().includes(searchEmp.toLowerCase()) || 
@@ -250,6 +291,30 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     const start = (currentPage - 1) * itemsPerPage;
     return filteredEmployees.slice(start, start + itemsPerPage);
   }, [filteredEmployees, currentPage, itemsPerPage]);
+
+  const filteredRemoteEmployees = useMemo(() => {
+    return employees.filter(e => 
+      e.nama.toLowerCase().includes(searchRemote.toLowerCase()) || 
+      e.idKaryawan.toLowerCase().includes(searchRemote.toLowerCase())
+    );
+  }, [employees, searchRemote]);
+
+  const totalRemotePages = Math.ceil(filteredRemoteEmployees.length / remoteItemsPerPage);
+  const paginatedRemoteEmployees = useMemo(() => {
+    const start = (remotePage - 1) * remoteItemsPerPage;
+    return filteredRemoteEmployees.slice(start, start + remoteItemsPerPage);
+  }, [filteredRemoteEmployees, remotePage, remoteItemsPerPage]);
+
+  const orgStructure = useMemo(() => {
+    const structure: Record<string, Employee[]> = {};
+    divisions.forEach(div => {
+      structure[div] = employees.filter(e => e.division === div);
+    });
+    // Karyawan tanpa divisi
+    const noDiv = employees.filter(e => !e.division || !divisions.includes(e.division));
+    if (noDiv.length > 0) structure['TIDAK TERDAFTAR'] = noDiv;
+    return structure;
+  }, [employees, divisions]);
 
   if (isLoading) {
     return (
@@ -284,11 +349,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                   </div>
                 )}
               </div>
-              <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner mt-4 w-fit">
+              <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner mt-4 w-fit overflow-x-auto no-scrollbar">
                 {canAccessRoleManagement && (
                   <button 
                     onClick={() => setActiveSubTab('ROLE')} 
-                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'ROLE' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'ROLE' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                   >
                     ROLE
                   </button>
@@ -296,28 +361,44 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                 {canAccessRoleManagement && (
                   <button 
                     onClick={() => setActiveSubTab('KPI')} 
-                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'KPI' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'KPI' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                   >
                     KPI
                   </button>
                 )}
                 <button 
                   onClick={() => setActiveSubTab('MAPS')} 
-                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'MAPS' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'MAPS' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                 >
                   MAPS
+                </button>
+                {canAccessRoleManagement && (
+                  <button 
+                    onClick={() => setActiveSubTab('DIVISI')} 
+                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'DIVISI' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    DIVISI
+                  </button>
+                )}
+                <button 
+                  onClick={() => setActiveSubTab('STRUKTUR')} 
+                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'STRUKTUR' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  STRUKTUR ORGANISASI
                 </button>
               </div>
             </div>
           </div>
           
-          <button 
-            onClick={activeSubTab === 'KPI' ? () => handleSaveKPISystem(kpiSystem) : handleSaveSettings}
-            disabled={isSaving}
-            className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-10 py-5 rounded-3xl font-black text-[10px] sm:text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-4"
-          >
-            {isSaving ? 'Menyimpan...' : <><Icons.Database className="w-4 h-4"/> Simpan Konfigurasi</>}
-          </button>
+          {(activeSubTab !== 'DIVISI' && activeSubTab !== 'STRUKTUR') && (
+            <button 
+              onClick={activeSubTab === 'KPI' ? () => handleSaveKPISystem(kpiSystem) : handleSaveSettings}
+              disabled={isSaving}
+              className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-10 py-5 rounded-3xl font-black text-[10px] sm:text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-4"
+            >
+              {isSaving ? 'Menyimpan...' : <><Icons.Database className="w-4 h-4"/> Simpan Konfigurasi</>}
+            </button>
+          )}
         </div>
 
         {activeSubTab === 'MAPS' ? (
@@ -361,43 +442,26 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all duration-300 ${settings.allowRemote ? 'left-7' : 'left-1'}`}></div>
                  </button>
               </div>
-
-              <div className="bg-[#FFFBEB] p-8 rounded-[40px] border-2 border-[#FFD700]/30 space-y-6">
-                 <div className="flex justify-between items-center">
-                    <p className="text-[10px] font-black text-[#806000] uppercase tracking-widest">Koordinat Lokasi</p>
-                    <div className="flex gap-2">
-                       <button onClick={getCurrentGPS} className="bg-white border-2 border-amber-100 px-4 py-2 rounded-xl text-[9px] font-black uppercase active:scale-95 shadow-sm text-black">Ambil GPS</button>
-                       <button onClick={openGoogleMapsPicker} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase active:scale-95">Preview</button>
-                    </div>
-                 </div>
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <span className="text-[8px] font-bold text-amber-600/60 uppercase ml-1">Latitude</span>
-                      <input type="number" step="any" value={settings.latitude} onChange={e => setSettings({...settings, latitude: parseFloat(e.target.value) || 0})} className="w-full bg-white border border-amber-100 p-4 rounded-2xl text-xs font-black outline-none focus:border-amber-400 text-black" />
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-[8px] font-bold text-amber-600/60 uppercase ml-1">Longitude</span>
-                      <input type="number" step="any" value={settings.longitude} onChange={e => setSettings({...settings, longitude: parseFloat(e.target.value) || 0})} className="w-full bg-white border border-amber-100 p-4 rounded-2xl text-xs font-black outline-none focus:border-amber-400 text-black" />
-                    </div>
-                 </div>
-              </div>
             </div>
 
             <div className="space-y-8">
-              <div className="p-10 bg-slate-50 rounded-[40px] border border-slate-100 aspect-video flex flex-col items-center justify-center text-center gap-4 shadow-inner relative overflow-hidden">
-                  <div className="bg-white/80 backdrop-blur-md p-8 rounded-3xl border border-slate-200 shadow-xl z-10 max-w-xs">
-                    <Icons.MapPin className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">Live Map Disabled</p>
-                    <p className="text-xs font-medium text-slate-400 leading-relaxed">Peta dinonaktifkan untuk menghemat penggunaan data (egress). Gunakan tombol Preview untuk melihat di tab baru.</p>
-                  </div>
-                  <div className="absolute inset-0 opacity-5 pointer-events-none">
-                    <Icons.Map className="w-full h-full" />
-                  </div>
-              </div>
-              <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 flex flex-col h-[300px]">
-                 <h4 className="text-[11px] font-black text-slate-900 uppercase mb-4 tracking-widest">Izin Remote (Individu)</h4>
-                 <div className="flex-grow overflow-y-auto custom-scrollbar space-y-2 pr-2">
-                    {employees.map(emp => (
+              <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 flex flex-col h-full min-h-[500px]">
+                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                    <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Izin Remote (Individu)</h4>
+                    <div className="relative">
+                      <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                      <input 
+                        type="text" 
+                        placeholder="Cari..." 
+                        value={searchRemote}
+                        onChange={e => { setSearchRemote(e.target.value); setRemotePage(1); }}
+                        className="bg-white border border-slate-200 pl-9 pr-4 py-2 rounded-xl text-[10px] font-black uppercase text-black outline-none focus:ring-2 focus:ring-[#FFC000]"
+                      />
+                    </div>
+                 </div>
+                 
+                 <div className="flex-grow overflow-y-auto custom-scrollbar space-y-2 pr-2 mb-6">
+                    {paginatedRemoteEmployees.map(emp => (
                       <div key={emp.id} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center justify-between shadow-sm">
                          <div className="flex items-center gap-3 truncate">
                             <p className="text-[10px] font-black text-slate-900 uppercase truncate">{emp.nama}</p>
@@ -410,7 +474,36 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                          </button>
                       </div>
                     ))}
+                    {paginatedRemoteEmployees.length === 0 && (
+                      <div className="py-12 text-center opacity-30">
+                         <Icons.Database className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Tidak ada data</p>
+                      </div>
+                    )}
                  </div>
+
+                 {/* Pagination for Remote List - 5 items per page */}
+                 {totalRemotePages > 1 && (
+                   <div className="flex items-center justify-between px-2 pt-4 border-t border-slate-100">
+                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{remotePage} / {totalRemotePages}</span>
+                     <div className="flex gap-2">
+                        <button 
+                          disabled={remotePage === 1}
+                          onClick={() => setRemotePage(p => p - 1)}
+                          className="w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 flex items-center justify-center transition-all shadow-sm"
+                        >
+                           <Icons.ChevronDown className="w-5 h-5 rotate-90" />
+                        </button>
+                        <button 
+                          disabled={remotePage === totalRemotePages}
+                          onClick={() => setRemotePage(p => p + 1)}
+                          className="w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 flex items-center justify-center transition-all shadow-sm"
+                        >
+                           <Icons.ChevronDown className="w-5 h-5 -rotate-90" />
+                        </button>
+                     </div>
+                   </div>
+                 )}
               </div>
             </div>
           </div>
@@ -512,7 +605,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
               </div>
             )}
           </div>
-        ) : (
+        ) : activeSubTab === 'KPI' ? (
           <div className="animate-in fade-in duration-300 space-y-12">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div className="space-y-2">
@@ -556,9 +649,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                     </div>
 
                     <div className="space-y-4">
-                      <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Kriteria Manual Aktif ({kpiSystem.criteria.length})</h3>
+                      {/* Fixed: Added explicit cast to CustomCriteria[] to fix Property 'length' does not exist on type 'unknown' error */}
+                      <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Kriteria Manual Aktif ({(kpiSystem.criteria as CustomCriteria[]).length})</h3>
                       <div className="space-y-3">
-                        {kpiSystem.criteria.map(c => (
+                        {/* Fixed: Added explicit cast to CustomCriteria[] to fix Property 'map' does not exist on type 'unknown' error */}
+                        {(kpiSystem.criteria as CustomCriteria[]).map(c => (
                           <div key={c.id} className="flex items-center justify-between bg-white p-5 rounded-2xl border border-slate-100 group shadow-sm">
                             <div className="flex items-baseline gap-3">
                               <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest">{c.name}</span>
@@ -573,7 +668,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                             </button>
                           </div>
                         ))}
-                        {kpiSystem.criteria.length === 0 && (
+                        {/* Fixed: Added explicit cast to CustomCriteria[] to fix Property 'length' does not exist on type 'unknown' error */}
+                        {(kpiSystem.criteria as CustomCriteria[]).length === 0 && (
                           <div className="py-12 text-center bg-white/50 border-2 border-dashed border-slate-200 rounded-3xl">
                             <Icons.Sparkles className="w-10 h-10 mx-auto text-slate-200 mb-2" />
                             <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Belum Ada Kriteria</p>
@@ -653,6 +749,121 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                      <div className="absolute top-0 right-0 w-32 h-32 bg-[#FFC000]/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000"></div>
                   </div>
                </div>
+            </div>
+          </div>
+        ) : activeSubTab === 'DIVISI' ? (
+          <div className="animate-in fade-in duration-300 space-y-12">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div className="space-y-2">
+                 <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Manajemen Divisi Perusahaan</h3>
+                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Daftarkan divisi atau departemen yang ada di perusahaan Anda.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+               <div className="space-y-8">
+                  <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-8">
+                     <div className="space-y-4">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tambah Divisi Baru</label>
+                        <div className="flex gap-3">
+                           <input 
+                             type="text" 
+                             value={newDivisionName} 
+                             onChange={e => setNewDivisionName(e.target.value)} 
+                             placeholder="NAMA DIVISI (Marketing, HR, IT...)" 
+                             className="flex-grow bg-white border border-slate-200 px-6 py-4 rounded-2xl text-[11px] font-black uppercase outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+                           />
+                           <button 
+                             onClick={handleAddDivision}
+                             disabled={isSaving}
+                             className="bg-[#0f172a] text-[#FFC000] px-8 rounded-2xl shadow-xl active:scale-90 transition-all disabled:opacity-50"
+                           >
+                             <Icons.Plus className="w-5 h-5" />
+                           </button>
+                        </div>
+                     </div>
+
+                     <div className="space-y-4">
+                        {/* Fixed: Added explicit cast to string[] to fix Property 'length' does not exist on type 'unknown' error */}
+                        <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Daftar Divisi Terdaftar ({(divisions as string[]).length})</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                           {/* Fixed: Added explicit cast to string[] to fix Property 'map' does not exist on type 'unknown' error */}
+                           {(divisions as string[]).map(d => (
+                             <div key={d} className="flex items-center justify-between bg-white p-5 rounded-2xl border border-slate-100 group shadow-sm">
+                                <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest">{d}</span>
+                                <button 
+                                  onClick={() => handleRemoveDivision(d)} 
+                                  disabled={isSaving}
+                                  className="text-rose-400 hover:text-rose-600 transition-all p-2 rounded-lg hover:bg-rose-50 disabled:opacity-50"
+                                >
+                                  <Icons.Trash className="w-4 h-4" />
+                                </button>
+                             </div>
+                           ))}
+                           {/* Fixed: Added explicit cast to string[] to fix Property 'length' does not exist on type 'unknown' error */}
+                           {(divisions as string[]).length === 0 && (
+                             <div className="col-span-full py-16 text-center bg-white/50 border-2 border-dashed border-slate-200 rounded-3xl opacity-30">
+                                <Icons.Database className="w-12 h-12 mx-auto mb-2" />
+                                <p className="text-[10px] font-black uppercase tracking-[0.4em]">Belum ada divisi</p>
+                             </div>
+                           )}
+                        </div>
+                     </div>
+                  </div>
+               </div>
+
+               <div className="space-y-6">
+                  <div className="bg-indigo-50 p-8 rounded-[40px] border border-indigo-100">
+                     <h4 className="text-sm font-black text-indigo-900 uppercase tracking-tight mb-4">Pemanfaatan Fitur</h4>
+                     <ul className="space-y-4">
+                        <li className="flex gap-3 text-xs font-medium text-indigo-800">
+                           <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0"></div>
+                           <span>Daftar divisi di sini akan digunakan sebagai filter pada database karyawan dan laporan performa.</span>
+                        </li>
+                        <li className="flex gap-3 text-xs font-medium text-indigo-800">
+                           <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0"></div>
+                           <span>Mempermudah struktur organisasi dan penempatan hak akses ke depannya.</span>
+                        </li>
+                     </ul>
+                  </div>
+               </div>
+            </div>
+          </div>
+        ) : (
+          <div className="animate-in fade-in duration-300 space-y-8">
+            <div className="space-y-2 mb-8">
+               <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Struktur Organisasi</h3>
+               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Visualisasi pembagian divisi dan personel.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Fixed: Added explicit cast for Object.entries results to fix potential unknown type inference in some TS environments */}
+              {(Object.entries(orgStructure) as [string, Employee[]][]).map(([divName, members]) => (
+                <div key={divName} className="bg-slate-50 p-6 rounded-[32px] border border-slate-100 flex flex-col h-full">
+                  <div className="flex items-center justify-between mb-6 border-b border-slate-200 pb-4">
+                    <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest truncate pr-2">{divName}</h4>
+                    <span className="bg-slate-900 text-[#FFC000] px-2.5 py-1 rounded-lg text-[9px] font-black">{members.length}</span>
+                  </div>
+                  <div className="flex-grow space-y-3">
+                    {members.map(m => (
+                      <div key={m.id} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-3 shadow-sm hover:border-[#FFC000] transition-colors">
+                        <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                           {m.photoBase64 || m.avatarUrl ? <img src={m.photoBase64 || m.avatarUrl} className="w-full h-full object-cover" /> : <Icons.Users className="w-4 h-4 text-slate-300" />}
+                        </div>
+                        <div className="min-w-0">
+                           <p className="text-[10px] font-black text-slate-900 uppercase truncate leading-tight">{m.nama}</p>
+                           <p className="text-[8px] font-bold text-slate-400 uppercase truncate mt-0.5">{m.jabatan}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {members.length === 0 && (
+                      <div className="py-8 text-center opacity-20">
+                         <p className="text-[8px] font-black uppercase tracking-widest">Divisi Kosong</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}

@@ -21,6 +21,7 @@ import MinVisModule from './components/MinVisModule.tsx';
 import KPIModule from './components/KPIModule.tsx';
 import CalendarModule from './components/CalendarModule.tsx';
 import InventoryModule from './components/InventoryModule.tsx';
+import EmployeeDetailModal from './components/EmployeeDetailModal.tsx';
 import { getTenureYears, calculateTenure, formatDateToYYYYMMDD, getMondayISO } from './utils/dateUtils.ts';
 
 const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
@@ -84,6 +85,7 @@ export const App: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isAnnouncementOpen, setIsAnnouncementOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
   const [slipEmployee, setSlipEmployee] = useState<Employee | null>(null);
   const [isBulkSalaryOpen, setIsBulkSalaryOpen] = useState(false);
 
@@ -225,14 +227,36 @@ export const App: React.FC = () => {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const initSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          if (error.message.toLowerCase().includes('refresh token')) {
+            await supabase.auth.signOut();
+            setSession(null);
+          }
+          return;
+        }
+        setSession(session);
+        if (session?.user?.email) fetchData(session.user.email);
+      } catch (err) {
+        setSession(null);
+      }
+    };
+
+    initSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
-      if (session?.user?.email) fetchData(session.user.email);
+      if (session?.user?.email) {
+        fetchData(session.user.email);
+      } else if (event === 'SIGNED_OUT') {
+        setEmployees([]);
+        setCurrentUserEmployee(null);
+        setUserRole('employee');
+      }
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session?.user?.email) fetchData(session.user.email);
-    });
+
     return () => subscription.unsubscribe();
   }, []);
 
@@ -277,6 +301,19 @@ export const App: React.FC = () => {
       setIsFormOpen(true);
     } catch (err: any) {
       alert("Gagal memuat data lengkap: " + err.message);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
+  const handleViewEmployee = async (emp: Employee) => {
+    setIsLoadingData(true);
+    try {
+      const { data, error } = await supabase.from('employees').select('*').eq('id', emp.id).single();
+      if (error) throw error;
+      setViewingEmployee(data);
+    } catch (err: any) {
+      alert("Gagal memuat data profil: " + err.message);
     } finally {
       setIsLoadingData(false);
     }
@@ -385,7 +422,7 @@ export const App: React.FC = () => {
             idKaryawan: String(row['ID KARYAWAN'] || ''),
             nama: String(row['NAMA'] || ''),
             tempatLahir: String(row['TEMPAT LAHIR'] || ''),
-            tanggalLahir: String(row['TANGGAL LAHIR'] || ''),
+            tanggalLahir: String(row['TANGGAL LALHIR'] || ''),
             alamat: String(row['ALAMAT'] || ''),
             noKtp: String(row['NO KTP'] || ''),
             noHandphone: String(row['NO HP'] || ''),
@@ -475,7 +512,6 @@ export const App: React.FC = () => {
           )}
         </div>
 
-        {/* Menu CONTENT di-hide jika company Seller Space */}
         {!isSellerSpace && (
           <div className="relative" ref={desktopModulRef}>
             <button onClick={() => setIsDesktopModulOpen(!isDesktopModulOpen)} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${isModulActive ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
@@ -487,7 +523,6 @@ export const App: React.FC = () => {
                 <div className="h-px bg-slate-50 w-full"></div>
                 <button onClick={() => { setActiveTab('content'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">SHORT VIDEO</button>
                 <div className="h-px bg-slate-50 w-full"></div>
-                {/* CALENDAR dihapus dari dropdown ini sesuai permintaan */}
                 <button onClick={() => { setActiveTab('minvis'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-[#FFC000] hover:text-black transition-colors text-[#334155]">MINVIS (AI)</button>
               </div>
             )}
@@ -653,24 +688,20 @@ export const App: React.FC = () => {
                   </div>
                   <div className="w-full overflow-hidden">
                     <div className="hidden md:grid grid-cols-8 bg-slate-50 text-slate-500 text-[10px] uppercase font-bold tracking-[0.15em] border-b border-slate-100 px-14 py-6 sticky top-0 z-10">
-                      <div className="col-span-2">COMPANY</div>
-                      <div className="col-span-1">ID KARYAWAN</div>
+                      <div className="col-span-1">ID</div>
                       <div className="col-span-2">NAMA KARYAWAN</div>
                       <div className="col-span-1">TTL</div>
-                      <div className="col-span-1">CUTI</div>
+                      <div className="col-span-2">ALAMAT</div>
+                      <div className="col-span-1">SALDO CUTI</div>
                       <div className="col-span-1 text-right">AKSI</div>
                     </div>
                     <div className="bg-white">
                       {paginatedEmployeesList.map((emp) => {
-                        const tenureY = getTenureYears(emp.tanggalMasuk);
-                        const leaveQuota = tenureY >= 1 ? 12 : 0;
-                        const usedLeave = attendanceRecords.filter(r => r.employeeId === emp.id && r.status === 'Cuti' && new Date(r.date).getFullYear() === new Date().getFullYear()).length;
-                        const sisaCuti = Math.max(0, leaveQuota - usedLeave);
                         return (
                           <div key={emp.id} className="hover:bg-slate-50/70 transition-all duration-300 border-b border-slate-50 last:border-0">
                             <div className="md:hidden p-6 flex items-center justify-between relative group overflow-hidden">
                               <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-rose-500 rounded-r-full shadow-[2px_0_10px_rgba(244,63,94,0.3)]"></div>
-                              <div className="flex-1 min-w-0">
+                              <div className="flex-1 min-w-0" onClick={() => handleViewEmployee(emp)}>
                                 <p className="text-[14px] font-black text-slate-900 uppercase tracking-tight truncate pl-2">{emp.nama}</p>
                                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-2 mt-1 truncate">{emp.jabatan}</p>
                               </div>
@@ -678,27 +709,47 @@ export const App: React.FC = () => {
                                 <span className="bg-[#f1f5f9] text-slate-600 font-black text-[11px] uppercase px-5 py-2.5 rounded-full tracking-[0.1em] border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span>
                                 <div className="flex gap-1.5 ml-2">
                                    <button onClick={() => setSlipEmployee(emp)} className="p-2 text-emerald-600 bg-emerald-50 rounded-lg"><Icons.Download className="w-4 h-4" /></button>
-                                   <button onClick={() => handleEditEmployee(emp)} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg"><Icons.Edit className="w-4 h-4" /></button>
+                                   {userRole !== 'employee' && (
+                                     <button onClick={() => handleEditEmployee(emp)} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg"><Icons.Edit className="w-4 h-4" /></button>
+                                   )}
                                 </div>
                               </div>
                             </div>
                             <div className="hidden md:grid grid-cols-8 items-center px-14 py-7 gap-4">
-                              <div className="col-span-2"><span className="text-sm font-bold text-slate-800 uppercase">{emp.company}</span></div>
                               <div className="col-span-1"><span className="inline-block bg-slate-50 text-slate-700 font-black text-[10px] uppercase px-4 py-2 rounded-xl border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span></div>
                               <div className="col-span-2">
-                                <p className="font-semibold text-slate-900 text-[14px] uppercase truncate">{emp.nama}</p>
+                                <p className="font-semibold text-slate-900 text-[14px] uppercase truncate cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleViewEmployee(emp)}>{emp.nama}</p>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{emp.jabatan}</p>
                               </div>
                               <div className="col-span-1">
                                 <p className="text-[11px] font-black text-slate-800 uppercase">{emp.tempatLahir}</p>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{emp.tanggalLahir}</p>
                               </div>
-                              <div className="col-span-1"><span className={`inline-block font-black text-[10px] px-3 py-1 rounded-lg ${sisaCuti > 0 ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>{sisaCuti} HARI</span></div>
+                              <div className="col-span-2">
+                                <p className="text-[11px] text-slate-600 line-clamp-2 uppercase font-medium">{emp.alamat}</p>
+                              </div>
+                              <div className="col-span-1">
+                                <p className="text-[11px] font-black text-slate-800 font-mono">
+                                  {(() => {
+                                    const tenure = getTenureYears(emp.tanggalMasuk);
+                                    if (tenure < 1) return '0 Hari';
+                                    const used = attendanceRecords.filter(r => 
+                                      r.employeeId === emp.id && 
+                                      r.status === 'Cuti' && 
+                                      new Date(r.date).getFullYear() === new Date().getFullYear()
+                                    ).length;
+                                    return `${12 - used} Hari`;
+                                  })()}
+                                </p>
+                              </div>
                               <div className="col-span-1 text-right">
                                 <div className="flex justify-end gap-2">
-                                  <button onClick={() => setSlipEmployee(emp)} className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white"><Icons.Download className="w-4 h-4" /></button>
-                                  <button onClick={() => handleEditEmployee(emp)} className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white"><Icons.Edit className="w-4 h-4" /></button>
-                                  {isHighAdminAccess && <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white"><Icons.Trash className="w-4 h-4" /></button>}
+                                  <button onClick={() => handleViewEmployee(emp)} className="p-2.5 text-slate-400 hover:bg-slate-100 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Info Karyawan"><Icons.Info className="w-4 h-4" /></button>
+                                  <button onClick={() => setSlipEmployee(emp)} className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Download Slip"><Icons.Download className="w-4 h-4" /></button>
+                                  {userRole !== 'employee' && (
+                                    <button onClick={() => handleEditEmployee(emp)} className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Edit Karyawan"><Icons.Edit className="w-4 h-4" /></button>
+                                  )}
+                                  {isHighAdminAccess && <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2.5 text-rose-500 hover:bg-rose-100 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Hapus Karyawan"><Icons.Trash className="w-4 h-4" /></button>}
                                 </div>
                               </div>
                             </div>
@@ -714,16 +765,28 @@ export const App: React.FC = () => {
                         <span className="text-xs font-black text-slate-900 px-4 py-2 bg-slate-50 rounded-full border border-slate-200">{currentEmpPage} / {totalEmpPages}</span>
                       </div>
                       <div className="flex gap-3">
-                        {/* Fix: Changed setCurrentPage to setCurrentEmpPage */}
                         <button disabled={currentEmpPage === 1} onClick={() => setCurrentEmpPage(prev => prev - 1)} className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 flex items-center justify-center"><Icons.ChevronDown className="w-5 h-5 rotate-90" /></button>
-                        {/* Fix: Changed setCurrentPage to setCurrentEmpPage */}
                         <button disabled={currentEmpPage === totalEmpPages} onClick={() => setCurrentEmpPage(prev => prev + 1)} className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 flex items-center justify-center"><Icons.ChevronDown className="w-5 h-5 -rotate-90" /></button>
                       </div>
                     </div>
                   )}
                 </div>
               ) : (
-                <Dashboard employees={filteredEmployees} submissions={submissions} broadcasts={broadcasts} userRole={userRole} currentUserEmployee={currentUserEmployee} contentPlans={contentPlans} attendanceRecords={attendanceRecords} shiftAssignments={shiftAssignments} onNavigate={setActiveTab} userCompany={userCompany} onOpenBroadcast={() => setIsAnnouncementOpen(true)} onOpenDrive={handleOpenDrive} />
+                <Dashboard 
+                  employees={filteredEmployees} 
+                  submissions={submissions} 
+                  broadcasts={broadcasts} 
+                  userRole={userRole} 
+                  currentUserEmployee={currentUserEmployee} 
+                  contentPlans={contentPlans} 
+                  attendanceRecords={attendanceRecords} 
+                  shiftAssignments={shiftAssignments} 
+                  onNavigate={setActiveTab} 
+                  userCompany={userCompany} 
+                  onOpenBroadcast={() => setIsAnnouncementOpen(true)} 
+                  onOpenDrive={handleOpenDrive}
+                  onViewProfile={handleViewEmployee}
+                />
               )}
             </main>
           </>
@@ -773,6 +836,7 @@ export const App: React.FC = () => {
       </footer>
 
       {isFormOpen && <EmployeeForm employees={employees} initialData={editingEmployee} userRole={userRole} userCompany={userCompany} currentUserEmployee={currentUserEmployee} onSave={async (emp) => { await supabase.from('employees').upsert(emp); fetchData(session?.user?.email, true); setIsFormOpen(false); }} onCancel={() => setIsFormOpen(false)} />}
+      {viewingEmployee && <EmployeeDetailModal employee={viewingEmployee} onClose={() => setViewingEmployee(null)} />}
       {slipEmployee && <SalarySlipModal employee={slipEmployee} attendanceRecords={attendanceRecords} userRole={userRole} onClose={() => setSlipEmployee(null)} onUpdate={() => fetchData(session?.user?.email, true)} weeklyHolidays={weeklyHolidays} />}
       {isBulkSalaryOpen && <BulkSalaryModal employees={filteredEmployees} attendanceRecords={attendanceRecords} userRole={userRole} company={userCompany} weeklyHolidays={weeklyHolidays} onClose={() => setIsBulkSalaryOpen(false)} />}
       {isAnnouncementOpen && <AnnouncementModal employees={filteredEmployees} company={userCompany} onClose={() => setIsAnnouncementOpen(false)} onSuccess={() => fetchData(session?.user?.email, true)} />}

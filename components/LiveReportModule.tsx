@@ -61,6 +61,10 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 10;
+
   const [formData, setFormData] = useState<Omit<LiveReport, 'id'>>({
     tanggal: new Date().toISOString().split('T')[0],
     brand: LIVE_BRANDS[0].name,
@@ -119,6 +123,13 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
     });
   }, [reports, selectedBrand, startDate, endDate, searchQuery, employees]);
 
+  // Paginated Data
+  const totalPages = Math.ceil(filteredReports.length / rowsPerPage);
+  const paginatedReports = useMemo(() => {
+    const start = (currentPage - 1) * rowsPerPage;
+    return filteredReports.slice(start, start + rowsPerPage);
+  }, [filteredReports, currentPage]);
+
   const toggleSelect = (id: string) => {
     const next = new Set(selectedIds);
     if (next.has(id)) next.delete(id);
@@ -127,11 +138,11 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredReports.length && filteredReports.length > 0) {
+    if (selectedIds.size === paginatedReports.length && paginatedReports.length > 0) {
       setSelectedIds(new Set());
     } else {
-      const allIds = filteredReports.map(r => r.id!).filter(Boolean);
-      setSelectedIds(new Set(allIds));
+      const currentIds = paginatedReports.map(r => r.id!).filter(Boolean);
+      setSelectedIds(new Set(currentIds));
     }
   };
 
@@ -316,7 +327,6 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
             if (existingInDb) {
               finalToUpsert.push({ ...newReport, id: existingInDb.id });
             } else {
-              // Leave ID empty to let Supabase handle UUID generation
               finalToUpsert.push(newReport);
             }
           });
@@ -357,7 +367,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
             type="text" 
             placeholder="Cari Host, OP, atau Room..." 
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             className="pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all w-full shadow-sm"
           />
         </div>
@@ -365,7 +375,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
         <div className="bg-slate-50 p-1.5 rounded-[28px] border border-slate-100 flex flex-col sm:flex-row gap-3 shadow-inner">
           <select 
             value={selectedBrand} 
-            onChange={(e) => setSelectedBrand(e.target.value)} 
+            onChange={(e) => { setSelectedBrand(e.target.value); setCurrentPage(1); }} 
             className="bg-white border border-slate-200 px-6 py-3.5 rounded-[22px] text-[10px] font-black text-slate-900 outline-none shadow-sm appearance-none text-center uppercase tracking-widest sm:flex-grow"
           >
             <option value="ALL">SEMUA BRAND</option>
@@ -378,7 +388,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
               <input 
                 type="date" 
                 value={startDate} 
-                onChange={(e) => setStartDate(e.target.value)} 
+                onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }} 
                 className="bg-transparent text-[10px] font-black outline-none text-slate-900 cursor-pointer" 
               />
             </div>
@@ -388,7 +398,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
               <input 
                 type="date" 
                 value={endDate} 
-                onChange={(e) => setEndDate(e.target.value)} 
+                onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }} 
                 className="bg-transparent text-[10px] font-black outline-none text-slate-900 cursor-pointer" 
               />
             </div>
@@ -470,7 +480,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                 <th className="px-4 py-5 w-10 text-center">
                    <input 
                      type="checkbox" 
-                     checked={selectedIds.size === filteredReports.length && filteredReports.length > 0} 
+                     checked={selectedIds.size === paginatedReports.length && paginatedReports.length > 0} 
                      onChange={toggleSelectAll}
                      className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                    />
@@ -484,9 +494,10 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredReports.map((report, idx) => {
+              {paginatedReports.map((report, idx) => {
                 const host = employees.find(e => e.id === report.hostId);
                 const op = employees.find(e => e.id === report.opId);
+                const globalIdx = (currentPage - 1) * rowsPerPage + idx + 1;
                 return (
                   <tr key={report.id} className={`hover:bg-slate-50/50 transition-colors group ${selectedIds.has(report.id!) ? 'bg-indigo-50/30' : ''}`}>
                     <td className="px-4 py-5 text-center">
@@ -497,7 +508,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                          className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                        />
                     </td>
-                    <td className="px-4 py-5 text-[10px] font-bold text-slate-300 text-center">{idx + 1}</td>
+                    <td className="px-4 py-5 text-[10px] font-bold text-slate-300 text-center">{globalIdx}</td>
                     <td className="px-6 py-5">
                        <p className="text-[10px] font-black text-slate-900 uppercase">
                          {new Date(report.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
@@ -529,9 +540,9 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                   </tr>
                 );
               })}
-              {filteredReports.length === 0 && (
+              {paginatedReports.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-8 py-20 text-center">
+                  <td colSpan={canManage ? 7 : 6} className="px-8 py-20 text-center">
                     <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Tidak ada laporan ditemukan</p>
                   </td>
                 </tr>
@@ -539,6 +550,32 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
             </tbody>
           </table>
         </div>
+
+        {/* Pagination UI */}
+        {totalPages > 1 && (
+          <div className="px-6 py-5 flex items-center justify-between border-t border-slate-100 bg-slate-50/30">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Halaman</span>
+              <span className="text-xs font-black text-slate-900 px-4 py-2 bg-white rounded-lg shadow-sm border border-slate-200">{currentPage} / {totalPages}</span>
+            </div>
+            <div className="flex gap-2">
+              <button 
+                disabled={currentPage === 1}
+                onClick={() => { setCurrentPage(prev => prev - 1); setSelectedIds(new Set()); }}
+                className="w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
+              >
+                <Icons.ChevronDown className="w-5 h-5 rotate-90" />
+              </button>
+              <button 
+                disabled={currentPage === totalPages}
+                onClick={() => { setCurrentPage(prev => prev + 1); setSelectedIds(new Set()); }}
+                className="w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
+              >
+                <Icons.ChevronDown className="w-5 h-5 -rotate-90" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {isModalOpen && (

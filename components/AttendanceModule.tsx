@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, AttendanceRecord } from '../types';
@@ -77,47 +78,6 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
     return dates.reverse();
   }, [startDate, endDate]);
 
-  const fetchRecordPhoto = async (id: string, type: 'photoIn' | 'photoOut') => {
-    if (!id) return;
-    setIsPhotoLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('attendance')
-        .select(type)
-        .eq('id', id)
-        .single();
-      
-      if (error) throw error;
-      if (data?.[type]) {
-        setZoomedImage(data[type]);
-      } else {
-        alert("Foto verifikasi tidak tersedia.");
-      }
-    } catch (err: any) {
-      alert("Gagal memuat foto: " + err.message);
-    } finally {
-      setIsPhotoLoading(false);
-    }
-  };
-
-  const isWorkDay = (dateStr: string, emp: Employee) => {
-    const date = new Date(dateStr);
-    const day = date.getDay();
-    const isHost = (emp.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
-    if (day === 0) return isHost;
-    if (day === 6) return false;
-    const dayNameMap = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
-    const currentDayName = dayNameMap[day];
-    if (weeklyHolidays) {
-      const empNameUpper = emp.nama.toUpperCase();
-      const employeeInHolidays = Object.values(weeklyHolidays).some(names => (names as string[]).map(n => n.toUpperCase()).includes(empNameUpper));
-      if (employeeInHolidays) {
-        return !(weeklyHolidays[currentDayName] || []).map(n => n.toUpperCase()).includes(empNameUpper);
-      }
-    }
-    return true;
-  };
-
   const tableRows = useMemo(() => {
     const rows: { employee: Employee; date: string }[] = [];
     datesInRange.forEach(date => searchedEmployees.forEach(employee => rows.push({ employee, date })));
@@ -168,6 +128,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Log Kehadiran");
+    // Fix: Changed 'workbook' to 'wb' to correctly reference the variable defined above.
     XLSX.writeFile(wb, `Log_Kehadiran_${company}_${startDate}.xlsx`);
   };
 
@@ -213,6 +174,29 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
     reader.readAsArrayBuffer(file);
   };
 
+  // Added fetchRecordPhoto to resolve undefined function errors
+  const fetchRecordPhoto = async (id: string, field: string) => {
+    setIsPhotoLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('attendance')
+        .select(field)
+        .eq('id', id)
+        .single();
+      
+      if (error) throw error;
+      if (data && data[field]) {
+        setZoomedImage(data[field]);
+      } else {
+        alert("Foto tidak ditemukan.");
+      }
+    } catch (err: any) {
+      alert("Gagal memuat foto: " + err.message);
+    } finally {
+      setIsPhotoLoading(false);
+    }
+  };
+
   const getStatusStyle = (status: string) => {
     switch (status) {
       case 'Hadir': return 'bg-emerald-50 text-emerald-600 border-emerald-100';
@@ -225,6 +209,24 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
       case 'Reimburse': return 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100';
       default: return 'bg-slate-50 text-slate-400 border-slate-100';
     }
+  };
+
+  const isWorkDay = (dateStr: string, emp: Employee) => {
+    const date = new Date(dateStr);
+    const day = date.getDay();
+    const isHost = (emp.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
+    if (day === 0) return isHost;
+    if (day === 6) return false;
+    const dayNameMap = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
+    const currentDayName = dayNameMap[day];
+    if (weeklyHolidays) {
+      const empNameUpper = emp.nama.toUpperCase();
+      const employeeInHolidays = Object.values(weeklyHolidays).some(names => (names as string[]).map(n => n.toUpperCase()).includes(empNameUpper));
+      if (employeeInHolidays) {
+        return !(weeklyHolidays[currentDayName] || []).map(n => n.toUpperCase()).includes(empNameUpper);
+      }
+    }
+    return true;
   };
 
   return (
@@ -356,13 +358,13 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                     <td className="px-3 py-4">
                       <div className="flex items-center gap-2">
                         <span className={`text-[10px] font-black ${rec.clockIn ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockIn || '--:--'}</span>
-                        {rec.id && (rec.clockIn || rec.photoIn) && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoIn')} className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"><Icons.Camera className="w-3 h-3" /></button>}
+                        {rec.id && (rec.clockIn || rec.photoIn) && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoIn')} className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"><Icons.Camera className="w-3.5 h-3.5" /></button>}
                       </div>
                     </td>
                     <td className="px-3 py-4">
                       <div className="flex items-center gap-2">
                         <span className={`text-[10px] font-black ${rec.clockOut ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockOut || '--:--'}</span>
-                        {rec.id && (rec.clockOut || rec.photoOut) && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoOut')} className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"><Icons.Camera className="w-3 h-3" /></button>}
+                        {rec.id && (rec.clockOut || rec.photoOut) && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoOut')} className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"><Icons.Camera className="w-3.5 h-3.5" /></button>}
                       </div>
                     </td>
                     <td className="px-6 sm:px-10 py-4 text-right">
@@ -375,7 +377,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
           </table>
         </div>
 
-        {/* MOBILE LIST VIEW - Rapi & Elegant (Screenshot Reference) */}
+        {/* MOBILE LIST VIEW */}
         <div className="md:hidden divide-y divide-slate-100">
           {paginatedRows.map(row => {
             const existingRec = records.find(r => r.employeeId === row.employee.id && r.date === row.date);
@@ -391,24 +393,19 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
             return (
               <div key={`${row.employee.id}-${row.date}`} className={`p-6 flex flex-col gap-5 transition-all ${isToday ? 'bg-amber-50/10' : 'bg-white'}`}>
                  <div className="flex items-center justify-between gap-4">
-                   {/* Left Date Section */}
                    <div className="shrink-0 border-l-4 border-[#FFC000] pl-4 py-1.5 min-w-[90px]">
                       <p className="text-[11px] font-black text-slate-900 leading-none">{row.date}</p>
                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">{new Date(row.date).toLocaleDateString('id-ID', { weekday: 'short' }).toUpperCase()}</p>
                    </div>
-
-                   {/* Status Badge */}
                    <span className={`inline-block text-[8px] font-black uppercase px-3 py-1.5 rounded-lg border shadow-sm transition-all ${getStatusStyle(rec.status)}`}>{rec.status}</span>
                  </div>
 
                  <div className="flex items-center gap-5">
-                    {/* Identity & Times */}
                     <div className="flex-grow min-w-0">
                        <div className="flex flex-col mb-3">
                           <p className="text-[14px] font-black uppercase text-slate-900 truncate tracking-tight leading-tight">{row.employee.nama}</p>
                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter truncate mt-0.5">{row.employee.jabatan}</p>
                        </div>
-
                        <div className="flex items-center gap-8">
                           <div className="flex flex-col">
                              <span className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Masuk</span>
@@ -420,8 +417,6 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                           </div>
                        </div>
                     </div>
-
-                    {/* Actions Group - Bottom Right Positioned */}
                     <div className="flex flex-col items-end justify-end self-end gap-2.5">
                        {rec.id && (rec.clockIn || rec.clockOut || rec.photoIn || rec.photoOut) && (
                           <button onClick={() => fetchRecordPhoto(rec.id!, rec.photoIn ? 'photoIn' : (rec.photoOut ? 'photoOut' : (rec.clockIn ? 'photoIn' : 'photoOut')))} className="p-2.5 bg-slate-50 text-slate-300 rounded-xl hover:text-[#FFC000] border border-slate-100 transition-colors active:scale-90"><Icons.Camera className="w-4 h-4"/></button>
@@ -468,7 +463,6 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         )}
       </div>
 
-      {/* MODAL KOREKSI ABSENSI - Warna Font Hitam (Screenshot 2) */}
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
           <div className="bg-white rounded-[48px] p-10 w-full max-w-md space-y-10 shadow-2xl animate-in zoom-in-95 duration-500">
@@ -478,7 +472,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                 <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">CLOCK IN</label><input type="time" value={editingRecord.clockIn || ''} onChange={e => setEditingRecord({...editingRecord, clockIn: e.target.value})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none focus:border-[#FFC000] text-black shadow-inner" /></div>
                 <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">CLOCK OUT</label><input type="time" value={editingRecord.clockOut || ''} onChange={e => setEditingRecord({...editingRecord, clockOut: e.target.value})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none focus:border-[#FFC000] text-black shadow-inner" /></div>
               </div>
-              <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">STATUS</label><select value={editingRecord.status} onChange={e => setEditingRecord({...editingRecord, status: e.target.value as any})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none appearance-none text-black shadow-inner"><option value="Hadir">Hadir</option><option value="Sakit">Sakit</option><option value="Izin">Izin</option><option value="Alpha">Alpha</option><option value="Cuti">Cuti</option><option value="Libur">Libur</option><option value="Lembur">Lembur</option><option value="Reimburse">Reimburse</option></select></div>
+              <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">STATUS</label><select value={editingRecord.status} onChange={e => setEditingRecord({...editingRecord, status: e.target.value as any})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none appearance-none text-black shadow-inner"><option value="Hadir">Hadir</option><option value="Sakit">Sakit</option><option value="Izin">Izin</option><option value="Alpha">Alpha</option><option value="Cuti">Cuti</option><option value="Libur">Libur</option></select></div>
             </div>
             <div className="flex gap-4"><button onClick={handleSaveEdit} className="flex-1 bg-slate-900 text-[#FFC000] py-6 rounded-[28px] font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Simpan</button><button onClick={() => setIsEditModalOpen(false)} className="px-8 bg-slate-100 text-slate-400 py-6 rounded-[28px] font-black uppercase text-xs active:scale-95 transition-all">Batal</button></div>
           </div>
