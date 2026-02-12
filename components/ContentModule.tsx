@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, ContentPlan } from '../types';
@@ -15,7 +16,7 @@ interface ContentModuleProps {
   company: string;
 }
 
-const PILLAR_OPTIONS = ['Educational', 'Entertainment', 'Sales/Promo', 'Engagement', 'Behind the Scene', 'Inspirational'];
+const DEFAULT_PILLARS = ['Educational', 'Entertainment', 'Sales/Promo', 'Engagement', 'Behind the Scene', 'Inspirational'];
 
 const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlans, searchQuery: globalSearch = '', userRole = 'employee', currentEmployee = null, company }) => {
   const isCreator = useMemo(() => {
@@ -48,11 +49,13 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 10;
 
-  const [isManagingBrands, setIsManagingBrands] = useState(false);
+  const [isManagingSettings, setIsManagingSettings] = useState(false);
   const [isSavingBrands, setIsSavingBrands] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
+  const [newPillarName, setNewPillarName] = useState('');
   
   const [brands, setBrands] = useState<any[]>([]);
+  const [pillars, setPillars] = useState<string[]>(DEFAULT_PILLARS);
 
   useEffect(() => {
     fetchCloudConfigs();
@@ -60,47 +63,62 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
 
   const fetchCloudConfigs = async () => {
     try {
-      const { data, error } = await supabase.from('settings').select('*').eq('key', `content_brands_config_${company}`).single();
-      if (error && error.code !== 'PGRST116') throw error;
-
-      if (data?.value) {
-        setBrands(data.value);
+      // Fetch Brands
+      const { data: brandData } = await supabase.from('settings').select('*').eq('key', `content_brands_config_${company}`).single();
+      if (brandData?.value) {
+        setBrands(brandData.value);
       } else {
-        // Default fallbacks
         setBrands([
           { name: 'HITJAB', target: 30, quotaDeadline: '', jamUpload: '19:00' },
           { name: 'NAMASKARA', target: 30, quotaDeadline: '', jamUpload: '19:00' },
           { name: 'SECONDSHAPE', target: 30, quotaDeadline: '', jamUpload: '19:00' }
         ]);
       }
+
+      // Fetch Pillars
+      const { data: pillarData } = await supabase.from('settings').select('*').eq('key', `content_pillars_config_${company}`).single();
+      if (pillarData?.value) {
+        setPillars(pillarData.value);
+      } else {
+        setPillars(DEFAULT_PILLARS);
+      }
     } catch (err) {
       console.warn("Gagal memuat config cloud content.");
     }
   };
 
-  const saveConfigToCloud = async (value: any) => {
+  const saveConfigToCloud = async (key: string, value: any) => {
     try {
       const { error } = await supabase.from('settings').upsert({ 
-        key: `content_brands_config_${company}`, 
+        key, 
         value 
       }, { onConflict: 'key' });
       if (error) throw error;
       return true;
     } catch (err) {
-      console.error("Gagal sinkronisasi cloud content:", err);
+      console.error(`Gagal sinkronisasi cloud ${key}:`, err);
       return false;
     }
   };
 
   const persistBrandsUpdate = async (updatedBrands: any[]) => {
     setIsSavingBrands(true);
-    const success = await saveConfigToCloud(updatedBrands);
+    const success = await saveConfigToCloud(`content_brands_config_${company}`, updatedBrands);
     if (success) {
       setBrands(updatedBrands);
     } else {
-      alert("Gagal menyimpan ke cloud. Coba lagi.");
+      alert("Gagal menyimpan brands ke cloud. Coba lagi.");
     }
     setIsSavingBrands(false);
+  };
+
+  const persistPillarsUpdate = async (updatedPillars: string[]) => {
+    const success = await saveConfigToCloud(`content_pillars_config_${company}`, updatedPillars);
+    if (success) {
+      setPillars(updatedPillars);
+    } else {
+      alert("Gagal menyimpan content pillars ke cloud.");
+    }
   };
 
   const addBrand = async () => {
@@ -121,6 +139,24 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     await persistBrandsUpdate(updatedBrands);
   };
 
+  const addPillar = async () => {
+    const trimmed = newPillarName.trim();
+    if (!trimmed) return;
+    if (pillars.includes(trimmed)) {
+      alert("Pillar sudah ada!");
+      return;
+    }
+    const updated = [...pillars, trimmed];
+    await persistPillarsUpdate(updated);
+    setNewPillarName('');
+  };
+
+  const removePillar = async (name: string) => {
+    if (!confirm(`Hapus content pillar "${name}"?`)) return;
+    const updated = pillars.filter(p => p !== name);
+    await persistPillarsUpdate(updated);
+  };
+
   const updateBrandLocal = (name: string, field: string, value: any) => {
     const updatedBrands = brands.map(b => b.name === name ? { ...b, [field]: value } : b);
     setBrands(updatedBrands);
@@ -128,7 +164,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
 
   const handleSaveSpecificBrand = async (name: string) => {
     setIsSavingBrands(true);
-    const success = await saveConfigToCloud(brands);
+    const success = await saveConfigToCloud(`content_brands_config_${company}`, brands);
     if (success) {
       alert(`Config brand ${name} berhasil disimpan di Cloud!`);
     } else {
@@ -165,7 +201,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     postingDate: new Date().toISOString().split('T')[0],
     jamUpload: '19:00',
     linkReference: '',
-    contentPillar: PILLAR_OPTIONS[0],
+    contentPillar: pillars[0] || '',
     captionHashtag: '',
     linkPostingan: '',
     likes: 0,
@@ -227,7 +263,8 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         captionHashtag: plan.captionHashtag || '',
         linkPostingan: plan.linkPostingan || '',
         brand: plan.brand || (brands[0]?.name || ''),
-        creatorId: plan.creatorId || (isCreator ? currentEmployee?.id || '' : '')
+        creatorId: plan.creatorId || (isCreator ? currentEmployee?.id || '' : ''),
+        contentPillar: plan.contentPillar || (pillars[0] || '')
       });
     } else {
       setEditingPlan(null);
@@ -243,7 +280,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         postingDate: new Date().toISOString().split('T')[0],
         jamUpload: '19:00',
         linkReference: '',
-        contentPillar: PILLAR_OPTIONS[0],
+        contentPillar: pillars[0] || '',
         captionHashtag: '',
         linkPostingan: '',
         likes: 0,
@@ -389,6 +426,91 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     XLSX.writeFile(workbook, `Report_Konten_Visibel_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  // ADDED FIX: implementation of handleImportExcel which was missing
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsProcessingExcel(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        
+        const parseExDate = (val: any) => {
+          if (!val) return '';
+          if (val instanceof Date) return val.toISOString().split('T')[0];
+          if (typeof val === 'number') {
+            const d = new Date((val - 25569) * 86400 * 1000);
+            return d.toISOString().split('T')[0];
+          }
+          const str = String(val).trim();
+          if (str.includes('/')) {
+            const pts = str.split('/');
+            if (pts.length === 3) {
+              if (pts[0].length === 4) return `${pts[0]}-${pts[1].padStart(2, '0')}-${pts[2].padStart(2, '0')}`;
+              return `${pts[2]}-${pts[1].padStart(2, '0')}-${pts[0].padStart(2, '0')}`;
+            }
+          }
+          return str;
+        };
+
+        const rawPlans = jsonData.map((row: any) => {
+          const brand = String(row['BRAND'] || '').trim().toUpperCase();
+          const creatorName = String(row['CREATOR'] || '').trim();
+          const creatorId = findCreatorIdByName(creatorName);
+          
+          if (!brand || !creatorId) return null;
+
+          return {
+            title: `${brand} - ${row['TANGGAL POSTING'] || 'No Date'}`,
+            brand,
+            company: String(row['COMPANY'] || company),
+            platform: (row['PLATFORM'] || 'TikTok') as any,
+            creatorId,
+            status: 'Selesai' as const,
+            notes: row['CATATAN'] || '',
+            postingDate: parseExDate(row['TANGGAL POSTING']),
+            jamUpload: String(row['JAM UPLOAD'] || '19:00'),
+            linkPostingan: String(row['LINK POSTINGAN'] || ''),
+            contentPillar: String(row['PILLAR'] || pillars[0]),
+            views: Number(row['VIEWS'] || 0),
+            likes: Number(row['LIKES'] || 0),
+            comments: Number(row['COMMENTS'] || 0),
+            saves: Number(row['SAVES'] || 0),
+            shares: Number(row['SHARES'] || 0)
+          };
+        }).filter((p): p is any => p !== null);
+
+        if (rawPlans.length > 0) {
+          const { data: inserted, error } = await supabase.from('content_plans').upsert(rawPlans).select();
+          if (error) throw error;
+          
+          setPlans(prev => {
+            const updated = [...prev];
+            inserted?.forEach(item => {
+              const idx = updated.findIndex(p => p.id === item.id);
+              if (idx !== -1) updated[idx] = item;
+              else updated.push(item);
+            });
+            return updated.sort((a, b) => (b.postingDate || '').localeCompare(a.postingDate || ''));
+          });
+          
+          alert(`Berhasil mengimpor ${rawPlans.length} laporan konten!`);
+        } else {
+          alert("Tidak ada data valid ditemukan dalam Excel.");
+        }
+      } catch (err: any) { 
+        alert("Gagal impor: " + err.message); 
+      } finally { 
+        setIsProcessingExcel(false); 
+        if (contentFileInputRef.current) contentFileInputRef.current.value = ''; 
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
   const handleDownloadTemplate = () => {
     const template = [
       {
@@ -411,121 +533,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, ws, "Template Laporan Konten");
     XLSX.writeFile(workbook, `Template_Report_Konten_${company}.xlsx`);
-  };
-
-  const parseExcelDate = (val: any) => {
-    if (!val) return new Date().toISOString().split('T')[0];
-    if (val instanceof Date) return val.toISOString().split('T')[0];
-    
-    const str = String(val).trim();
-    if (str.includes('/')) {
-      const parts = str.split('/');
-      if (parts.length === 3) {
-        // Assume YYYY/MM/DD or DD/MM/YYYY
-        if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-      }
-    }
-    if (str.includes('-')) {
-      const parts = str.split('-');
-      if (parts.length === 3) {
-        if (parts[0].length === 4) return str;
-        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-      }
-    }
-    
-    // Excel numeric date fallback
-    if (!isNaN(Number(str)) && Number(str) > 30000) {
-      const date = new Date((Number(str) - 25569) * 86400 * 1000);
-      return date.toISOString().split('T')[0];
-    }
-
-    return str;
-  };
-
-  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsProcessingExcel(true);
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const data = new Uint8Array(event.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-        
-        const MAX_INT = 2147483647;
-
-        const rawParsedReports = jsonData.map((row: any) => {
-          const brand = String(row['BRAND'] || '').toUpperCase().trim();
-          if (!brand) return null;
-
-          const postingDate = parseExcelDate(row['TANGGAL POSTING']);
-          const jamUpload = String(row['JAM UPLOAD'] || '19:00');
-          const platform = String(row['PLATFORM'] || 'TikTok');
-          const link = String(row['LINK POSTINGAN'] || '').trim();
-          
-          const cleanInt = (v: any) => {
-            const parsed = parseInt(String(v || '0').replace(/[^0-9]/g, ''), 10);
-            return isNaN(parsed) ? 0 : Math.min(parsed, MAX_INT);
-          };
-
-          return {
-            title: `${brand} - ${postingDate}`,
-            brand: brand,
-            company: String(row['COMPANY'] || company),
-            platform: platform,
-            postingDate: postingDate,
-            jamUpload: jamUpload,
-            creatorId: findCreatorIdByName(row['CREATOR']),
-            contentPillar: String(row['PILLAR'] || 'Entertainment'),
-            linkPostingan: link,
-            views: cleanInt(row['VIEWS']),
-            likes: cleanInt(row['LIKES']),
-            comments: cleanInt(row['COMMENTS']),
-            saves: cleanInt(row['SAVES']),
-            shares: cleanInt(row['SHARES']),
-            status: 'Selesai'
-          };
-        }).filter(r => r !== null);
-
-        if (rawParsedReports.length > 0) {
-          // Identify existing records to update instead of duplicate
-          const existingInDbMap = new Map<string, string>();
-          plans.forEach(p => {
-            const key = `${p.brand}_${p.postingDate}_${p.platform}`.toLowerCase();
-            if (p.id) existingInDbMap.set(key, p.id);
-          });
-
-          const finalToUpsert: any[] = rawParsedReports.map(report => {
-            const key = `${report!.brand}_${report!.postingDate}_${report!.platform}`.toLowerCase();
-            const existingId = existingInDbMap.get(key);
-            const { jamUpload, ...dbPayload } = report!;
-            const item: any = {
-              ...dbPayload,
-              notes: `${dbPayload.notes || ''}${jamUpload ? ` [Time: ${jamUpload}]` : ''}`.trim()
-            };
-            if (existingId) item.id = existingId;
-            return item;
-          });
-
-          const { data: inserted, error } = await supabase.from('content_plans').upsert(finalToUpsert).select();
-          if (error) throw error;
-          
-          alert(`Berhasil memproses ${inserted?.length} laporan ke Cloud Database!`);
-          
-          // Refresh data from DB
-          const { data: updated } = await supabase.from('content_plans').select('*').order('postingDate', { ascending: false });
-          if (updated) setPlans(updated);
-        }
-      } catch (err: any) {
-        alert("Gagal mengimpor: " + err.message);
-      } finally {
-        setIsProcessingExcel(false);
-        if (contentFileInputRef.current) contentFileInputRef.current.value = '';
-      }
-    };
-    reader.readAsArrayBuffer(file);
   };
 
   const formatNumber = (num?: number) => {
@@ -609,7 +616,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                     type="date" 
                     value={endDate} 
                     onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }} 
-                    className="bg-transparent text-[10px] sm:text-xs font-black outline-none text-slate-900 cursor-pointer" 
+                    className="bg-transparent text-[10px] font-black outline-none text-slate-900 cursor-pointer" 
                   />
                 </div>
               </div>
@@ -650,18 +657,15 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                     <button onClick={handleDownloadTemplate} className="flex-1 sm:flex-none bg-slate-50 hover:bg-slate-100 border border-slate-200 px-4 sm:px-8 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-sm active:scale-95 text-slate-500">
                       <Icons.Download className="w-4 h-4 sm:w-4.5 sm:h-4.5" /> TEMPLATE
                     </button>
-                    <button onClick={() => setIsManagingBrands(!isManagingBrands)} className={`flex-1 sm:flex-none px-4 sm:px-8 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-sm border ${isManagingBrands ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
-                      QUOTA
+                    <button onClick={() => setIsManagingSettings(!isManagingSettings)} className={`flex-1 sm:flex-none px-4 sm:px-8 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-sm border ${isManagingSettings ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
+                      SETTINGS
                     </button>
                     <button onClick={() => handleOpenModal()} className="flex-1 sm:flex-none bg-[#FFC000] hover:bg-black text-black hover:text-white px-5 sm:px-10 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-amber-100 active:scale-95">
                       <Icons.Plus className="w-4 h-4 sm:w-5 sm:h-5" /> TAMBAH
                     </button>
                     <input type="file" ref={contentFileInputRef} onChange={handleImportExcel} className="hidden" accept=".xlsx,.xls" />
                     <button onClick={() => contentFileInputRef.current?.click()} disabled={isProcessingExcel} className="flex-1 sm:flex-none bg-[#059669] hover:bg-[#047857] text-white px-4 sm:px-9 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
-                      <Icons.Upload className="w-4 h-4 sm:w-4.5 sm:h-4.5" /> {isProcessingExcel ? '...' : 'UNGGAH'}
-                    </button>
-                    <button onClick={handleExportExcel} className="flex-1 sm:flex-none bg-[#0f172a] hover:bg-black text-white px-4 sm:px-9 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95">
-                      <Icons.Database className="w-4 h-4 sm:w-4.5 sm:h-4.5" /> EKSPOR
+                      <Icons.Upload className="w-4 h-4" /> {isProcessingExcel ? '...' : 'UNGGAH'}
                     </button>
                   </>
                 )}
@@ -670,81 +674,123 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         </div>
       </div>
 
-      {isManagingBrands && hasFullAccess && (
+      {isManagingSettings && hasFullAccess && (
         <div className="bg-[#0f172a] p-8 sm:p-12 rounded-[48px] text-white shadow-2xl space-y-12 animate-in slide-in-from-top-4 duration-500 border border-white/5">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-8">
-            <div className="flex flex-col">
-              <h3 className="text-3xl font-black tracking-tight uppercase leading-none">BRAND QUOTA MANAGEMENT</h3>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.4em] mt-3">Target Performance Hub</p>
-            </div>
-            <div className="w-full sm:w-auto flex bg-[#1e293b] p-2 rounded-[28px] border border-white/5 shadow-inner">
-              <input 
-                type="text" 
-                value={newBrandName} 
-                onChange={e => setNewBrandName(e.target.value)} 
-                onKeyDown={e => e.key === 'Enter' && addBrand()} 
-                placeholder="NAMA BRAND..." 
-                className="bg-transparent px-7 py-3.5 text-[11px] font-black uppercase outline-none flex-grow min-w-[160px] placeholder:text-slate-600" 
-              />
-              <button onClick={addBrand} disabled={isSavingBrands} className="bg-[#06b6d4] hover:bg-[#0891b2] text-white px-8 py-3.5 rounded-[22px] text-[11px] font-black uppercase transition-all shadow-lg active:scale-95 disabled:opacity-50">
-                {isSavingBrands ? '...' : 'TAMBAH'}
-              </button>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {brands.map((b: any) => (
-              <div key={b.name} className="bg-[#1e293b] p-8 rounded-[40px] border border-white/5 space-y-8 group hover:border-[#06b6d4]/30 transition-all shadow-xl flex flex-col">
-                <div className="flex justify-between items-center shrink-0">
-                  <span className="text-sm font-black tracking-[0.1em] uppercase text-white">{b.name}</span>
-                  <button 
-                    onClick={() => removeBrand(b.name)} 
-                    disabled={isSavingBrands} 
-                    className="w-12 h-12 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-2xl flex items-center justify-center transition-all group/trash active:scale-90"
-                  >
-                    <Icons.Trash className="w-5 h-5" />
+          <div className="flex flex-col gap-12">
+            {/* BRAND MANAGEMENT */}
+            <div className="space-y-8">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-8">
+                <div className="flex flex-col">
+                  <h3 className="text-3xl font-black tracking-tight uppercase leading-none">BRAND MANAGEMENT</h3>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.4em] mt-3">Target Performance Hub</p>
+                </div>
+                <div className="w-full sm:w-auto flex bg-[#1e293b] p-2 rounded-[28px] border border-white/5 shadow-inner">
+                  <input 
+                    type="text" 
+                    value={newBrandName} 
+                    onChange={e => setNewBrandName(e.target.value)} 
+                    onKeyDown={e => e.key === 'Enter' && addBrand()} 
+                    placeholder="NAMA BRAND..." 
+                    className="bg-transparent px-7 py-3.5 text-[11px] font-black uppercase outline-none flex-grow min-w-[160px] placeholder:text-slate-600" 
+                  />
+                  <button onClick={addBrand} disabled={isSavingBrands} className="bg-[#06b6d4] hover:bg-[#0891b2] text-white px-8 py-3.5 rounded-[22px] text-[11px] font-black uppercase transition-all shadow-lg active:scale-95 disabled:opacity-50">
+                    {isSavingBrands ? '...' : 'TAMBAH'}
                   </button>
                 </div>
-                <div className="space-y-6 flex-grow">
-                  <div className="space-y-2.5">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">TARGET KONTEN BULANAN</label>
-                    <input 
-                      type="number" 
-                      value={b.target} 
-                      onChange={e => updateBrandLocal(b.name, 'target', parseInt(e.target.value) || 0)} 
-                      className="w-full bg-[#0f172a] border border-white/5 rounded-3xl px-7 py-5 text-lg outline-none focus:border-[#06b6d4] text-white font-black shadow-inner" 
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">DEADLINE</label>
-                      <input 
-                        type="date" 
-                        value={b.quotaDeadline || ''} 
-                        onChange={e => updateBrandLocal(b.name, 'quotaDeadline', e.target.value)} 
-                        className="w-full bg-[#0f172a] border border-white/5 rounded-2xl px-5 py-4.5 text-xs outline-none focus:border-[#06b6d4] text-white font-black shadow-inner" 
-                      />
-                    </div>
-                    <div className="space-y-2.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">TIME</label>
-                      <input 
-                        type="time" 
-                        value={b.jamUpload || '19:00'} 
-                        onChange={e => updateBrandLocal(b.name, 'jamUpload', e.target.value)} 
-                        className="w-full bg-[#0f172a] border border-white/5 rounded-2xl px-5 py-4.5 text-xs outline-none focus:border-[#06b6d4] text-white font-black shadow-inner" 
-                      />
-                    </div>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => handleSaveSpecificBrand(b.name)}
-                  disabled={isSavingBrands}
-                  className="w-full bg-[#06b6d4] hover:bg-[#0891b2] text-white py-5 rounded-[22px] font-black text-[11px] uppercase tracking-[0.2em] shadow-lg active:scale-[0.98] transition-all mt-4 shrink-0 disabled:opacity-50"
-                >
-                  {isSavingBrands ? 'MENYIMPAN...' : 'SIMPAN KONFIGURASI'}
-                </button>
               </div>
-            ))}
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                {brands.map((b: any) => (
+                  <div key={b.name} className="bg-[#1e293b] p-8 rounded-[40px] border border-white/5 space-y-8 group hover:border-[#06b6d4]/30 transition-all shadow-xl flex flex-col">
+                    <div className="flex justify-between items-center shrink-0">
+                      <span className="text-sm font-black tracking-[0.1em] uppercase text-white">{b.name}</span>
+                      <button 
+                        onClick={() => removeBrand(b.name)} 
+                        disabled={isSavingBrands} 
+                        className="w-12 h-12 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-2xl flex items-center justify-center transition-all group/trash active:scale-90"
+                      >
+                        <Icons.Trash className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <div className="space-y-6 flex-grow">
+                      <div className="space-y-2.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">TARGET KONTEN BULANAN</label>
+                        <input 
+                          type="number" 
+                          value={b.target} 
+                          onChange={e => updateBrandLocal(b.name, 'target', parseInt(e.target.value) || 0)} 
+                          className="w-full bg-[#0f172a] border border-white/5 rounded-3xl px-7 py-5 text-lg outline-none focus:border-[#06b6d4] text-white font-black shadow-inner" 
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-6">
+                        <div className="space-y-2.5">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">DEADLINE</label>
+                          <input 
+                            type="date" 
+                            value={b.quotaDeadline || ''} 
+                            onChange={e => updateBrandLocal(b.name, 'quotaDeadline', e.target.value)} 
+                            className="w-full bg-[#0f172a] border border-white/5 rounded-2xl px-5 py-4.5 text-xs outline-none focus:border-[#06b6d4] text-white font-black shadow-inner" 
+                          />
+                        </div>
+                        <div className="space-y-2.5">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">TIME</label>
+                          <input 
+                            type="time" 
+                            value={b.jamUpload || '19:00'} 
+                            onChange={e => updateBrandLocal(b.name, 'jamUpload', e.target.value)} 
+                            className="w-full bg-[#0f172a] border border-white/5 rounded-2xl px-5 py-4.5 text-xs outline-none focus:border-[#06b6d4] text-white font-black shadow-inner" 
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => handleSaveSpecificBrand(b.name)}
+                      disabled={isSavingBrands}
+                      className="w-full bg-[#06b6d4] hover:bg-[#0891b2] text-white py-5 rounded-[22px] font-black text-[11px] uppercase tracking-[0.2em] shadow-lg active:scale-[0.98] transition-all mt-4 shrink-0 disabled:opacity-50"
+                    >
+                      {isSavingBrands ? 'MENYIMPAN...' : 'SIMPAN KONFIGURASI'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* CONTENT PILLAR MANAGEMENT */}
+            <div className="space-y-8 pt-8 border-t border-white/10">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-8">
+                <div className="flex flex-col">
+                  <h3 className="text-3xl font-black tracking-tight uppercase leading-none">CONTENT PILLAR MANAGEMENT</h3>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.4em] mt-3">Dropdown Options Library</p>
+                </div>
+                <div className="w-full sm:w-auto flex bg-[#1e293b] p-2 rounded-[28px] border border-white/5 shadow-inner">
+                  <input 
+                    type="text" 
+                    value={newPillarName} 
+                    onChange={e => setNewPillarName(e.target.value)} 
+                    onKeyDown={e => e.key === 'Enter' && addPillar()} 
+                    placeholder="NAMA PILLAR..." 
+                    className="bg-transparent px-7 py-3.5 text-[11px] font-black uppercase outline-none flex-grow min-w-[160px] placeholder:text-slate-600" 
+                  />
+                  <button onClick={addPillar} className="bg-[#FFC000] hover:bg-amber-400 text-black px-8 py-3.5 rounded-[22px] text-[11px] font-black uppercase transition-all shadow-lg active:scale-95">
+                    TAMBAH
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-4">
+                {pillars.map((p) => (
+                  <div key={p} className="bg-[#1e293b] px-6 py-4 rounded-2xl border border-white/5 flex items-center gap-4 group hover:border-[#FFC000]/30 transition-all shadow-xl">
+                    <span className="text-xs font-black tracking-[0.1em] uppercase text-white">{p}</span>
+                    <button 
+                      onClick={() => removePillar(p)} 
+                      className="text-slate-500 hover:text-rose-500 transition-colors"
+                    >
+                      <Icons.Trash className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -853,7 +899,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                       <div className="flex gap-5">
                         <div className="text-center min-w-[45px]"><p className="text-[12px] font-black text-slate-900">{formatNumber(plan.views)}</p><p className="text-[8px] text-slate-400 font-black uppercase mt-1 tracking-tighter">Views</p></div>
                         <div className="text-center min-w-[45px]"><p className="text-[12px] font-black text-slate-900">{formatNumber(plan.likes)}</p><p className="text-[8px] text-slate-400 font-black uppercase mt-1 tracking-tighter">Likes</p></div>
-                        <div className="text-center min-w-[45px]"><p className="text-[12px] font-black text-slate-900">{formatNumber(plan.comments)}</p><p className="text-[8px] text-slate-400 font-black uppercase mt-1 tracking-tighter">Comm</p></div>
+                        <div className="text-center min-w-[45px]"><p className="text-[12px] font-black text-slate-900">{formatNumber(plan.likes)}</p><p className="text-[8px] text-slate-400 font-black uppercase mt-1 tracking-tighter">Comm</p></div>
                         <div className="text-center min-w-[45px]"><p className="text-[12px] font-black text-slate-900">{formatNumber(plan.saves)}</p><p className="text-[8px] text-slate-400 font-black uppercase mt-1 tracking-tighter">Save</p></div>
                       </div>
                     </td>
@@ -866,7 +912,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                       {hasFullAccess && (
                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-0 translate-x-3">
                           <button onClick={() => handleOpenModal(plan)} className="p-3 text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 rounded-2xl transition-all active:scale-90 bg-white shadow-sm hover:shadow-md"><Icons.Edit className="w-5 h-5" /></button>
-                          <button onClick={() => handleDelete(plan.id)} className="p-3 text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-100 rounded-2xl transition-all active:scale-90 bg-white shadow-sm hover:shadow-md"><Icons.Trash className="w-5 h-5" /></button>
+                          <button onClick={() => handleDelete(plan.id)} className="p-3 text-rose-500 hover:bg-rose-100 rounded-2xl transition-all active:scale-90 bg-white shadow-sm hover:shadow-md"><Icons.Trash className="w-5 h-5" /></button>
                         </div>
                       )}
                     </td>
@@ -897,14 +943,14 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
             <div className="flex gap-3">
               <button 
                 disabled={currentPage === 1}
-                onClick={() => setCurrentPage(prev => prev - 1)}
+                onClick={() => { setCurrentPage(prev => prev - 1); }}
                 className="w-12 h-12 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
               >
                 <Icons.ChevronDown className="w-6 h-6 rotate-90" />
               </button>
               <button 
                 disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(prev => prev + 1)}
+                onClick={() => { setCurrentPage(prev => prev + 1); }}
                 className="w-12 h-12 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
               >
                 <Icons.ChevronDown className="w-6 h-6 -rotate-90" />
@@ -968,7 +1014,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                   <div className="space-y-2.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">CONTENT PILLAR</label>
                     <select value={formData.contentPillar} onChange={e => setFormData({...formData, contentPillar: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner">
-                      {PILLAR_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                      {pillars.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
 

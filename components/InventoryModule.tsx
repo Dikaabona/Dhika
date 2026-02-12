@@ -49,7 +49,6 @@ const InventoryModule: React.FC<InventoryModuleProps> = ({ company, userRole, on
   const fetchCompanies = async () => {
     try {
       const { data } = await supabase.from('employees').select('company');
-      // Added type assertion as string[] to resolve assignment error
       const unique = Array.from(new Set((data || []).map((e: any) => e.company || 'Visibel'))).sort() as string[];
       setAllCompanies(unique);
     } catch (e) {}
@@ -64,7 +63,6 @@ const InventoryModule: React.FC<InventoryModuleProps> = ({ company, userRole, on
       const { data, error } = await query;
       if (error) throw error;
 
-      // Map snake_case from DB to camelCase for app UI
       const mappedData = (data || []).map(item => ({
         id: item.id,
         name: item.name,
@@ -198,9 +196,9 @@ const InventoryModule: React.FC<InventoryModuleProps> = ({ company, userRole, on
         const workbook = XLSX.read(data, { type: 'array' });
         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         
-        const newItems = jsonData.map((row: any) => ({
-          sku: String(row['KODE ASET'] || ''),
-          name: String(row['NAMA ASET'] || ''),
+        const newItemsRaw = jsonData.map((row: any) => ({
+          sku: String(row['KODE ASET'] || '').trim().toUpperCase(),
+          name: String(row['NAMA ASET'] || '').trim().toUpperCase(),
           category: String(row['KATEGORI'] || 'Lainnya'),
           company: String(row['COMPANY'] || company),
           stock: Number(row['KUANTITAS'] || 0),
@@ -210,14 +208,21 @@ const InventoryModule: React.FC<InventoryModuleProps> = ({ company, userRole, on
           last_updated: new Date().toISOString()
         })).filter(i => i.name && i.sku);
 
-        if (newItems.length > 0) {
-          const { error } = await supabase.from('inventory').upsert(newItems, { onConflict: 'sku' });
+        if (newItemsRaw.length > 0) {
+          // Deduplicate internally within the batch to prevent ON CONFLICT issues
+          const dedupedMap = new Map<string, any>();
+          newItemsRaw.forEach(item => {
+            dedupedMap.set(item.sku, item);
+          });
+          const finalItems = Array.from(dedupedMap.values());
+
+          const { error } = await supabase.from('inventory').upsert(finalItems, { onConflict: 'sku' });
           if (error) throw error;
-          alert(`Berhasil mengimpor ${newItems.length} aset!`);
+          alert(`Berhasil mengimpor ${finalItems.length} aset!`);
           fetchInventory();
         }
       } catch (err: any) {
-        alert("Gagal impor: " + err.message);
+        alert("Gagal impor: " + (err.message || "Pastikan format file benar."));
       } finally {
         setIsImporting(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -228,6 +233,7 @@ const InventoryModule: React.FC<InventoryModuleProps> = ({ company, userRole, on
 
   return (
     <div className="space-y-6 md:space-y-10 animate-in fade-in duration-700">
+      {/* ... (UI code remains the same) */}
       <div className="bg-white rounded-[40px] sm:rounded-[48px] p-8 sm:p-12 shadow-sm border border-slate-100">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-12">
           <div className="flex items-center gap-6">
@@ -260,7 +266,7 @@ const InventoryModule: React.FC<InventoryModuleProps> = ({ company, userRole, on
             )}
           </div>
         </div>
-
+        {/* ... (remaining component code) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
            <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 flex items-center gap-6">
               <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-500 shadow-sm"><Icons.Database className="w-7 h-7" /></div>

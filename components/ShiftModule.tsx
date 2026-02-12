@@ -12,9 +12,11 @@ interface ShiftModuleProps {
   userRole: string;
   company: string;
   onClose: () => void;
+  globalShifts: Shift[];
+  onRefreshShifts: () => void;
 }
 
-const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAssignments, userRole, company, onClose }) => {
+const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAssignments, userRole, company, onClose, globalShifts, onRefreshShifts }) => {
   const isAdmin = userRole === 'owner' || userRole === 'super' || userRole === 'admin';
   const [activeTab, setActiveTab] = useState<'VIEW' | 'MANAGE'>('VIEW');
   
@@ -27,10 +29,13 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 10;
 
-  const [shifts, setShifts] = useState<Shift[]>(() => {
-    const saved = localStorage.getItem(`shifts_config_${company}`);
-    return saved ? JSON.parse(saved) : DEFAULT_SHIFTS;
-  });
+  // Local state for edits before saving to cloud
+  const [localShifts, setLocalShifts] = useState<Shift[]>(globalShifts || DEFAULT_SHIFTS);
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+
+  useEffect(() => {
+    setLocalShifts(globalShifts || DEFAULT_SHIFTS);
+  }, [globalShifts]);
 
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -46,6 +51,7 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
     const dates = [];
     let cur = new Date(startDate);
     let end = new Date(endDate);
+    
     if (isNaN(cur.getTime()) || isNaN(end.getTime())) return [];
     
     cur.setHours(0,0,0,0);
@@ -158,7 +164,7 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
           const rawDate = row[dateKey];
 
           const emp = employees.find(e => String(e.idKaryawan).trim() === empIdKaryawan);
-          const shift = shifts.find(s => s.name.toLowerCase().trim() === shiftNameInput.toLowerCase());
+          const shift = (globalShifts || DEFAULT_SHIFTS).find(s => s.name.toLowerCase().trim() === shiftNameInput.toLowerCase());
           const formattedDate = parseExcelDate(rawDate);
 
           if (!emp || !shift || !formattedDate) return null;
@@ -215,7 +221,7 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
   const handleExport = () => {
     const dataToExport = tableRows.map(row => {
       const dayAssignment = assignments.find(a => a.employeeId === row.employee.id && a.date === row.date);
-      const shiftName = shifts.find(s => s.id === dayAssignment?.shiftId)?.name || 'OFF / LIBUR';
+      const shiftName = (globalShifts || DEFAULT_SHIFTS).find(s => s.id === dayAssignment?.shiftId)?.name || 'OFF / LIBUR';
       return {
         'TANGGAL': row.date,
         'ID KARYAWAN': row.employee.idKaryawan,
@@ -231,22 +237,56 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
   };
 
   const handleDownloadTemplate = () => {
-    const template = [{ 'TANGGAL': '2026-02-06', 'ID KARYAWAN': employees[0]?.idKaryawan || 'VID-7251', 'SHIFT': shifts[0]?.name || 'Shift Pagi' }];
+    const template = [{ 'TANGGAL': '2026-02-06', 'ID KARYAWAN': employees[0]?.idKaryawan || 'VID-7251', 'SHIFT': (globalShifts || DEFAULT_SHIFTS)[0]?.name || 'Shift Pagi' }];
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template Shift");
     XLSX.writeFile(wb, `Template_Shift_${company}.xlsx`);
   };
 
-  const handleSaveConfig = () => {
-    localStorage.setItem(`shifts_config_${company}`, JSON.stringify(shifts));
-    alert("Tipe Shift berhasil disimpan secara lokal!");
+  const handleSaveConfig = async () => {
+    setIsSavingConfig(true);
+    try {
+      const { error } = await supabase.from('settings').upsert({
+        key: `shifts_config_${company}`,
+        value: localShifts
+      }, { onConflict: 'key' });
+      
+      if (error) throw error;
+      alert("Tipe Shift berhasil disimpan ke Cloud Database!");
+      onRefreshShifts();
+    } catch (err: any) {
+      alert("Gagal menyimpan ke Cloud: " + err.message);
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
+
+  const handleAddShift = () => {
+    const colors = ['bg-emerald-500', 'bg-amber-500', 'bg-indigo-500', 'bg-rose-500', 'bg-sky-500', 'bg-violet-500', 'bg-orange-500', 'bg-teal-500'];
+    const newId = (localShifts.length > 0 ? (Math.max(...localShifts.map(s => parseInt(s.id))) + 1).toString() : "1");
+    const newShift: Shift = {
+      id: newId,
+      name: 'Shift Baru',
+      startTime: '09:00',
+      endTime: '17:00',
+      color: colors[localShifts.length % colors.length]
+    };
+    setLocalShifts([...localShifts, newShift]);
+  };
+
+  const handleDeleteShift = (id: string) => {
+    if (localShifts.length <= 1) {
+      alert("Minimal harus ada satu tipe shift.");
+      return;
+    }
+    if (!confirm("Hapus tipe shift ini?")) return;
+    setLocalShifts(localShifts.filter(s => s.id !== id));
   };
 
   return (
     <div className="max-w-7xl mx-auto space-y-4 sm:space-y-8 animate-in fade-in duration-500 pb-20 px-4 sm:px-0">
       <div className="bg-white rounded-[32px] sm:rounded-[48px] p-6 sm:p-12 shadow-sm border border-slate-50 overflow-hidden">
-        {/* HEADER SECTION */}
         <div className="flex flex-col md:flex-row justify-between items-start gap-6 sm:gap-8 mb-8 sm:mb-12">
            <div className="space-y-2">
               <h2 className="text-2xl sm:text-3xl font-black text-slate-900 uppercase tracking-tight">Jadwal Shift</h2>
@@ -296,138 +336,131 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
                    <Icons.Search className="w-5 h-5 text-slate-300" />
                    <input 
                     type="text" 
-                    placeholder="CARI KARYAWAN..." 
+                    placeholder="CARI NAMA ATAU ID..." 
                     value={searchQuery}
                     onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                    className="w-full bg-transparent text-[11px] font-black outline-none text-slate-800 placeholder:text-slate-300 uppercase tracking-widest"
+                    className="w-full text-xs font-black text-slate-800 outline-none placeholder:text-slate-300 uppercase tracking-widest bg-transparent"
                    />
                 </div>
-                {isAdmin && (
-                  <div className="flex gap-2">
-                    <button onClick={handleDownloadTemplate} className="bg-slate-100 text-slate-500 px-6 py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-sm">Template</button>
-                    <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".xlsx,.xls" />
-                    <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="bg-emerald-50 text-emerald-600 px-6 py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-lg flex items-center gap-2">
-                      <Icons.Upload className="w-4 h-4" /> {isImporting ? '...' : 'Import'}
-                    </button>
-                    <button onClick={handleExport} className="bg-slate-900 text-white px-6 py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-lg">Export</button>
-                  </div>
-                )}
+                <div className="flex gap-2 px-2 shrink-0">
+                   <button onClick={handleDownloadTemplate} className="p-4 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-900 transition-all shadow-sm"><Icons.Download className="w-5 h-5" /></button>
+                   <button onClick={() => fileInputRef.current?.click()} className="p-4 bg-white border border-slate-200 rounded-2xl text-emerald-500 hover:bg-emerald-50 transition-all shadow-sm"><Icons.Upload className="w-5 h-5" /></button>
+                   <button onClick={handleExport} className="p-4 bg-slate-900 rounded-2xl text-[#FFC000] shadow-xl"><Icons.Database className="w-5 h-5" /></button>
+                   <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".xlsx,.xls" />
+                </div>
              </div>
 
-             <div className="bg-white rounded-[40px] border border-slate-100 overflow-x-auto no-scrollbar">
-                <table className="w-full text-left min-w-[600px]">
-                   <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b">
+             <div className="overflow-x-auto no-scrollbar">
+                <table className="w-full text-left min-w-[800px] border-separate border-spacing-0">
+                   <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
                       <tr>
-                         <th className="px-10 py-6">Tanggal</th>
-                         <th className="px-10 py-6">Karyawan</th>
-                         <th className="px-10 py-6">Jabatan</th>
-                         <th className="px-10 py-6 text-center">Status Shift</th>
+                         <th className="px-10 py-6 rounded-tl-3xl">Karyawan</th>
+                         <th className="px-6 py-6">Tanggal</th>
+                         <th className="px-10 py-6 text-right rounded-tr-3xl">Pilih Shift</th>
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100">
-                      {paginatedRows.map(row => {
-                        const dayAssignment = assignments.find(a => a.employeeId === row.employee.id && a.date === row.date);
-                        const activeShift = shifts.find(s => s.id === dayAssignment?.shiftId);
-                        
-                        return (
-                          <tr key={`${row.employee.id}-${row.date}`} className="hover:bg-slate-50/50 transition-colors">
-                             <td className="px-10 py-5 whitespace-nowrap">
-                                <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight">{row.date}</p>
-                             </td>
-                             <td className="px-10 py-5 whitespace-nowrap">
-                                <div className="flex flex-col">
-                                   <p className="text-[11px] font-black text-slate-900 uppercase">{row.employee.nama}</p>
-                                   <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">{row.employee.idKaryawan}</p>
-                                </div>
-                             </td>
-                             <td className="px-10 py-5 whitespace-nowrap">
-                                <span className="text-[10px] font-bold text-slate-500 uppercase">{row.employee.jabatan}</span>
-                             </td>
-                             <td className="px-10 py-5 text-center whitespace-nowrap">
-                                {isAdmin ? (
+                      {paginatedRows.map((row, idx) => {
+                         const assignment = assignments.find(a => a.employeeId === row.employee.id && a.date === row.date);
+                         return (
+                            <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                               <td className="px-10 py-5">
+                                  <p className="text-[11px] font-black text-slate-900 uppercase">{row.employee.nama}</p>
+                                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">{row.employee.idKaryawan}</p>
+                               </td>
+                               <td className="px-6 py-5">
+                                  <p className="text-[11px] font-black text-slate-700">{row.date}</p>
+                                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{new Date(row.date).toLocaleDateString('id-ID', { weekday: 'long' })}</p>
+                               </td>
+                               <td className="px-10 py-5 text-right">
                                   <select 
-                                    value={dayAssignment?.shiftId || ''} 
+                                    disabled={!isAdmin}
+                                    value={assignment?.shiftId || ''}
                                     onChange={(e) => handleAssignShift(row.employee.id, row.date, e.target.value)}
-                                    className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm outline-none cursor-pointer border ${activeShift ? `${activeShift.color} text-white border-transparent` : 'bg-slate-100 text-slate-400 border-slate-200'}`}
+                                    className={`bg-white border border-slate-200 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm outline-none cursor-pointer focus:border-indigo-400 transition-all text-black`}
                                   >
                                      <option value="">OFF / LIBUR</option>
-                                     {shifts.map(s => <option key={s.id} value={s.id}>{s.name} ({s.startTime}-{s.endTime})</option>)}
+                                     {localShifts.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name.toUpperCase()}</option>
+                                     ))}
                                   </select>
-                                ) : (
-                                  <span className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border ${activeShift ? `${activeShift.color} text-white border-transparent shadow-md` : 'bg-slate-50 text-slate-300 border-slate-100'}`}>
-                                     {activeShift ? `${activeShift.name} (${activeShift.startTime} - ${activeShift.endTime})` : 'OFF / LIBUR'}
-                                  </span>
-                                )}
-                             </td>
-                          </tr>
-                        );
+                               </td>
+                            </tr>
+                         );
                       })}
+                      {paginatedRows.length === 0 && (
+                        <tr>
+                          <td colSpan={3} className="px-10 py-20 text-center text-slate-300 font-black uppercase tracking-widest">Data tidak ditemukan</td>
+                        </tr>
+                      )}
                    </tbody>
                 </table>
              </div>
 
              {totalPages > 1 && (
-               <div className="bg-slate-50/50 px-10 py-5 flex items-center justify-between border-t border-slate-100 rounded-b-[40px]">
-                 <div className="flex items-center gap-2">
-                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Halaman</span>
-                   <span className="text-xs font-black text-slate-900 px-4 py-2 bg-white rounded-lg shadow-sm border border-slate-200">{currentPage} / {totalPages}</span>
+               <div className="flex items-center justify-between px-10 py-6 border-t border-slate-50 bg-slate-50/30 rounded-b-3xl">
+                 <div className="flex items-center gap-3">
+                   <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Halaman</span>
+                   <span className="text-xs font-black text-slate-900 px-5 py-2 bg-white rounded-xl shadow-sm border border-slate-200">{currentPage} / {totalPages}</span>
                  </div>
-                 <div className="flex gap-2">
-                   <button 
-                     disabled={currentPage === 1}
-                     onClick={() => { setCurrentPage(prev => prev - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                     className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
-                   >
-                     <Icons.ChevronDown className="w-5 h-5 rotate-90" />
+                 <div className="flex gap-3">
+                   <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)} className="w-12 h-12 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center">
+                     <Icons.ChevronDown className="w-6 h-6 rotate-90" />
                    </button>
-                   <button 
-                     disabled={currentPage === totalPages}
-                     onClick={() => { setCurrentPage(prev => prev + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                     className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
-                   >
-                     <Icons.ChevronDown className="w-5 h-5 -rotate-90" />
+                   <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)} className="w-12 h-12 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center">
+                     <Icons.ChevronDown className="w-6 h-6 -rotate-90" />
                    </button>
                  </div>
                </div>
              )}
           </div>
         ) : (
-          <div className="animate-in fade-in duration-300 space-y-12">
-             <div className="bg-slate-50 p-10 rounded-[40px] border border-slate-100 space-y-10">
-                <div className="flex flex-col gap-2">
-                   <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Konfigurasi Tipe Shift</h3>
-                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Definisikan jam kerja untuk perusahaan Anda.</p>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   {shifts.map((s, idx) => (
-                     <div key={s.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-                        <div className="flex items-center gap-3">
-                           <div className={`w-4 h-4 rounded-full ${s.color}`}></div>
-                           <input 
+          <div className="space-y-10 animate-in fade-in duration-300">
+             <div className="flex justify-between items-center px-2">
+                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Daftar Tipe Shift</h3>
+                <button onClick={handleAddShift} className="bg-slate-900 text-[#FFC000] px-8 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all">TAMBAH TIPE</button>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {localShifts.map((s, idx) => (
+                   <div key={s.id} className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-6 relative group overflow-hidden">
+                      <div className="space-y-2">
+                         <label className="text-[9px] font-black text-black uppercase tracking-widest ml-1">Nama Shift</label>
+                         <input 
+                            type="text" 
                             value={s.name} 
-                            onChange={(e) => {
-                              const upd = [...shifts];
-                              upd[idx].name = e.target.value;
-                              setShifts(upd);
-                            }}
-                            className="bg-transparent text-sm font-black uppercase outline-none text-black flex-grow"
-                           />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                           <div className="space-y-1">
-                              <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest ml-1">Masuk</span>
-                              <input type="time" value={s.startTime} onChange={e => { const upd=[...shifts]; upd[idx].startTime=e.target.value; setShifts(upd); }} className="w-full bg-slate-50 border border-slate-100 p-3 rounded-xl text-xs font-black text-black" />
-                           </div>
-                           <div className="space-y-1">
-                              <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest ml-1">Pulang</span>
-                              <input type="time" value={s.endTime} onChange={e => { const upd=[...shifts]; upd[idx].endTime=e.target.value; setShifts(upd); }} className="w-full bg-slate-50 border border-slate-100 p-3 rounded-xl text-xs font-black text-black" />
-                           </div>
-                        </div>
-                     </div>
-                   ))}
-                </div>
-                <button onClick={handleSaveConfig} className="w-full bg-slate-900 text-[#FFC000] py-5 rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all">Simpan Konfigurasi</button>
+                            onChange={e => { const up = [...localShifts]; up[idx].name = e.target.value; setLocalShifts(up); }}
+                            className="w-full bg-white border border-slate-200 p-4 rounded-2xl text-xs font-black uppercase outline-none focus:border-indigo-400 shadow-sm text-black"
+                         />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                         <div className="space-y-2">
+                            <label className="text-[9px] font-black text-black uppercase tracking-widest ml-1">Mulai</label>
+                            <input 
+                               type="time" 
+                               value={s.startTime} 
+                               onChange={e => { const up = [...localShifts]; up[idx].startTime = e.target.value; setLocalShifts(up); }}
+                               className="w-full bg-white border border-slate-200 p-4 rounded-2xl text-xs font-black outline-none focus:border-indigo-400 shadow-sm text-black"
+                            />
+                         </div>
+                         <div className="space-y-2">
+                            <label className="text-[9px] font-black text-black uppercase tracking-widest ml-1">Selesai</label>
+                            <input 
+                               type="time" 
+                               value={s.endTime} 
+                               onChange={e => { const up = [...localShifts]; up[idx].endTime = e.target.value; setLocalShifts(up); }}
+                               className="w-full bg-white border border-slate-200 p-4 rounded-2xl text-xs font-black outline-none focus:border-indigo-400 shadow-sm text-black"
+                            />
+                         </div>
+                      </div>
+                      <button onClick={() => handleDeleteShift(s.id)} className="absolute top-4 right-4 p-2 text-rose-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-50 rounded-lg"><Icons.Trash /></button>
+                      <div className={`absolute bottom-0 left-0 right-0 h-1 ${s.color}`}></div>
+                   </div>
+                ))}
+             </div>
+             <div className="pt-10 border-t flex justify-center">
+                <button onClick={handleSaveConfig} disabled={isSavingConfig} className="bg-indigo-600 text-white px-12 py-5 rounded-3xl font-black text-[11px] uppercase tracking-[0.2em] shadow-2xl active:scale-95 transition-all disabled:opacity-50">
+                   {isSavingConfig ? 'MENYIMPAN...' : 'SIMPAN'}
+                </button>
              </div>
           </div>
         )}

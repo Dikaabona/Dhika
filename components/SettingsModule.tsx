@@ -9,7 +9,7 @@ interface SettingsModuleProps {
   onRefresh: () => void;
 }
 
-type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'STRUKTUR';
+type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI';
 
 interface CustomCriteria {
   id: string;
@@ -41,9 +41,9 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   
   const [kpiSystem, setKpiSystem] = useState<KPISystemData>({ 
     criteria: [], 
-    attendanceWeight: 25,
-    contentWeight: 25,
-    gmvWeight: 25,
+    attendanceWeight: 25, 
+    contentWeight: 25, 
+    gmvWeight: 25, 
     lateWeight: 25,
     scores: {} 
   });
@@ -52,7 +52,9 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [divisions, setDivisions] = useState<string[]>([]);
+  const [positions, setPositions] = useState<string[]>([]);
   const [newDivisionName, setNewDivisionName] = useState('');
+  const [newPositionName, setNewPositionName] = useState('');
   
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -72,7 +74,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   useEffect(() => {
     fetchSettingsAndEmployees();
     fetchKPIConfig();
-    fetchDivisions();
+    fetchDivisionsAndPositions();
     if (isOwner) fetchAllCompanies();
   }, [selectedCompany, isOwner]);
 
@@ -136,17 +138,25 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     }
   };
 
-  const fetchDivisions = async () => {
+  const fetchDivisionsAndPositions = async () => {
     try {
       const targetCompany = isOwner ? selectedCompany : userCompany;
-      const { data } = await supabase.from('settings').select('value').eq('key', `divisions_${targetCompany}`).single();
-      if (data && Array.isArray(data.value)) {
-        setDivisions(data.value as string[]);
+      const { data: divData } = await supabase.from('settings').select('value').eq('key', `divisions_${targetCompany}`).single();
+      if (divData && Array.isArray(divData.value)) {
+        setDivisions(divData.value as string[]);
       } else {
         setDivisions([]);
       }
+
+      const { data: posData } = await supabase.from('settings').select('value').eq('key', `positions_${targetCompany}`).single();
+      if (posData && Array.isArray(posData.value)) {
+        setPositions(posData.value as string[]);
+      } else {
+        setPositions([]);
+      }
     } catch (e) {
       setDivisions([]);
+      setPositions([]);
     }
   };
 
@@ -213,28 +223,45 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
       return;
     }
     const updated = [...divisions, name];
-    await saveDivisionsToCloud(updated);
+    await saveSettingsToCloud(`divisions_${isOwner ? selectedCompany : userCompany}`, updated);
+    setDivisions(updated);
     setNewDivisionName('');
   };
 
   const handleRemoveDivision = async (name: string) => {
     if (!confirm(`Hapus divisi "${name}"?`)) return;
     const updated = divisions.filter(d => d !== name);
-    await saveDivisionsToCloud(updated);
+    await saveSettingsToCloud(`divisions_${isOwner ? selectedCompany : userCompany}`, updated);
+    setDivisions(updated);
   };
 
-  const saveDivisionsToCloud = async (updated: string[]) => {
+  const handleAddPosition = async () => {
+    const name = newPositionName.trim().toUpperCase();
+    if (!name) return;
+    if (positions.includes(name)) {
+      alert("Jabatan sudah ada!");
+      return;
+    }
+    const updated = [...positions, name];
+    await saveSettingsToCloud(`positions_${isOwner ? selectedCompany : userCompany}`, updated);
+    setPositions(updated);
+    setNewPositionName('');
+  };
+
+  const handleRemovePosition = async (name: string) => {
+    if (!confirm(`Hapus jabatan "${name}"?`)) return;
+    const updated = positions.filter(d => d !== name);
+    await saveSettingsToCloud(`positions_${isOwner ? selectedCompany : userCompany}`, updated);
+    setPositions(updated);
+  };
+
+  const saveSettingsToCloud = async (key: string, value: any) => {
     setIsSaving(true);
     try {
-      const targetCompany = isOwner ? selectedCompany : userCompany;
-      const { error } = await supabase.from('settings').upsert({
-        key: `divisions_${targetCompany}`,
-        value: updated
-      }, { onConflict: 'key' });
+      const { error } = await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' });
       if (error) throw error;
-      setDivisions(updated);
     } catch (err: any) {
-      alert("Gagal menyimpan divisi: " + err.message);
+      alert("Gagal menyimpan data: " + err.message);
     } finally {
       setIsSaving(false);
     }
@@ -306,12 +333,35 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const orgStructure = useMemo(() => {
     const structure: Record<string, Employee[]> = {};
     divisions.forEach(div => {
-      structure[div] = employees.filter(e => e.division === div);
+      const members = employees.filter(e => e.division === div);
+      const sorted = members.sort((a, b) => a.nama.localeCompare(b.nama));
+      structure[div] = sorted;
     });
     const noDiv = employees.filter(e => !e.division || !divisions.includes(e.division));
     if (noDiv.length > 0) structure['TIDAK TERDAFTAR'] = noDiv;
     return structure;
   }, [employees, divisions]);
+
+  const getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Browser Anda tidak mendukung Geolocation.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setSettings({
+          ...settings,
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude
+        });
+        alert("Lokasi berhasil diambil!");
+      },
+      (err) => {
+        alert(`Gagal mengambil lokasi: ${err.message}`);
+      },
+      { enableHighAccuracy: true }
+    );
+  };
 
   if (isLoading) {
     return (
@@ -369,25 +419,17 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                 >
                   MAPS
                 </button>
-                {canAccessRoleManagement && (
-                  <button 
-                    onClick={() => setActiveSubTab('DIVISI')} 
-                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'DIVISI' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                  >
-                    DIVISI
-                  </button>
-                )}
                 <button 
-                  onClick={() => setActiveSubTab('STRUKTUR')} 
-                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'STRUKTUR' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                  onClick={() => setActiveSubTab('DIVISI')} 
+                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'DIVISI' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                 >
-                  STRUKTUR ORGANISASI
+                  DIVISI & STRUKTUR
                 </button>
               </div>
             </div>
           </div>
           
-          {(activeSubTab !== 'DIVISI' && activeSubTab !== 'STRUKTUR') && (
+          {(activeSubTab !== 'DIVISI') && (
             <button 
               onClick={activeSubTab === 'KPI' ? () => handleSaveKPISystem(kpiSystem) : handleSaveSettings}
               disabled={isSaving}
@@ -409,6 +451,41 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                   onChange={e => setSettings({...settings, locationName: e.target.value})}
                   className="w-full bg-slate-50 border-2 border-slate-100 p-5 rounded-3xl text-sm font-black text-black outline-none focus:border-[#FFC000] transition-all"
                 />
+              </div>
+
+              <div className="bg-amber-50/50 p-6 rounded-[32px] border border-amber-100 space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Koordinat Lokasi Kantor</p>
+                  <button 
+                    onClick={getCurrentLocation}
+                    className="bg-[#0f172a] text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg"
+                  >
+                    Set Lokasi Disini
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Latitude</label>
+                    <input 
+                      type="number" 
+                      step="any"
+                      value={settings.latitude} 
+                      onChange={e => setSettings({...settings, latitude: parseFloat(e.target.value) || 0})}
+                      className="w-full bg-white border border-slate-200 p-3 rounded-2xl text-xs font-black text-slate-900 outline-none focus:border-[#FFC000]"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Longitude</label>
+                    <input 
+                      type="number" 
+                      step="any"
+                      value={settings.longitude} 
+                      onChange={e => setSettings({...settings, longitude: parseFloat(e.target.value) || 0})}
+                      className="w-full bg-white border border-slate-200 p-3 rounded-2xl text-xs font-black text-slate-900 outline-none focus:border-[#FFC000]"
+                    />
+                  </div>
+                </div>
+                <p className="text-[7px] text-amber-700/60 font-medium uppercase tracking-widest italic text-center">Penting: Titik koordinat ini adalah pusat radius absensi.</p>
               </div>
 
               <div className="space-y-3">
@@ -449,7 +526,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                       <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
                       <input 
                         type="text" 
-                        placeholder="Cari..." 
+                        placeholder="CARI..." 
                         value={searchRemote}
                         onChange={e => { setSearchRemote(e.target.value); setRemotePage(1); }}
                         className="bg-white border border-slate-200 pl-9 pr-4 py-2 rounded-xl text-[10px] font-black uppercase text-black outline-none focus:ring-2 focus:ring-[#FFC000]"
@@ -752,115 +829,164 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                </div>
             </div>
           </div>
-        ) : activeSubTab === 'DIVISI' ? (
-          <div className="animate-in fade-in duration-300 space-y-12">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-              <div className="space-y-2">
-                 <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Manajemen Divisi Perusahaan</h3>
-                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Daftarkan divisi atau departemen yang ada di perusahaan Anda.</p>
+        ) : (
+          <div className="animate-in fade-in duration-300 space-y-16">
+            {/* MANAGEMENT SECTION */}
+            <div className="space-y-12">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="space-y-2">
+                   <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Manajemen Divisi & Jabatan Perusahaan</h3>
+                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Daftarkan divisi dan jabatan yang ada di perusahaan Anda.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                 {/* DIVISI SECTION */}
+                 <div className="space-y-8">
+                    <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-8 h-full">
+                       <div className="space-y-4">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tambah Divisi Baru</label>
+                          <div className="flex gap-3">
+                             <input 
+                               type="text" 
+                               value={newDivisionName} 
+                               onChange={e => setNewDivisionName(e.target.value)} 
+                               placeholder="NAMA DIVISI (Marketing, HR...)" 
+                               className="flex-grow bg-white border border-slate-200 px-6 py-4 rounded-2xl text-[11px] font-black uppercase outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+                             />
+                             <button 
+                               onClick={handleAddDivision}
+                               disabled={isSaving}
+                               className="bg-[#0f172a] text-[#FFC000] px-8 rounded-2xl shadow-xl active:scale-90 transition-all disabled:opacity-50"
+                             >
+                               <Icons.Plus className="w-5 h-5" />
+                             </button>
+                          </div>
+                       </div>
+
+                       <div className="space-y-4">
+                          <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Daftar Divisi ({(divisions as string[]).length})</h3>
+                          <div className="space-y-3">
+                             {(divisions as string[]).map(d => (
+                               <div key={d} className="bg-white p-5 rounded-2xl border border-slate-100 group shadow-sm flex items-center justify-between">
+                                  <span className="text-[11px] font-black text-black uppercase tracking-widest">{d}</span>
+                                  <button 
+                                    onClick={() => handleRemoveDivision(d)} 
+                                    disabled={isSaving}
+                                    className="text-rose-400 hover:text-rose-600 transition-all p-2 rounded-lg hover:bg-rose-50 disabled:opacity-50"
+                                  >
+                                    <Icons.Trash className="w-4 h-4" />
+                                  </button>
+                               </div>
+                             ))}
+                             {(divisions as string[]).length === 0 && (
+                               <div className="py-16 text-center bg-white/50 border-2 border-dashed border-slate-200 rounded-3xl opacity-30">
+                                  <Icons.Database className="w-12 h-12 mx-auto mb-2" />
+                                  <p className="text-[10px] font-black uppercase tracking-[0.4em]">Belum ada divisi</p>
+                               </div>
+                             )}
+                          </div>
+                       </div>
+                    </div>
+                 </div>
+
+                 {/* JABATAN SECTION */}
+                 <div className="space-y-8">
+                    <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-8 h-full">
+                       <div className="space-y-4">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tambah Jabatan Baru</label>
+                          <div className="flex gap-3">
+                             <input 
+                               type="text" 
+                               value={newPositionName} 
+                               onChange={e => setNewPositionName(e.target.value)} 
+                               placeholder="NAMA JABATAN (Manager, Staff...)" 
+                               className="flex-grow bg-white border border-slate-200 px-6 py-4 rounded-2xl text-[11px] font-black uppercase outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+                             />
+                             <button 
+                               onClick={handleAddPosition}
+                               disabled={isSaving}
+                               className="bg-[#0f172a] text-[#FFC000] px-8 rounded-2xl shadow-xl active:scale-90 transition-all disabled:opacity-50"
+                             >
+                               <Icons.Plus className="w-5 h-5" />
+                             </button>
+                          </div>
+                       </div>
+
+                       <div className="space-y-4">
+                          <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Daftar Jabatan ({(positions as string[]).length})</h3>
+                          <div className="space-y-3">
+                             {(positions as string[]).map(p => (
+                               <div key={p} className="bg-white p-5 rounded-2xl border border-slate-100 group shadow-sm flex items-center justify-between">
+                                  <span className="text-[11px] font-black text-black uppercase tracking-widest">{p}</span>
+                                  <button 
+                                    onClick={() => handleRemovePosition(p)} 
+                                    disabled={isSaving}
+                                    className="text-rose-400 hover:text-rose-600 transition-all p-2 rounded-lg hover:bg-rose-50 disabled:opacity-50"
+                                  >
+                                    <Icons.Trash className="w-4 h-4" />
+                                  </button>
+                               </div>
+                             ))}
+                             {(positions as string[]).length === 0 && (
+                               <div className="py-16 text-center bg-white/50 border-2 border-dashed border-slate-200 rounded-3xl opacity-30">
+                                  <Icons.Database className="w-12 h-12 mx-auto mb-2" />
+                                  <p className="text-[10px] font-black uppercase tracking-[0.4em]">Belum ada jabatan</p>
+                               </div>
+                             )}
+                          </div>
+                       </div>
+                    </div>
+                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-               <div className="space-y-8">
-                  <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-8">
-                     <div className="space-y-4">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tambah Divisi Baru</label>
-                        <div className="flex gap-3">
-                           <input 
-                             type="text" 
-                             value={newDivisionName} 
-                             onChange={e => setNewDivisionName(e.target.value)} 
-                             placeholder="NAMA DIVISI (Marketing, HR, IT...)" 
-                             className="flex-grow bg-white border border-slate-200 px-6 py-4 rounded-2xl text-[11px] font-black uppercase outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
-                           />
-                           <button 
-                             onClick={handleAddDivision}
-                             disabled={isSaving}
-                             className="bg-[#0f172a] text-[#FFC000] px-8 rounded-2xl shadow-xl active:scale-90 transition-all disabled:opacity-50"
-                           >
-                             <Icons.Plus className="w-5 h-5" />
-                           </button>
-                        </div>
-                     </div>
+            {/* VISUALIZATION SECTION */}
+            <div className="space-y-8 pt-10 border-t-2 border-slate-100">
+              <div className="space-y-2 mb-4">
+                 <h3 className="text-2xl sm:text-3xl font-black text-[#0f172a] uppercase tracking-tight leading-none">Struktur Organisasi</h3>
+                 <p className="text-[10px] sm:text-[11px] text-slate-400 font-bold uppercase tracking-[0.2em] pt-1">Visualisasi pembagian divisi dan personel resmi perusahaan.</p>
+              </div>
 
-                     <div className="space-y-4">
-                        <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Daftar Divisi Terdaftar ({(divisions as string[]).length})</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                           {(divisions as string[]).map(d => (
-                             <div key={d} className="flex items-center justify-between bg-white p-5 rounded-2xl border border-slate-100 group shadow-sm">
-                                <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest">{d}</span>
-                                <button 
-                                  onClick={() => handleRemoveDivision(d)} 
-                                  disabled={isSaving}
-                                  className="text-rose-400 hover:text-rose-600 transition-all p-2 rounded-lg hover:bg-rose-50 disabled:opacity-50"
-                                >
-                                  <Icons.Trash className="w-4 h-4" />
-                                </button>
-                             </div>
-                           ))}
-                           {(divisions as string[]).length === 0 && (
-                             <div className="col-span-full py-16 text-center bg-white/50 border-2 border-dashed border-slate-200 rounded-3xl opacity-30">
-                                <Icons.Database className="w-12 h-12 mx-auto mb-2" />
-                                <p className="text-[10px] font-black uppercase tracking-[0.4em]">Belum ada divisi</p>
-                             </div>
-                           )}
-                        </div>
-                     </div>
-                  </div>
-               </div>
-
-               <div className="space-y-6">
-                  <div className="bg-indigo-50 p-8 rounded-[40px] border border-indigo-100">
-                     <h4 className="text-sm font-black text-indigo-900 uppercase tracking-tight mb-4">Pemanfaatan Fitur</h4>
-                     <ul className="space-y-4">
-                        <li className="flex gap-3 text-xs font-medium text-indigo-800">
-                           <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0"></div>
-                           <span>Daftar divisi di sini akan digunakan sebagai filter pada database karyawan dan laporan performa.</span>
-                        </li>
-                        <li className="flex gap-3 text-xs font-medium text-indigo-800">
-                           <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0"></div>
-                           <span>Mempermudah struktur organisasi dan penempatan hak akses ke depannya.</span>
-                        </li>
-                     </ul>
-                  </div>
-               </div>
-            </div>
-          </div>
-        ) : (
-          <div className="animate-in fade-in duration-300 space-y-8">
-            <div className="space-y-2 mb-8">
-               <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Struktur Organisasi</h3>
-               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Visualisasi pembagian divisi dan personel.</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {(Object.entries(orgStructure) as [string, Employee[]][]).map(([divName, members]) => (
-                <div key={divName} className="bg-slate-50 p-6 rounded-[32px] border border-slate-100 flex flex-col h-full">
-                  <div className="flex items-center justify-between mb-6 border-b border-slate-200 pb-4">
-                    <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest truncate pr-2">{divName}</h4>
-                    <span className="bg-slate-900 text-[#FFC000] px-2.5 py-1 rounded-lg text-[9px] font-black">{members.length}</span>
-                  </div>
-                  <div className="flex-grow space-y-3">
-                    {members.map(m => (
-                      <div key={m.id} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-3 shadow-sm hover:border-[#FFC000] transition-colors">
-                        <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                           {m.photoBase64 || m.avatarUrl ? <img src={m.photoBase64 || m.avatarUrl} className="w-full h-full object-cover" /> : <Icons.Users className="w-4 h-4 text-slate-300" />}
-                        </div>
-                        <div className="min-w-0">
-                           <p className="text-[10px] font-black text-slate-900 uppercase truncate leading-tight">{m.nama}</p>
-                           <p className="text-[8px] font-bold text-slate-400 uppercase truncate mt-0.5">{m.jabatan}</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10">
+                {(Object.entries(orgStructure) as [string, Employee[]][]).map(([divName, members]) => {
+                  return (
+                    <div key={divName} className="bg-[#f1f5f9]/40 p-8 rounded-[48px] border border-slate-100 flex flex-col h-full shadow-inner animate-in zoom-in-95 duration-500">
+                      <div className="flex items-center justify-between mb-8 border-b-2 border-slate-200/50 pb-6">
+                        <h4 className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-[0.2em] truncate pr-2 leading-none">{divName}</h4>
+                        <div className="bg-slate-900 text-[#FFC000] w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-black shadow-lg">
+                          {members.length}
                         </div>
                       </div>
-                    ))}
-                    {members.length === 0 && (
-                      <div className="py-8 text-center opacity-20">
-                         <p className="text-[8px] font-black uppercase tracking-widest">Divisi Kosong</p>
+                      <div className="flex-grow space-y-4">
+                        {members.map(m => {
+                          return (
+                            <div key={m.id} className="bg-white p-5 rounded-[28px] border border-slate-50 flex items-center gap-5 shadow-sm transition-all duration-300 group hover:shadow-xl hover:-translate-y-0.5">
+                              <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-slate-100 flex items-center justify-center shrink-0 transition-colors">
+                                 {m.photoBase64 || m.avatarUrl ? (
+                                   <img src={m.photoBase64 || m.avatarUrl} className="w-full h-full object-cover" alt={m.nama} />
+                                 ) : (
+                                   <Icons.Users className="w-5 h-5 text-slate-300" />
+                                 )}
+                              </div>
+                              <div className="min-w-0">
+                                 <p className="text-[11px] font-black text-slate-900 uppercase truncate leading-none mb-1">{m.nama}</p>
+                                 <p className="text-[9px] font-bold text-slate-400 uppercase truncate tracking-widest">{m.jabatan}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {members.length === 0 && (
+                          <div className="py-20 text-center opacity-30 border-2 border-dashed border-slate-300 rounded-[32px]">
+                             <Icons.Database className="w-10 h-10 mx-auto text-slate-400 mb-3" />
+                             <p className="text-[10px] font-black uppercase tracking-[0.4em]">Belum Ada Anggota</p>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}

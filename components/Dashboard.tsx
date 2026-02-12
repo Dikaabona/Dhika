@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useState, useRef } from 'react';
-import { Employee, Submission, Broadcast, ContentPlan, AttendanceRecord, ShiftAssignment } from '../types';
+import { Employee, Submission, Broadcast, ContentPlan, AttendanceRecord, ShiftAssignment, Shift } from '../types';
 import { Icons, DEFAULT_SHIFTS } from '../constants';
 import { getDaysUntilBirthday, formatDateToYYYYMMDD } from '../utils/dateUtils';
 
@@ -15,6 +15,7 @@ interface DashboardProps {
   userCompany: string;
   weeklyHolidays?: Record<string, string[]>;
   contentBrandConfigs?: any[];
+  shifts: Shift[];
   onNavigate: (tab: any) => void;
   onOpenBroadcast?: () => void;
   onOpenDrive?: () => void;
@@ -31,6 +32,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   userRole, 
   currentUserEmployee, 
   userCompany,
+  shifts,
   onNavigate,
   onOpenBroadcast,
   onOpenDrive,
@@ -61,8 +63,8 @@ const Dashboard: React.FC<DashboardProps> = ({
     const todayStr = formatDateToYYYYMMDD(new Date());
     const assignment = (shiftAssignments || []).find(a => a.employeeId === currentUserEmployee.id && a.date === todayStr);
     if (!assignment) return null;
-    return DEFAULT_SHIFTS.find(s => s.id === assignment.shiftId);
-  }, [shiftAssignments, currentUserEmployee]);
+    return (shifts || DEFAULT_SHIFTS).find(s => s.id === assignment.shiftId);
+  }, [shiftAssignments, currentUserEmployee, shifts]);
 
   const isLate = useMemo(() => {
     if (!todayRecord?.clockIn || !todayShift?.startTime) return false;
@@ -78,14 +80,14 @@ const Dashboard: React.FC<DashboardProps> = ({
     todayRecords.forEach(record => {
       const assignment = (shiftAssignments || []).find(a => a.employeeId === record.employeeId && a.date === todayStr);
       if (assignment) {
-        const shift = DEFAULT_SHIFTS.find(s => s.id === assignment.shiftId);
+        const shift = (shifts || DEFAULT_SHIFTS).find(s => s.id === assignment.shiftId);
         if (shift && record.clockIn! > shift.startTime) {
           count++;
         }
       }
     });
     return count;
-  }, [attendanceRecords, shiftAssignments]);
+  }, [attendanceRecords, shiftAssignments, shifts]);
 
   const tenureYears = useMemo(() => {
     if (!currentUserEmployee?.tanggalMasuk) return 0;
@@ -135,7 +137,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     if (isSuper) {
       base.push({ id: 'kpi', label: 'KPI Performance', icon: <Icons.Sparkles className="w-5 h-5" />, tab: 'kpi' });
-      // Remove settings from mobile menu grid as requested
     }
 
     return base;
@@ -423,35 +424,38 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         {/* Action Row for Desktop - Grid Layout with Gdrive, Calendar & Broadcast */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-           <button 
-             onClick={onOpenDrive}
-             className="bg-[#0f172a] text-white p-6 rounded-[36px] border border-white/5 shadow-2xl flex items-center justify-center gap-6 group hover:bg-black transition-all active:scale-95"
-           >
-              <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center shrink-0">
-                 <img src="https://lh3.googleusercontent.com/d/1LmoGYgq9y5JQPWAf9eEHXMiK-8jBaoSr" className="w-7 h-7 object-contain" alt="Google Drive" />
-              </div>
-              <p className="text-xl font-black uppercase tracking-tight">Google Drive</p>
-           </button>
+        <div className={`grid grid-cols-1 md:grid-cols-${isSuper ? '3' : '2'} gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500`}>
+           {isSuper && (
+             <button 
+               onClick={onOpenDrive}
+               className="bg-[#0f172a] text-white py-6 px-8 rounded-[42px] border border-white/5 shadow-2xl flex items-center gap-6 group hover:bg-black transition-all active:scale-95"
+             >
+                <div className="w-14 h-14 bg-white/5 rounded-[22px] flex items-center justify-center shrink-0 shadow-inner">
+                   <img src="https://lh3.googleusercontent.com/d/1LmoGYgq9y5JQPWAf9eEHXMiK-8jBaoSr" className="w-7 h-7 object-contain" alt="Google Drive" />
+                </div>
+                <p className="text-xl font-black uppercase tracking-tight">GOOGLE DRIVE</p>
+             </button>
+           )}
 
            <button 
              onClick={() => onNavigate('calendar')}
-             className="bg-[#1e293b] text-white p-6 rounded-[36px] border border-white/5 shadow-2xl flex items-center justify-center gap-6 group hover:bg-black transition-all active:scale-95"
+             className="bg-[#111827] text-white py-6 px-8 rounded-[42px] border border-white/5 shadow-2xl flex items-center gap-6 group hover:bg-black transition-all active:scale-95"
            >
-              <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center shrink-0">
+              <div className="w-14 h-14 bg-white/5 rounded-[22px] flex items-center justify-center shrink-0 shadow-inner">
                  <Icons.Calendar className="w-7 h-7 text-[#FFC000]" />
               </div>
-              <p className="text-xl font-black uppercase tracking-tight">Calendar</p>
+              <p className="text-xl font-black uppercase tracking-tight">CALENDAR</p>
            </button>
 
            <button 
              onClick={onOpenBroadcast}
-             className="bg-[#FFC000] text-black p-6 rounded-[36px] shadow-xl shadow-amber-100 flex items-center justify-center gap-6 group hover:bg-black hover:text-[#FFC000] transition-all active:scale-95"
+             className="bg-[#FFC000] text-black py-6 px-8 rounded-[42px] shadow-[0_15px_40px_rgba(255,192,0,0.3)] flex items-center gap-6 group hover:bg-amber-400 transition-all active:scale-95 relative overflow-hidden"
            >
-              <div className="w-12 h-12 bg-black/5 group-hover:bg-[#FFC000]/10 rounded-xl flex items-center justify-center shrink-0">
+              <div className="w-14 h-14 bg-black/5 rounded-[22px] flex items-center justify-center shrink-0 shadow-inner relative z-10">
                  <Icons.Megaphone className="w-7 h-7" />
               </div>
-              <p className="text-xl font-black uppercase tracking-tight">Broadcast</p>
+              <p className="text-xl font-black uppercase tracking-tight relative z-10">BROADCAST</p>
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/20 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
            </button>
         </div>
 
@@ -474,7 +478,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
               <div className="flex items-center gap-2.5 px-6 py-3 bg-white/5 border border-white/10 rounded-[22px] backdrop-blur-md">
                 <div className="w-1.5 h-1.5 bg-[#FFC000] rounded-full animate-pulse shadow-[0_0_8px_#FFC000]"></div>
-                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-300">Active Session</span>
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-300">ACTIVE SESSION</span>
               </div>
             </div>
 

@@ -44,25 +44,36 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
   });
 
   const [divisions, setDivisions] = useState<string[]>([]);
+  const [positions, setPositions] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Sinkronisasi divisi berdasarkan pilihan Company di form
+  // Sinkronisasi divisi & jabatan berdasarkan pilihan Company di form
   useEffect(() => {
     if (formData.company) {
-      fetchDivisions(formData.company);
+      fetchSettings(formData.company);
     }
   }, [formData.company]);
 
-  const fetchDivisions = async (targetCompany: string) => {
+  const fetchSettings = async (targetCompany: string) => {
     try {
-      const { data } = await supabase.from('settings').select('value').eq('key', `divisions_${targetCompany}`).single();
-      if (data && Array.isArray(data.value)) {
-        setDivisions(data.value);
+      // Fetch Divisions
+      const { data: divData } = await supabase.from('settings').select('value').eq('key', `divisions_${targetCompany}`).single();
+      if (divData && Array.isArray(divData.value)) {
+        setDivisions(divData.value);
       } else {
         setDivisions([]);
       }
+
+      // Fetch Positions (Jabatan)
+      const { data: posData } = await supabase.from('settings').select('value').eq('key', `positions_${targetCompany}`).single();
+      if (posData && Array.isArray(posData.value)) {
+        setPositions(posData.value);
+      } else {
+        setPositions([]);
+      }
     } catch (e) {
       setDivisions([]);
+      setPositions([]);
     }
   };
 
@@ -292,7 +303,21 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Jabatan</label>
-                <input required name="jabatan" readOnly={!isSystemAdmin} value={formData.jabatan} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all disabled:opacity-70" />
+                <select 
+                  required 
+                  name="jabatan" 
+                  disabled={!isSystemAdmin} 
+                  value={formData.jabatan} 
+                  onChange={handleChange} 
+                  className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all disabled:opacity-70"
+                >
+                  <option value="">Pilih Jabatan...</option>
+                  {positions.map(p => <option key={p} value={p}>{p}</option>)}
+                  {/* Handle if existing jabatan is not in current positions list */}
+                  {formData.jabatan && !positions.includes(formData.jabatan) && (
+                    <option value={formData.jabatan}>{formData.jabatan}</option>
+                  )}
+                </select>
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tempat Lahir</label>

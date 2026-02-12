@@ -1,8 +1,9 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { createClient, Session } from '@supabase/supabase-js';
-import { Employee, AttendanceRecord, LiveSchedule, Submission, Broadcast, ContentPlan, LiveReport, ShiftAssignment, ActiveTab, UserRole } from './types.ts';
-import { Icons, BANK_OPTIONS } from './constants.tsx';
+import { Employee, AttendanceRecord, LiveSchedule, Submission, Broadcast, ContentPlan, LiveReport, ShiftAssignment, ActiveTab, UserRole, Shift } from './types.ts';
+import { Icons, BANK_OPTIONS, DEFAULT_SHIFTS } from './constants.tsx';
 import EmployeeForm from './components/EmployeeForm.tsx';
 import Dashboard from './components/Dashboard.tsx';
 import SalarySlipModal from './components/SalarySlipModal.tsx';
@@ -78,6 +79,7 @@ export const App: React.FC = () => {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [shiftAssignments, setShiftAssignments] = useState<ShiftAssignment[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>(DEFAULT_SHIFTS);
   const [weeklyHolidays, setWeeklyHolidays] = useState<Record<string, string[]>>({});
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isImportingEmployees, setIsImportingEmployees] = useState(false);
@@ -183,6 +185,10 @@ export const App: React.FC = () => {
         buildQuery('schedules').limit(300).then(({data, error}) => { if(error) throw error; setLiveSchedules(data || []); }),
         supabase.from('content_plans').select('*').order('postingDate', { ascending: false }).limit(200).then(({data, error}) => { if(error) throw error; setContentPlans(data || []); }),
         buildQuery('shift_assignments').limit(500).then(({data, error}) => { if(error) throw error; setShiftAssignments(data || []); }),
+        supabase.from('settings').select('value').eq('key', `shifts_config_${companyFilterVal}`).single().then(({data}) => {
+          if (data && Array.isArray(data.value)) setShifts(data.value);
+          else setShifts(DEFAULT_SHIFTS);
+        }),
         supabase.from('settings').select('value').eq('key', `weekly_holidays_${companyFilterVal}`).single().then(({data}) => { 
           if (data) {
              const stored = data.value;
@@ -427,7 +433,7 @@ export const App: React.FC = () => {
           return isNaN(p) ? 0 : p;
         };
 
-        const newEmployees = jsonData.map((row: any) => {
+        const newEmployeesRaw = jsonData.map((row: any) => {
           let rawHutang = row['HUTANG'] || 0;
           let cleanHutang = parseNum(rawHutang);
           if (cleanHutang > 1000000000000) cleanHutang = 0;
@@ -464,8 +470,15 @@ export const App: React.FC = () => {
           };
         }).filter(emp => emp.nama && emp.email && (userRole === 'owner' || emp.company === userCompany));
 
-        if (newEmployees.length > 0) {
-          const { error } = await supabase.from('employees').upsert(newEmployees, { onConflict: 'email' });
+        if (newEmployeesRaw.length > 0) {
+          // Deduplicate the batch rows by email to prevent "ON CONFLICT DO UPDATE command cannot affect row a second time"
+          const dedupedBatchMap = new Map<string, any>();
+          newEmployeesRaw.forEach(emp => {
+            dedupedBatchMap.set(emp.email, emp);
+          });
+          const finalEmployees = Array.from(dedupedBatchMap.values());
+
+          const { error } = await supabase.from('employees').upsert(finalEmployees, { onConflict: 'email' });
           if (error) {
              if (error.message.includes('row-level security') || error.message.includes('policy')) {
                throw new Error("Gagal: Izin akses ditolak (RLS). Harap jalankan SQL Script Policy di dashboard Supabase agar aplikasi diizinkan menyimpan data.");
@@ -475,13 +488,13 @@ export const App: React.FC = () => {
              }
              throw error;
           }
-          alert(`Berhasil memproses ${newEmployees.length} data karyawan ke cloud!`);
+          alert(`Berhasil memproses ${finalEmployees.length} data karyawan ke cloud!`);
           fetchData(session?.user?.email, true);
         } else {
           alert("Tidak ada data valid yang ditemukan dalam file Excel.");
         }
       } catch (err: any) {
-        alert(err.message);
+        alert("Gagal mengimpor: " + (err.message || "Pastikan format file benar."));
       } finally {
         setIsImportingEmployees(false);
         if (employeeFileInputRef.current) employeeFileInputRef.current.value = '';
@@ -654,7 +667,7 @@ export const App: React.FC = () => {
               ) : activeTab === 'kpi' ? (
                 <KPIModule employees={employees} attendanceRecords={attendanceRecords} contentPlans={contentPlans} liveReports={liveReports} shiftAssignments={shiftAssignments} userRole={userRole} currentEmployee={currentUserEmployee} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'shift' ? (
-                <ShiftModule employees={employees} assignments={shiftAssignments} setAssignments={setShiftAssignments} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
+                <ShiftModule employees={employees} assignments={shiftAssignments} setAssignments={setShiftAssignments} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} globalShifts={shifts} onRefreshShifts={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'attendance' ? (
                 <AttendanceModule employees={employees} records={attendanceRecords} setRecords={setAttendanceRecords} searchQuery={searchQuery} userRole={userRole} currentEmployee={currentUserEmployee} startDate={attendanceStartDate} endDate={attendanceEndDate} onStartDateChange={setAttendanceStartDate} onEndDateChange={setAttendanceEndDate} weeklyHolidays={weeklyHolidays} company={userCompany} />
               ) : activeTab === 'schedule' ? (
@@ -852,6 +865,7 @@ export const App: React.FC = () => {
                   onOpenBroadcast={() => setIsAnnouncementOpen(true)} 
                   onOpenDrive={handleOpenDrive}
                   onViewProfile={handleViewEmployee}
+                  shifts={shifts}
                 />
               )}
             </main>
