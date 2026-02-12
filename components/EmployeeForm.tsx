@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Employee } from '../types';
 import { BANK_OPTIONS, Icons } from '../constants';
@@ -134,8 +135,12 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target as HTMLInputElement;
     
-    const restrictedFields = ['idKaryawan', 'jabatan', 'tanggalMasuk', 'hutang', 'company', 'isRemoteAllowed'];
+    // Proteksi Field Berdasarkan Role
+    const restrictedFields = ['idKaryawan', 'jabatan', 'tanggalMasuk', 'hutang', 'isRemoteAllowed'];
     if (!isSystemAdmin && restrictedFields.includes(name)) return;
+
+    // Spesifik untuk Company: Hanya Owner yang bisa ubah
+    if (name === 'company' && !isOwner) return;
 
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
@@ -285,7 +290,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
                </div>
                <div className="bg-sky-50 p-5 rounded-[24px] border border-sky-100">
                  <label className="text-[10px] font-bold text-sky-600 uppercase tracking-widest mb-1.5 block">COMPANY</label>
-                 <input required name="company" readOnly={!isSystemAdmin} value={formData.company} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-sky-100 rounded-xl text-lg font-bold text-slate-900 outline-none disabled:opacity-70" />
+                 <input required name="company" readOnly={!isOwner} value={formData.company} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-sky-100 rounded-xl text-lg font-bold text-slate-900 outline-none disabled:opacity-70" />
                </div>
             </div>
 
@@ -313,7 +318,6 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
                 >
                   <option value="">Pilih Jabatan...</option>
                   {positions.map(p => <option key={p} value={p}>{p}</option>)}
-                  {/* Handle if existing jabatan is not in current positions list */}
                   {formData.jabatan && !positions.includes(formData.jabatan) && (
                     <option value={formData.jabatan}>{formData.jabatan}</option>
                   )}

@@ -141,35 +141,37 @@ export const App: React.FC = () => {
     const targetEmail = (userEmail || session?.user?.email || '').toLowerCase().trim();
 
     try {
-      const { data: empData, error: empError } = await supabase
+      // Step 1: Ambil profile user yang sedang login terlebih dahulu
+      const { data: myProfile, error: profileError } = await supabase
         .from('employees')
         .select('*')
-        .is('deleted_at', null);
-      
-      if (empError) throw empError;
-      
-      let allEmployees = empData || [];
-      let currentEmp: Employee | null = null;
-      let detectedCompany = 'Visibel';
+        .eq('email', targetEmail)
+        .is('deleted_at', null)
+        .maybeSingle();
 
-      if (targetEmail) {
-        currentEmp = allEmployees.find(e => (e.email || '').toLowerCase().trim() === targetEmail) || null;
-        if (currentEmp) {
-          detectedCompany = currentEmp.company || 'Visibel';
-          setUserCompany(detectedCompany);
-          setCurrentUserEmployee(currentEmp);
-        } else {
-          setCurrentUserEmployee(null);
-        }
-        const currentRole = getRoleBasedOnEmail(targetEmail, currentEmp?.role);
-        setUserRole(currentRole);
+      if (profileError) throw profileError;
+
+      // Tentukan role dan company user saat ini
+      const activeUserRole = getRoleBasedOnEmail(targetEmail, myProfile?.role);
+      const isOwner = activeUserRole === 'owner';
+      const detectedCompany = myProfile?.company || 'Visibel';
+
+      setUserRole(activeUserRole);
+      setUserCompany(detectedCompany);
+      setCurrentUserEmployee(myProfile);
+
+      // Step 2: Ambil data karyawan dengan filter company (jika bukan owner)
+      let empQuery = supabase.from('employees').select('*').is('deleted_at', null);
+      if (!isOwner) {
+        empQuery = empQuery.eq('company', detectedCompany);
       }
       
-      const activeUserRole = targetEmail ? getRoleBasedOnEmail(targetEmail, currentEmp?.role) : 'employee';
-      const isOwner = activeUserRole === 'owner';
-      const companyFilterVal = detectedCompany;
+      const { data: empData, error: empError } = await empQuery;
+      if (empError) throw empError;
+      
+      setEmployees(empData || []);
 
-      setEmployees(allEmployees);
+      const companyFilterVal = detectedCompany;
 
       const buildQuery = (table: string) => {
         let q = supabase.from(table).select('*');
@@ -178,12 +180,17 @@ export const App: React.FC = () => {
       };
 
       const fetchPromises = [
-        supabase.from('attendance').select('*').order('date', { ascending: false }).limit(300).then(({data, error}) => { if(error) throw error; setAttendanceRecords(data || []); }),
+        buildQuery('attendance').order('date', { ascending: false }).limit(300).then(({data, error}) => { if(error) throw error; setAttendanceRecords(data || []); }),
         buildQuery('live_reports').order('tanggal', { ascending: false }).limit(200).then(({data, error}) => { if(error) throw error; setLiveReports(data || []); }),
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(100).then(({data, error}) => { if(error) throw error; setSubmissions(data || []); }),
         buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(50).then(({data, error}) => { if(error) throw error; setBroadcasts(data || []); }),
         buildQuery('schedules').limit(300).then(({data, error}) => { if(error) throw error; setLiveSchedules(data || []); }),
-        supabase.from('content_plans').select('*').order('postingDate', { ascending: false }).limit(200).then(({data, error}) => { if(error) throw error; setContentPlans(data || []); }),
+        // Content plans bersifat global tapi di-filter di UI biasanya, atau bisa di-filter di query jika perlu privasi ketat
+        supabase.from('content_plans').select('*').order('postingDate', { ascending: false }).limit(200).then(({data, error}) => { 
+          if(error) throw error; 
+          const filtered = isOwner ? (data || []) : (data || []).filter(p => p.company === companyFilterVal);
+          setContentPlans(filtered); 
+        }),
         buildQuery('shift_assignments').limit(500).then(({data, error}) => { if(error) throw error; setShiftAssignments(data || []); }),
         supabase.from('settings').select('value').eq('key', `shifts_config_${companyFilterVal}`).single().then(({data}) => {
           if (data && Array.isArray(data.value)) setShifts(data.value);
@@ -207,11 +214,7 @@ export const App: React.FC = () => {
       console.error("Fetch error detail:", err);
       const msg = err.message || '';
       if (msg.includes('Failed to fetch') || err.name === 'TypeError') {
-        setFetchError("Gagal Terhubung ke Server. Kemungkinan penyebab: 1. Matikan AdBlocker/uBlock untuk situs ini. 2. Periksa apakah URL Supabase di environment sudah benar. 3. Masalah koneksi internet.");
-      } else if (msg.includes('row-level security') || msg.includes('RLS')) {
-        setFetchError("Izin Akses Ditolak (RLS). Silakan jalankan SQL Script Policy di Dashboard Supabase.");
-      } else if (msg.includes('column') || msg.includes('relation')) {
-        setFetchError("Struktur database belum lengkap. Jalankan SQL: ALTER TABLE employees ADD COLUMN division text;");
+        setFetchError("Gagal Terhubung ke Server. Periksa koneksi internet Anda.");
       } else {
         setFetchError(`Koneksi Terganggu: ${msg}`);
       }
@@ -290,6 +293,7 @@ export const App: React.FC = () => {
 
   const filteredEmployees = useMemo(() => {
     let baseList = employees;
+    // Note: baseList sudah difilter berdasarkan company di fetchData jika role bukan owner
     if (userRole !== 'owner') {
       baseList = baseList.filter(emp => (emp.email || '').toLowerCase().trim() !== OWNER_EMAIL.toLowerCase());
     }
@@ -311,7 +315,7 @@ export const App: React.FC = () => {
   }, [filteredEmployees, currentEmpPage]);
 
   const unreadCount = useMemo(() => {
-    if (userRole === 'owner' || userRole === 'super') return submissions.filter(s => s.status === 'Pending').length;
+    if (userRole === 'owner' || userRole === 'super' || userRole === 'admin') return submissions.filter(s => s.status === 'Pending').length;
     return 0;
   }, [submissions, userRole]);
 
@@ -323,7 +327,7 @@ export const App: React.FC = () => {
       setEditingEmployee(data);
       setIsFormOpen(true);
     } catch (err: any) {
-      alert("Gagal memuat data lengkap: " + err.message);
+      alert("Gagal memuat data: " + err.message);
     } finally {
       setIsLoadingData(false);
     }
@@ -336,7 +340,7 @@ export const App: React.FC = () => {
       if (error) throw error;
       setViewingEmployee(data);
     } catch (err: any) {
-      alert("Gagal memuat data profil: " + err.message);
+      alert("Gagal memuat profil: " + err.message);
     } finally {
       setIsLoadingData(false);
     }
@@ -353,7 +357,7 @@ export const App: React.FC = () => {
       if (error) throw error;
       fetchData(session?.user?.email, true);
     } catch (err: any) {
-      alert("Gagal memindahkan ke sampah: " + err.message);
+      alert("Gagal menghapus: " + err.message);
     }
   };
 
@@ -471,7 +475,6 @@ export const App: React.FC = () => {
         }).filter(emp => emp.nama && emp.email && (userRole === 'owner' || emp.company === userCompany));
 
         if (newEmployeesRaw.length > 0) {
-          // Deduplicate the batch rows by email to prevent "ON CONFLICT DO UPDATE command cannot affect row a second time"
           const dedupedBatchMap = new Map<string, any>();
           newEmployeesRaw.forEach(emp => {
             dedupedBatchMap.set(emp.email, emp);
@@ -479,19 +482,11 @@ export const App: React.FC = () => {
           const finalEmployees = Array.from(dedupedBatchMap.values());
 
           const { error } = await supabase.from('employees').upsert(finalEmployees, { onConflict: 'email' });
-          if (error) {
-             if (error.message.includes('row-level security') || error.message.includes('policy')) {
-               throw new Error("Gagal: Izin akses ditolak (RLS). Harap jalankan SQL Script Policy di dashboard Supabase agar aplikasi diizinkan menyimpan data.");
-             }
-             if (error.message.includes('column') && error.message.includes('division')) {
-               throw new Error("Gagal: Kolom 'division' tidak ditemukan. Harap jalankan SQL: ALTER TABLE employees ADD COLUMN division text;");
-             }
-             throw error;
-          }
-          alert(`Berhasil memproses ${finalEmployees.length} data karyawan ke cloud!`);
+          if (error) throw error;
+          alert(`Berhasil memproses ${finalEmployees.length} data karyawan!`);
           fetchData(session?.user?.email, true);
         } else {
-          alert("Tidak ada data valid yang ditemukan dalam file Excel.");
+          alert("Tidak ada data valid yang ditemukan.");
         }
       } catch (err: any) {
         alert("Gagal mengimpor: " + (err.message || "Pastikan format file benar."));
@@ -538,7 +533,7 @@ export const App: React.FC = () => {
             PRESENSI <Icons.ChevronDown className={`w-3.5 h-3.5 transition-transform ${isDesktopDropdownOpen ? 'rotate-180' : ''}`} />
           </button>
           {isDesktopDropdownOpen && (
-            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in duration-300">
               <button onClick={() => { setActiveTab('absen'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">ABSEN SEKARANG</button>
               {userRole !== 'employee' && (
                 <>
@@ -560,7 +555,7 @@ export const App: React.FC = () => {
               CONTENT <Icons.ChevronDown className={`w-3.5 h-3.5 transition-transform ${isDesktopModulOpen ? 'rotate-180' : ''}`} />
             </button>
             {isDesktopModulOpen && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in duration-300">
                 <button onClick={() => { setActiveTab('schedule'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">LIVE STREAMING</button>
                 <div className="h-px bg-slate-50 w-full"></div>
                 <button onClick={() => { setActiveTab('content'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">SHORT VIDEO</button>
@@ -596,7 +591,7 @@ export const App: React.FC = () => {
               <div className="space-y-4">
                 <h2 className="text-3xl font-bold text-slate-900 uppercase tracking-tight">Email Tidak Terdaftar</h2>
                 <p className="text-slate-500 font-medium text-lg leading-relaxed">
-                  Email <span className="font-bold text-slate-900 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">({session.user.email})</span> tidak terdeteksi dalam database karyawan aktif sistem manapun.
+                  Email <span className="font-bold text-slate-900 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">({session.user.email})</span> tidak terdeteksi dalam database karyawan aktif perusahaan Anda.
                 </p>
                 <div className="bg-[#FFFBEB] p-8 rounded-3xl border border-[#FFD700] text-left">
                   <p className="text-[10px] font-black text-amber-600 uppercase tracking-[0.2em] mb-4">Instruksi Penting:</p>
@@ -681,7 +676,7 @@ export const App: React.FC = () => {
               ) : activeTab === 'settings' ? (
                 <SettingsModule userRole={userRole} userCompany={userCompany} onRefresh={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'database' ? (
-                <div className="bg-[#f8fafc] sm:bg-white rounded-none sm:rounded-[60px] sm:shadow-sm sm:border sm:border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <div className="bg-[#f8fafc] sm:bg-white rounded-none sm:rounded-[60px] sm:shadow-sm sm:border sm:border-slate-100 overflow-hidden animate-in fade-in duration-700">
                   <div className="px-5 sm:px-14 py-8 sm:py-16 flex flex-col items-center sm:items-start bg-transparent sm:bg-white gap-6">
                       <h2 className="font-black text-slate-900 uppercase tracking-tight text-4xl sm:text-7xl -mb-4">Data Karyawan</h2>
                       <span className="inline-block bg-white sm:bg-slate-50 text-slate-400 text-[10px] font-black uppercase px-5 py-2.5 rounded-full tracking-widest shadow-sm sm:shadow-none border border-slate-100 sm:border-none">{filteredEmployees.length} ENTRI {userRole === 'owner' ? '(GLOBAL)' : `(${userCompany})`}</span>
@@ -709,6 +704,7 @@ export const App: React.FC = () => {
                               type="text" 
                               placeholder="CARI NAMA ATAU ID..." 
                               value={searchQuery}
+                              // Fix: changed setCurrentPage to setCurrentEmpPage to match defined state
                               onChange={(e) => { setSearchQuery(e.target.value); setCurrentEmpPage(1); }}
                               className="w-full text-xs sm:text-sm font-black text-black outline-none placeholder:text-slate-300 uppercase tracking-widest bg-transparent"
                             />
@@ -844,7 +840,9 @@ export const App: React.FC = () => {
                         <span className="text-xs font-black text-slate-900 px-4 py-2 bg-slate-50 rounded-full border border-slate-200">{currentEmpPage} / {totalEmpPages}</span>
                       </div>
                       <div className="flex gap-3">
+                        {/* Fix: changed setCurrentPage to setCurrentEmpPage to match defined state */}
                         <button disabled={currentEmpPage === 1} onClick={() => setCurrentEmpPage(prev => prev - 1)} className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 flex items-center justify-center"><Icons.ChevronDown className="w-5 h-5 rotate-90" /></button>
+                        {/* Fix: changed setCurrentPage to setCurrentEmpPage to match defined state */}
                         <button disabled={currentEmpPage === totalEmpPages} onClick={() => setCurrentEmpPage(prev => prev + 1)} className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 flex items-center justify-center"><Icons.ChevronDown className="w-5 h-5 -rotate-90" /></button>
                       </div>
                     </div>
