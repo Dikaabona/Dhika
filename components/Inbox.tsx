@@ -15,6 +15,9 @@ interface InboxProps {
 const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRole, onUpdate }) => {
   const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super' || isOwner;
+  const isAdmin = userRole === 'admin';
+  const canApproveSomething = isSuper || isAdmin;
+
   const [historyPage, setHistoryPage] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -107,19 +110,30 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
   }, []);
 
   const pendingApprovals = useMemo(() => {
-    return isSuper ? submissions.filter(s => s.status === 'Pending') : [];
-  }, [submissions, isSuper]);
+    const pending = submissions.filter(s => s.status === 'Pending');
+    if (isSuper) return pending;
+    // Aturan baru: role 'admin' hanya bisa melihat pengajuan 'Lembur'
+    if (isAdmin) return pending.filter(s => s.type === 'Lembur');
+    return [];
+  }, [submissions, isSuper, isAdmin]);
 
   const submissionHistory = useMemo(() => {
     let base = submissions.filter(s => s.status !== 'Pending');
     if (!isSuper && employee) {
-      base = base.filter(s => s.employeeId === employee.id);
+      // Jika admin, biarkan melihat history lembur semua orang atau hanya miliknya?
+      // Untuk kesederhanaan, jika bukan super tetap filter berdasarkan employeeId kecuali admin bisa melihat semua tipe Lembur
+      if (isAdmin) {
+         // Admin bisa lihat history lembur semua orang, tapi pengajuan lain hanya miliknya
+         base = base.filter(s => s.employeeId === employee.id || s.type === 'Lembur');
+      } else {
+         base = base.filter(s => s.employeeId === employee.id);
+      }
     }
     return base.filter(s => {
       const subDate = new Date(s.submittedAt);
       return subDate >= oneMonthAgo;
     });
-  }, [submissions, isSuper, employee, oneMonthAgo]);
+  }, [submissions, isSuper, isAdmin, employee, oneMonthAgo]);
 
   const totalHistoryPages = Math.ceil(submissionHistory.length / itemsPerPage);
   const paginatedHistory = useMemo(() => {
@@ -144,12 +158,12 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
         <div className="flex flex-col">
           <h2 className="text-3xl font-black text-[#0f172a] tracking-tight leading-none uppercase">KOTAK MASUK</h2>
           <p className="text-[11px] text-slate-400 font-bold tracking-[0.3em] uppercase mt-2">
-            {isSuper ? 'PUSAT KENDALI PENGAJUAN' : 'PESAN & PEMBERITAHUAN'}
+            {canApproveSomething ? 'PUSAT KENDALI PENGAJUAN' : 'PESAN & PEMBERITAHUAN'}
           </p>
         </div>
       </div>
 
-      {isSuper && pendingApprovals.length > 0 && (
+      {pendingApprovals.length > 0 && (
         <div className="space-y-6">
           <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-4">PENGAJUAN MENUNGGU PERSETUJUAN</h3>
           <div className="grid grid-cols-1 gap-6">
@@ -217,7 +231,7 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
                     <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${sub.status === 'Approved' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                       {sub.status === 'Approved' ? 'DISETUJUI' : 'DITOLAK'}
                     </span>
-                    {isSuper && <p className="text-[10px] font-black text-slate-900 truncate">{sub.employeeName}</p>}
+                    {(isSuper || isAdmin) && <p className="text-[10px] font-black text-slate-900 truncate">{sub.employeeName}</p>}
                     <p className="text-[10px] font-bold text-slate-700 truncate">Pengajuan {sub.type}</p>
                   </div>
                   <p className="text-[9px] text-slate-500 font-bold">{sub.startDate} {sub.startDate !== sub.endDate ? `- ${sub.endDate}` : ''}</p>
