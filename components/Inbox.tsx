@@ -49,7 +49,9 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
       }
 
       const attendanceRecords: Partial<AttendanceRecord>[] = dates.map(date => {
-        let clockIn, clockOut;
+        let clockIn = '--:--';
+        let clockOut = '--:--';
+        
         if (sub.type === 'Lembur') {
           // Regex lebih cerdas: mencari pola HH:MM - HH:MM atau HH.MM - HH.MM
           const timeMatch = sub.notes.match(/(\d{1,2}[:.]\d{2})\s*-\s*(\d{1,2}[:.]\d{2})/);

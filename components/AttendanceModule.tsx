@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, AttendanceRecord } from '../types';
@@ -49,6 +48,60 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
   const importFileInputRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = userRole === 'super' || userRole === 'admin' || userRole === 'owner';
+
+  const calculateRowOvertime = (rec: AttendanceRecord, emp: Employee) => {
+    // Deteksi record lembur (Case Insensitive)
+    const isLemburStatus = (rec.status || '').toLowerCase() === 'lembur';
+    const hasLemburNotes = (rec.notes || '').toLowerCase().includes('lembur');
+    
+    if (!isLemburStatus && !hasLemburNotes) return 0;
+    
+    let cIn = rec.clockIn;
+    let cOut = rec.clockOut;
+
+    // Jika kolom jam kosong, coba ambil dari notes (regex jam)
+    if (!cIn || !cOut || cOut === '--:--' || cIn === '--:--') {
+      const timeMatch = (rec.notes || '').match(/(\d{1,2}[:.]\d{2})\s*-\s*(\d{1,2}[:.]\d{2})/);
+      if (timeMatch) {
+        cIn = timeMatch[1].replace('.', ':');
+        cOut = timeMatch[2].replace('.', ':');
+      }
+    }
+
+    if (cIn && cOut && cOut !== '--:--') {
+      const startArr = cIn.split(':').map(Number);
+      const endArr = cOut.split(':').map(Number);
+      if (startArr.length === 2 && endArr.length === 2) {
+        const startMinutes = startArr[0] * 60 + startArr[1];
+        const endMinutes = endArr[0] * 60 + endArr[1];
+        let diffMinutes = endMinutes - startMinutes;
+        if (diffMinutes < 0) diffMinutes += 1440; 
+        const hours = diffMinutes / 60;
+        
+        // Tentukan rate berdasarkan jabatan (Fikry/Dimas/Muhammad dkk = 20rb)
+        const jabLower = (emp.jabatan || '').toLowerCase();
+        const divLower = (emp.division || '').toLowerCase();
+        const nameLower = (emp.nama || '').toLowerCase();
+        let hourlyRate = 10000;
+
+        if (
+          jabLower.includes('host') || 
+          jabLower.includes('operator') || 
+          jabLower.includes('business development') ||
+          jabLower.includes('owner') ||
+          jabLower.includes('admin') ||
+          jabLower.includes('ceo') ||
+          divLower.includes('host') || 
+          divLower.includes('operator') || 
+          nameLower.includes('mahardhika')
+        ) {
+          hourlyRate = 20000;
+        }
+        return Math.round(hours * hourlyRate);
+      }
+    }
+    return 0;
+  };
 
   const searchedEmployees = useMemo(() => {
     let base = employees;
@@ -128,7 +181,6 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Log Kehadiran");
-    // Fix: Changed 'workbook' to 'wb' to correctly reference the variable defined above.
     XLSX.writeFile(wb, `Log_Kehadiran_${company}_${startDate}.xlsx`);
   };
 
@@ -140,7 +192,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
     reader.onload = async (event) => {
       try {
         const data = new Uint8Array(event.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         
         const rawRecords = jsonData.map((row: any) => {
@@ -174,7 +226,6 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
     reader.readAsArrayBuffer(file);
   };
 
-  // Added fetchRecordPhoto to resolve undefined function errors
   const fetchRecordPhoto = async (id: string, field: string) => {
     setIsPhotoLoading(true);
     try {
@@ -261,7 +312,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                 <input 
                   type="date" 
                   value={startDate} 
-                  onChange={(e) => onStartDateChange(e.target.value)} 
+                  onChange={(e) => { onStartDateChange(e.target.value); setCurrentPage(1); }} 
                   className="bg-transparent text-xs sm:text-sm font-black outline-none text-slate-900 cursor-pointer" 
                 />
               </div>
@@ -271,7 +322,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                 <input 
                   type="date" 
                   value={endDate} 
-                  onChange={(e) => onEndDateChange(e.target.value)} 
+                  onChange={(e) => { onEndDateChange(e.target.value); setCurrentPage(1); }} 
                   className="bg-transparent text-xs sm:text-sm font-black outline-none text-slate-900 cursor-pointer" 
                 />
               </div>
@@ -313,7 +364,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
       <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden mb-6 flex flex-col">
         {/* DESKTOP TABLE VIEW */}
         <div className="hidden md:block overflow-x-auto custom-scrollbar touch-pan-x">
-          <table className="w-full text-left min-w-[900px]">
+          <table className="w-full text-left min-w-[1000px]">
             <thead className="bg-slate-50/50 text-[10px] uppercase font-black tracking-[0.1em] border-b border-slate-100">
               <tr>
                 <th className="px-6 sm:px-10 py-5">Tanggal</th>
@@ -321,6 +372,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                 <th className="px-3 py-5 text-center">Status</th>
                 <th className="px-3 py-5">Masuk</th>
                 <th className="px-3 py-5">Pulang</th>
+                <th className="px-3 py-5 text-center">Lembur</th>
                 <th className="px-6 sm:px-10 py-5 text-right">Aksi</th>
               </tr>
             </thead>
@@ -335,6 +387,8 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                   employeeId: row.employee.id, 
                   date: row.date 
                 }) as AttendanceRecord;
+
+                const overtimePay = calculateRowOvertime(rec, row.employee);
                 
                 return (
                   <tr key={`${row.employee.id}-${row.date}`} className={`hover:bg-slate-50/50 transition-all duration-300 group ${isToday ? 'bg-amber-50/20' : ''}`}>
@@ -367,6 +421,13 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                         {rec.id && (rec.clockOut || rec.photoOut) && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoOut')} className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"><Icons.Camera className="w-3.5 h-3.5" /></button>}
                       </div>
                     </td>
+                    <td className="px-3 py-4 text-center">
+                       {overtimePay > 0 ? (
+                         <span className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg text-[9px] font-black tracking-tight border border-indigo-100">Rp {overtimePay.toLocaleString('id-ID')}</span>
+                       ) : (
+                         <span className="text-[10px] text-slate-200 font-bold">-</span>
+                       )}
+                    </td>
                     <td className="px-6 sm:px-10 py-4 text-right">
                       {isAdmin && <button onClick={() => { setEditingRecord(rec); setIsEditModalOpen(true); }} className="p-2 text-slate-300 hover:text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all"><Icons.Edit className="w-4 h-4" /></button>}
                     </td>
@@ -390,6 +451,8 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
               date: row.date 
             }) as AttendanceRecord;
 
+            const overtimePay = calculateRowOvertime(rec, row.employee);
+
             return (
               <div key={`${row.employee.id}-${row.date}`} className={`p-6 flex flex-col gap-5 transition-all ${isToday ? 'bg-amber-50/10' : 'bg-white'}`}>
                  <div className="flex items-center justify-between gap-4">
@@ -397,7 +460,10 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                       <p className="text-[11px] font-black text-slate-900 leading-none">{row.date}</p>
                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">{new Date(row.date).toLocaleDateString('id-ID', { weekday: 'short' }).toUpperCase()}</p>
                    </div>
-                   <span className={`inline-block text-[8px] font-black uppercase px-3 py-1.5 rounded-lg border shadow-sm transition-all ${getStatusStyle(rec.status)}`}>{rec.status}</span>
+                   <div className="flex items-center gap-2">
+                     {overtimePay > 0 && <span className="bg-indigo-600 text-white px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-tight shadow-sm">Rp {overtimePay.toLocaleString('id-ID')}</span>}
+                     <span className={`inline-block text-[8px] font-black uppercase px-3 py-1.5 rounded-lg border shadow-sm transition-all ${getStatusStyle(rec.status)}`}>{rec.status}</span>
+                   </div>
                  </div>
 
                  <div className="flex items-center gap-5">
@@ -472,7 +538,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                 <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">CLOCK IN</label><input type="time" value={editingRecord.clockIn || ''} onChange={e => setEditingRecord({...editingRecord, clockIn: e.target.value})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none focus:border-[#FFC000] text-black shadow-inner" /></div>
                 <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">CLOCK OUT</label><input type="time" value={editingRecord.clockOut || ''} onChange={e => setEditingRecord({...editingRecord, clockOut: e.target.value})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none focus:border-[#FFC000] text-black shadow-inner" /></div>
               </div>
-              <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">STATUS</label><select value={editingRecord.status} onChange={e => setEditingRecord({...editingRecord, status: e.target.value as any})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none appearance-none text-black shadow-inner"><option value="Hadir">Hadir</option><option value="Sakit">Sakit</option><option value="Izin">Izin</option><option value="Alpha">Alpha</option><option value="Cuti">Cuti</option><option value="Libur">Libur</option></select></div>
+              <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">STATUS</label><select value={editingRecord.status} onChange={e => setEditingRecord({...editingRecord, status: e.target.value as any})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none appearance-none text-black shadow-inner"><option value="Hadir">Hadir</option><option value="Sakit">Sakit</option><option value="Izin">Izin</option><option value="Alpha">Alpha</option><option value="Cuti">Cuti</option><option value="Libur">Libur</option><option value="Lembur">Lembur</option></select></div>
             </div>
             <div className="flex gap-4"><button onClick={handleSaveEdit} className="flex-1 bg-slate-900 text-[#FFC000] py-6 rounded-[28px] font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Simpan</button><button onClick={() => setIsEditModalOpen(false)} className="px-8 bg-slate-100 text-slate-400 py-6 rounded-[28px] font-black uppercase text-xs active:scale-95 transition-all">Batal</button></div>
           </div>
