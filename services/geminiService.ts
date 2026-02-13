@@ -62,8 +62,6 @@ export const analyzeEmployees = async (employees: Employee[]): Promise<string> =
   }
 
   await ensurePaidKey();
-  // Fix: Initialize GoogleGenAI right before the call and use process.env.API_KEY directly
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   // Ambil hanya data esensial untuk menghemat token dan proses
   const summaryData = employees.slice(0, 20).map(e => ({
@@ -73,8 +71,9 @@ export const analyzeEmployees = async (employees: Employee[]): Promise<string> =
   }));
 
   try {
+    // Buat instance tepat sebelum panggil
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await callWithRetry(() => ai.models.generateContent({
-      // Fix: Use gemini-3-pro-preview for complex analysis as per guidelines
       model: 'gemini-3-pro-preview', 
       contents: `Berikan 2 kalimat singkat analisis HR untuk data ini: ${JSON.stringify(summaryData)}`,
       config: { thinkingConfig: { thinkingBudget: 0 } }
@@ -90,11 +89,9 @@ export const analyzeEmployees = async (employees: Employee[]): Promise<string> =
 
 export const smartSearch = async (employees: Employee[], query: string): Promise<string[]> => {
   await ensurePaidKey();
-  // Fix: Initialize GoogleGenAI right before the call and use process.env.API_KEY directly
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   try {
-    // Gunakan Flash Lite untuk pencarian: Lebih cepat & kuota lebih besar
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await callWithRetry(() => ai.models.generateContent({
       model: 'gemini-flash-lite-latest',
       contents: `Cari ID dari query: "${query}" di data: ${JSON.stringify(employees.slice(0, 50).map(e => ({id: e.id, n: e.nama})))}. Balas hanya array JSON ID.`,

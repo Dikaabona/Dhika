@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Employee, SalaryData, AttendanceRecord } from '../types';
 import { Icons } from '../constants';
@@ -121,6 +122,23 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     });
 
     const summary = { alpha: 0, hadir: 0, sakit: 0, izin: 0, libur: 0, cuti: 0, totalOvertimePay: 0, overtimeHours: 0 };
+    
+    // Perhitungan biaya lembur per jam sesuai screenshot
+    const jabLower = (employee.jabatan || '').toLowerCase();
+    const divLower = (employee.division || '').toLowerCase();
+    let hourlyRate = 10000; // Default: Content Creator Rp 10.000/jam
+
+    if (
+      jabLower.includes('host') || 
+      jabLower.includes('operator') || 
+      jabLower.includes('business development') ||
+      divLower.includes('host') || 
+      divLower.includes('operator') || 
+      divLower.includes('business development')
+    ) {
+      hourlyRate = 20000; // Rp 20.000/jam
+    }
+
     const todayStr = formatDateToYYYYMMDD(new Date());
     let temp = new Date(rangeStart);
     while (temp <= rangeEnd) {
@@ -159,7 +177,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           if (diffMinutes < 0) diffMinutes += 1440; 
           const hours = diffMinutes / 60;
           summary.overtimeHours += hours;
-          summary.totalOvertimePay += Math.round(hours * 20000);
+          summary.totalOvertimePay += Math.round(hours * hourlyRate);
         }
       });
       temp.setDate(temp.getDate() + 1);
@@ -178,12 +196,6 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const totalPendapatan = (data.gapok || 0) + totalTunjanganOps + (data.lembur || 0) + (data.bonus || 0) + (data.thr || 0);
 
   const autoBPJS = useMemo(() => Math.round(totalPendapatan * 0.02), [totalPendapatan]);
-  const autoPajak = useMemo(() => {
-    if (totalPendapatan <= 5400000) return 0;
-    if (totalPendapatan <= 10000000) return Math.round(totalPendapatan * 0.0025);
-    if (totalPendapatan <= 15000000) return Math.round(totalPendapatan * 0.0125);
-    return Math.round(totalPendapatan * 0.05);
-  }, [totalPendapatan]);
 
   useEffect(() => {
     if (isBPJSTKActive) {
@@ -191,18 +203,22 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     }
   }, [autoBPJS, isBPJSTKActive]);
 
-  const calculateTHRValue = () => {
-    if (isReadOnlyRole) return;
-    const { totalMonths } = tenureInfo;
-    const baseForTHR = (data.gapok || 0) + totalTunjanganOps;
-    let thrValue = totalMonths >= 12 ? baseForTHR : (totalMonths >= 3 ? Math.round((totalMonths / 12) * baseForTHR) : 0);
-    setData(prev => ({ ...prev, thr: thrValue }));
-  };
-
   const currentBPJSTK = isBPJSTKActive ? (data.bpjstk || 0) : 0;
   const totalPotongan = currentBPJSTK + potonganAbsensi + (data.pph21 || 0) + (data.potonganHutang || 0) + (data.potonganLain || 0);
   const takeHomePay = totalPendapatan - totalPotongan + (data.adjustment || 0);
   const sisaHutang = Math.max(0, (employee.hutang || 0) - (data.potonganHutang || 0));
+
+  const handleAutoCalculateTHR = () => {
+    const totalFixed = (data.gapok || 0) + totalTunjanganOps;
+    const { totalMonths } = tenureInfo;
+    let thr = 0;
+    if (totalMonths >= 12) {
+      thr = totalFixed;
+    } else if (totalMonths >= 1) {
+      thr = Math.round((totalMonths / 12) * totalFixed);
+    }
+    setData(prev => ({ ...prev, thr }));
+  };
 
   const handleSaveConfig = async () => {
     if (isSaving || isReadOnlyRole) return;
@@ -353,7 +369,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       <div className="bg-white rounded-[32px] sm:rounded-[48px] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[96vh] animate-in zoom-in-95 duration-300 border border-white/10">
         <div className="p-6 sm:p-8 border-b bg-[#0f172a] text-white flex justify-between items-center shrink-0">
           <div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight uppercase leading-none">Kalkulasi Payroll</h2>
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight uppercase leading-none text-white">KALKULASI PAYROLL</h2>
             <p className="text-[#FFC000] text-[9px] sm:text-[10px] mt-2 uppercase font-black tracking-widest opacity-90">{employee.nama} • {data.month} {data.year}</p>
           </div>
           <button onClick={onClose} className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-all text-white/40 hover:text-white">
@@ -400,74 +416,101 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                 ].map((item) => (
                   <div key={item.key} className="space-y-2">
                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-2">{item.label}</label>
-                    <input 
-                      type="text" 
-                      disabled={isReadOnlyRole} 
-                      value={formatCurrencyValue(data[item.key as keyof SalaryData] as number)} 
-                      onChange={e => setData({...data, [item.key]: parseCurrencyInput(e.target.value)})} 
-                      className="w-full bg-white border border-sky-200 rounded-2xl p-4 text-xs sm:text-sm font-black text-slate-800 focus:border-sky-400 outline-none shadow-sm disabled:opacity-60" 
-                    />
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        disabled={isReadOnlyRole} 
+                        value={formatCurrencyValue(data[item.key as keyof SalaryData] as number)} 
+                        onChange={e => setData({...data, [item.key]: parseCurrencyInput(e.target.value)})} 
+                        className="w-full bg-white border border-sky-200 rounded-2xl pl-4 pr-4 py-4 text-xs sm:text-sm font-black text-slate-800 focus:border-sky-400 outline-none shadow-sm disabled:opacity-60" 
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* TAMBAHAN */}
-            <div className="bg-[#FFFBEB] p-6 sm:p-8 rounded-[40px] border-2 border-[#FFE066]/50 space-y-6">
+            {/* TAMBAHAN GAJI - REFINED DESIGN */}
+            <div className="bg-[#FFFBEB] p-6 sm:p-8 rounded-[40px] border-2 border-amber-200/50 space-y-6">
                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
                       <Icons.Sparkles className="w-4 h-4" />
                     </div>
-                    <p className="text-[10px] font-black text-[#806000] uppercase tracking-[0.2em]">Tambahan Gaji</p>
+                    <p className="text-[11px] font-black text-[#806000] uppercase tracking-[0.2em]">TAMBAHAN GAJI</p>
                   </div>
-                  <span className="text-[9px] font-bold text-[#A68000] bg-white/50 px-3 py-1 rounded-full border border-amber-200 self-start sm:self-auto uppercase">Lembur System: {attendanceResults.overtimeHours.toFixed(1)} Jam</span>
+                  <span className="text-[9px] font-black text-[#A68000] bg-[#FFEDAA] px-4 py-2 rounded-full border border-amber-200 self-start sm:self-auto uppercase tracking-wider shadow-sm whitespace-nowrap">LEMBUR SYSTEM: {attendanceResults.overtimeHours.toFixed(1)} JAM</span>
                </div>
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="space-y-2">
+               
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 items-stretch">
+                  {/* Lembur Manual */}
+                  <div className="p-4 sm:p-5 rounded-[28px] sm:rounded-[32px] border-2 border-dashed border-[#A68000]/30 space-y-3 sm:space-y-4 bg-white/30">
                     <div className="flex justify-between items-center px-1">
-                      <label className="text-[9px] font-bold text-[#806000]/60 uppercase tracking-widest ml-1">Lembur Manual</label>
+                      <label className="text-[9px] sm:text-[10px] font-black text-[#806000]/70 uppercase tracking-widest">LEMBUR MANUAL</label>
                       {!isReadOnlyRole && (
                         <button 
                           onClick={() => setData(prev => ({ ...prev, lembur: attendanceResults.totalOvertimePay }))}
-                          className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md hover:bg-indigo-100 transition-all shadow-sm flex items-center gap-1 active:scale-95"
-                          title="Sinkronkan dengan lembur sistem yang disetujui"
+                          className="text-[8px] sm:text-[9px] font-black text-indigo-600 bg-indigo-100/50 px-3 py-1 rounded-full hover:bg-indigo-100 transition-all shadow-sm flex items-center gap-1 active:scale-95 border border-indigo-200 uppercase whitespace-nowrap"
                         >
-                          <Icons.Plus className="w-2.5 h-2.5" /> SYNC (Rp {attendanceResults.totalOvertimePay.toLocaleString('id-ID')})
+                          <Icons.Plus className="w-3 h-3" /> SYNC (Rp {attendanceResults.totalOvertimePay.toLocaleString('id-ID')})
                         </button>
                       )}
                     </div>
-                    <input 
-                      type="text" 
-                      disabled={isReadOnlyRole} 
-                      value={formatCurrencyValue(data.lembur)} 
-                      onChange={e => setData({...data, lembur: parseCurrencyInput(e.target.value)})} 
-                      className="w-full bg-white border border-[#FFD700] rounded-2xl p-4 text-xs sm:text-sm font-black text-slate-800 focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-60" 
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-bold text-[#806000]/60 uppercase tracking-widest ml-1">THR</label>
+                    <div className="relative">
                       <input 
                         type="text" 
                         disabled={isReadOnlyRole} 
-                        value={formatCurrencyValue(data.thr)} 
-                        onChange={e => setData({...data, thr: parseCurrencyInput(e.target.value)})} 
-                        className="w-full bg-white border border-[#FFD700] rounded-2xl p-4 text-xs sm:text-sm font-black text-slate-800 focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-60" 
+                        value={formatCurrencyValue(data.lembur)} 
+                        onChange={e => setData({...data, lembur: parseCurrencyInput(e.target.value)})} 
+                        className="w-full bg-white border border-[#FFD700]/50 rounded-[22px] pl-10 pr-6 py-3 sm:py-4 text-xs sm:text-sm font-black text-slate-800 focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-60" 
                       />
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-slate-900"></div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-bold text-[#806000]/60 uppercase tracking-widest ml-1">Bonus</label>
-                      <input 
-                        type="text" 
-                        disabled={isReadOnlyRole} 
-                        value={formatCurrencyValue(data.bonus)} 
-                        onChange={e => setData({...data, bonus: parseCurrencyInput(e.target.value)})} 
-                        className="w-full bg-white border border-[#FFD700] rounded-2xl p-4 text-xs sm:text-sm font-black text-slate-800 focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-60" 
-                      />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    {/* THR */}
+                    <div className="p-3 sm:p-4 rounded-[24px] sm:rounded-[28px] border-2 border-dashed border-[#A68000]/30 space-y-2 sm:space-y-3 bg-white/30 flex flex-col justify-between">
+                      <div className="flex justify-between items-center px-1">
+                        <label className="text-[9px] sm:text-[10px] font-black text-[#806000]/70 uppercase tracking-widest">THR</label>
+                        {!isReadOnlyRole && (
+                          <button 
+                            type="button"
+                            onClick={handleAutoCalculateTHR}
+                            className="text-[7px] font-black bg-[#10b981] text-white px-2 py-0.5 rounded-md uppercase transition-all hover:bg-emerald-600 active:scale-90 shadow-sm"
+                          >
+                            AUTO
+                          </button>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <input 
+                          type="text" 
+                          disabled={isReadOnlyRole} 
+                          value={formatCurrencyValue(data.thr)} 
+                          onChange={e => setData({...data, thr: parseCurrencyInput(e.target.value)})} 
+                          className="w-full bg-white border border-[#FFD700]/50 rounded-[20px] pl-8 pr-4 py-2.5 sm:py-3.5 text-[10px] sm:text-xs font-black text-slate-800 focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-60" 
+                        />
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-900"></div>
+                      </div>
+                    </div>
+                    {/* BONUS */}
+                    <div className="p-3 sm:p-4 rounded-[24px] sm:rounded-[28px] border-2 border-dashed border-[#A68000]/30 space-y-2 sm:space-y-3 bg-white/30 flex flex-col justify-between">
+                      <label className="text-[9px] sm:text-[10px] font-black text-[#806000]/70 uppercase tracking-widest ml-1 text-center block">BONUS</label>
+                      <div className="relative">
+                        <input 
+                          type="text" 
+                          disabled={isReadOnlyRole} 
+                          value={formatCurrencyValue(data.bonus)} 
+                          onChange={e => setData({...data, bonus: parseCurrencyInput(e.target.value)})} 
+                          className="w-full bg-white border border-[#FFD700]/50 rounded-[20px] pl-8 pr-4 py-2.5 sm:py-3.5 text-[10px] sm:text-xs font-black text-slate-800 focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-60" 
+                        />
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-900"></div>
+                      </div>
                     </div>
                   </div>
                </div>
+               <p className="text-center text-[10px] font-bold text-[#806000]/60 italic tracking-tight px-4 leading-tight">sinkronkan tambahan gaji dengan pengajuan lembur apabila pengajuannya di "setujui"</p>
             </div>
 
             {/* ABSENSI & BPJS */}
@@ -545,37 +588,36 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           </div>
         </div>
 
-        {/* SUMMARY SECTION */}
         <div className="bg-white border-t-2 border-slate-50 flex flex-col shrink-0">
-          <div className="bg-[#0f172a] px-6 sm:px-10 py-5 sm:py-7 text-white flex justify-between items-center border-l-[12px] sm:border-l-[16px] border-[#FFC000] shadow-[0_-10px_30px_rgba(0,0,0,0.1)] relative z-10">
-            <div>
-              <p className="text-[9px] sm:text-[10px] text-slate-500 font-black uppercase tracking-[0.3em] mb-1.5 leading-none">Take Home Pay</p>
-              <p className="text-2xl sm:text-4xl font-black text-[#FFC000] tracking-tighter">Rp {(takeHomePay || 0).toLocaleString('id-ID')}</p>
+          <div className="bg-[#111827] px-6 sm:px-10 py-6 sm:py-9 text-white flex justify-between items-center border-l-[20px] sm:border-l-[28px] border-[#FFC000] shadow-[0_-15px_40px_rgba(0,0,0,0.15)] relative z-10">
+            <div className="space-y-1">
+              <p className="text-[11px] sm:text-[13px] text-slate-400 font-black uppercase tracking-[0.4em] leading-none">TAKE HOME PAY</p>
+              <p className="text-xl sm:text-2xl font-black text-[#FFC000] tracking-tighter leading-none whitespace-nowrap">Rp {(takeHomePay || 0).toLocaleString('id-ID')}</p>
             </div>
-            <div className="text-right">
-              <p className="text-[8px] sm:text-[9px] text-slate-500 font-bold uppercase mb-1.5 leading-none">Total Bruto</p>
-              <p className="text-xs sm:text-base font-black text-slate-300">Rp {(totalPendapatan || 0).toLocaleString('id-ID')}</p>
+            <div className="text-right flex flex-col gap-1.5 min-w-0">
+              <p className="text-[10px] sm:text-[12px] text-slate-500 font-bold uppercase tracking-widest leading-none whitespace-nowrap">TOTAL BRUTO</p>
+              <p className="text-base sm:text-xl font-black text-slate-300 leading-none whitespace-nowrap">Rp {(totalPendapatan || 0).toLocaleString('id-ID')}</p>
             </div>
           </div>
           
-          <div className="p-5 sm:p-8 space-y-4 bg-slate-50/30">
+          <div className="p-6 sm:p-10 space-y-4 bg-slate-50/50">
             {!isReadOnlyRole && (
               <button 
                 type="button" 
                 disabled={isSaving} 
                 onClick={handleSaveConfig} 
-                className="w-full bg-[#0f172a] hover:bg-black text-[#FFC000] py-5 sm:py-6 rounded-[22px] font-black transition-all shadow-xl text-[10px] sm:text-[11px] tracking-[0.2em] uppercase flex items-center justify-center gap-4 disabled:opacity-50 active:scale-[0.98]"
+                className="w-full bg-[#090e18] hover:bg-black text-[#FFC000] py-6 sm:py-7 rounded-[26px] font-black transition-all shadow-xl text-[12px] sm:text-[14px] tracking-[0.3em] uppercase flex items-center justify-center gap-4 disabled:opacity-50 active:scale-[0.98] border border-white/5"
               >
-                {isSaving ? 'MEMPROSES...' : <><Icons.Database className="w-5 h-5" /> SIMPAN & POTONG HUTANG</>}
+                {isSaving ? 'MEMPROSES...' : <><div className="w-3.5 h-3.5 bg-[#FFC000] rounded-sm mr-1.5 flex-shrink-0"></div> <span className="whitespace-nowrap">SIMPAN & POTONG HUTANG</span></>}
               </button>
             )}
             
             <button 
               type="button" 
               onClick={() => setIsPreview(true)} 
-              className="w-full bg-[#FFC000] hover:bg-amber-400 text-black py-5 sm:py-6 rounded-[22px] font-black transition-all shadow-lg text-[10px] sm:text-[11px] tracking-[0.2em] uppercase active:scale-[0.98]"
+              className="w-full bg-[#FFC000] hover:bg-[#ffcd00] text-black py-6 sm:py-7 rounded-[26px] font-black transition-all shadow-xl text-[12px] sm:text-[14px] tracking-[0.3em] uppercase active:scale-[0.98] border-b-[6px] border-[#d97706] shadow-amber-200/50 flex items-center justify-center"
             >
-              LIHAT PRATINJAU SLIP
+              <span className="whitespace-nowrap">LIHAT PRATINJAU SLIP</span>
             </button>
           </div>
         </div>

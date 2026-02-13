@@ -18,7 +18,28 @@ const MinVisModule: React.FC<MinVisModuleProps> = ({ onClose }) => {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [hasKey, setHasKey] = useState<boolean | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    checkApiKey();
+  }, []);
+
+  const checkApiKey = async () => {
+    if (typeof window !== 'undefined' && (window as any).aistudio) {
+      const selected = await (window as any).aistudio.hasSelectedApiKey();
+      setHasKey(selected);
+    } else {
+      setHasKey(true); // Fallback jika dijalankan di luar environment AI Studio
+    }
+  };
+
+  const handleSelectKey = async () => {
+    if (typeof window !== 'undefined' && (window as any).aistudio) {
+      await (window as any).aistudio.openSelectKey();
+      setHasKey(true); // Asumsikan sukses untuk mitigasi race condition
+    }
+  };
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -32,12 +53,19 @@ const MinVisModule: React.FC<MinVisModuleProps> = ({ onClose }) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
+    // Cek ulang kunci sebelum kirim
+    if (!hasKey) {
+      await handleSelectKey();
+      return;
+    }
+
     const userMessage = input.trim();
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
 
     try {
+      // Inisialisasi tepat sebelum pemanggilan (Best Practice)
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const stream = await ai.models.generateContentStream({
         model: 'gemini-3-pro-preview',
@@ -85,7 +113,15 @@ Jika tim bertanya tentang strategi, berikan langkah konkret 1, 2, 3 yang bisa la
       }
     } catch (error: any) {
       console.error("Gemini Error:", error);
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Maaf, lagi ada gangguan di sistem AI nih. Coba lagi bentar ya!' }]);
+      const errorMsg = error?.message?.toLowerCase() || "";
+      
+      // Jika kunci tidak valid atau tidak ditemukan
+      if (errorMsg.includes("requested entity was not found")) {
+        setHasKey(false);
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Sistem mendeteksi kunci AI Anda perlu diatur ulang. Silakan klik tombol "Hubungkan AI" di bawah.' }]);
+      } else {
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Maaf, lagi ada gangguan di sistem AI nih. Coba lagi bentar ya!' }]);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -118,6 +154,14 @@ Jika tim bertanya tentang strategi, berikan langkah konkret 1, 2, 3 yang bisa la
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {!hasKey && (
+            <button 
+              onClick={handleSelectKey}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest animate-bounce shadow-lg"
+            >
+              Hubungkan AI
+            </button>
+          )}
           <div className="hidden sm:block text-right">
              <p className="text-[7px] font-black text-slate-300 uppercase tracking-widest">POWERED BY</p>
              <p className="text-[9px] font-black text-indigo-500 uppercase">Gemini 3 Pro</p>
@@ -130,6 +174,25 @@ Jika tim bertanya tentang strategi, berikan langkah konkret 1, 2, 3 yang bisa la
 
       {/* Chat Area */}
       <div className="flex-grow overflow-y-auto px-6 py-10 space-y-8 custom-scrollbar bg-[#f8fafc]">
+        {!hasKey && (
+          <div className="flex justify-center py-10">
+            <div className="bg-amber-50 border border-amber-200 p-8 rounded-[32px] text-center max-w-sm space-y-4">
+               <div className="bg-amber-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto text-amber-600">
+                  <Icons.AlertCircle className="w-6 h-6" />
+               </div>
+               <p className="text-sm font-bold text-amber-900 uppercase tracking-tight">AI Belum Terhubung</p>
+               <p className="text-xs text-amber-700 leading-relaxed">Pengguna baru wajib memilih API Key (GCP Paid Project) untuk menggunakan fitur ini.</p>
+               <button 
+                 onClick={handleSelectKey}
+                 className="w-full bg-slate-900 text-[#FFC000] py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95"
+               >
+                 Klik Untuk Menghubungkan
+               </button>
+               <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="block text-[8px] font-bold text-slate-400 uppercase underline">Info Billing Google Cloud</a>
+            </div>
+          </div>
+        )}
+
         {messages.map((msg, idx) => (
           <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
             <div className={`max-w-[85%] sm:max-w-[75%] p-5 sm:p-7 rounded-[32px] shadow-sm border ${
@@ -165,8 +228,9 @@ Jika tim bertanya tentang strategi, berikan langkah konkret 1, 2, 3 yang bisa la
           {presetPrompts.map((p, i) => (
             <button 
               key={i} 
+              disabled={!hasKey}
               onClick={() => setInput(p)}
-              className="whitespace-nowrap px-5 py-2.5 bg-slate-50 border border-slate-200 rounded-full text-[9px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-100 hover:text-slate-900 transition-all active:scale-95"
+              className="whitespace-nowrap px-5 py-2.5 bg-slate-50 border border-slate-200 rounded-full text-[9px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-100 hover:text-slate-900 transition-all active:scale-95 disabled:opacity-30"
             >
               {p}
             </button>
@@ -177,13 +241,14 @@ Jika tim bertanya tentang strategi, berikan langkah konkret 1, 2, 3 yang bisa la
           <input 
             type="text" 
             value={input}
+            disabled={!hasKey}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Tanya strategi marketing atau buat SOP ke MinVis..."
-            className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-8 py-5 text-sm font-medium outline-none focus:border-[#FFC000] focus:bg-white transition-all shadow-inner text-slate-900"
+            placeholder={hasKey ? "Tanya strategi marketing atau buat SOP ke MinVis..." : "Harap hubungkan AI terlebih dahulu..."}
+            className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-8 py-5 text-sm font-medium outline-none focus:border-[#FFC000] focus:bg-white transition-all shadow-inner text-slate-900 disabled:opacity-50"
           />
           <button 
             type="submit" 
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || isLoading || !hasKey}
             className="absolute right-2 top-1/2 -translate-y-1/2 bg-slate-900 text-[#FFC000] p-4 rounded-2xl shadow-xl transition-all active:scale-90 hover:bg-black disabled:opacity-30"
           >
             <Icons.Plus className="w-6 h-6 rotate-45" />
