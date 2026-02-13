@@ -39,9 +39,16 @@ const Dashboard: React.FC<DashboardProps> = ({
   onViewProfile
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isLateModalOpen, setIsLateModalOpen] = useState(false);
+  
   const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super' || isOwner;
   const isAdmin = userRole === 'admin' || isSuper;
+
+  // Google Drive hanya untuk company Visibel atau akses Owner (Global)
+  const showDrive = useMemo(() => {
+    return isSuper && (userCompany.toLowerCase() === 'visibel' || isOwner);
+  }, [isSuper, userCompany, isOwner]);
 
   // Real-time clock for the attendance card
   useEffect(() => {
@@ -72,22 +79,26 @@ const Dashboard: React.FC<DashboardProps> = ({
     return todayRecord.clockIn > todayShift.startTime;
   }, [todayRecord, todayShift]);
 
-  const lateEmployeesCount = useMemo(() => {
+  const lateEmployeesInfo = useMemo(() => {
     const todayStr = formatDateToYYYYMMDD(new Date());
     const todayRecords = attendanceRecords.filter(r => r.date === todayStr && r.clockIn);
     
-    let count = 0;
+    const lateList: { employee: Employee; record: AttendanceRecord; shift: Shift }[] = [];
+    
     todayRecords.forEach(record => {
+      const employee = employees.find(e => e.id === record.employeeId);
       const assignment = (shiftAssignments || []).find(a => a.employeeId === record.employeeId && a.date === todayStr);
-      if (assignment) {
+      if (employee && assignment) {
         const shift = (shifts || DEFAULT_SHIFTS).find(s => s.id === assignment.shiftId);
         if (shift && record.clockIn! > shift.startTime) {
-          count++;
+          lateList.push({ employee, record, shift });
         }
       }
     });
-    return count;
-  }, [attendanceRecords, shiftAssignments, shifts]);
+    return lateList;
+  }, [employees, attendanceRecords, shiftAssignments, shifts]);
+
+  const lateEmployeesCount = lateEmployeesInfo.length;
 
   const tenureYears = useMemo(() => {
     if (!currentUserEmployee?.tanggalMasuk) return 0;
@@ -401,15 +412,18 @@ const Dashboard: React.FC<DashboardProps> = ({
                    }).length}</p>
                  </div>
                </div>
-               <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex items-center gap-6">
-                 <div className="w-14 h-14 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-500 shadow-inner">
+               <button 
+                 onClick={() => setIsLateModalOpen(true)}
+                 className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-rose-300 transition-all active:scale-95 group"
+               >
+                 <div className="w-14 h-14 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-500 shadow-inner group-hover:bg-rose-100 transition-colors">
                    <Icons.AlertCircle className="w-7 h-7" />
                  </div>
                  <div>
                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1 whitespace-nowrap">Karyawan Telat</p>
                    <p className="text-3xl font-black text-rose-600 leading-none">{lateEmployeesCount}</p>
                  </div>
-               </div>
+               </button>
                <div className="bg-white p-8 rounded-[40px] shadow-sm border border-sky-100 flex items-center gap-6">
                  <div className="w-14 h-14 rounded-2xl bg-sky-50 flex items-center justify-center text-sky-500 shadow-inner">
                    <Icons.Cake className="w-7 h-7" />
@@ -424,8 +438,8 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         {/* Action Row for Desktop - Grid Layout with Gdrive, Calendar & Broadcast */}
-        <div className={`grid grid-cols-1 md:grid-cols-${isSuper ? '3' : '2'} gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500`}>
-           {isSuper && (
+        <div className={`grid grid-cols-1 md:grid-cols-${showDrive ? '3' : '2'} gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500`}>
+           {showDrive && (
              <button 
                onClick={onOpenDrive}
                className="bg-[#0f172a] text-white py-6 px-8 rounded-[42px] border border-white/5 shadow-2xl flex items-center gap-6 group hover:bg-black transition-all active:scale-95"
@@ -513,6 +527,69 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* LATE EMPLOYEES MODAL */}
+      {isLateModalOpen && (
+        <div className="fixed inset-0 bg-[#0f172a]/90 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 max-h-[85vh]">
+            <div className="p-8 border-b bg-[#f43f5e] text-white flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-4">
+                 <div className="bg-white/20 p-3 rounded-2xl">
+                    <Icons.AlertCircle className="w-6 h-6 text-white" />
+                 </div>
+                 <div>
+                    <h2 className="text-xl font-black uppercase tracking-tight">Karyawan Telat Hari Ini</h2>
+                    <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">{currentTime.toLocaleDateString('id-ID', { dateStyle: 'full' })}</p>
+                 </div>
+              </div>
+              <button onClick={() => setIsLateModalOpen(false)} className="text-4xl leading-none font-black opacity-40 hover:opacity-100">&times;</button>
+            </div>
+            
+            <div className="flex-grow overflow-y-auto p-6 sm:p-8 space-y-4 custom-scrollbar bg-slate-50/50">
+               {lateEmployeesInfo.length > 0 ? (
+                 lateEmployeesInfo.map((item, idx) => (
+                   <div key={idx} className="bg-white p-5 rounded-[28px] border border-slate-100 flex items-center justify-between shadow-sm group hover:shadow-md transition-all">
+                      <div className="flex items-center gap-4">
+                         <div className="w-12 h-12 rounded-2xl bg-slate-100 overflow-hidden flex items-center justify-center shrink-0 border border-slate-100">
+                            {item.employee.photoBase64 ? (
+                              <img src={item.employee.photoBase64} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <Icons.Users className="w-6 h-6 text-slate-300" />
+                            )}
+                         </div>
+                         <div className="min-w-0">
+                            <p className="text-[13px] font-black text-slate-900 uppercase truncate leading-tight">{item.employee.nama}</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest truncate mt-1">{item.employee.jabatan}</p>
+                         </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                         <div className="bg-rose-50 px-4 py-1.5 rounded-xl border border-rose-100 flex flex-col items-center">
+                            <span className="text-[8px] font-black text-rose-400 uppercase tracking-widest">CLOCK IN</span>
+                            <span className="text-xs font-black text-rose-600">{item.record.clockIn}</span>
+                         </div>
+                         <p className="text-[7px] font-bold text-slate-300 uppercase tracking-widest mt-1.5">SHIFT: {item.shift.startTime}</p>
+                      </div>
+                   </div>
+                 ))
+               ) : (
+                 <div className="py-20 text-center flex flex-col items-center gap-6 opacity-30">
+                    <Icons.Check className="w-16 h-16 text-emerald-500" />
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">Tidak Ada Karyawan Terlambat</p>
+                 </div>
+               )}
+            </div>
+            
+            <div className="p-8 border-t bg-white shrink-0">
+               <button 
+                 onClick={() => setIsLateModalOpen(false)}
+                 className="w-full bg-[#0f172a] text-white py-5 rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all"
+               >
+                 Tutup Dashboard
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

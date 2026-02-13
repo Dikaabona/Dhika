@@ -12,7 +12,7 @@ interface BulkSalaryModalProps {
   weeklyHolidays?: Record<string, string[]>;
 }
 
-const ALPHA_START_DATE = '2026-02-02';
+const ALPHA_START_DATE = '2025-01-01';
 
 const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({ 
   employees, 
@@ -40,7 +40,6 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
   const [progress, setProgress] = useState(0);
   const [logs, setLogs] = useState<{ name: string; status: 'Success' | 'Error'; message: string }[]>([]);
   
-  // State for manual and selected emails
   const [manualEmails, setManualEmails] = useState<string[]>([]);
   const [emailInput, setEmailInput] = useState('');
 
@@ -139,15 +138,16 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
             tunjanganKesehatan: 0, tunjanganJabatan: 0, bpjstk: 0, pph21: 0, 
             lembur: 0, bonus: 0, thr: 0, potonganHutang: 0, potonganLain: 0
           };
+          
+          // PERUBAHAN: Potongan Alpha hanya berdasarkan Gaji Pokok (Gapok)
+          const potonganAbsen = Math.round((alphaCount * (config.gapok || 0)) / 26);
           const totalFixed = (config.gapok || 0) + (config.tunjanganMakan || 0) + (config.tunjanganTransport || 0) + (config.tunjanganKomunikasi || 0) + (config.tunjanganKesehatan || 0) + (config.tunjanganJabatan || 0);
-          const potonganAbsen = Math.round((alphaCount * totalFixed) / 26);
           const totalPotongan = potonganAbsen + (config.bpjstk || 0) + (config.pph21 || 0);
           const thp = (totalFixed + (config.lembur || 0) + (config.bonus || 0) + (config.thr || 0)) - totalPotongan;
 
           await new Promise(resolve => setTimeout(resolve, 300));
           setLogs(prev => [{ name: emp.nama, status: 'Success', message: `Slip terkirim ke ${email} • THP: Rp ${thp.toLocaleString('id-ID')}` }, ...prev]);
         } else {
-          // Additional Manual Email (not in DB)
           await new Promise(resolve => setTimeout(resolve, 300));
           setLogs(prev => [{ name: email, status: 'Success', message: `Pesan broadcast terkirim.` }, ...prev]);
         }

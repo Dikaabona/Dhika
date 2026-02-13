@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { createClient, Session } from '@supabase/supabase-js';
@@ -30,7 +29,6 @@ const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
 const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
 const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
 
-// Sanitasi URL & Key: Menghapus spasi atau karakter newline yang sering terbawa saat copy-paste
 const sanitizeConfig = (val: string | undefined, fallback: string) => {
   if (!val) return fallback.trim();
   return val.replace(/[\n\r\s\t]/g, '').trim();
@@ -141,7 +139,6 @@ export const App: React.FC = () => {
     const targetEmail = (userEmail || session?.user?.email || '').toLowerCase().trim();
 
     try {
-      // Step 1: Ambil profile user yang sedang login terlebih dahulu
       const { data: myProfile, error: profileError } = await supabase
         .from('employees')
         .select('*')
@@ -151,7 +148,6 @@ export const App: React.FC = () => {
 
       if (profileError) throw profileError;
 
-      // Tentukan role dan company user saat ini
       const activeUserRole = getRoleBasedOnEmail(targetEmail, myProfile?.role);
       const isOwner = activeUserRole === 'owner';
       const detectedCompany = myProfile?.company || 'Visibel';
@@ -160,7 +156,6 @@ export const App: React.FC = () => {
       setUserCompany(detectedCompany);
       setCurrentUserEmployee(myProfile);
 
-      // Step 2: Ambil data karyawan dengan filter company (jika bukan owner)
       let empQuery = supabase.from('employees').select('*').is('deleted_at', null);
       if (!isOwner) {
         empQuery = empQuery.eq('company', detectedCompany);
@@ -180,12 +175,12 @@ export const App: React.FC = () => {
       };
 
       const fetchPromises = [
-        buildQuery('attendance').order('date', { ascending: false }).limit(300).then(({data, error}) => { if(error) throw error; setAttendanceRecords(data || []); }),
+        // MENINGKATKAN LIMIT DARI 300 KE 1000 UNTUK PAYROLL ACCURACY
+        buildQuery('attendance').order('date', { ascending: false }).limit(1000).then(({data, error}) => { if(error) throw error; setAttendanceRecords(data || []); }),
         buildQuery('live_reports').order('tanggal', { ascending: false }).limit(200).then(({data, error}) => { if(error) throw error; setLiveReports(data || []); }),
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(100).then(({data, error}) => { if(error) throw error; setSubmissions(data || []); }),
         buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(50).then(({data, error}) => { if(error) throw error; setBroadcasts(data || []); }),
         buildQuery('schedules').limit(300).then(({data, error}) => { if(error) throw error; setLiveSchedules(data || []); }),
-        // Content plans bersifat global tapi di-filter di UI biasanya, atau bisa di-filter di query jika perlu privasi ketat
         supabase.from('content_plans').select('*').order('postingDate', { ascending: false }).limit(200).then(({data, error}) => { 
           if(error) throw error; 
           const filtered = isOwner ? (data || []) : (data || []).filter(p => p.company === companyFilterVal);
@@ -293,7 +288,6 @@ export const App: React.FC = () => {
 
   const filteredEmployees = useMemo(() => {
     let baseList = employees;
-    // Note: baseList sudah difilter berdasarkan company di fetchData jika role bukan owner
     if (userRole !== 'owner') {
       baseList = baseList.filter(emp => (emp.email || '').toLowerCase().trim() !== OWNER_EMAIL.toLowerCase());
     }
@@ -450,7 +444,7 @@ export const App: React.FC = () => {
             idKaryawan: String(row['ID KARYAWAN'] || ''),
             nama: String(row['NAMA'] || ''),
             tempatLahir: String(row['TEMPAT LAHIR'] || ''),
-            tanggalLahir: String(row['TANGGAL LAHIR'] || ''),
+            tanggalLahir: String(row['TANGGAL LALIR'] || ''),
             alamat: String(row['ALAMAT'] || ''),
             noKtp: String(row['NO KTP'] || ''),
             noHandphone: String(row['NO HP'] || ''),
@@ -704,7 +698,6 @@ export const App: React.FC = () => {
                               type="text" 
                               placeholder="CARI NAMA ATAU ID..." 
                               value={searchQuery}
-                              // Fix: changed setCurrentPage to setCurrentEmpPage to match defined state
                               onChange={(e) => { setSearchQuery(e.target.value); setCurrentEmpPage(1); }}
                               className="w-full text-xs sm:text-sm font-black text-black outline-none placeholder:text-slate-300 uppercase tracking-widest bg-transparent"
                             />
@@ -796,7 +789,6 @@ export const App: React.FC = () => {
                                       const tenure = getTenureYears(emp.tanggalMasuk);
                                       if (tenure < 1) return '0 Hari';
                                       
-                                      // Penyesuaian Manual
                                       const name = emp.nama.toLowerCase();
                                       let adjustment = 0;
                                       if (name.includes('fikry aditya rizky')) adjustment = 2;
@@ -840,9 +832,7 @@ export const App: React.FC = () => {
                         <span className="text-xs font-black text-slate-900 px-4 py-2 bg-slate-50 rounded-full border border-slate-200">{currentEmpPage} / {totalEmpPages}</span>
                       </div>
                       <div className="flex gap-3">
-                        {/* Fix: changed setCurrentPage to setCurrentEmpPage to match defined state */}
                         <button disabled={currentEmpPage === 1} onClick={() => setCurrentEmpPage(prev => prev - 1)} className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 flex items-center justify-center"><Icons.ChevronDown className="w-5 h-5 rotate-90" /></button>
-                        {/* Fix: changed setCurrentPage to setCurrentEmpPage to match defined state */}
                         <button disabled={currentEmpPage === totalEmpPages} onClick={() => setCurrentEmpPage(prev => prev + 1)} className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 flex items-center justify-center"><Icons.ChevronDown className="w-5 h-5 -rotate-90" /></button>
                       </div>
                     </div>

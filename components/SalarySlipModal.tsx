@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Employee, SalaryData, AttendanceRecord } from '../types';
 import { Icons } from '../constants';
@@ -17,7 +16,7 @@ interface SalarySlipModalProps {
 const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
 const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
 
-const ALPHA_START_DATE = '2026-02-02';
+const ALPHA_START_DATE = '2025-01-01';
 
 const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceRecords, userRole, onClose, onUpdate, weeklyHolidays }) => {
   const isReadOnlyRole = userRole === 'admin' || userRole === 'employee';
@@ -38,10 +37,10 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const [data, setData] = useState<SalaryData & { adjustment: number; pph21: number }>({
     month: prevMonth.name,
     year: prevMonth.year,
-    gapok: employee.salaryConfig?.gapok ?? 5000000,
-    tunjanganMakan: employee.salaryConfig?.tunjanganMakan ?? 500000,
-    tunjanganTransport: employee.salaryConfig?.tunjanganTransport ?? 300000,
-    tunjanganKomunikasi: employee.salaryConfig?.tunjanganKomunikasi ?? 200000,
+    gapok: employee.salaryConfig?.gapok ?? 0,
+    tunjanganMakan: employee.salaryConfig?.tunjanganMakan ?? 0,
+    tunjanganTransport: employee.salaryConfig?.tunjanganTransport ?? 0,
+    tunjanganKomunikasi: employee.salaryConfig?.tunjanganKomunikasi ?? 0,
     tunjanganKesehatan: employee.salaryConfig?.tunjanganKesehatan ?? 0,
     tunjanganJabatan: employee.salaryConfig?.tunjanganJabatan ?? 0,
     bpjstk: employee.salaryConfig?.bpjstk ?? 0,
@@ -123,20 +122,24 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
 
     const summary = { alpha: 0, hadir: 0, sakit: 0, izin: 0, libur: 0, cuti: 0, totalOvertimePay: 0, overtimeHours: 0 };
     
-    // Perhitungan biaya lembur per jam sesuai screenshot
     const jabLower = (employee.jabatan || '').toLowerCase();
     const divLower = (employee.division || '').toLowerCase();
-    let hourlyRate = 10000; // Default: Content Creator Rp 10.000/jam
+    const nameLower = (employee.nama || '').toLowerCase();
+    let hourlyRate = 10000;
 
+    // Tambah deteksi owner/admin untuk Muhammad Mahardhika dkk agar rate 20rb
     if (
       jabLower.includes('host') || 
       jabLower.includes('operator') || 
       jabLower.includes('business development') ||
+      jabLower.includes('owner') ||
+      jabLower.includes('admin') ||
       divLower.includes('host') || 
       divLower.includes('operator') || 
-      divLower.includes('business development')
+      divLower.includes('business development') ||
+      nameLower.includes('mahardhika')
     ) {
-      hourlyRate = 20000; // Rp 20.000/jam
+      hourlyRate = 20000;
     }
 
     const todayStr = formatDateToYYYYMMDD(new Date());
@@ -145,8 +148,16 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       const dStr = formatDateToYYYYMMDD(temp);
       const dayRecords = cutoffRecords.filter(r => r.date === dStr);
       const isWork = isWorkDay(temp, employee);
+      
       const mainRecord = dayRecords.find(r => r.status !== 'Lembur');
-      const overtimeRecords = dayRecords.filter(r => r.status === 'Lembur');
+      const overtimeRecords = dayRecords.filter(r => 
+        r.status === 'Lembur' || 
+        (r.notes && (
+          r.notes.toLowerCase().includes('lembur') || 
+          r.notes.toUpperCase().includes('JAM:') || 
+          r.notes.toUpperCase().includes('BRAND:')
+        ))
+      );
       
       if (mainRecord) {
         if (mainRecord.status === 'Hadir') summary.hadir++;
@@ -168,16 +179,29 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       }
 
       overtimeRecords.forEach(ov => {
-        if (ov.clockIn && ov.clockOut) {
-          const startArr = ov.clockIn.split(':').map(Number);
-          const endArr = ov.clockOut.split(':').map(Number);
-          const startMinutes = startArr[0] * 60 + startArr[1];
-          const endMinutes = endArr[0] * 60 + endArr[1];
-          let diffMinutes = endMinutes - startMinutes;
-          if (diffMinutes < 0) diffMinutes += 1440; 
-          const hours = diffMinutes / 60;
-          summary.overtimeHours += hours;
-          summary.totalOvertimePay += Math.round(hours * hourlyRate);
+        let cIn = ov.clockIn;
+        let cOut = ov.clockOut;
+
+        if (!cIn || !cOut) {
+          const timeMatch = (ov.notes || '').match(/(\d{1,2}[:.]\d{2})\s*-\s*(\d{1,2}[:.]\d{2})/);
+          if (timeMatch) {
+            cIn = timeMatch[1].replace('.', ':');
+            cOut = timeMatch[2].replace('.', ':');
+          }
+        }
+
+        if (cIn && cOut) {
+          const startArr = cIn.split(':').map(Number);
+          const endArr = cOut.split(':').map(Number);
+          if (startArr.length === 2 && endArr.length === 2) {
+             const startMinutes = startArr[0] * 60 + startArr[1];
+             const endMinutes = endArr[0] * 60 + endArr[1];
+             let diffMinutes = endMinutes - startMinutes;
+             if (diffMinutes < 0) diffMinutes += 1440; 
+             const hours = diffMinutes / 60;
+             summary.overtimeHours += hours;
+             summary.totalOvertimePay += Math.round(hours * hourlyRate);
+          }
         }
       });
       temp.setDate(temp.getDate() + 1);
@@ -185,13 +209,19 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     return summary;
   }, [attendanceRecords, data.month, data.year, employee, weeklyHolidays]);
 
+  // AUTO-SYNC: Masukkan lembur otomatis jika data lembur system terdeteksi
+  useEffect(() => {
+    if (!isReadOnlyRole && data.lembur === 0 && attendanceResults.totalOvertimePay > 0) {
+      setData(prev => ({ ...prev, lembur: attendanceResults.totalOvertimePay }));
+    }
+  }, [attendanceResults.totalOvertimePay]);
+
   const totalTunjanganOps = (data.tunjanganMakan || 0) + (data.tunjanganTransport || 0) + (data.tunjanganKomunikasi || 0) + (data.tunjanganKesehatan || 0) + (data.tunjanganJabatan || 0);
   
   const potonganAbsensi = useMemo(() => {
-    const totalGajiTetap = (data.gapok || 0) + totalTunjanganOps;
-    const dailyRate = totalGajiTetap / 26;
+    const dailyRate = (data.gapok || 0) / 26;
     return Math.round((attendanceResults.alpha || 0) * dailyRate);
-  }, [data.gapok, totalTunjanganOps, attendanceResults.alpha]);
+  }, [data.gapok, attendanceResults.alpha]);
 
   const totalPendapatan = (data.gapok || 0) + totalTunjanganOps + (data.lembur || 0) + (data.bonus || 0) + (data.thr || 0);
 
@@ -317,7 +347,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
               <h3 style={{ fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', borderBottom: '1.5px solid #e2e8f0', paddingBottom: '6px', marginBottom: '12px' }}>Penerimaan (+)</h3>
               <div style={{ fontSize: '12px', lineHeight: '2.0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Gaji Pokok</span><span style={{ fontWeight: '800' }}>Rp {(data.gapok || 0).toLocaleString('id-ID')}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tunjangan Ops.</span><span style={{ fontWeight: '800' }}>Rp {(totalTunjanganOps || 0).toLocaleString('id-ID')}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tunjangan Ops..</span><span style={{ fontWeight: '800' }}>Rp {(totalTunjanganOps || 0).toLocaleString('id-ID')}</span></div>
                 {(data.lembur || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Lembur</span><span style={{ fontWeight: '800' }}>Rp {data.lembur.toLocaleString('id-ID')}</span></div>}
                 {data.bonus > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Bonus</span><span style={{ fontWeight: '800' }}>Rp {data.bonus.toLocaleString('id-ID')}</span></div>}
                 {(data.thr || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#806000', fontWeight: '800' }}>THR</span><span style={{ color: '#806000', fontWeight: '900' }}>Rp {(data.thr || 0).toLocaleString('id-ID')}</span></div>}
@@ -386,7 +416,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
             {/* GAJI POKOK */}
             <div className="space-y-3">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Gaji Pokok</label>
-              <div className="relative group">
+              <div className="relative group p-1 border-2 border-dashed border-rose-200 rounded-[32px]">
                 <input 
                   type="text" 
                   disabled={isReadOnlyRole} 
@@ -430,29 +460,39 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
               </div>
             </div>
 
-            {/* TAMBAHAN GAJI - REFINED DESIGN */}
-            <div className="bg-[#FFFBEB] p-6 sm:p-8 rounded-[40px] border-2 border-amber-200/50 space-y-6">
-               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
-                      <Icons.Sparkles className="w-4 h-4" />
+            {/* TAMBAHAN GAJI - REDESIGNED */}
+            <div className="bg-[#FFFBEB] p-6 sm:p-10 rounded-[48px] border-2 border-amber-200/50 space-y-8">
+               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-amber-100 rounded-[18px] flex items-center justify-center text-amber-600 shadow-sm">
+                      <Icons.Sparkles className="w-6 h-6" />
                     </div>
-                    <p className="text-[11px] font-black text-[#806000] uppercase tracking-[0.2em]">TAMBAHAN GAJI</p>
+                    <div>
+                      <p className="text-[14px] font-black text-[#806000] uppercase tracking-tight">TAMBAHAN GAJI</p>
+                      <p className="text-[9px] text-amber-600/70 font-bold uppercase tracking-widest">Bonus & Insentif Kinerja</p>
+                    </div>
                   </div>
-                  <span className="text-[9px] font-black text-[#A68000] bg-[#FFEDAA] px-4 py-2 rounded-full border border-amber-200 self-start sm:self-auto uppercase tracking-wider shadow-sm whitespace-nowrap">LEMBUR SYSTEM: {attendanceResults.overtimeHours.toFixed(1)} JAM</span>
+                  <div className="bg-[#FFEDAA] px-5 py-2.5 rounded-2xl border border-amber-200 shadow-sm flex flex-col items-end">
+                     <span className="text-[8px] font-black text-[#A68000] uppercase tracking-[0.1em] opacity-60">Lembur System</span>
+                     <span className="text-[12px] font-black text-[#806000] tracking-tighter">{attendanceResults.overtimeHours.toFixed(1)} JAM</span>
+                  </div>
                </div>
                
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 items-stretch">
-                  {/* Lembur Manual */}
-                  <div className="p-4 sm:p-5 rounded-[28px] sm:rounded-[32px] border-2 border-dashed border-[#A68000]/30 space-y-3 sm:space-y-4 bg-white/30">
+               <div className="space-y-6">
+                  {/* LEMBUR CARD */}
+                  <div className="bg-white/60 p-6 sm:p-8 rounded-[36px] border-2 border-amber-200/30 shadow-sm space-y-5">
                     <div className="flex justify-between items-center px-1">
-                      <label className="text-[9px] sm:text-[10px] font-black text-[#806000]/70 uppercase tracking-widest">LEMBUR MANUAL</label>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]"></div>
+                        <label className="text-[11px] font-black text-slate-600 uppercase tracking-widest">LEMBUR MANUAL</label>
+                      </div>
                       {!isReadOnlyRole && (
                         <button 
                           onClick={() => setData(prev => ({ ...prev, lembur: attendanceResults.totalOvertimePay }))}
-                          className="text-[8px] sm:text-[9px] font-black text-indigo-600 bg-indigo-100/50 px-3 py-1 rounded-full hover:bg-indigo-100 transition-all shadow-sm flex items-center gap-1 active:scale-95 border border-indigo-200 uppercase whitespace-nowrap"
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-md active:scale-95 flex items-center gap-2"
                         >
-                          <Icons.Plus className="w-3 h-3" /> SYNC (Rp {attendanceResults.totalOvertimePay.toLocaleString('id-ID')})
+                          <Icons.Plus className="w-3.5 h-3.5" /> 
+                          SYNC (Rp {attendanceResults.totalOvertimePay.toLocaleString('id-ID')})
                         </button>
                       )}
                     </div>
@@ -462,24 +502,28 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                         disabled={isReadOnlyRole} 
                         value={formatCurrencyValue(data.lembur)} 
                         onChange={e => setData({...data, lembur: parseCurrencyInput(e.target.value)})} 
-                        className="w-full bg-white border border-[#FFD700]/50 rounded-[22px] pl-10 pr-6 py-3 sm:py-4 text-xs sm:text-sm font-black text-slate-800 focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-60" 
+                        className="w-full bg-white border-2 border-slate-100 rounded-[24px] pl-14 pr-8 py-5 text-sm sm:text-base font-black text-slate-800 focus:border-amber-400 outline-none shadow-inner disabled:opacity-60 transition-all" 
                       />
-                      <div className="absolute left-4 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-slate-900"></div>
+                      <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 font-black text-xs pointer-events-none">Rp</span>
                     </div>
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                    {/* THR */}
-                    <div className="p-3 sm:p-4 rounded-[24px] sm:rounded-[28px] border-2 border-dashed border-[#A68000]/30 space-y-2 sm:space-y-3 bg-white/30 flex flex-col justify-between">
+
+                  {/* THR & BONUS GRID - LARGER */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* THR CARD */}
+                    <div className="bg-emerald-50/40 p-6 sm:p-8 rounded-[36px] border-2 border-emerald-100 shadow-sm space-y-5">
                       <div className="flex justify-between items-center px-1">
-                        <label className="text-[9px] sm:text-[10px] font-black text-[#806000]/70 uppercase tracking-widest">THR</label>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                          <label className="text-[11px] font-black text-emerald-800 uppercase tracking-widest">THR</label>
+                        </div>
                         {!isReadOnlyRole && (
                           <button 
                             type="button"
                             onClick={handleAutoCalculateTHR}
-                            className="text-[7px] font-black bg-[#10b981] text-white px-2 py-0.5 rounded-md uppercase transition-all hover:bg-emerald-600 active:scale-90 shadow-sm"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-md active:scale-95"
                           >
-                            AUTO
+                            AUTO CALC
                           </button>
                         )}
                       </div>
@@ -489,23 +533,27 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                           disabled={isReadOnlyRole} 
                           value={formatCurrencyValue(data.thr)} 
                           onChange={e => setData({...data, thr: parseCurrencyInput(e.target.value)})} 
-                          className="w-full bg-white border border-[#FFD700]/50 rounded-[20px] pl-8 pr-4 py-2.5 sm:py-3.5 text-[10px] sm:text-xs font-black text-slate-800 focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-60" 
+                          className="w-full bg-white border-2 border-emerald-100 rounded-[24px] pl-14 pr-8 py-5 text-sm font-black text-emerald-900 focus:border-emerald-400 outline-none shadow-inner disabled:opacity-60 transition-all" 
                         />
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-900"></div>
+                        <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-200 font-black text-xs pointer-events-none">Rp</span>
                       </div>
                     </div>
-                    {/* BONUS */}
-                    <div className="p-3 sm:p-4 rounded-[24px] sm:rounded-[28px] border-2 border-dashed border-[#A68000]/30 space-y-2 sm:space-y-3 bg-white/30 flex flex-col justify-between">
-                      <label className="text-[9px] sm:text-[10px] font-black text-[#806000]/70 uppercase tracking-widest ml-1 text-center block">BONUS</label>
+
+                    {/* BONUS CARD */}
+                    <div className="bg-sky-50/40 p-6 sm:p-8 rounded-[36px] border-2 border-sky-100 shadow-sm space-y-5">
+                      <div className="flex items-center gap-2 px-1">
+                        <div className="w-2 h-2 rounded-full bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.5)]"></div>
+                        <label className="text-[11px] font-black text-sky-800 uppercase tracking-widest">BONUS</label>
+                      </div>
                       <div className="relative">
                         <input 
                           type="text" 
                           disabled={isReadOnlyRole} 
                           value={formatCurrencyValue(data.bonus)} 
                           onChange={e => setData({...data, bonus: parseCurrencyInput(e.target.value)})} 
-                          className="w-full bg-white border border-[#FFD700]/50 rounded-[20px] pl-8 pr-4 py-2.5 sm:py-3.5 text-[10px] sm:text-xs font-black text-slate-800 focus:border-[#FFC000] outline-none shadow-sm disabled:opacity-60" 
+                          className="w-full bg-white border-2 border-sky-100 rounded-[24px] pl-14 pr-8 py-5 text-sm font-black text-sky-900 focus:border-sky-400 outline-none shadow-inner disabled:opacity-60 transition-all" 
                         />
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-900"></div>
+                        <span className="absolute left-6 top-1/2 -translate-y-1/2 text-sky-200 font-black text-xs pointer-events-none">Rp</span>
                       </div>
                     </div>
                   </div>
@@ -606,7 +654,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                 type="button" 
                 disabled={isSaving} 
                 onClick={handleSaveConfig} 
-                className="w-full bg-[#090e18] hover:bg-black text-[#FFC000] py-6 sm:py-7 rounded-[26px] font-black transition-all shadow-xl text-[12px] sm:text-[14px] tracking-[0.3em] uppercase flex items-center justify-center gap-4 disabled:opacity-50 active:scale-[0.98] border border-white/5"
+                className="w-full bg-[#0f172a] hover:bg-black text-[#FFC000] py-6 sm:py-7 rounded-[26px] font-black transition-all shadow-xl text-[12px] sm:text-[14px] tracking-[0.3em] uppercase flex items-center justify-center gap-4 disabled:opacity-50 active:scale-[0.98] border border-white/5"
               >
                 {isSaving ? 'MEMPROSES...' : <><div className="w-3.5 h-3.5 bg-[#FFC000] rounded-sm mr-1.5 flex-shrink-0"></div> <span className="whitespace-nowrap">SIMPAN & POTONG HUTANG</span></>}
               </button>

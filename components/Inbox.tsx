@@ -48,14 +48,27 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
         current.setDate(current.getDate() + 1);
       }
 
-      // Logic updated: Do not set or change clockIn/clockOut times for Overtime approvals
-      const attendanceRecords: Partial<AttendanceRecord>[] = dates.map(date => ({
-        employeeId: sub.employeeId,
-        company: sub.company,
-        date,
-        status: sub.type,
-        notes: `Pengajuan disetujui: ${sub.notes}`
-      }));
+      const attendanceRecords: Partial<AttendanceRecord>[] = dates.map(date => {
+        let clockIn, clockOut;
+        if (sub.type === 'Lembur') {
+          // Regex lebih cerdas: mencari pola HH:MM - HH:MM atau HH.MM - HH.MM
+          const timeMatch = sub.notes.match(/(\d{1,2}[:.]\d{2})\s*-\s*(\d{1,2}[:.]\d{2})/);
+          if (timeMatch) {
+            clockIn = timeMatch[1].replace('.', ':');
+            clockOut = timeMatch[2].replace('.', ':');
+          }
+        }
+        
+        return {
+          employeeId: sub.employeeId,
+          company: sub.company,
+          date,
+          status: sub.type,
+          clockIn,
+          clockOut,
+          notes: `Pengajuan disetujui: ${sub.notes}`
+        };
+      });
 
       const { error: attError } = await supabase.from('attendance').upsert(attendanceRecords, { onConflict: 'employeeId,date' });
       if (attError) throw new Error(`Gagal mencatat absensi: ${attError.message}`);

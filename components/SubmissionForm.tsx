@@ -56,7 +56,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
     try {
       let finalNotes = notes;
       if (status === 'Lembur') {
-        finalNotes = `BRAND: ${overtimeBrand.toUpperCase()} | JAM: ${overtimeStart} - ${overtimeEnd} | ALASAN: ${notes || '-'}`;
+        finalNotes = `LEMBUR [${overtimeBrand.toUpperCase()}] | JAM: ${overtimeStart} - ${overtimeEnd} | ALASAN: ${notes || '-'}`;
       } else if (status === 'Reimburse') {
         finalNotes = `NOMINAL: Rp ${new Intl.NumberFormat('id-ID').format(Number(reimburseAmount.replace(/\D/g, '')))} | ALASAN: ${notes || '-'}`;
       }
