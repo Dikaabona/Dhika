@@ -14,7 +14,7 @@ interface InboxProps {
 
 const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRole, onUpdate }) => {
   const isOwner = userRole === 'owner';
-  const isSuper = userRole === 'super' || isOwner;
+  const isSuper = userRole === 'super';
   const isAdmin = userRole === 'admin';
   const canApproveSomething = isSuper || isAdmin;
 
@@ -249,18 +249,43 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
       <div className="space-y-6">
         <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-4">PENGUMUMAN & PESAN</h3>
         <div className="grid grid-cols-1 gap-6">
-          {myBroadcasts.map((brd) => (
-            <div key={brd.id} className="bg-white p-10 rounded-[40px] border border-slate-100 shadow-sm space-y-4 relative group hover:shadow-xl transition-all border-l-[12px] border-l-slate-900">
-              <div className="flex justify-between items-start">
-                <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight leading-none">{brd.title}</h4>
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{new Date(brd.sentAt).toLocaleDateString('id-ID')}</span>
+          {myBroadcasts.map((brd) => {
+            return (
+              <div key={brd.id} className="bg-white p-10 rounded-[40px] border border-slate-100 shadow-sm space-y-4 relative group hover:shadow-xl transition-all border-l-[12px] border-l-slate-900">
+                <div className="flex justify-between items-start">
+                  <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight leading-none">{brd.title}</h4>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{new Date(brd.sentAt).toLocaleDateString('id-ID')}</span>
+                </div>
+                <p className="text-sm text-slate-600 leading-relaxed font-medium whitespace-pre-line">{brd.message}</p>
+                
+                {brd.imageBase64 && (
+                  <div className="mt-6 space-y-4">
+                    <div className="relative group/slip rounded-[32px] overflow-hidden border border-slate-100 shadow-inner bg-slate-50 max-w-sm">
+                      <img src={brd.imageBase64} className="w-full h-auto" alt="Slip Gaji" />
+                      <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover/slip:opacity-100 transition-opacity flex items-center justify-center p-6 text-center">
+                         <button 
+                           onClick={() => {
+                             const link = document.createElement('a');
+                             link.href = brd.imageBase64!;
+                             link.download = `Slip_Gaji_${new Date(brd.sentAt).getTime()}.png`;
+                             link.click();
+                           }}
+                           className="bg-[#FFC000] text-black px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl active:scale-95 transition-all flex items-center gap-2"
+                         >
+                           <Icons.Download className="w-4 h-4" /> DOWNLOAD SLIP
+                         </button>
+                      </div>
+                    </div>
+                    <p className="text-[9px] font-bold text-slate-400 italic">Terlampir: Slip Gaji (PNG)</p>
+                  </div>
+                )}
+
+                <div className="pt-4">
+                  <span className="inline-block bg-slate-100 text-slate-500 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">OFFICIAL ANNOUNCEMENT</span>
+                </div>
               </div>
-              <p className="text-sm text-slate-600 leading-relaxed font-medium whitespace-pre-line">{brd.message}</p>
-              <div className="pt-4">
-                <span className="inline-block bg-slate-100 text-slate-500 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">OFFICIAL ANNOUNCEMENT</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
 
           {myBroadcasts.length === 0 && submissionHistory.length === 0 && pendingApprovals.length === 0 && (
             <div className="bg-slate-50 py-20 rounded-[40px] border-2 border-dashed border-slate-200 text-center">

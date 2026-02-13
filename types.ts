@@ -99,6 +99,17 @@ export interface Broadcast {
   company: string;
   targetEmployeeIds: string[];
   sentAt: string;
+  imageBase64?: string;
+}
+
+export interface Broadcast {
+  id?: string;
+  title: string;
+  message: string;
+  company: string;
+  targetEmployeeIds: string[];
+  sentAt: string;
+  imageBase64?: string;
 }
 
 export interface LiveSchedule {

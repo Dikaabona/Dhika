@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { Employee, SalaryData, AttendanceRecord } from '../types';
+import { Employee, SalaryData, AttendanceRecord, Broadcast } from '../types';
 import { Icons } from '../constants';
 import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
 import { supabase } from '../App';
@@ -327,11 +327,122 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     }
   };
 
+  const generatePDFBlob = async () => {
+    const target = isPreview ? previewSlipRef.current : hiddenSlipRef.current;
+    if (!target) return null;
+    
+    const fileName = `Slip_Gaji_${employee.nama.replace(/\s/g, '_')}_${data.month}_${data.year}.pdf`;
+    const opt = {
+      margin: 0,
+      filename: fileName,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    return await (window as any).html2pdf().from(target).set(opt).output('blob');
+  };
+
   const handleSendEmail = async () => {
-    await handleDownloadImage(true);
-    const subject = `Slip Gaji ${employee.nama} - ${data.month} ${data.year}`;
-    const body = `Halo ${employee.nama},\n\nTerlampir slip gaji Anda untuk periode ${data.month} ${data.year}.\n\nTotal Gaji Bersih: Rp ${takeHomePay.toLocaleString('id-ID')}\n\nSalam,\nHR Visibel ID`;
-    window.location.href = `mailto:${employee.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    setIsProcessing(true);
+    try {
+      const pdfBlob = await generatePDFBlob();
+      if (!pdfBlob) return;
+      const fileName = `Slip_Gaji_${employee.nama.replace(/\s/g, '_')}_${data.month}_${data.year}.pdf`;
+      
+      // Check for Web Share API support (Mobile browsers)
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File([pdfBlob], fileName, { type: 'application/pdf' })] })) {
+        const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+        await navigator.share({
+          files: [file],
+          title: `Slip Gaji ${employee.nama}`,
+          text: `Halo ${employee.nama}, berikut slip gaji periode ${data.month} ${data.year}.`
+        });
+      } else {
+        // Fallback for Desktop: Download PDF and open Mail Draft
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(pdfBlob);
+        link.download = fileName;
+        link.click();
+
+        const subject = `Slip Gaji ${employee.nama} - ${data.month} ${data.year}`;
+        const body = `Halo ${employee.nama},\n\nSlip gaji Anda untuk periode ${data.month} ${data.year} telah berhasil di-generate sebagai PDF (terunduh otomatis).\n\nSilakan lampirkan file tersebut pada email ini.\n\nTotal Gaji Bersih: Rp ${takeHomePay.toLocaleString('id-ID')}\n\nSalam,\nHR Visibel ID`;
+        window.location.href = `mailto:${employee.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        
+        alert("Slip Gaji PDF berhasil di-generate dan diunduh. Silakan lampirkan secara manual ke draf email yang terbuka.");
+      }
+    } catch (err: any) {
+      alert("Gagal memproses pengiriman: " + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSendWhatsApp = async () => {
+    setIsProcessing(true);
+    try {
+      const pdfBlob = await generatePDFBlob();
+      if (!pdfBlob) return;
+      const fileName = `Slip_Gaji_${employee.nama.replace(/\s/g, '_')}_${data.month}_${data.year}.pdf`;
+
+      // Check for Web Share API support (Mobile browsers)
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File([pdfBlob], fileName, { type: 'application/pdf' })] })) {
+        const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+        await navigator.share({
+          files: [file],
+          title: `Slip Gaji ${employee.nama}`,
+          text: `Halo ${employee.nama}, berikut slip gaji Anda untuk periode ${data.month} ${data.year}.`
+        });
+      } else {
+        // Fallback for Desktop: Download and open WA link
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(pdfBlob);
+        link.download = fileName;
+        link.click();
+
+        const message = `Halo ${employee.nama}, berikut slip gaji Anda periode ${data.month} ${data.year} (terunduh sebagai PDF). Total Gaji: Rp ${takeHomePay.toLocaleString('id-ID')}`;
+        window.open(`https://wa.me/${employee.noHandphone}?text=${encodeURIComponent(message)}`, '_blank');
+        
+        alert("Slip Gaji PDF berhasil di-generate dan diunduh. Silakan kirim file tersebut melalui WhatsApp Web.");
+      }
+    } catch (err: any) {
+      alert("Gagal memproses pengiriman WA: " + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSendToInbox = async () => {
+    const target = isPreview ? previewSlipRef.current : hiddenSlipRef.current;
+    if (!target) return;
+    
+    setIsProcessing(true);
+    try {
+      const worker = (window as any).html2pdf().from(target).set({ 
+        html2canvas: { scale: 3, useCORS: true, scrollY: 0, scrollX: 0 } 
+      });
+      const canvas = await worker.toCanvas().get('canvas');
+      const pngBase64 = canvas.toDataURL('image/png');
+
+      const newBroadcast: Broadcast = {
+        title: `SLIP GAJI ${data.month.toUpperCase()} ${data.year}`,
+        message: `Halo ${employee.nama}, berikut slip gaji Anda untuk periode ${data.month} ${data.year} dalam format gambar (PNG). Anda dapat mendownload gambar ini langsung dari Inbox sebagai arsip pribadi.`,
+        company: employee.company || 'Visibel',
+        targetEmployeeIds: [employee.id],
+        sentAt: new Date().toISOString(),
+        imageBase64: pngBase64
+      };
+
+      const { error } = await supabase.from('broadcasts').insert([newBroadcast]);
+      if (error) throw error;
+
+      alert("Slip gaji berhasil dikirim ke Inbox karyawan!");
+      if (onUpdate) onUpdate();
+    } catch (err: any) {
+      alert("Gagal mengirim ke Inbox: " + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const SalarySlipContent = () => {
@@ -643,7 +754,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                   <div className="w-8 h-8 bg-slate-200 rounded-xl flex items-center justify-center text-slate-600">
                     <Icons.Database className="w-4 h-4" />
                   </div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Pinjaman & Lain-lain</p>
+                  <p className="text-[10px] font-black text-sky-600 uppercase tracking-[0.2em]">Pinjaman & Lain-lain</p>
                 </div>
                 <span className="text-[9px] font-black text-slate-500 bg-white px-4 py-2 rounded-2xl border shadow-sm uppercase tracking-tighter self-start sm:self-auto">SISA: Rp {sisaHutang.toLocaleString('id-ID')}</span>
               </div>
@@ -696,7 +807,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                 onClick={handleSaveConfig} 
                 className="w-full bg-[#0f172a] hover:bg-black text-[#FFC000] py-6 sm:py-7 rounded-[26px] font-black transition-all shadow-xl text-[12px] sm:text-[14px] tracking-[0.3em] uppercase flex items-center justify-center gap-4 disabled:opacity-50 active:scale-[0.98] border border-white/5"
               >
-                {isSaving ? 'MEMPROSES...' : <><div className="w-3.5 h-3.5 bg-[#FFC000] rounded-sm mr-1.5 flex-shrink-0"></div> <span className="whitespace-nowrap">SIMPAN & POTONG HUTANG</span></>}
+                {isSaving ? 'MEMPROSES...' : <><div className="w-3.5 h-3.5 bg-[#FFC000] rounded-sm mr-1.5 flex-shrink-0"></div> <span className="whitespace-nowrap">SIMPAN</span></>}
               </button>
             )}
             
@@ -759,10 +870,12 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
             <div ref={previewSlipRef} className="p-0 sm:p-0"><SalarySlipContent /></div>
           </div>
           <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex gap-3 sm:gap-4 bg-white/95 backdrop-blur-xl px-6 sm:px-10 py-4 sm:py-5 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-white/50 z-[220] flex-wrap justify-center items-center w-max">
-            <button type="button" onClick={() => setIsPreview(false)} className="px-5 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 transition-colors">Tutup</button>
+            <button type="button" onClick={() => setIsPreview(false)} className="px-5 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 transition-colors">TUTUP</button>
             <div className="h-6 w-px bg-slate-200"></div>
-            <button type="button" onClick={handleDownloadImage()} className="bg-slate-900 text-white px-6 sm:px-8 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg">PNG</button>
-            <button type="button" onClick={handleSendEmail} className="bg-indigo-600 text-white px-6 sm:px-8 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg">Kirim</button>
+            <button type="button" onClick={() => handleDownloadImage()} className="bg-slate-900 text-white px-6 sm:px-8 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg">PNG</button>
+            <button type="button" onClick={handleSendEmail} className="bg-indigo-600 text-white px-6 sm:px-8 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg">EMAIL</button>
+            <button type="button" onClick={handleSendWhatsApp} className="bg-emerald-600 text-white px-6 sm:px-8 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg">KIRIM WA</button>
+            <button type="button" onClick={handleSendToInbox} className="bg-[#0f172a] text-[#FFC000] px-6 sm:px-8 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg border border-white/10">INBOX</button>
           </div>
         </div>
       )}
