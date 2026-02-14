@@ -175,7 +175,6 @@ export const App: React.FC = () => {
       };
 
       const fetchPromises = [
-        // MENINGKATKAN LIMIT DARI 300 KE 1000 UNTUK PAYROLL ACCURACY
         buildQuery('attendance').order('date', { ascending: false }).limit(1000).then(({data, error}) => { if(error) throw error; setAttendanceRecords(data || []); }),
         buildQuery('live_reports').order('tanggal', { ascending: false }).limit(200).then(({data, error}) => { if(error) throw error; setLiveReports(data || []); }),
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(100).then(({data, error}) => { if(error) throw error; setSubmissions(data || []); }),
@@ -720,11 +719,6 @@ export const App: React.FC = () => {
                             <button onClick={handleExportAllEmployees} className="bg-[#0f172a] hover:bg-black text-white p-3 rounded-full flex items-center justify-center shadow-md active:scale-95" title="Export Database">
                               <Icons.Database className="w-4 h-4" />
                             </button>
-                            {isAdminAccess && (
-                              <button onClick={() => setIsBulkSalaryOpen(true)} className="bg-[#6366f1] hover:bg-[#4f46e5] text-white p-3 rounded-full flex items-center justify-center shadow-md active:scale-95" title="Kirim Semua Slip">
-                                <Icons.Send className="w-4 h-4" />
-                              </button>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -832,8 +826,8 @@ export const App: React.FC = () => {
                         <span className="text-xs font-black text-slate-900 px-4 py-2 bg-slate-50 rounded-full border border-slate-200">{currentEmpPage} / {totalEmpPages}</span>
                       </div>
                       <div className="flex gap-3">
-                        <button disabled={currentEmpPage === 1} onClick={() => setCurrentEmpPage(prev => prev - 1)} className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 flex items-center justify-center"><Icons.ChevronDown className="w-5 h-5 rotate-90" /></button>
-                        <button disabled={currentEmpPage === totalEmpPages} onClick={() => setCurrentEmpPage(prev => prev + 1)} className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 flex items-center justify-center"><Icons.ChevronDown className="w-5 h-5 -rotate-90" /></button>
+                        <button disabled={currentEmpPage === 1} onClick={() => setCurrentEmpPage(prev => prev - 1)} className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 flex items-center justify-center transition-all shadow-sm active:scale-95"><Icons.ChevronDown className="w-5 h-5 rotate-90" /></button>
+                        <button disabled={currentEmpPage === totalEmpPages} onClick={() => setCurrentEmpPage(prev => prev + 1)} className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 flex items-center justify-center transition-all shadow-sm active:scale-95"><Icons.ChevronDown className="w-5 h-5 -rotate-90" /></button>
                       </div>
                     </div>
                   )}

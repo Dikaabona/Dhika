@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Employee } from '../types';
 import { BANK_OPTIONS, Icons } from '../constants';
@@ -48,7 +47,6 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
   const [positions, setPositions] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Sinkronisasi divisi & jabatan berdasarkan pilihan Company di form
   useEffect(() => {
     if (formData.company) {
       fetchSettings(formData.company);
@@ -57,7 +55,6 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
 
   const fetchSettings = async (targetCompany: string) => {
     try {
-      // Fetch Divisions
       const { data: divData } = await supabase.from('settings').select('value').eq('key', `divisions_${targetCompany}`).single();
       if (divData && Array.isArray(divData.value)) {
         setDivisions(divData.value);
@@ -65,7 +62,6 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
         setDivisions([]);
       }
 
-      // Fetch Positions (Jabatan)
       const { data: posData } = await supabase.from('settings').select('value').eq('key', `positions_${targetCompany}`).single();
       if (posData && Array.isArray(posData.value)) {
         setPositions(posData.value);
@@ -135,11 +131,9 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target as HTMLInputElement;
     
-    // Proteksi Field Berdasarkan Role
     const restrictedFields = ['idKaryawan', 'jabatan', 'tanggalMasuk', 'hutang', 'isRemoteAllowed'];
     if (!isSystemAdmin && restrictedFields.includes(name)) return;
 
-    // Spesifik untuk Company: Hanya Owner yang bisa ubah
     if (name === 'company' && !isOwner) return;
 
     if (type === 'checkbox') {
@@ -162,7 +156,6 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
 
     setFormData(prev => ({ ...prev, [name]: value }));
     
-    // Clear error for field when typing
     if (errors[name]) {
       setErrors(prev => {
         const next = { ...prev };
@@ -216,18 +209,15 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
     
-    // Tempat Lahir Required
     if (!formData.tempatLahir.trim()) {
       newErrors.tempatLahir = "Tempat lahir wajib diisi.";
     }
 
-    // Tanggal Lahir DD/MM/YYYY validation
     const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
     if (!dateRegex.test(formData.tanggalLahir)) {
       newErrors.tanggalLahir = "Format harus DD/MM/YYYY (contoh: 01/01/1995).";
     }
 
-    // Nomor KTP 16 Digits validation
     if (formData.noKtp.length !== 16) {
       newErrors.noKtp = "Nomor KTP harus tepat 16 digit.";
     }
@@ -239,6 +229,21 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+
+    // RULE DATA BENTROK / DOUBLE
+    const isDuplicateId = employees.some(emp => 
+      emp.idKaryawan.trim().toUpperCase() === formData.idKaryawan.trim().toUpperCase() && 
+      emp.id !== initialData?.id
+    );
+    const isDuplicateEmail = employees.some(emp => 
+      emp.email.trim().toLowerCase() === formData.email.trim().toLowerCase() && 
+      emp.id !== initialData?.id
+    );
+
+    if (isDuplicateId || isDuplicateEmail) {
+      alert("DATA BENTROK! ID Karyawan atau Email ini sudah terdaftar dalam sistem. Silakan periksa kembali.");
+      return;
+    }
 
     onSave({
       ...formData,

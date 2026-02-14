@@ -41,11 +41,6 @@ const DEFAULT_HOLIDAYS = {
   'SENIN': [], 'SELASA': [], 'RABU': [], 'KAMIS': [], 'JUMAT': [], 'SABTU': [], 'MINGGU': []
 };
 
-const formatDateToYMD = (dateStr: string) => {
-  if (!dateStr || !dateStr.includes('-')) return dateStr;
-  return dateStr.replace(/-/g, '/');
-};
-
 const isDateInRange = (target: string, start: string, end: string) => {
   const t = new Date(target).getTime();
   const s = new Date(start).getTime();
@@ -63,16 +58,16 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   const [localSearch, setLocalSearch] = useState('');
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('SEMUA BRAND');
   const [showEmptySlots, setShowEmptySlots] = useState(false); 
-  const [isImporting, setIsImporting] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
   
   const [holidayStartDate, setHolidayStartDate] = useState(getMondayISO(new Date()));
   const [holidayEndDate, setHolidayEndDate] = useState(getSundayISO(new Date()));
 
   const [weeklyHolidays, setWeeklyHolidays] = useState<Record<string, string[]>>(DEFAULT_HOLIDAYS);
   const [brands, setBrands] = useState<any[]>(INITIAL_BRANDS);
-
-  const scheduleFileInputRef = useRef<HTMLInputElement>(null);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchBrandsAndHolidays();
@@ -129,41 +124,6 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
     return map;
   }, [employees]);
 
-  const findEmployeeIdByName = (name: string) => {
-    const search = String(name || '').trim().toUpperCase();
-    if (!search || search === 'TBA' || search === '-') return '';
-    const match = employees.find(e => e.nama.toUpperCase() === search || e.nama.toUpperCase().includes(search));
-    return match ? match.id : '';
-  };
-
-  const parseExcelDate = (val: any) => {
-    if (!val) return '';
-    if (val instanceof Date) return formatDateToYYYYMMDD(val);
-    
-    // Handle excel numeric date
-    if (typeof val === 'number') {
-      const date = new Date((val - 25569) * 86400 * 1000);
-      return formatDateToYYYYMMDD(date);
-    }
-
-    const str = String(val).trim();
-    if (str.includes('/')) {
-      const parts = str.split('/');
-      if (parts.length === 3) {
-        if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-      }
-    }
-    if (str.includes('-')) {
-      const parts = str.split('-');
-      if (parts.length === 3) {
-        if (parts[0].length === 4) return str;
-        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-      }
-    }
-    return str;
-  };
-
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -175,57 +135,81 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         const workbook = XLSX.read(data, { type: 'array', cellDates: true });
         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         
-        const rawSchedules = jsonData.map((row: any) => {
-          const formattedDate = parseExcelDate(row['TANGGAL']);
-          const brand = String(row['BRAND'] || '').trim().toUpperCase();
-          const hourSlot = String(row['SLOT WAKTU'] || '').trim();
-
-          if (!formattedDate || !brand || !hourSlot) return null;
+        const rawParsedSchedules = jsonData.map((row: any) => {
+          const brand = String(row['BRAND'] || '').toUpperCase().trim();
+          let rawDate = row['TANGGAL'];
+          let formattedDate = '';
           
+          if (rawDate instanceof Date) {
+            formattedDate = formatDateToYYYYMMDD(rawDate);
+          } else if (typeof rawDate === 'number') {
+             const date = new Date((rawDate - 25569) * 86400 * 1000);
+             formattedDate = formatDateToYYYYMMDD(date);
+          } else {
+             formattedDate = String(rawDate || '').trim();
+          }
+
+          const hourSlot = String(row['SLOT WAKTU'] || '').trim();
+          const hostName = String(row['NAMA HOST'] || '').trim().toUpperCase();
+          const opName = String(row['NAMA OPERATOR'] || '').trim().toUpperCase();
+          
+          const hostId = employees.find(e => e.nama.toUpperCase() === hostName)?.id || '';
+          const opId = employees.find(e => e.nama.toUpperCase() === opName)?.id || '';
+
+          if (!brand || !formattedDate || !hourSlot) return null;
+
           return {
             date: formattedDate,
-            brand: brand,
-            hourSlot: hourSlot,
-            hostId: findEmployeeIdByName(row['NAMA HOST']),
-            opId: findEmployeeIdByName(row['NAMA OPERATOR']),
-            company: company
+            brand,
+            hourSlot,
+            company,
+            hostId,
+            opId
           };
-        }).filter((s): s is LiveSchedule => s !== null);
+        }).filter(s => s !== null);
 
-        if (rawSchedules.length > 0) {
-          const uniqueMap = new Map<string, LiveSchedule>();
-          rawSchedules.forEach((item) => {
-            const key = `${item.date}_${item.brand}_${item.hourSlot}`;
-            uniqueMap.set(key, item);
+        if (rawParsedSchedules.length > 0) {
+          // RULE: DATA BENTROK / DOUBLE
+          let doubleCount = 0;
+          rawParsedSchedules.forEach((s: any) => {
+            if (schedules.some(ex => ex.date === s.date && ex.brand === s.brand && ex.hourSlot === s.hourSlot)) {
+              doubleCount++;
+            }
           });
-          const finalBatch = Array.from(uniqueMap.values());
 
-          const { data: upsertedData, error } = await supabase
+          if (doubleCount > 0) {
+            if (!confirm(`DATA DOUBLE TERDETEKSI! Ada ${doubleCount} jadwal yang sudah terdaftar di sistem. Tetap impor dan timpa data lama?`)) {
+              setIsImporting(false);
+              return;
+            }
+          }
+
+          const { data: inserted, error } = await supabase
             .from('schedules')
-            .upsert(finalBatch, { onConflict: 'date,brand,hourSlot' })
+            .upsert(rawParsedSchedules, { onConflict: 'date,brand,hourSlot' })
             .select();
-          
-          if (error) throw error;
 
+          if (error) throw error;
+          
           setSchedules(prev => {
             const updated = [...prev];
-            upsertedData?.forEach(newItem => {
-              const idx = updated.findIndex(s => s.date === newItem.date && s.brand === newItem.brand && s.hourSlot === newItem.hourSlot);
-              if (idx !== -1) updated[idx] = newItem;
-              else updated.push(newItem);
+            inserted?.forEach(item => {
+              const idx = updated.findIndex(s => s.date === item.date && s.brand === item.brand && s.hourSlot === item.hourSlot);
+              if (idx !== -1) updated[idx] = item;
+              else updated.push(item);
             });
             return updated;
           });
-
-          alert(`Berhasil mengimpor ${finalBatch.length} jadwal!`);
+          
+          alert(`Berhasil mengimpor ${inserted?.length} jadwal!`);
         } else {
-          alert("Tidak ada data valid yang ditemukan. Pastikan kolom TANGGAL, BRAND, dan SLOT WAKTU terisi.");
+          alert("Tidak ada data valid yang ditemukan.");
         }
       } catch (err: any) { 
         alert("Gagal impor: " + err.message); 
       } finally { 
         setIsImporting(false); 
-        if (scheduleFileInputRef.current) scheduleFileInputRef.current.value = ''; 
+        if (fileInputRef.current) fileInputRef.current.value = ''; 
       }
     };
     reader.readAsArrayBuffer(file);
@@ -291,6 +275,22 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         return [data[0], ...prev];
       });
     } catch (err: any) { alert("Gagal update: " + err.message); }
+  };
+
+  const deleteScheduleSlot = async (date: string, brand: string, hourSlot: string) => {
+    if (readOnly) return;
+    if (!confirm(`Hapus jadwal manual untuk ${brand} pada ${date} jam ${hourSlot}?`)) return;
+    try {
+      const { error } = await supabase
+        .from('schedules')
+        .delete()
+        .match({ date, brand: brand.toUpperCase(), hourSlot, company });
+      
+      if (error) throw error;
+      setSchedules(prev => prev.filter(s => !(s.date === date && s.brand === brand.toUpperCase() && s.hourSlot === hourSlot)));
+    } catch (err: any) {
+      alert("Gagal menghapus: " + err.message);
+    }
   };
 
   const holidayDates = useMemo(() => {
@@ -364,9 +364,9 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
               <div className="flex flex-col gap-4">
                 <div className="flex gap-3 sm:gap-4">
                   <button onClick={handleDownloadScheduleTemplate} className="flex-1 bg-slate-50 text-slate-500 px-4 py-3 rounded-[16px] text-[8px] sm:text-[11px] font-bold uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 hover:bg-slate-100 transition-all"><Icons.Download className="w-4 h-4" /> TEMPLATE</button>
-                  <input type="file" ref={scheduleFileInputRef} onChange={handleImportExcel} className="hidden" accept=".xlsx,.xls" />
-                  <button onClick={() => scheduleFileInputRef.current?.click()} disabled={isImporting} className="flex-1 bg-[#EFF6FF] text-blue-700 px-4 py-3 rounded-[16px] text-[8px] sm:text-[11px] font-bold uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 hover:bg-blue-100 transition-all disabled:opacity-50">
-                    <Icons.Upload className="w-4 h-4" /> {isImporting ? 'IMPORTING...' : 'IMPORT'}
+                  <input type="file" ref={fileInputRef} onChange={handleImportExcel} className="hidden" accept=".xlsx,.xls" />
+                  <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="flex-1 bg-white border border-slate-200 text-slate-900 px-4 py-3 rounded-[16px] text-[8px] sm:text-[11px] font-bold uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 hover:bg-slate-50 transition-all">
+                    <Icons.Upload className="w-4 h-4" /> {isImporting ? 'PROSES...' : 'IMPORT'}
                   </button>
                   <button onClick={handleExportExcel} className="flex-1 bg-[#ECFDF5] text-emerald-700 px-4 py-3 rounded-[16px] text-[8px] sm:text-[11px] font-bold uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 hover:bg-emerald-100 transition-all"><Icons.Download className="w-4 h-4" /> EKSPOR</button>
                 </div>
@@ -451,8 +451,18 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                             {brandsForSlot.map((brand: any) => {
                               const sched = schedules.find(s => s.date === date && s.brand === brand.name.toUpperCase() && s.hourSlot === slot) || { hostId: '', opId: '' };
                               return (
-                                <div key={`${date}-${slot}-${brand.name}`} className="bg-white border border-slate-100 rounded-[24px] p-6 space-y-4 shadow-sm hover:shadow-md transition-all">
-                                  <p className="text-[10px] font-black text-[#111827] uppercase tracking-widest border-b pb-2">{brand.name}</p>
+                                <div key={`${date}-${slot}-${brand.name}`} className="bg-white border border-slate-100 rounded-[24px] p-6 space-y-4 shadow-sm hover:shadow-md transition-all relative group/slot">
+                                  <div className="flex justify-between items-center border-b pb-2">
+                                    <p className="text-[10px] font-black text-[#111827] uppercase tracking-widest">{brand.name}</p>
+                                    {!readOnly && (sched.hostId || sched.opId) && (
+                                      <button 
+                                        onClick={() => deleteScheduleSlot(date, brand.name, slot)}
+                                        className="text-rose-400 hover:text-rose-600 opacity-0 group-hover/slot:opacity-100 transition-all p-1"
+                                      >
+                                        <Icons.Trash className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
                                   <div className="grid grid-cols-2 gap-4">
                                      <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 uppercase">HOST</label><select value={sched.hostId} disabled={readOnly} onChange={(e) => updateSchedule(date, brand.name, slot, 'hostId', e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-3 text-[10px] font-black appearance-none cursor-pointer text-black outline-none"><option value=""></option>{hostList.map(h => <option key={h.id} value={h.id}>{h.nama.toUpperCase()}</option>)}</select></div>
                                      <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 uppercase">OP</label><select value={sched.opId} disabled={readOnly} onChange={(e) => updateSchedule(date, brand.name, slot, 'opId', e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-3 text-[10px] font-black appearance-none cursor-pointer text-black outline-none"><option value=""></option>{opList.map(o => <option key={o.id} value={o.id}>{o.nama.toUpperCase()}</option>)}</select></div>
