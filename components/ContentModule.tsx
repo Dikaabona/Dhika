@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, ContentPlan } from '../types';
@@ -32,6 +31,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   const [selectedBrandFilter, setSelectedBrandFilter] = useState<string>('ALL');
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [isProcessingExcel, setIsProcessingExcel] = useState(false);
+  const [isPhotoLoading, setIsPhotoLoading] = useState(false);
   const [localSearch, setLocalSearch] = useState('');
 
   // Date Range State
@@ -63,7 +63,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
 
   const fetchCloudConfigs = async () => {
     try {
-      // Fetch Brands
       const { data: brandData } = await supabase.from('settings').select('*').eq('key', `content_brands_config_${company}`).single();
       if (brandData?.value) {
         setBrands(brandData.value);
@@ -75,7 +74,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         ]);
       }
 
-      // Fetch Pillars
       const { data: pillarData } = await supabase.from('settings').select('*').eq('key', `content_pillars_config_${company}`).single();
       if (pillarData?.value) {
         setPillars(pillarData.value);
@@ -84,6 +82,28 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       }
     } catch (err) {
       console.warn("Gagal memuat config cloud content.");
+    }
+  };
+
+  const fetchScreenshot = async (id: string) => {
+    setIsPhotoLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('content_plans')
+        .select('screenshotBase64')
+        .eq('id', id)
+        .single();
+      
+      if (error) throw error;
+      if (data?.screenshotBase64) {
+        setZoomedImage(data.screenshotBase64);
+      } else {
+        alert("Screenshot tidak ditemukan.");
+      }
+    } catch (err: any) {
+      alert("Gagal memuat screenshot: " + err.message);
+    } finally {
+      setIsPhotoLoading(false);
     }
   };
 
@@ -231,25 +251,37 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     return plans.filter(p => {
       const matchesSearch = (p.brand || '').toLowerCase().includes(finalSearch) || (p.title || '').toLowerCase().includes(finalSearch);
       const matchesBrand = selectedBrandFilter === 'ALL' || p.brand === selectedBrandFilter;
-      
-      // Filter Tanggal
       const matchesDate = (!startDate || (p.postingDate && p.postingDate >= startDate)) && 
                           (!endDate || (p.postingDate && p.postingDate <= endDate));
-
       return matchesSearch && matchesBrand && matchesDate;
     });
   }, [plans, globalSearch, localSearch, selectedBrandFilter, startDate, endDate]);
 
-  // Paginated Data
   const totalPages = Math.ceil(filteredPlans.length / rowsPerPage);
   const paginatedPlans = useMemo(() => {
     const start = (currentPage - 1) * rowsPerPage;
     return filteredPlans.slice(start, start + rowsPerPage);
   }, [filteredPlans, currentPage]);
 
-  const handleOpenModal = (plan?: ContentPlan) => {
+  const handleOpenModal = async (plan?: ContentPlan) => {
     if (plan) {
       setEditingPlan(plan);
+      // Lazy load screenshot if editing
+      let ss = '';
+      if (plan.id) {
+         try {
+           const { data } = await supabase.from('content_plans').select('screenshotBase64').eq('id', plan.id).single();
+           ss = data?.screenshotBase64 || '';
+         } catch(e) {}
+      }
+
+      // PERBAIKAN: Ambil jamUpload dari notes jika kolom DB tidak ada
+      let extractedJam = plan.jamUpload || '';
+      if (!extractedJam && plan.notes && plan.notes.includes('[Time:')) {
+          const match = plan.notes.match(/\[Time:\s*(\d{2}:\d{2})\]/);
+          if (match) extractedJam = match[1];
+      }
+
       setFormData({ 
         ...plan,
         deadline: plan.deadline || '',
@@ -259,12 +291,13 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         saves: plan.saves || 0,
         shares: plan.shares || 0,
         postingDate: plan.postingDate || new Date().toISOString().split('T')[0],
-        jamUpload: plan.jamUpload || '19:00',
+        jamUpload: extractedJam || '19:00',
         captionHashtag: plan.captionHashtag || '',
         linkPostingan: plan.linkPostingan || '',
         brand: plan.brand || (brands[0]?.name || ''),
         creatorId: plan.creatorId || (isCreator ? currentEmployee?.id || '' : ''),
-        contentPillar: plan.contentPillar || (pillars[0] || '')
+        contentPillar: plan.contentPillar || (pillars[0] || ''),
+        screenshotBase64: ss
       });
     } else {
       setEditingPlan(null);
@@ -301,6 +334,9 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     const finalTitle = `${formData.brand} - ${formData.postingDate || 'No Date'}`;
     const { jamUpload, ...formDataRest } = formData;
 
+    // Siasati jamUpload ke dalam kolom notes agar tidak butuh kolom DB baru
+    const cleanNotes = (formData.notes || '').replace(/\[Time:\s*\d{2}:\d{2}\]/g, '').trim();
+
     const dataToSave: any = { 
       ...formDataRest, 
       title: finalTitle, 
@@ -310,13 +346,14 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       views: Number(formData.views || 0),
       saves: Number(formData.saves || 0),
       shares: Number(formData.shares || 0),
-      notes: `${formData.notes || ''}${jamUpload ? ` [Time: ${jamUpload}]` : ''}`.trim()
+      notes: `${cleanNotes}${jamUpload ? ` [Time: ${jamUpload}]` : ''}`.trim()
     };
 
     if (editingPlan?.id) dataToSave.id = editingPlan.id;
 
     try {
-      const { data, error } = await supabase.from('content_plans').upsert(dataToSave).select();
+      // PERBAIKAN: Menghapus jamUpload dari select result
+      const { data, error } = await supabase.from('content_plans').upsert(dataToSave).select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar');
       
       if (error) throw error;
       
@@ -426,7 +463,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     XLSX.writeFile(workbook, `Report_Konten_Visibel_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  // ADDED FIX: implementation of handleImportExcel which was missing
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -460,7 +496,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           const brand = String(row['BRAND'] || '').trim().toUpperCase();
           const creatorName = String(row['CREATOR'] || '').trim();
           const creatorId = findCreatorIdByName(creatorName);
-          
           if (!brand || !creatorId) return null;
 
           return {
@@ -484,7 +519,8 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         }).filter((p): p is any => p !== null);
 
         if (rawPlans.length > 0) {
-          const { data: inserted, error } = await supabase.from('content_plans').upsert(rawPlans).select();
+          // PERBAIKAN: Menghapus jamUpload dari select result
+          const { data: inserted, error } = await supabase.from('content_plans').upsert(rawPlans).select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar');
           if (error) throw error;
           
           setPlans(prev => {
@@ -585,6 +621,15 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         </div>
       )}
 
+      {isPhotoLoading && (
+        <div className="fixed inset-0 bg-white/40 backdrop-blur-[2px] z-[250] flex items-center justify-center">
+           <div className="bg-slate-900 text-[#FFC000] px-8 py-4 rounded-3xl shadow-2xl flex items-center gap-4 animate-in zoom-in duration-300">
+              <div className="w-5 h-5 border-2 border-[#FFC000]/20 border-t-[#FFC000] rounded-full animate-spin"></div>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em]">Memproses Gambar...</p>
+           </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-[32px] sm:rounded-[48px] shadow-sm border border-slate-100 overflow-hidden">
         <div className="px-6 sm:px-12 py-8 sm:py-14 border-b flex flex-col items-start bg-white gap-6 sm:gap-10">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-6">
@@ -598,7 +643,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                 </div>
               </div>
 
-              {/* DATE RANGE PICKER */}
               <div className="flex items-center gap-3 px-6 py-3 bg-slate-50 rounded-[22px] shadow-inner border border-slate-100 shrink-0">
                 <div className="flex flex-col items-start min-w-[100px]">
                   <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Mulai</span>
@@ -677,7 +721,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       {isManagingSettings && hasFullAccess && (
         <div className="bg-[#0f172a] p-8 sm:p-12 rounded-[48px] text-white shadow-2xl space-y-12 animate-in slide-in-from-top-4 duration-500 border border-white/5">
           <div className="flex flex-col gap-12">
-            {/* BRAND MANAGEMENT */}
             <div className="space-y-8">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-8">
                 <div className="flex flex-col">
@@ -755,7 +798,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
               </div>
             </div>
 
-            {/* CONTENT PILLAR MANAGEMENT */}
             <div className="space-y-8 pt-8 border-t border-white/10">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-8">
                 <div className="flex flex-col">
@@ -852,20 +894,28 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
               {paginatedPlans.map(plan => {
                 const er = calculateEngagementRate(plan);
                 const erValue = parseFloat(er);
+
+                // Siasati tampilan jam dari notes jika kolom DB tidak ada
+                let jamDisplay = plan.jamUpload || '';
+                if (!jamDisplay && plan.notes && plan.notes.includes('[Time:')) {
+                    const match = plan.notes.match(/\[Time:\s*(\d{2}:\d{2})\]/);
+                    if (match) jamDisplay = match[1];
+                }
+
                 return (
                   <tr key={plan.id} className="hover:bg-slate-50/70 transition-all duration-300 group border-b border-slate-50 last:border-0">
                     <td className="px-10 py-8 whitespace-nowrap">
                       <div className="flex items-center gap-5">
                         <div 
-                          onClick={() => plan.screenshotBase64 && setZoomedImage(plan.screenshotBase64)} 
-                          className={`w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-300 transition-all shadow-inner border-2 border-white ring-1 ring-slate-100 ${plan.screenshotBase64 ? 'cursor-zoom-in hover:scale-105 active:scale-95 group-hover:rotate-2' : ''}`}
+                          onClick={() => plan.id && fetchScreenshot(plan.id)} 
+                          className={`w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-300 transition-all shadow-inner border-2 border-white ring-1 ring-slate-100 cursor-zoom-in hover:scale-105 active:scale-95 group-hover:rotate-2`}
                         >
-                          {plan.screenshotBase64 ? <img src={plan.screenshotBase64} className="w-full h-full object-cover rounded-xl" alt="" /> : <Icons.Image className="w-6 h-6" />}
+                          <Icons.Image className="w-6 h-6" />
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center gap-3">
                             <p className="font-black text-slate-900 text-[14px] uppercase tracking-tight">{plan.brand}</p>
-                            <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100 shadow-sm uppercase tracking-tighter">{plan.jamUpload || '-'}</span>
+                            <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100 shadow-sm uppercase tracking-tighter">{jamDisplay || '-'}</span>
                           </div>
                           <div className="flex items-center gap-3">
                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{plan.postingDate}</p>
@@ -933,7 +983,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           </table>
         </div>
 
-        {/* Pagination UI */}
         {totalPages > 1 && (
           <div className="px-10 py-6 flex items-center justify-between border-t border-slate-100 bg-slate-50/30">
             <div className="flex items-center gap-3">

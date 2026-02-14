@@ -20,6 +20,8 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
 
   const [historyPage, setHistoryPage] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
+  const [isPhotoLoading, setIsPhotoLoading] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -29,6 +31,28 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
   }, []);
 
   const itemsPerPage = isMobile ? 3 : 10;
+
+  const fetchBroadcastImage = async (id: string) => {
+    setIsPhotoLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('broadcasts')
+        .select('imageBase64')
+        .eq('id', id)
+        .single();
+      
+      if (error) throw error;
+      if (data?.imageBase64) {
+        setZoomedImage(data.imageBase64);
+      } else {
+        alert("Gambar tidak ditemukan.");
+      }
+    } catch (err: any) {
+      alert("Gagal memuat gambar: " + err.message);
+    } finally {
+      setIsPhotoLoading(false);
+    }
+  };
 
   const handleApprove = async (sub: Submission) => {
     if (!sub.id) {
@@ -56,7 +80,6 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
         let clockOut = '--:--';
         
         if (sub.type === 'Lembur') {
-          // Regex lebih cerdas: mencari pola HH:MM - HH:MM atau HH.MM - HH.MM
           const timeMatch = sub.notes.match(/(\d{1,2}[:.]\d{2})\s*-\s*(\d{1,2}[:.]\d{2})/);
           if (timeMatch) {
             clockIn = timeMatch[1].replace('.', ':');
@@ -112,7 +135,6 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
   const pendingApprovals = useMemo(() => {
     const pending = submissions.filter(s => s.status === 'Pending');
     if (isSuper) return pending;
-    // Aturan baru: role 'admin' hanya bisa melihat pengajuan 'Lembur'
     if (isAdmin) return pending.filter(s => s.type === 'Lembur');
     return [];
   }, [submissions, isSuper, isAdmin]);
@@ -120,10 +142,7 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
   const submissionHistory = useMemo(() => {
     let base = submissions.filter(s => s.status !== 'Pending');
     if (!isSuper && employee) {
-      // Jika admin, biarkan melihat history lembur semua orang atau hanya miliknya?
-      // Untuk kesederhanaan, jika bukan super tetap filter berdasarkan employeeId kecuali admin bisa melihat semua tipe Lembur
       if (isAdmin) {
-         // Admin bisa lihat history lembur semua orang, tapi pengajuan lain hanya miliknya
          base = base.filter(s => s.employeeId === employee.id || s.type === 'Lembur');
       } else {
          base = base.filter(s => s.employeeId === employee.id);
@@ -151,6 +170,21 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
 
   return (
     <div className="space-y-10 animate-in fade-in duration-500 max-w-7xl mx-auto">
+      {zoomedImage && (
+        <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setZoomedImage(null)}>
+          <img src={zoomedImage} className="max-w-full max-h-[80vh] rounded-[32px] shadow-2xl border-4 border-white/10 scale-95 animate-in zoom-in-95 duration-300" alt="Verifikasi" />
+        </div>
+      )}
+
+      {isPhotoLoading && (
+        <div className="fixed inset-0 bg-white/40 backdrop-blur-[2px] z-[250] flex items-center justify-center">
+           <div className="bg-slate-900 text-[#FFC000] px-8 py-4 rounded-3xl shadow-2xl flex items-center gap-4 animate-in zoom-in duration-300">
+              <div className="w-5 h-5 border-2 border-[#FFC000]/20 border-t-[#FFC000] rounded-full animate-spin"></div>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em]">Memproses Lampiran...</p>
+           </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-5 mb-12">
         <div className="bg-[#0f172a] p-4 rounded-2xl text-[#FFC000] shadow-xl">
           <Icons.Mail className="w-8 h-8" />
@@ -258,27 +292,16 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
                 </div>
                 <p className="text-sm text-slate-600 leading-relaxed font-medium whitespace-pre-line">{brd.message}</p>
                 
-                {brd.imageBase64 && (
-                  <div className="mt-6 space-y-4">
-                    <div className="relative group/slip rounded-[32px] overflow-hidden border border-slate-100 shadow-inner bg-slate-50 max-w-sm">
-                      <img src={brd.imageBase64} className="w-full h-auto" alt="Slip Gaji" />
-                      <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover/slip:opacity-100 transition-opacity flex items-center justify-center p-6 text-center">
-                         <button 
-                           onClick={() => {
-                             const link = document.createElement('a');
-                             link.href = brd.imageBase64!;
-                             link.download = `Slip_Gaji_${new Date(brd.sentAt).getTime()}.png`;
-                             link.click();
-                           }}
-                           className="bg-[#FFC000] text-black px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl active:scale-95 transition-all flex items-center gap-2"
-                         >
-                           <Icons.Download className="w-4 h-4" /> DOWNLOAD SLIP
-                         </button>
-                      </div>
-                    </div>
-                    <p className="text-[9px] font-bold text-slate-400 italic">Terlampir: Slip Gaji (PNG)</p>
-                  </div>
-                )}
+                <div className="mt-6 space-y-4">
+                  <button 
+                    onClick={() => brd.id && fetchBroadcastImage(brd.id)}
+                    className="bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 flex items-center gap-3 hover:bg-slate-100 transition-all group/btn"
+                  >
+                    <Icons.Image className="w-5 h-5 text-slate-400 group-hover/btn:text-indigo-500" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Lihat Lampiran Gambar</span>
+                  </button>
+                  <p className="text-[9px] font-bold text-slate-400 italic">Gunakan tombol di atas untuk memuat lampiran (Slip Gaji/Pengumuman).</p>
+                </div>
 
                 <div className="pt-4">
                   <span className="inline-block bg-slate-100 text-slate-500 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">OFFICIAL ANNOUNCEMENT</span>

@@ -1,7 +1,9 @@
+
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { Employee, Submission, Broadcast, ContentPlan, AttendanceRecord, ShiftAssignment, Shift } from '../types';
 import { Icons, DEFAULT_SHIFTS } from '../constants';
 import { getDaysUntilBirthday, formatDateToYYYYMMDD } from '../utils/dateUtils';
+import { supabase } from '../App';
 
 interface DashboardProps {
   employees: Employee[];
@@ -20,6 +22,7 @@ interface DashboardProps {
   onOpenBroadcast?: () => void;
   onOpenDrive?: () => void;
   onViewProfile?: (emp: Employee) => void;
+  onRefreshData?: () => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -36,27 +39,26 @@ const Dashboard: React.FC<DashboardProps> = ({
   onNavigate,
   onOpenBroadcast,
   onOpenDrive,
-  onViewProfile
+  onViewProfile,
+  onRefreshData
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isLateModalOpen, setIsLateModalOpen] = useState(false);
+  const [isUpdatingTracking, setIsUpdatingTracking] = useState(false);
   
   const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super' || isOwner;
   const isAdmin = userRole === 'admin' || isSuper;
 
-  // Google Drive hanya untuk company Visibel atau akses Owner (Global)
   const showDrive = useMemo(() => {
     return isSuper && (userCompany.toLowerCase() === 'visibel' || isOwner);
   }, [isSuper, userCompany, isOwner]);
 
-  // Real-time clock for the attendance card
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Stats Data
   const unreadSubmissions = useMemo(() => submissions.filter(s => s.status === 'Pending').length, [submissions]);
   
   const todayRecord = useMemo(() => {
@@ -75,7 +77,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const isLate = useMemo(() => {
     if (!todayRecord?.clockIn || !todayShift?.startTime) return false;
-    // Simple HH:MM comparison
     return todayRecord.clockIn > todayShift.startTime;
   }, [todayRecord, todayShift]);
 
@@ -114,8 +115,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   const saldoCuti = useMemo(() => {
     if (tenureYears < 1 || !currentUserEmployee) return 0;
     const currentYear = new Date().getFullYear();
-    
-    // Penyesuaian Manual
     const name = currentUserEmployee.nama.toLowerCase();
     let adjustment = 0;
     if (name.includes('fikry aditya rizky')) adjustment = 2;
@@ -133,7 +132,26 @@ const Dashboard: React.FC<DashboardProps> = ({
     return Math.max(0, 12 - used - adjustment);
   }, [tenureYears, currentUserEmployee, attendanceRecords]);
 
-  // Icons for Grid Menu
+  const handleToggleTracking = async () => {
+    if (!currentUserEmployee || isUpdatingTracking) return;
+    setIsUpdatingTracking(true);
+    const newVal = !currentUserEmployee.isTrackingActive;
+    try {
+      const { error } = await supabase
+        .from('employees')
+        .update({ isTrackingActive: newVal })
+        .eq('id', currentUserEmployee.id);
+      
+      if (error) throw error;
+      if (onRefreshData) onRefreshData();
+      alert(`Live Tracking ${newVal ? 'DIAKTIFKAN' : 'DIMATIKAN'}. Pastikan aplikasi tetap terbuka.`);
+    } catch (e: any) {
+      alert("Gagal update tracking: " + e.message);
+    } finally {
+      setIsUpdatingTracking(false);
+    }
+  };
+
   const menuItems = useMemo(() => {
     const base = [
       { id: 'absen', label: 'Absensi', icon: <Icons.Camera className="w-5 h-5" />, tab: 'absen' },
@@ -148,6 +166,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     if (isSuper) {
       base.push({ id: 'kpi', label: 'KPI Performance', icon: <Icons.Sparkles className="w-5 h-5" />, tab: 'kpi' });
+      base.push({ id: 'live_map', label: 'Live Map', icon: <Icons.MapPin className="w-5 h-5" />, tab: 'live_map' });
     }
 
     return base;
@@ -156,10 +175,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   return (
     <div className="space-y-5 md:space-y-10 pb-4 md:pb-20">
       
-      {/* --- MOBILE VIEW (Hidden on Desktop) --- */}
       <div className="md:hidden space-y-5 animate-in fade-in duration-500">
         
-        {/* User Profile Header - Optimized & Clickable */}
         <div 
           onClick={() => currentUserEmployee && onViewProfile && onViewProfile(currentUserEmployee)}
           className="flex items-center gap-3 px-2 cursor-pointer group active:scale-95 transition-transform"
@@ -183,7 +200,30 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {/* LIVE ATTENDANCE CARD - Rapi & Compact */}
+        {/* LIVE TRACKER TOGGLE (Hanya Mobile) */}
+        <div className="px-2">
+          <div className={`rounded-[24px] p-5 border shadow-sm transition-all flex items-center justify-between ${currentUserEmployee?.isTrackingActive ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
+             <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${currentUserEmployee?.isTrackingActive ? 'bg-emerald-500 text-white animate-pulse' : 'bg-slate-200 text-slate-400'}`}>
+                   <Icons.MapPin className="w-5 h-5" />
+                </div>
+                <div>
+                   <p className="text-[10px] font-black text-slate-900 uppercase">Live Location Tracking</p>
+                   <p className={`text-[8px] font-bold uppercase tracking-widest ${currentUserEmployee?.isTrackingActive ? 'text-emerald-600' : 'text-slate-400'}`}>
+                     {currentUserEmployee?.isTrackingActive ? 'GPS AKTIF & TERPANTAU' : 'GPS TIDAK AKTIF'}
+                   </p>
+                </div>
+             </div>
+             <button 
+              onClick={handleToggleTracking}
+              disabled={isUpdatingTracking}
+              className={`w-14 h-8 rounded-full relative transition-all duration-300 ${currentUserEmployee?.isTrackingActive ? 'bg-emerald-600' : 'bg-slate-300'}`}
+             >
+                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all duration-300 ${currentUserEmployee?.isTrackingActive ? 'left-7' : 'left-1'}`}></div>
+             </button>
+          </div>
+        </div>
+
         <div className="px-2">
           <div className="bg-white rounded-[28px] overflow-hidden shadow-lg shadow-slate-200/50 border border-slate-100 relative group">
             <div className="bg-[#0f172a] px-5 py-4 flex justify-center items-center">
@@ -200,7 +240,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <p className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-1">Current System Time</p>
               </div>
 
-              {/* JADWAL SHIFT SECTION */}
               <div className="w-full flex flex-col items-center gap-2">
                 <div className="bg-indigo-50 px-4 py-2 rounded-full border border-indigo-100 flex items-center gap-2">
                   <Icons.Clock className="w-3 h-3 text-indigo-500" />
@@ -240,7 +279,6 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {/* Quick Stats Row - Compact */}
         <div className="grid grid-cols-2 gap-3 px-2">
           <div className="bg-slate-50/50 p-3.5 rounded-[24px] border border-slate-100 flex items-center gap-3">
             <div className="text-[#FFC000] shrink-0">
@@ -272,7 +310,6 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {/* DYNAMIC ATTENTION HUB - Compact */}
         <div className="px-2">
           <div className="bg-slate-900 rounded-[28px] p-5 text-white relative overflow-hidden shadow-lg border border-white/5">
             <div className="relative z-10 space-y-3">
@@ -313,13 +350,12 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {/* Menu Grid Utama - Optimized Grid */}
         <div className="space-y-4 px-2 pb-2">
           <div className="flex justify-between items-center px-2">
             <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em]">Menu Utama</h4>
           </div>
           <div className="grid grid-cols-4 gap-x-2 gap-y-5">
-            {menuItems.filter(i => i.tab !== 'absen' && i.tab !== 'shift' && i.tab !== 'database' && i.tab !== 'kpi' && i.tab !== 'settings').map((item) => (
+            {menuItems.filter(i => !['absen', 'shift', 'database', 'kpi', 'settings', 'live_map'].includes(i.tab)).map((item) => (
               <button 
                 key={item.id} 
                 onClick={() => onNavigate(item.tab)}
@@ -359,7 +395,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* --- DESKTOP VIEW (Hidden on Mobile) --- */}
       <div className="hidden md:block space-y-10">
         <div className="flex justify-between items-center bg-white px-8 py-8 rounded-[40px] sm:rounded-[48px] border border-slate-100 shadow-sm relative overflow-hidden">
            <div className="flex flex-col gap-1 relative z-10">
@@ -437,7 +472,6 @@ const Dashboard: React.FC<DashboardProps> = ({
            )}
         </div>
 
-        {/* Action Row for Desktop - Grid Layout with Gdrive, Calendar & Broadcast */}
         <div className={`grid grid-cols-1 md:grid-cols-${showDrive ? '3' : '2'} gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500`}>
            {showDrive && (
              <button 
@@ -528,7 +562,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* LATE EMPLOYEES MODAL */}
       {isLateModalOpen && (
         <div className="fixed inset-0 bg-[#0f172a]/90 backdrop-blur-md z-[200] flex items-center justify-center p-4">
           <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 max-h-[85vh]">

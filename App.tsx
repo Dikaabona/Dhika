@@ -22,6 +22,8 @@ import KPIModule from './components/KPIModule.tsx';
 import CalendarModule from './components/CalendarModule.tsx';
 import InventoryModule from './components/InventoryModule.tsx';
 import EmployeeDetailModal from './components/EmployeeDetailModal.tsx';
+import LiveMapModule from './components/LiveMapModule.tsx';
+import FinancialModule from './components/FinancialModule.tsx';
 import { getTenureYears, calculateTenure, formatDateToYYYYMMDD, getMondayISO } from './utils/dateUtils.ts';
 
 const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
@@ -128,6 +130,47 @@ export const App: React.FC = () => {
     return 'employee';
   };
 
+  useEffect(() => {
+    let intervalId: any;
+
+    const trackLocation = () => {
+      if (!session || !currentUserEmployee || !currentUserEmployee.isTrackingActive) return;
+
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords;
+            try {
+              await supabase
+                .from('employees')
+                .update({ 
+                  lastLatitude: latitude, 
+                  lastLongitude: longitude, 
+                  lastLocationUpdate: new Date().toISOString() 
+                })
+                .eq('id', currentUserEmployee.id);
+            } catch (e) {
+              console.error("Gagal update live location:", e);
+            }
+          },
+          (error) => {
+            console.warn("GPS Permission Denied / Error:", error.message);
+          },
+          { enableHighAccuracy: true }
+        );
+      }
+    };
+
+    if (session && currentUserEmployee?.isTrackingActive) {
+      trackLocation(); 
+      intervalId = setInterval(trackLocation, 120000); 
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [session, currentUserEmployee]);
+
   const fetchData = async (userEmail?: string, isSilent: boolean = false) => {
     if (!navigator.onLine) {
       setFetchError("Anda sedang offline. Periksa koneksi internet Anda.");
@@ -169,7 +212,21 @@ export const App: React.FC = () => {
       const companyFilterVal = detectedCompany;
 
       const buildQuery = (table: string) => {
-        let q = supabase.from(table).select('*');
+        let q = supabase.from(table);
+        // Optimasi: Jangan ambil kolom Base64 (foto/bukti) secara default untuk menghemat egress
+        if (table === 'attendance') {
+           q = q.select('id, employeeId, company, date, status, clockIn, clockOut, notes, submittedAt');
+        } else if (table === 'content_plans') {
+           // PERBAIKAN: Menghapus jamUpload karena kolom tidak ada di database user
+           q = q.select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar');
+        } else if (table === 'broadcasts') {
+           q = q.select('id, title, message, company, targetEmployeeIds, sentAt');
+        } else if (table === 'submissions') {
+           q = q.select('id, employeeId, employeeName, company, type, startDate, endDate, notes, status, submittedAt');
+        } else {
+           q = q.select('*');
+        }
+        
         if (!isOwner) q = q.eq('company', companyFilterVal);
         return q;
       };
@@ -180,11 +237,7 @@ export const App: React.FC = () => {
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(100).then(({data, error}) => { if(error) throw error; setSubmissions(data || []); }),
         buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(50).then(({data, error}) => { if(error) throw error; setBroadcasts(data || []); }),
         buildQuery('schedules').limit(300).then(({data, error}) => { if(error) throw error; setLiveSchedules(data || []); }),
-        supabase.from('content_plans').select('*').order('postingDate', { ascending: false }).limit(200).then(({data, error}) => { 
-          if(error) throw error; 
-          const filtered = isOwner ? (data || []) : (data || []).filter(p => p.company === companyFilterVal);
-          setContentPlans(filtered); 
-        }),
+        buildQuery('content_plans').order('postingDate', { ascending: false }).limit(200).then(({data, error}) => { if(error) throw error; setContentPlans(data || []); }),
         buildQuery('shift_assignments').limit(500).then(({data, error}) => { if(error) throw error; setShiftAssignments(data || []); }),
         supabase.from('settings').select('value').eq('key', `shifts_config_${companyFilterVal}`).single().then(({data}) => {
           if (data && Array.isArray(data.value)) setShifts(data.value);
@@ -502,7 +555,7 @@ export const App: React.FC = () => {
   };
 
   const isFullscreenModule = activeTab === 'absen' || activeTab === 'minvis';
-  const isAttendanceActive = ['absen', 'attendance', 'submissions', 'shift'].includes(activeTab);
+  const isAttendanceActive = ['absen', 'attendance', 'submissions', 'shift', 'live_map'].includes(activeTab);
   const isModulActive = ['schedule', 'content', 'minvis', 'calendar'].includes(activeTab);
 
   const isUnregistered = useMemo(() => {
@@ -532,6 +585,8 @@ export const App: React.FC = () => {
                 <>
                   <div className="h-px bg-slate-50 w-full"></div>
                   <button onClick={() => { setActiveTab('shift'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">JADWAL SHIFT</button>
+                  <div className="h-px bg-slate-50 w-full"></div>
+                  <button onClick={() => { setActiveTab('live_map'); setIsDesktopDropdownOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-emerald-50 text-emerald-700 transition-colors">LIVE TRACKING</button>
                 </>
               )}
               <div className="h-px bg-slate-50 w-full"></div>
@@ -559,6 +614,9 @@ export const App: React.FC = () => {
           </div>
         )}
 
+        {isHighAdminAccess && (
+          <button onClick={() => setActiveTab('finance')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'finance' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>PAYROLL</button>
+        )}
         {isHighAdminAccess && (
           <button onClick={() => setActiveTab('inventory')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'inventory' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>ASET</button>
         )}
@@ -648,6 +706,10 @@ export const App: React.FC = () => {
                 <AbsenModule employee={currentUserEmployee} attendanceRecords={attendanceRecords} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'minvis' ? (
                 <MinVisModule onClose={() => setActiveTab('home')} />
+              ) : activeTab === 'live_map' ? (
+                <LiveMapModule employees={employees} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
+              ) : activeTab === 'finance' ? (
+                <FinancialModule company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'inventory' ? (
                 <InventoryModule company={userCompany} userRole={userRole} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'calendar' ? (
@@ -848,6 +910,7 @@ export const App: React.FC = () => {
                   onOpenDrive={handleOpenDrive}
                   onViewProfile={handleViewEmployee}
                   shifts={shifts}
+                  onRefreshData={() => fetchData(session?.user?.email, true)}
                 />
               )}
             </main>

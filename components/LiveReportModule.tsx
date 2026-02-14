@@ -490,6 +490,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                 <th className="px-6 py-5">Host & OP</th>
                 <th className="px-6 py-5 text-center">Performance</th>
                 <th className="px-6 py-5 text-center">Sales</th>
+                <th className="px-6 py-5 text-center">Durasi</th>
                 {canManage && <th className="px-6 py-5 text-right">Aksi</th>}
               </tr>
             </thead>
@@ -529,6 +530,9 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                        <p className="text-[11px] font-black text-emerald-600">{report.checkout || 0} CO</p>
                        <p className="text-[9px] font-black text-slate-900 mt-0.5">{formatCurrency(report.gmv || 0)}</p>
                     </td>
+                    <td className="px-6 py-5 text-center">
+                       <p className="text-xs font-black text-slate-900">{(report.durasi || 0).toFixed(1)} Jam</p>
+                    </td>
                     {canManage && (
                       <td className="px-6 py-5 text-right">
                         <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -542,7 +546,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
               })}
               {paginatedReports.length === 0 && (
                 <tr>
-                  <td colSpan={canManage ? 7 : 6} className="px-8 py-20 text-center">
+                  <td colSpan={canManage ? 8 : 7} className="px-8 py-20 text-center">
                     <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Tidak ada laporan ditemukan</p>
                   </td>
                 </tr>

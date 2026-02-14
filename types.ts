@@ -25,7 +25,23 @@ export interface Employee {
   ktpDocType?: 'image' | 'pdf';
   contractDocBase64?: string;
   salaryConfig?: Omit<SalaryData, 'month' | 'year'>;
-  deleted_at?: string | null; // Properti baru untuk soft delete
+  deleted_at?: string | null;
+  lastLatitude?: number;
+  lastLongitude?: number;
+  lastLocationUpdate?: string;
+  isTrackingActive?: boolean;
+}
+
+export interface FlipTransaction {
+  id: string;
+  external_id: string;
+  amount: number;
+  status: 'PENDING' | 'SUCCESS' | 'CANCELLED';
+  recipient_bank: string;
+  recipient_account: string;
+  recipient_name: string;
+  created_at: string;
+  remark: string;
 }
 
 export interface CalendarEvent {
@@ -90,16 +106,6 @@ export interface Submission {
   docBase64?: string;
   status: 'Pending' | 'Approved' | 'Rejected';
   submittedAt: string;
-}
-
-export interface Broadcast {
-  id?: string;
-  title: string;
-  message: string;
-  company: string;
-  targetEmployeeIds: string[];
-  sentAt: string;
-  imageBase64?: string;
 }
 
 export interface Broadcast {
@@ -198,5 +204,5 @@ export interface SalaryData {
   potonganLain: number;
 }
 
-export type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'submissions' | 'inbox' | 'settings' | 'shift' | 'minvis' | 'kpi' | 'inventory' | 'calendar';
+export type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'submissions' | 'inbox' | 'settings' | 'shift' | 'minvis' | 'kpi' | 'inventory' | 'calendar' | 'live_map' | 'finance';
 export type UserRole = 'owner' | 'super' | 'admin' | 'employee';
