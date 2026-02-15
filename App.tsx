@@ -46,7 +46,6 @@ export const App: React.FC = () => {
   const [userRole, setUserRole] = useState<UserRole>('employee');
   const [currentUserEmployee, setCurrentUserEmployee] = useState<Employee | null>(null);
   const [userCompany, setUserCompany] = useState<string>('Visibel');
-  const [currentPath, setCurrentPath] = useState(window.location.pathname);
   
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
@@ -71,28 +70,6 @@ export const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('visibel_active_tab', activeTab);
   }, [activeTab]);
-
-  // Handle path logic for /login subdirectory
-  useEffect(() => {
-    const handleLocationChange = () => {
-      setCurrentPath(window.location.pathname);
-    };
-    window.addEventListener('popstate', handleLocationChange);
-    return () => window.removeEventListener('popstate', handleLocationChange);
-  }, []);
-
-  useEffect(() => {
-    if (currentPath === '/login' && session) {
-      // Jika user sudah login tapi di path /login, pindah ke home
-      window.history.pushState({}, '', '/');
-      setCurrentPath('/');
-    }
-  }, [session, currentPath]);
-
-  const navigateToLogin = () => {
-    window.history.pushState({}, '', '/login');
-    setCurrentPath('/login');
-  };
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
@@ -240,6 +217,7 @@ export const App: React.FC = () => {
         if (table === 'attendance') {
            q = q.select('id, employeeId, company, date, status, clockIn, clockOut, notes, submittedAt');
         } else if (table === 'content_plans') {
+           // PERBAIKAN: Menghapus jamUpload karena kolom tidak ada di database user
            q = q.select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar');
         } else if (table === 'broadcasts') {
            q = q.select('id, title, message, company, targetEmployeeIds, sentAt');
@@ -319,12 +297,6 @@ export const App: React.FC = () => {
     } finally {
       setIsAuthLoading(false);
     }
-  };
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    window.history.pushState({}, '', '/login');
-    setCurrentPath('/login');
   };
 
   useEffect(() => {
@@ -582,7 +554,6 @@ export const App: React.FC = () => {
     }
   };
 
-  // Header visible logic: removed live_map from fullscreen list
   const isFullscreenModule = activeTab === 'absen' || activeTab === 'minvis';
   const isAttendanceActive = ['absen', 'attendance', 'submissions', 'shift', 'live_map'].includes(activeTab);
   const isModulActive = ['schedule', 'content', 'minvis', 'calendar'].includes(activeTab);
@@ -646,13 +617,13 @@ export const App: React.FC = () => {
         {isHighAdminAccess && (
           <button onClick={() => setActiveTab('finance')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'finance' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>PAYROLL</button>
         )}
-        {isHighAdminAccess && (
+        {isAdminAccess && (
           <button onClick={() => setActiveTab('inventory')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'inventory' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>ASET</button>
         )}
-        {isHighAdminAccess && (
+        {isAdminAccess && (
           <button onClick={() => setActiveTab('kpi')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'kpi' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>KPI</button>
         )}
-        {isHighAdminAccess && (
+        {isAdminAccess && (
           <button onClick={() => setActiveTab('settings')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>SETTING</button>
         )}
       </div>
@@ -661,7 +632,7 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc]">
-      {(session && currentPath !== '/login') ? (
+      {session ? (
         isUnregistered ? (
           <div className="flex-grow flex items-center justify-center p-6 animate-in fade-in duration-700 bg-slate-50">
             <div className="bg-white p-12 rounded-[48px] shadow-2xl border border-slate-200 text-center max-w-lg w-full space-y-10">
@@ -683,7 +654,7 @@ export const App: React.FC = () => {
                 </div>
               </div>
               <button 
-                onClick={handleSignOut} 
+                onClick={() => supabase.auth.signOut()} 
                 className="w-full bg-[#0f172a] text-white py-6 rounded-3xl font-bold text-xs uppercase tracking-[0.4em] shadow-xl hover:bg-black transition-all active:scale-95 flex items-center justify-center gap-4"
               >
                 <Icons.LogOut className="w-5 h-5" /> KELUAR & COBA LAGI
@@ -709,7 +680,7 @@ export const App: React.FC = () => {
                         <Icons.Mail className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                         {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[7px] sm:text-[8px] w-4 h-4 flex items-center justify-center rounded-full border border-white font-bold animate-bounce">{unreadCount}</span>}
                       </button>
-                      <button onClick={handleSignOut} className="p-2 sm:p-3.5 rounded-full bg-slate-50 text-slate-300 border border-slate-100 shadow-sm hover:text-red-500 hover:border-red-100 transition-all active:scale-90">
+                      <button onClick={() => supabase.auth.signOut()} className="p-2 sm:p-3.5 rounded-full bg-slate-50 text-slate-300 border border-slate-100 shadow-sm hover:text-red-500 hover:border-red-100 transition-all active:scale-90">
                         <Icons.LogOut className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                       </button>
                     </div>
@@ -728,7 +699,7 @@ export const App: React.FC = () => {
                    <p className="text-slate-500 max-w-lg mx-auto leading-relaxed">{fetchError}</p>
                    <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
                       <button onClick={() => fetchData(session?.user?.email)} className="bg-slate-900 text-white px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all">Coba Muat Ulang</button>
-                      <button onClick={handleSignOut} className="bg-white border border-slate-200 text-slate-400 px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95">Keluar Akun</button>
+                      <button onClick={() => supabase.auth.signOut()} className="bg-white border border-slate-200 text-slate-400 px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95">Keluar Akun</button>
                    </div>
                 </div>
               ) : activeTab === 'absen' ? (

@@ -822,6 +822,63 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           </div>
         </div>
       </div>
+      {/* ... sisanya (modal overtime details & preview) tetap ... */}
+      {showOvertimeDetails && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-[300] animate-in fade-in duration-300">
+          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="p-6 border-b bg-[#FFFBEB] flex justify-between items-center shrink-0">
+               <div>
+                  <h3 className="text-lg font-black uppercase text-[#806000] tracking-tight">Rincian Lembur System</h3>
+                  <p className="text-[10px] text-amber-600 font-bold uppercase tracking-widest">{employee.nama}</p>
+               </div>
+               <button onClick={() => setShowOvertimeDetails(false)} className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-2xl font-light hover:bg-amber-200 transition-all">&times;</button>
+            </div>
+            <div className="flex-grow overflow-y-auto p-6 space-y-4 custom-scrollbar bg-slate-50/30">
+               {attendanceResults.overtimeItems.length > 0 ? (
+                 attendanceResults.overtimeItems.map((item, idx) => (
+                   <div key={idx} className="bg-white p-5 rounded-[24px] border border-slate-100 flex items-center justify-between shadow-sm group hover:shadow-md transition-all">
+                      <div className="space-y-1">
+                         <p className="text-xs font-black text-slate-900 uppercase">{item.date}</p>
+                         <p className="text-[10px] text-slate-400 font-medium italic truncate max-w-[180px]">"{item.notes}"</p>
+                      </div>
+                      <div className="text-right">
+                         <p className="text-xs font-black text-indigo-600 leading-none">{item.hours.toFixed(1)} JAM</p>
+                         <p className="text-[9px] font-bold text-slate-500 mt-1 uppercase tracking-tighter">Rp {item.pay.toLocaleString('id-ID')}</p>
+                      </div>
+                   </div>
+                 ))
+               ) : (
+                 <div className="py-20 text-center flex flex-col items-center gap-4 opacity-30">
+                    <Icons.AlertCircle className="w-12 h-12 text-slate-300" />
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Tidak Ada Data Lembur</p>
+                 </div>
+               )}
+            </div>
+            <div className="p-6 border-t bg-white shrink-0">
+               <div className="bg-[#0f172a] p-5 rounded-2xl flex justify-between items-center text-white">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Terdeteksi</span>
+                  <span className="text-lg font-black text-[#FFC000]">Rp {attendanceResults.totalOvertimePay.toLocaleString('id-ID')}</span>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isPreview && (
+        <div className="fixed inset-0 bg-slate-100 z-[210] p-3 sm:p-10 overflow-y-auto">
+          <div className="max-w-[800px] mx-auto shadow-2xl bg-white mb-32 rounded-xl overflow-hidden scale-[0.9] sm:scale-100 origin-top">
+            <div ref={previewSlipRef} className="p-0 sm:p-0"><SalarySlipContent /></div>
+          </div>
+          <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex gap-3 sm:gap-4 bg-white/95 backdrop-blur-xl px-6 sm:px-10 py-4 sm:py-5 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-white/50 z-[220] flex-wrap justify-center items-center w-max">
+            <button type="button" onClick={() => setIsPreview(false)} className="px-5 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 transition-colors">TUTUP</button>
+            <div className="h-6 w-px bg-slate-200"></div>
+            <button type="button" onClick={() => handleDownloadImage()} className="bg-slate-900 text-white px-6 sm:px-8 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg">PNG</button>
+            <button type="button" onClick={handleSendEmail} className="bg-indigo-600 text-white px-6 sm:px-8 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg">EMAIL</button>
+            <button type="button" onClick={handleSendWhatsApp} className="bg-emerald-600 text-white px-6 sm:px-8 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg">KIRIM WA</button>
+            <button type="button" onClick={handleSendToInbox} className="bg-[#0f172a] text-[#FFC000] px-6 sm:px-8 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg border border-white/10">INBOX</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
