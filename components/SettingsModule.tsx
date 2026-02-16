@@ -9,12 +9,17 @@ interface SettingsModuleProps {
   onRefresh: () => void;
 }
 
-type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI';
+type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'BONUS';
 
 interface CustomCriteria {
   id: string;
   name: string;
   weight: number;
+}
+
+interface PositionConfig {
+  name: string;
+  bonus: number;
 }
 
 interface KPISystemData {
@@ -52,7 +57,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [divisions, setDivisions] = useState<string[]>([]);
-  const [positions, setPositions] = useState<string[]>([]);
+  const [positions, setPositions] = useState<PositionConfig[]>([]);
   const [newDivisionName, setNewDivisionName] = useState('');
   const [newPositionName, setNewPositionName] = useState('');
   
@@ -150,7 +155,10 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
 
       const { data: posData } = await supabase.from('settings').select('value').eq('key', `positions_${targetCompany}`).single();
       if (posData && Array.isArray(posData.value)) {
-        setPositions(posData.value as string[]);
+        const normalized = posData.value.map((p: any) => 
+          typeof p === 'string' ? { name: p, bonus: 0 } : p
+        );
+        setPositions(normalized);
       } else {
         setPositions([]);
       }
@@ -238,11 +246,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const handleAddPosition = async () => {
     const name = newPositionName.trim().toUpperCase();
     if (!name) return;
-    if (positions.includes(name)) {
+    if (positions.some(p => p.name === name)) {
       alert("Jabatan sudah ada!");
       return;
     }
-    const updated = [...positions, name];
+    const updated = [...positions, { name, bonus: 0 }];
     await saveSettingsToCloud(`positions_${isOwner ? selectedCompany : userCompany}`, updated);
     setPositions(updated);
     setNewPositionName('');
@@ -250,9 +258,15 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
 
   const handleRemovePosition = async (name: string) => {
     if (!confirm(`Hapus jabatan "${name}"?`)) return;
-    const updated = positions.filter(d => d !== name);
+    const updated = positions.filter(p => p.name !== name);
     await saveSettingsToCloud(`positions_${isOwner ? selectedCompany : userCompany}`, updated);
     setPositions(updated);
+  };
+
+  const handleUpdatePositionBonus = async (name: string, bonus: number) => {
+    const updated = positions.map(p => p.name === name ? { ...p, bonus } : p);
+    setPositions(updated);
+    await saveSettingsToCloud(`positions_${isOwner ? selectedCompany : userCompany}`, updated);
   };
 
   const saveSettingsToCloud = async (key: string, value: any) => {
@@ -414,6 +428,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                   </button>
                 )}
                 <button 
+                  onClick={() => setActiveSubTab('BONUS')} 
+                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'BONUS' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  BONUS
+                </button>
+                <button 
                   onClick={() => setActiveSubTab('MAPS')} 
                   className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'MAPS' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                 >
@@ -429,7 +449,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
             </div>
           </div>
           
-          {(activeSubTab !== 'DIVISI') && (
+          {(activeSubTab !== 'DIVISI' && activeSubTab !== 'BONUS') && (
             <button 
               onClick={activeSubTab === 'KPI' ? () => handleSaveKPISystem(kpiSystem) : handleSaveSettings}
               disabled={isSaving}
@@ -542,7 +562,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                          </div>
                          <button 
                           onClick={() => toggleEmployeeRemote(emp)}
-                          className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest transition-all ${emp.isRemoteAllowed ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-50 text-slate-400 border border-slate-100'}`}
+                          className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest transition-all ${emp.isRemoteAllowed ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}
                          >
                            {emp.isRemoteAllowed ? 'ON' : 'OFF'}
                          </button>
@@ -829,9 +849,57 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                </div>
             </div>
           </div>
+        ) : activeSubTab === 'BONUS' ? (
+          <div className="animate-in fade-in duration-300 space-y-12">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div className="space-y-2">
+                 <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Perhitungan Bonus Jabatan</h3>
+                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Atur nominal bonus per jam untuk setiap kategori jabatan karyawan.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+               {positions.map(p => (
+                 <div key={p.name} className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 shadow-sm space-y-6 hover:shadow-md transition-all group overflow-hidden relative">
+                    <div className="flex items-center justify-between">
+                       <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest">{p.name}</h4>
+                       <div className="bg-indigo-50 p-2 rounded-xl text-indigo-600">
+                          <Icons.Clock className="w-4 h-4" />
+                       </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Bonus Per Jam (Rp)</label>
+                       <div className="relative">
+                          <input 
+                            type="number"
+                            value={p.bonus}
+                            onChange={(e) => handleUpdatePositionBonus(p.name, parseInt(e.target.value) || 0)}
+                            className="w-full bg-white border-2 border-slate-100 py-5 pr-5 pl-14 rounded-3xl text-xl font-black text-indigo-600 outline-none focus:border-[#FFC000] transition-all shadow-inner"
+                          />
+                          <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 font-black text-xs pointer-events-none">Rp</span>
+                       </div>
+                    </div>
+                    
+                    <p className="text-[8px] font-bold text-slate-400 uppercase italic tracking-tighter">
+                      Nominal ini akan dikalikan dengan total jam kerja/lembur yang terdeteksi di sistem.
+                    </p>
+                    
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-500 transform translate-y-full group-hover:translate-y-0 transition-transform duration-500"></div>
+                 </div>
+               ))}
+               
+               {positions.length === 0 && (
+                 <div className="col-span-full py-24 text-center opacity-30 bg-white border-2 border-dashed border-slate-200 rounded-[48px]">
+                    <Icons.Database className="w-12 h-12 mx-auto mb-4" />
+                    <p className="text-[10px] font-black uppercase tracking-[0.4em]">Belum Ada Jabatan Terdaftar</p>
+                    <p className="text-[9px] font-bold mt-2">Tambahkan jabatan di menu Divisi & Struktur terlebih dahulu.</p>
+                 </div>
+               )}
+            </div>
+          </div>
         ) : (
           <div className="animate-in fade-in duration-300 space-y-16">
-            {/* MANAGEMENT SECTION */}
             <div className="space-y-12">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div className="space-y-2">
@@ -841,7 +909,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                 {/* DIVISI SECTION */}
                  <div className="space-y-8">
                     <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-8 h-full">
                        <div className="space-y-4">
@@ -890,7 +957,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                     </div>
                  </div>
 
-                 {/* JABATAN SECTION */}
                  <div className="space-y-8">
                     <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-8 h-full">
                        <div className="space-y-4">
@@ -914,13 +980,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                        </div>
 
                        <div className="space-y-4">
-                          <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Daftar Jabatan ({(positions as string[]).length})</h3>
+                          <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Daftar Jabatan ({(positions as PositionConfig[]).length})</h3>
                           <div className="space-y-3">
-                             {(positions as string[]).map(p => (
-                               <div key={p} className="bg-white p-5 rounded-2xl border border-slate-100 group shadow-sm flex items-center justify-between">
-                                  <span className="text-[11px] font-black text-black uppercase tracking-widest">{p}</span>
+                             {(positions as PositionConfig[]).map(p => (
+                               <div key={p.name} className="bg-white p-5 rounded-2xl border border-slate-100 group shadow-sm flex items-center justify-between">
+                                  <span className="text-[11px] font-black text-black uppercase tracking-widest">{p.name}</span>
                                   <button 
-                                    onClick={() => handleRemovePosition(p)} 
+                                    onClick={() => handleRemovePosition(p.name)} 
                                     disabled={isSaving}
                                     className="text-rose-400 hover:text-rose-600 transition-all p-2 rounded-lg hover:bg-rose-50 disabled:opacity-50"
                                   >
@@ -928,7 +994,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                                   </button>
                                </div>
                              ))}
-                             {(positions as string[]).length === 0 && (
+                             {(positions as PositionConfig[]).length === 0 && (
                                <div className="py-16 text-center bg-white/50 border-2 border-dashed border-slate-200 rounded-3xl opacity-30">
                                   <Icons.Database className="w-12 h-12 mx-auto mb-2" />
                                   <p className="text-[10px] font-black uppercase tracking-[0.4em]">Belum ada jabatan</p>
@@ -941,7 +1007,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
               </div>
             </div>
 
-            {/* VISUALIZATION SECTION */}
             <div className="space-y-8 pt-10 border-t-2 border-slate-100">
               <div className="space-y-2 mb-4">
                  <h3 className="text-2xl sm:text-3xl font-black text-[#0f172a] uppercase tracking-tight leading-none">Struktur Organisasi</h3>

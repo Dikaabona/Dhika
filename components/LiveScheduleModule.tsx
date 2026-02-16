@@ -34,7 +34,9 @@ const getSevenDaysAgoString = () => {
   const d = new Date();
   d.setDate(d.getDate() - 7);
   const year = d.getFullYear();
+  // Fix: replace 'now' with 'd' as 'now' is not defined in this scope
   const month = String(d.getMonth() + 1).padStart(2, '0');
+  // Fix: replace 'now' with 'd' as 'now' is not defined in this scope
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
@@ -137,6 +139,9 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         const workbook = XLSX.read(data, { type: 'array', cellDates: true });
         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         
+        let notFoundNames: string[] = [];
+        let latestDateInExcel = '';
+
         const rawParsedSchedules = jsonData.map((row: any) => {
           const brand = String(row['BRAND'] || '').toUpperCase().trim();
           let rawDate = row['TANGGAL'];
@@ -151,12 +156,22 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
              formattedDate = String(rawDate || '').trim();
           }
 
+          if (formattedDate && (!latestDateInExcel || formattedDate > latestDateInExcel)) {
+            latestDateInExcel = formattedDate;
+          }
+
           const hourSlot = String(row['SLOT WAKTU'] || '').trim();
-          const hostName = String(row['NAMA HOST'] || '').trim().toUpperCase();
-          const opName = String(row['NAMA OPERATOR'] || '').trim().toUpperCase();
+          // Pembersihan nama lebih ketat (hapus spasi ganda/tab/non-printable)
+          const cleanName = (n: any) => String(n || '').replace(/[\s\t\n\r]+/g, ' ').trim().toUpperCase();
           
-          const hostId = employees.find(e => e.nama.toUpperCase() === hostName)?.id || '';
-          const opId = employees.find(e => e.nama.toUpperCase() === opName)?.id || '';
+          const hostName = cleanName(row['NAMA HOST']);
+          const opName = cleanName(row['NAMA OPERATOR']);
+          
+          const hostId = employees.find(e => cleanName(e.nama) === hostName)?.id || '';
+          const opId = employees.find(e => cleanName(e.nama) === opName)?.id || '';
+
+          if (hostName && !hostId) notFoundNames.push(hostName);
+          if (opName && !opId) notFoundNames.push(opName);
 
           if (!brand || !formattedDate || !hourSlot) return null;
 
@@ -171,19 +186,19 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         }).filter(s => s !== null);
 
         if (rawParsedSchedules.length > 0) {
-          // RULE: DATA BENTROK / DOUBLE
-          let doubleCount = 0;
-          rawParsedSchedules.forEach((s: any) => {
-            if (schedules.some(ex => ex.date === s.date && ex.brand === s.brand && ex.hourSlot === s.hourSlot)) {
-              doubleCount++;
+          const importedBrands = Array.from(new Set(rawParsedSchedules.map((s: any) => s.brand)));
+          const missingBrands = importedBrands.filter(b => !brands.some((ex: any) => ex.name === b));
+          
+          if (missingBrands.length > 0) {
+            if (confirm(`BRAND BARU TERDETEKSI: ${missingBrands.join(', ')}. Daftarkan brand ini secara otomatis?`)) {
+              const updatedBrands = [...brands, ...missingBrands.map(b => ({ name: b, color: 'bg-slate-200' }))];
+              await handleSaveBrands(updatedBrands);
             }
-          });
+          }
 
-          if (doubleCount > 0) {
-            if (!confirm(`DATA DOUBLE TERDETEKSI! Ada ${doubleCount} jadwal yang sudah terdaftar di sistem. Tetap impor dan timpa data lama?`)) {
-              setIsImporting(false);
-              return;
-            }
+          if (notFoundNames.length > 0) {
+            const uniqueNotFound = Array.from(new Set(notFoundNames));
+            alert(`PERINGATAN: Nama karyawan berikut tidak ditemukan di database: ${uniqueNotFound.join(', ')}. Pastikan nama di Excel sama persis dengan menu DATABASE (termasuk spasi).`);
           }
 
           const { data: inserted, error } = await supabase
@@ -203,7 +218,12 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
             return updated;
           });
           
-          alert(`Berhasil mengimpor ${inserted?.length} jadwal!`);
+          // AUTO ADJUST FILTER AGAR DATA BARU LANGSUNG TERLIHAT
+          if (latestDateInExcel > endDate) {
+            setEndDate(latestDateInExcel);
+          }
+          
+          alert(`Berhasil mengimpor ${inserted?.length} jadwal! Filter tanggal otomatis disesuaikan ke ${latestDateInExcel} agar jadwal terlihat.`);
         } else {
           alert("Tidak ada data valid yang ditemukan.");
         }
@@ -230,7 +250,6 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Log Shift");
-    // FIXED: Use 'wb' instead of 'workbook' to fix "Cannot find name 'workbook'" error
     XLSX.writeFile(wb, `Jadwal_Live_${company}_${startDate}_to_${endDate}.xlsx`);
   };
 
@@ -257,6 +276,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
     const dates = [];
     let current = new Date(startDate);
     const last = new Date(endDate);
+    if (isNaN(current.getTime()) || isNaN(last.getTime())) return [];
     if (current > last) return [startDate];
     while (current <= last) {
       dates.push(current.toISOString().split('T')[0]);
@@ -309,7 +329,6 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   }, [holidayStartDate, holidayEndDate]);
 
   const holidayListByDate = useMemo(() => {
-    // Sinkronisasi: Ambil semua staff yang relevan untuk live streaming
     const liveStaff = employees.filter(e => {
       const jab = (e.jabatan || '').toUpperCase();
       const name = (e.nama || '').toUpperCase();
@@ -321,7 +340,6 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
       const dayIndex = (d.getDay() + 6) % 7; 
       const dayName = DAYS_OF_WEEK[dayIndex];
       
-      // SINKRONISASI: Staff dianggap LIBUR jika tidak memiliki Shift Assignment pada tanggal tersebut
       const offNames = liveStaff.filter(s => {
         const hasAssignment = shiftAssignments.some(a => a.employeeId === s.id && a.date === dateStr);
         return !hasAssignment;
@@ -494,6 +512,12 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                 </div>
               );
             })}
+            {datesInRange.length === 0 && (
+              <div className="py-20 text-center opacity-30">
+                <Icons.Database className="w-16 h-16 mx-auto mb-4" />
+                <p className="text-xs font-black uppercase tracking-[0.4em]">Tidak ada jadwal di rentang tanggal ini</p>
+              </div>
+            )}
           </div>
         ) : activeSubTab === 'REPORT' ? (
           <LiveReportModule employees={employees} reports={reports} setReports={setReports} userRole={userRole} company={company} onClose={() => setActiveSubTab('JADWAL')} />

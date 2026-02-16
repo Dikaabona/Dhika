@@ -64,7 +64,11 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
 
       const { data: posData } = await supabase.from('settings').select('value').eq('key', `positions_${targetCompany}`).single();
       if (posData && Array.isArray(posData.value)) {
-        setPositions(posData.value);
+        // Normalize positions to string array to avoid React Error #31
+        const normalized = posData.value.map((p: any) => 
+          typeof p === 'string' ? p : (p.name || '')
+        );
+        setPositions(normalized);
       } else {
         setPositions([]);
       }
