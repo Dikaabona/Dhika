@@ -361,7 +361,9 @@ export const App: React.FC = () => {
   }, [filteredEmployees, currentEmpPage]);
 
   const unreadCount = useMemo(() => {
-    if (userRole === 'owner' || userRole === 'super' || userRole === 'admin') return submissions.filter(s => s.status === 'Pending').length;
+    const pending = submissions.filter(s => s.status === 'Pending');
+    if (userRole === 'owner' || userRole === 'super') return pending.length;
+    if (userRole === 'admin') return pending.filter(s => s.type === 'Lembur').length;
     return 0;
   }, [submissions, userRole]);
 
@@ -721,7 +723,7 @@ export const App: React.FC = () => {
               ) : activeTab === 'attendance' ? (
                 <AttendanceModule employees={employees} records={attendanceRecords} setRecords={setAttendanceRecords} searchQuery={searchQuery} userRole={userRole} currentEmployee={currentUserEmployee} startDate={attendanceStartDate} endDate={attendanceEndDate} onStartDateChange={setAttendanceStartDate} onEndDateChange={setAttendanceEndDate} weeklyHolidays={weeklyHolidays} company={userCompany} />
               ) : activeTab === 'schedule' ? (
-                <LiveScheduleModule employees={employees} schedules={liveSchedules} setSchedules={setLiveSchedules} reports={liveReports} setReports={setLiveReports} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} attendanceRecords={attendanceRecords} />
+                <LiveScheduleModule employees={employees} schedules={liveSchedules} setSchedules={setLiveSchedules} reports={liveReports} setReports={setLiveReports} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} attendanceRecords={attendanceRecords} shiftAssignments={shiftAssignments} shifts={shifts} />
               ) : activeTab === 'content' ? (
                 <ContentModule employees={employees} plans={contentPlans} setPlans={setContentPlans} searchQuery={searchQuery} userRole={userRole} currentEmployee={currentUserEmployee} company={userCompany} />
               ) : activeTab === 'submissions' ? (

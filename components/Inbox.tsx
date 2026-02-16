@@ -16,7 +16,7 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
   const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super';
   const isAdmin = userRole === 'admin';
-  const canApproveSomething = isSuper || isAdmin;
+  const canApproveSomething = isOwner || isSuper || isAdmin;
 
   const [historyPage, setHistoryPage] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
@@ -134,14 +134,14 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
 
   const pendingApprovals = useMemo(() => {
     const pending = submissions.filter(s => s.status === 'Pending');
-    if (isSuper) return pending;
+    if (isOwner || isSuper) return pending;
     if (isAdmin) return pending.filter(s => s.type === 'Lembur');
     return [];
-  }, [submissions, isSuper, isAdmin]);
+  }, [submissions, isOwner, isSuper, isAdmin]);
 
   const submissionHistory = useMemo(() => {
     let base = submissions.filter(s => s.status !== 'Pending');
-    if (!isSuper && employee) {
+    if (!(isOwner || isSuper) && employee) {
       if (isAdmin) {
          base = base.filter(s => s.employeeId === employee.id || s.type === 'Lembur');
       } else {
@@ -152,7 +152,7 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
       const subDate = new Date(s.submittedAt);
       return subDate >= oneMonthAgo;
     });
-  }, [submissions, isSuper, isAdmin, employee, oneMonthAgo]);
+  }, [submissions, isOwner, isSuper, isAdmin, employee, oneMonthAgo]);
 
   const totalHistoryPages = Math.ceil(submissionHistory.length / itemsPerPage);
   const paginatedHistory = useMemo(() => {
@@ -231,54 +231,57 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
         </div>
       )}
 
-      {submissionHistory.length > 0 && (
-        <div className="space-y-6">
-          <div className="flex justify-between items-end border-b border-slate-100 pb-4">
-            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">HISTORY PENGAJUAN (TERSIMPAN 1 BULAN)</h3>
-            {totalHistoryPages > 1 && (
-              <div className="flex gap-2">
-                 <button 
-                  disabled={historyPage === 1}
-                  onClick={() => setHistoryPage(p => p - 1)}
-                  className="p-2 rounded-lg bg-slate-100 text-slate-500 disabled:opacity-30 hover:bg-slate-200 transition-all"
-                 >
-                   <Icons.ChevronDown className="w-4 h-4 rotate-90" />
-                 </button>
-                 <span className="text-[10px] font-black text-slate-900 bg-white px-3 py-2 rounded-lg border shadow-sm whitespace-nowrap min-w-[60px] flex items-center justify-center">
-                   {historyPage} / {totalHistoryPages}
-                 </span>
-                 <button 
-                  disabled={historyPage === totalHistoryPages}
-                  onClick={() => setHistoryPage(p => p + 1)}
-                  className="p-2 rounded-lg bg-slate-100 text-slate-500 disabled:opacity-30 hover:bg-slate-200 transition-all"
-                 >
-                   <Icons.ChevronDown className="w-4 h-4 -rotate-90" />
-                 </button>
-              </div>
-            )}
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {paginatedHistory.map((sub) => (
-              <div key={sub.id} className={`bg-white p-6 rounded-[32px] shadow-sm border border-slate-100 flex justify-between items-center gap-6 border-l-[10px] ${sub.status === 'Approved' ? 'border-l-emerald-500' : 'border-l-rose-500'}`}>
-                <div className="space-y-1.5 overflow-hidden">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${sub.status === 'Approved' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                      {sub.status === 'Approved' ? 'DISETUJUI' : 'DITOLAK'}
-                    </span>
-                    {(isSuper || isAdmin) && <p className="text-[10px] font-black text-slate-900 truncate">{sub.employeeName}</p>}
-                    <p className="text-[10px] font-bold text-slate-700 truncate">Pengajuan {sub.type}</p>
-                  </div>
-                  <p className="text-[9px] text-slate-500 font-bold">{sub.startDate} {sub.startDate !== sub.endDate ? `- ${sub.endDate}` : ''}</p>
-                  <p className="text-[9px] text-slate-400 italic truncate" title={sub.notes}>"{sub.notes}"</p>
-                </div>
-                <div className="shrink-0">
-                  <Icons.Sparkles className={sub.status === 'Approved' ? 'text-emerald-500 w-5 h-5' : 'text-rose-500 w-5 h-5'} />
-                </div>
-              </div>
-            ))}
-          </div>
+      <div className="space-y-6">
+        <div className="flex justify-between items-end border-b border-slate-100 pb-4">
+          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">HISTORY PENGAJUAN (TERSIMPAN 1 BULAN)</h3>
+          {totalHistoryPages > 1 && (
+            <div className="flex gap-2">
+               <button 
+                disabled={historyPage === 1}
+                onClick={() => setHistoryPage(p => p - 1)}
+                className="p-2 rounded-lg bg-slate-100 text-slate-500 disabled:opacity-30 hover:bg-slate-200 transition-all"
+               >
+                 <Icons.ChevronDown className="w-4 h-4 rotate-90" />
+               </button>
+               <span className="text-[10px] font-black text-slate-900 bg-white px-3 py-2 rounded-lg border shadow-sm whitespace-nowrap min-w-[60px] flex items-center justify-center">
+                 {historyPage} / {totalHistoryPages}
+               </span>
+               <button 
+                disabled={historyPage === totalHistoryPages}
+                onClick={() => setHistoryPage(p => p + 1)}
+                className="p-2 rounded-lg bg-slate-100 text-slate-500 disabled:opacity-30 hover:bg-slate-200 transition-all"
+               >
+                 <Icons.ChevronDown className="w-4 h-4 -rotate-90" />
+               </button>
+            </div>
+          )}
         </div>
-      )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {paginatedHistory.map((sub) => (
+            <div key={sub.id} className={`bg-white p-6 rounded-[32px] shadow-sm border border-slate-100 flex justify-between items-center gap-6 border-l-[10px] ${sub.status === 'Approved' ? 'border-l-emerald-500' : 'border-l-rose-500'}`}>
+              <div className="space-y-1.5 overflow-hidden">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${sub.status === 'Approved' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                    {sub.status === 'Approved' ? 'DISETUJUI' : 'DITOLAK'}
+                  </span>
+                  {(isOwner || isSuper || isAdmin) && <p className="text-[10px] font-black text-slate-900 truncate">{sub.employeeName}</p>}
+                  <p className="text-[10px] font-bold text-slate-700 truncate">Pengajuan {sub.type}</p>
+                </div>
+                <p className="text-[9px] text-slate-500 font-bold">{sub.startDate} {sub.startDate !== sub.endDate ? `- ${sub.endDate}` : ''}</p>
+                <p className="text-[9px] text-slate-400 italic truncate" title={sub.notes}>"{sub.notes}"</p>
+              </div>
+              <div className="shrink-0">
+                <Icons.Sparkles className={sub.status === 'Approved' ? 'text-emerald-500 w-5 h-5' : 'text-rose-500 w-5 h-5'} />
+              </div>
+            </div>
+          ))}
+          {submissionHistory.length === 0 && (
+            <div className="md:col-span-2 py-10 text-center bg-slate-50 rounded-3xl border-2 border-dashed">
+              <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Belum ada history</p>
+            </div>
+          )}
+        </div>
+      </div>
 
       <div className="space-y-6">
         <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-4">PENGUMUMAN & PESAN</h3>

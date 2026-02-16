@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { Employee, LiveSchedule, LiveReport, AttendanceRecord } from '../types';
+import { Employee, LiveSchedule, LiveReport, AttendanceRecord, ShiftAssignment, Shift } from '../types';
 import { Icons, LIVE_BRANDS as INITIAL_BRANDS, TIME_SLOTS } from '../constants';
 import { supabase } from '../App';
 import { generateGoogleCalendarUrl, getMondayISO, getSundayISO, formatDateToYYYYMMDD } from '../utils/dateUtils';
@@ -18,6 +18,8 @@ interface LiveScheduleModuleProps {
   company: string;
   onClose?: () => void;
   attendanceRecords?: AttendanceRecord[];
+  shiftAssignments?: ShiftAssignment[];
+  shifts?: Shift[];
 }
 
 const getLocalDateString = () => {
@@ -50,7 +52,7 @@ const isDateInRange = (target: string, start: string, end: string) => {
 
 const DAYS_OF_WEEK = ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU'];
 
-const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, schedules, setSchedules, reports, setReports, userRole = 'employee', company, onClose, attendanceRecords = [] }) => {
+const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, schedules, setSchedules, reports, setReports, userRole = 'employee', company, onClose, attendanceRecords = [], shiftAssignments = [], shifts = [] }) => {
   const readOnly = userRole === 'employee';
   const [activeSubTab, setActiveSubTab] = useState<'JADWAL' | 'REPORT' | 'GRAFIK' | 'LIBUR' | 'BRAND'>('JADWAL');
   const [startDate, setStartDate] = useState(getSevenDaysAgoString());
@@ -228,6 +230,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Log Shift");
+    // FIXED: Use 'wb' instead of 'workbook' to fix "Cannot find name 'workbook'" error
     XLSX.writeFile(wb, `Jadwal_Live_${company}_${startDate}_to_${endDate}.xlsx`);
   };
 
@@ -306,14 +309,27 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   }, [holidayStartDate, holidayEndDate]);
 
   const holidayListByDate = useMemo(() => {
+    // Sinkronisasi: Ambil semua staff yang relevan untuk live streaming
+    const liveStaff = employees.filter(e => {
+      const jab = (e.jabatan || '').toUpperCase();
+      const name = (e.nama || '').toUpperCase();
+      return jab.includes('HOST') || jab.includes('OP') || jab.includes('OPERATOR') || name.includes('ARIYANSYAH');
+    });
+
     return holidayDates.map(dateStr => {
       const d = new Date(dateStr);
       const dayIndex = (d.getDay() + 6) % 7; 
       const dayName = DAYS_OF_WEEK[dayIndex];
-      const names = weeklyHolidays[dayName] || [];
-      return { date: dateStr, day: dayName, names };
+      
+      // SINKRONISASI: Staff dianggap LIBUR jika tidak memiliki Shift Assignment pada tanggal tersebut
+      const offNames = liveStaff.filter(s => {
+        const hasAssignment = shiftAssignments.some(a => a.employeeId === s.id && a.date === dateStr);
+        return !hasAssignment;
+      }).map(s => s.nama.toUpperCase());
+
+      return { date: dateStr, day: dayName, names: offNames };
     });
-  }, [holidayDates, weeklyHolidays]);
+  }, [holidayDates, employees, shiftAssignments]);
 
   return (
     <div className="flex flex-col min-h-screen bg-white md:min-h-[85vh] md:rounded-[48px] overflow-hidden shadow-2xl relative border-4 sm:border-[12px] border-white max-w-6xl mx-auto">
