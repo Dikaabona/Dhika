@@ -30,15 +30,19 @@ const getLocalDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
-const getSevenDaysAgoString = () => {
-  const d = new Date();
-  d.setDate(d.getDate() - 7);
-  const year = d.getFullYear();
-  // Fix: replace 'now' with 'd' as 'now' is not defined in this scope
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  // Fix: replace 'now' with 'd' as 'now' is not defined in this scope
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+const getMonthStartString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}-01`;
+};
+
+const getMonthEndString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const lastDay = new Date(year, month, 0).getDate();
+  return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 };
 
 const DEFAULT_HOLIDAYS = {
@@ -57,8 +61,10 @@ const DAYS_OF_WEEK = ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MIN
 const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, schedules, setSchedules, reports, setReports, userRole = 'employee', company, onClose, attendanceRecords = [], shiftAssignments = [], shifts = [] }) => {
   const readOnly = userRole === 'employee';
   const [activeSubTab, setActiveSubTab] = useState<'JADWAL' | 'REPORT' | 'GRAFIK' | 'LIBUR' | 'BRAND'>('JADWAL');
-  const [startDate, setStartDate] = useState(getSevenDaysAgoString());
-  const [endDate, setEndDate] = useState(getLocalDateString());
+  
+  const [startDate, setStartDate] = useState(getMonthStartString());
+  const [endDate, setEndDate] = useState(getMonthEndString());
+  
   const [localSearch, setLocalSearch] = useState('');
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('SEMUA BRAND');
   const [showEmptySlots, setShowEmptySlots] = useState(false); 
@@ -140,6 +146,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         
         let notFoundNames: string[] = [];
+        let earliestDateInExcel = '';
         let latestDateInExcel = '';
 
         const rawParsedSchedules = jsonData.map((row: any) => {
@@ -156,12 +163,12 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
              formattedDate = String(rawDate || '').trim();
           }
 
-          if (formattedDate && (!latestDateInExcel || formattedDate > latestDateInExcel)) {
-            latestDateInExcel = formattedDate;
+          if (formattedDate) {
+            if (!earliestDateInExcel || formattedDate < earliestDateInExcel) earliestDateInExcel = formattedDate;
+            if (!latestDateInExcel || formattedDate > latestDateInExcel) latestDateInExcel = formattedDate;
           }
 
           const hourSlot = String(row['SLOT WAKTU'] || '').trim();
-          // Pembersihan nama lebih ketat (hapus spasi ganda/tab/non-printable)
           const cleanName = (n: any) => String(n || '').replace(/[\s\t\n\r]+/g, ' ').trim().toUpperCase();
           
           const hostName = cleanName(row['NAMA HOST']);
@@ -218,12 +225,14 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
             return updated;
           });
           
-          // AUTO ADJUST FILTER AGAR DATA BARU LANGSUNG TERLIHAT
-          if (latestDateInExcel > endDate) {
+          if (earliestDateInExcel && earliestDateInExcel < startDate) {
+            setStartDate(earliestDateInExcel);
+          }
+          if (latestDateInExcel && latestDateInExcel > endDate) {
             setEndDate(latestDateInExcel);
           }
           
-          alert(`Berhasil mengimpor ${inserted?.length} jadwal! Filter tanggal otomatis disesuaikan ke ${latestDateInExcel} agar jadwal terlihat.`);
+          alert(`Berhasil mengimpor ${inserted?.length} jadwal! Rentang tanggal otomatis disesuaikan dari ${earliestDateInExcel} sampai ${latestDateInExcel} agar jadwal terlihat.`);
         } else {
           alert("Tidak ada data valid yang ditemukan.");
         }
@@ -274,15 +283,21 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   
   const datesInRange = useMemo(() => {
     const dates = [];
-    let current = new Date(startDate);
-    const last = new Date(endDate);
-    if (isNaN(current.getTime()) || isNaN(last.getTime())) return [];
-    if (current > last) return [startDate];
-    while (current <= last) {
+    let dStart = new Date(startDate);
+    let dEnd = new Date(endDate);
+    
+    if (isNaN(dStart.getTime()) || isNaN(dEnd.getTime())) return [];
+    
+    const actualStart = dStart < dEnd ? dStart : dEnd;
+    const actualEnd = dStart < dEnd ? dEnd : dStart;
+
+    let current = new Date(actualStart);
+    while (current <= actualEnd) {
       dates.push(current.toISOString().split('T')[0]);
       current.setDate(current.getDate() + 1);
     }
-    return dates;
+    
+    return dStart < dEnd ? dates : dates.reverse();
   }, [startDate, endDate]);
 
   const updateSchedule = async (date: string, brand: string, hourSlot: string, field: 'hostId' | 'opId', value: string) => {
@@ -349,6 +364,12 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
     });
   }, [holidayDates, employees, shiftAssignments]);
 
+  const handleSetToday = () => {
+    const today = getLocalDateString();
+    setStartDate(today);
+    setEndDate(today);
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-white md:min-h-[85vh] md:rounded-[48px] overflow-hidden shadow-2xl relative border-4 sm:border-[12px] border-white max-w-6xl mx-auto">
       <div className="px-6 sm:px-12 pt-8 sm:pt-12 pb-6 bg-white shrink-0">
@@ -378,7 +399,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         {activeSubTab === 'JADWAL' && (
           <div className="space-y-4 sm:space-y-6">
             <div className="flex flex-col md:flex-row gap-3 sm:gap-4">
-              <div className="flex-1 flex items-center bg-[#F3F4F6] border border-slate-100 rounded-[24px] px-6 py-4 shadow-inner gap-6 overflow-x-auto no-scrollbar">
+              <div className="flex-1 flex items-center bg-[#F3F4F6] border border-slate-100 rounded-[24px] px-6 py-4 shadow-inner gap-4 sm:gap-6 overflow-x-auto no-scrollbar">
                 <div className="flex flex-col shrink-0">
                   <span className="text-[7px] font-bold text-slate-400 uppercase tracking-widest">START</span>
                   <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="text-[10px] font-bold text-[#111827] outline-none bg-transparent cursor-pointer" />
@@ -388,6 +409,13 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                   <span className="text-[7px] font-bold text-slate-400 uppercase tracking-widest">END</span>
                   <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="text-[10px] font-bold text-[#111827] outline-none bg-transparent cursor-pointer" />
                 </div>
+                <div className="w-px h-8 bg-slate-200 shrink-0"></div>
+                <button 
+                  onClick={handleSetToday}
+                  className="bg-slate-900 text-[#FFC000] px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-md shrink-0"
+                >
+                  TODAY
+                </button>
               </div>
               <div className="relative flex-1 bg-[#F3F4F6] border border-slate-100 rounded-[24px] px-6 py-4 shadow-inner flex items-center gap-3">
                 <Icons.Search className="w-4 h-4 text-slate-400" />
