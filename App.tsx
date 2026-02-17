@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { createClient, Session } from '@supabase/supabase-js';
@@ -80,6 +81,7 @@ export const App: React.FC = () => {
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [shiftAssignments, setShiftAssignments] = useState<ShiftAssignment[]>([]);
   const [shifts, setShifts] = useState<Shift[]>(DEFAULT_SHIFTS);
+  const [positionRates, setPositionRates] = useState<any[]>([]);
   const [weeklyHolidays, setWeeklyHolidays] = useState<Record<string, string[]>>({});
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isImportingEmployees, setIsImportingEmployees] = useState(false);
@@ -213,11 +215,9 @@ export const App: React.FC = () => {
 
       const buildQuery = (table: string) => {
         let q = supabase.from(table);
-        // Optimasi: Jangan ambil kolom Base64 (foto/bukti) secara default untuk menghemat egress
         if (table === 'attendance') {
            q = q.select('id, employeeId, company, date, status, clockIn, clockOut, notes, submittedAt');
         } else if (table === 'content_plans') {
-           // PERBAIKAN: Menghapus jamUpload karena kolom tidak ada di database user
            q = q.select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar');
         } else if (table === 'broadcasts') {
            q = q.select('id, title, message, company, targetEmployeeIds, sentAt');
@@ -236,12 +236,16 @@ export const App: React.FC = () => {
         buildQuery('live_reports').order('tanggal', { ascending: false }).limit(200).then(({data, error}) => { if(error) throw error; setLiveReports(data || []); }),
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(100).then(({data, error}) => { if(error) throw error; setSubmissions(data || []); }),
         buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(50).then(({data, error}) => { if(error) throw error; setBroadcasts(data || []); }),
-        buildQuery('schedules').limit(300).then(({data, error}) => { if(error) throw error; setLiveSchedules(data || []); }),
+        buildQuery('schedules').limit(1000).then(({data, error}) => { if(error) throw error; setLiveSchedules(data || []); }),
         buildQuery('content_plans').order('postingDate', { ascending: false }).limit(200).then(({data, error}) => { if(error) throw error; setContentPlans(data || []); }),
         buildQuery('shift_assignments').limit(500).then(({data, error}) => { if(error) throw error; setShiftAssignments(data || []); }),
         supabase.from('settings').select('value').eq('key', `shifts_config_${companyFilterVal}`).single().then(({data}) => {
           if (data && Array.isArray(data.value)) setShifts(data.value);
           else setShifts(DEFAULT_SHIFTS);
+        }),
+        supabase.from('settings').select('value').eq('key', `positions_${companyFilterVal}`).single().then(({data}) => {
+          if (data && Array.isArray(data.value)) setPositionRates(data.value);
+          else setPositionRates([]);
         }),
         supabase.from('settings').select('value').eq('key', `weekly_holidays_${companyFilterVal}`).single().then(({data}) => { 
           if (data) {
@@ -721,9 +725,9 @@ export const App: React.FC = () => {
               ) : activeTab === 'shift' ? (
                 <ShiftModule employees={employees} assignments={shiftAssignments} setAssignments={setShiftAssignments} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} globalShifts={shifts} onRefreshShifts={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'attendance' ? (
-                <AttendanceModule employees={employees} records={attendanceRecords} setRecords={setAttendanceRecords} searchQuery={searchQuery} userRole={userRole} currentEmployee={currentUserEmployee} startDate={attendanceStartDate} endDate={attendanceEndDate} onStartDateChange={setAttendanceStartDate} onEndDateChange={setAttendanceEndDate} weeklyHolidays={weeklyHolidays} company={userCompany} />
+                <AttendanceModule employees={employees} records={attendanceRecords} setRecords={setAttendanceRecords} searchQuery={searchQuery} userRole={userRole} currentEmployee={currentUserEmployee} startDate={attendanceStartDate} endDate={attendanceEndDate} onStartDateChange={setAttendanceStartDate} onEndDateChange={setAttendanceEndDate} weeklyHolidays={weeklyHolidays} company={userCompany} positionRates={positionRates} />
               ) : activeTab === 'schedule' ? (
-                <LiveScheduleModule employees={employees} schedules={liveSchedules} setSchedules={setLiveSchedules} reports={liveReports} setReports={setLiveReports} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} attendanceRecords={attendanceRecords} shiftAssignments={shiftAssignments} shifts={shifts} />
+                <LiveScheduleModule employees={employees} schedules={liveSchedules} setSchedules={setLiveSchedules} reports={liveReports} setReports={setLiveReports} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} attendanceRecords={attendanceRecords} shiftAssignments={shiftAssignments} shifts={shifts} onRefreshData={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'content' ? (
                 <ContentModule employees={employees} plans={contentPlans} setPlans={setContentPlans} searchQuery={searchQuery} userRole={userRole} currentEmployee={currentUserEmployee} company={userCompany} />
               ) : activeTab === 'submissions' ? (
@@ -943,7 +947,7 @@ export const App: React.FC = () => {
               <button disabled={isAuthLoading} type="submit" className="w-full bg-[#0f172a] text-white py-5 rounded-3xl font-bold text-xs uppercase tracking-[0.4em] shadow-xl hover:bg-black transition-all">{isAuthLoading ? 'MENGHUBUNGKAN...' : 'MASUK'}</button>
               <div className="text-center flex flex-col gap-4 pt-2">
                 <button type="button" onClick={() => { setIsRegisterMode(!isRegisterMode); setIsForgotPasswordMode(false); }} className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hover:text-slate-900 transition-colors">{isRegisterMode ? 'KEMBALI KE LOGIN' : 'DAFTAR BARU'}</button>
-                {!isRegisterMode && <button type="button" onClick={() => setIsForgotPasswordMode(!isForgotPasswordMode)} className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hover:text-slate-900 transition-colors">{isForgotPasswordMode ? 'KEMBALI KE LOGIN' : 'LUPA PASSWORD?'}</button>}
+                {!isRegisterMode && <button type="button" onClick={() => setIsForgotPasswordMode(!isForgotPasswordMode)} className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-slate-900 transition-colors">{isForgotPasswordMode ? 'KEMBALI KE LOGIN' : 'LUPA PASSWORD?'}</button>}
               </div>
             </form>
           </div>
@@ -964,8 +968,8 @@ export const App: React.FC = () => {
 
       {isFormOpen && <EmployeeForm employees={employees} initialData={editingEmployee} userRole={userRole} userCompany={userCompany} currentUserEmployee={currentUserEmployee} onSave={async (emp) => { await supabase.from('employees').upsert(emp); fetchData(session?.user?.email, true); setIsFormOpen(false); }} onCancel={() => setIsFormOpen(false)} />}
       {viewingEmployee && <EmployeeDetailModal employee={viewingEmployee} onClose={() => setViewingEmployee(null)} />}
-      {slipEmployee && <SalarySlipModal employee={slipEmployee} attendanceRecords={attendanceRecords} userRole={userRole} onClose={() => setSlipEmployee(null)} onUpdate={() => fetchData(session?.user?.email, true)} weeklyHolidays={weeklyHolidays} />}
-      {isBulkSalaryOpen && <BulkSalaryModal employees={filteredEmployees} attendanceRecords={attendanceRecords} userRole={userRole} company={userCompany} weeklyHolidays={weeklyHolidays} onClose={() => setIsBulkSalaryOpen(false)} />}
+      {slipEmployee && <SalarySlipModal employee={slipEmployee} attendanceRecords={attendanceRecords} userRole={userRole} onClose={() => setSlipEmployee(null)} onUpdate={() => fetchData(session?.user?.email, true)} weeklyHolidays={weeklyHolidays} positionRates={positionRates} />}
+      {isBulkSalaryOpen && <BulkSalaryModal employees={filteredEmployees} attendanceRecords={attendanceRecords} userRole={userRole} company={userCompany} weeklyHolidays={weeklyHolidays} onClose={() => setIsBulkSalaryOpen(false)} positionRates={positionRates} />}
       {isAnnouncementOpen && <AnnouncementModal employees={filteredEmployees} company={userCompany} onClose={() => setIsAnnouncementOpen(false)} onSuccess={() => fetchData(session?.user?.email, true)} />}
       {legalType && <LegalModal type={legalType} onClose={() => setLegalType(null)} />}
     </div>

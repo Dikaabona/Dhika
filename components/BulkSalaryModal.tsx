@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Employee, AttendanceRecord } from '../types';
 import { Icons } from '../constants';
@@ -10,6 +11,7 @@ interface BulkSalaryModalProps {
   company: string;
   onClose: () => void;
   weeklyHolidays?: Record<string, string[]>;
+  positionRates?: any[];
 }
 
 const ALPHA_START_DATE = '2025-01-01';
@@ -20,7 +22,8 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
   userRole, 
   company, 
   onClose,
-  weeklyHolidays 
+  weeklyHolidays,
+  positionRates = []
 }) => {
   const getPreviousMonthInfo = () => {
     const now = new Date();
@@ -122,14 +125,50 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
         if (emp) {
           const empRecords = (attendanceRecords || []).filter(r => r.employeeId === emp.id && r.date >= rangeStartStr && r.date <= rangeEndStr);
           let alphaCount = 0;
+          let overtimePayTotal = 0;
+
+          const jabInput = (emp.jabatan || '').trim().toUpperCase();
+          const rateConfig = positionRates.find(p => p.name.toUpperCase() === jabInput);
+          let hourlyRate = rateConfig ? rateConfig.bonus : 10000;
+
+          if (!rateConfig) {
+             const jabLower = (emp.jabatan || '').toLowerCase();
+             const nameLower = (emp.nama || '').toLowerCase();
+             if (jabLower.includes('host') || jabLower.includes('operator') || nameLower.includes('mahardhika')) {
+               hourlyRate = 20000;
+             }
+          }
+
           const todayStr = formatDateToYYYYMMDD(new Date());
           let temp = new Date(rangeStart);
           while (temp <= rangeEnd) {
             const dStr = formatDateToYYYYMMDD(temp);
-            const hasRecord = empRecords.some(r => r.date === dStr && r.status !== 'Libur' && r.status !== 'Lembur');
-            if (!hasRecord && dStr < todayStr && dStr >= ALPHA_START_DATE && isWorkDay(temp, emp)) {
+            const dayRecs = empRecords.filter(r => r.date === dStr);
+            const mainRec = dayRecs.find(r => (r.status || '').toLowerCase() !== 'lembur');
+            const ovRecs = dayRecs.filter(r => (r.status || '').toLowerCase() === 'lembur' || (r.notes && r.notes.toLowerCase().includes('lembur')));
+
+            if (!mainRec && dStr < todayStr && dStr >= ALPHA_START_DATE && isWorkDay(temp, emp)) {
               alphaCount++;
             }
+
+            ovRecs.forEach(ov => {
+               let cIn = ov.clockIn;
+               let cOut = ov.clockOut;
+               if ((!cIn || !cOut || cOut === '--:--') && ov.notes) {
+                  const timeMatch = ov.notes.match(/(\d{1,2}[:.]\d{2})\s*-\s*(\d{1,2}[:.]\d{2})/);
+                  if (timeMatch) { cIn = timeMatch[1].replace('.', ':'); cOut = timeMatch[2].replace('.', ':'); }
+               }
+               if (cIn && cOut && cOut !== '--:--') {
+                  const sA = cIn.split(':').map(Number);
+                  const eA = cOut.split(':').map(Number);
+                  if (sA.length === 2 && eA.length === 2) {
+                     let diff = (eA[0] * 60 + eA[1]) - (sA[0] * 60 + sA[1]);
+                     if (diff < 0) diff += 1440;
+                     overtimePayTotal += Math.round((diff / 60) * hourlyRate);
+                  }
+               }
+            });
+
             temp.setDate(temp.getDate() + 1);
           }
 
@@ -139,11 +178,13 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
             lembur: 0, bonus: 0, thr: 0, potonganHutang: 0, potonganLain: 0
           };
           
-          // PERUBAHAN: Potongan Alpha hanya berdasarkan Gaji Pokok (Gapok)
           const potonganAbsen = Math.round((alphaCount * (config.gapok || 0)) / 26);
           const totalFixed = (config.gapok || 0) + (config.tunjanganMakan || 0) + (config.tunjanganTransport || 0) + (config.tunjanganKomunikasi || 0) + (config.tunjanganKesehatan || 0) + (config.tunjanganJabatan || 0);
+          
+          const finalLembur = overtimePayTotal > 0 ? overtimePayTotal : (config.lembur || 0);
+
           const totalPotongan = potonganAbsen + (config.bpjstk || 0) + (config.pph21 || 0);
-          const thp = (totalFixed + (config.lembur || 0) + (config.bonus || 0) + (config.thr || 0)) - totalPotongan;
+          const thp = (totalFixed + finalLembur + (config.bonus || 0) + (config.thr || 0)) - totalPotongan;
 
           await new Promise(resolve => setTimeout(resolve, 300));
           setLogs(prev => [{ name: emp.nama, status: 'Success', message: `Slip terkirim ke ${email} • THP: Rp ${thp.toLocaleString('id-ID')}` }, ...prev]);
@@ -169,7 +210,7 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-[#0f172a]/95 backdrop-blur-md z-[250] flex items-center justify-center p-4">
-      <div className="bg-white rounded-[48px] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-500">
+      <div className="bg-white rounded-[48px] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300">
         <div className="p-8 sm:p-10 border-b bg-[#0f172a] text-white flex justify-between items-center shrink-0">
           <div>
             <h2 className="text-2xl font-black uppercase tracking-tight leading-none">Kirim Slip Massal</h2>

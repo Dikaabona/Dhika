@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, AttendanceRecord } from '../types';
@@ -18,6 +19,7 @@ interface AttendanceModuleProps {
   onEndDateChange: (date: string) => void;
   weeklyHolidays?: Record<string, string[]>;
   company: string;
+  positionRates?: any[];
 }
 
 const ALPHA_START_DATE = '2026-02-02';
@@ -34,7 +36,8 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
   onStartDateChange,
   onEndDateChange,
   weeklyHolidays,
-  company
+  company,
+  positionRates = []
 }) => {
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [isPhotoLoading, setIsPhotoLoading] = useState(false);
@@ -50,7 +53,6 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
   const isAdmin = userRole === 'super' || userRole === 'admin' || userRole === 'owner';
 
   const calculateRowOvertime = (rec: AttendanceRecord, emp: Employee) => {
-    // Deteksi record lembur (Case Insensitive)
     const isLemburStatus = (rec.status || '').toLowerCase() === 'lembur';
     const hasLemburNotes = (rec.notes || '').toLowerCase().includes('lembur');
     
@@ -59,7 +61,6 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
     let cIn = rec.clockIn;
     let cOut = rec.clockOut;
 
-    // Jika kolom jam kosong, coba ambil dari notes (regex jam)
     if (!cIn || !cOut || cOut === '--:--' || cIn === '--:--') {
       const timeMatch = (rec.notes || '').match(/(\d{1,2}[:.]\d{2})\s*-\s*(\d{1,2}[:.]\d{2})/);
       if (timeMatch) {
@@ -78,25 +79,30 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         if (diffMinutes < 0) diffMinutes += 1440; 
         const hours = diffMinutes / 60;
         
-        // Tentukan rate berdasarkan jabatan (Fikry/Dimas/Muhammad dkk = 20rb)
-        const jabLower = (emp.jabatan || '').toLowerCase();
-        const divLower = (emp.division || '').toLowerCase();
-        const nameLower = (emp.nama || '').toLowerCase();
-        let hourlyRate = 10000;
+        const jabInput = (emp.jabatan || '').trim().toUpperCase();
+        const rateConfig = positionRates.find(p => p.name.toUpperCase() === jabInput);
+        let hourlyRate = rateConfig ? rateConfig.bonus : 10000;
 
-        if (
-          jabLower.includes('host') || 
-          jabLower.includes('operator') || 
-          jabLower.includes('business development') ||
-          jabLower.includes('owner') ||
-          jabLower.includes('admin') ||
-          jabLower.includes('ceo') ||
-          divLower.includes('host') || 
-          divLower.includes('operator') || 
-          nameLower.includes('mahardhika')
-        ) {
-          hourlyRate = 20000;
+        // Legacy Fallback jika config tidak ada
+        if (!rateConfig) {
+          const jabLower = (emp.jabatan || '').toLowerCase();
+          const divLower = (emp.division || '').toLowerCase();
+          const nameLower = (emp.nama || '').toLowerCase();
+          if (
+            jabLower.includes('host') || 
+            jabLower.includes('operator') || 
+            jabLower.includes('business development') ||
+            jabLower.includes('owner') ||
+            jabLower.includes('admin') ||
+            jabLower.includes('ceo') ||
+            divLower.includes('host') || 
+            divLower.includes('operator') || 
+            nameLower.includes('mahardhika')
+          ) {
+            hourlyRate = 20000;
+          }
         }
+        
         return Math.round(hours * hourlyRate);
       }
     }

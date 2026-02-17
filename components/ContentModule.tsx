@@ -34,10 +34,9 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   const [isPhotoLoading, setIsPhotoLoading] = useState(false);
   const [localSearch, setLocalSearch] = useState('');
 
-  // Date Range State
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
-    d.setDate(1); // Awal bulan ini
+    d.setDate(1); 
     return d.toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -45,7 +44,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   const screenshotInputRef = useRef<HTMLInputElement>(null);
   const contentFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 10;
 
@@ -116,7 +114,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       if (error) throw error;
       return true;
     } catch (err) {
-      console.error(`Gagal sinkronisasi cloud ${key}:`, err);
       return false;
     }
   };
@@ -266,7 +263,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   const handleOpenModal = async (plan?: ContentPlan) => {
     if (plan) {
       setEditingPlan(plan);
-      // Lazy load screenshot if editing
       let ss = '';
       if (plan.id) {
          try {
@@ -275,7 +271,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
          } catch(e) {}
       }
 
-      // PERBAIKAN: Ambil jamUpload dari notes jika kolom DB tidak ada
       let extractedJam = plan.jamUpload || '';
       if (!extractedJam && plan.notes && plan.notes.includes('[Time:')) {
           const match = plan.notes.match(/\[Time:\s*(\d{2}:\d{2})\]/);
@@ -333,8 +328,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
 
     const finalTitle = `${formData.brand} - ${formData.postingDate || 'No Date'}`;
     const { jamUpload, ...formDataRest } = formData;
-
-    // Siasati jamUpload ke dalam kolom notes agar tidak butuh kolom DB baru
     const cleanNotes = (formData.notes || '').replace(/\[Time:\s*\d{2}:\d{2}\]/g, '').trim();
 
     const dataToSave: any = { 
@@ -352,7 +345,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     if (editingPlan?.id) dataToSave.id = editingPlan.id;
 
     try {
-      // PERBAIKAN: Menghapus jamUpload dari select result
       const { data, error } = await supabase.from('content_plans').upsert(dataToSave).select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar');
       
       if (error) throw error;
@@ -442,21 +434,28 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       alert("Tidak ada data laporan untuk diekspor.");
       return;
     }
-    const dataToExport = filteredPlans.map(p => ({
-      'BRAND': p.brand,
-      'PLATFORM': p.platform,
-      'TANGGAL POSTING': p.postingDate,
-      'JAM UPLOAD': p.jamUpload || '-',
-      'CREATOR': getCreatorName(p.creatorId || ''),
-      'PILLAR': p.contentPillar,
-      'LINK POSTINGAN': p.linkPostingan,
-      'VIEWS': p.views,
-      'LIKES': p.likes,
-      'COMMENTS': p.comments,
-      'SAVES': p.saves,
-      'SHARES': p.shares,
-      'ENGAGEMENT RATE': calculateEngagementRate(p)
-    }));
+    const dataToExport = filteredPlans.map(p => {
+       let jamDisplay = p.jamUpload || '';
+       if (!jamDisplay && p.notes && p.notes.includes('[Time:')) {
+           const match = p.notes.match(/\[Time:\s*(\d{2}:\d{2})\]/);
+           if (match) jamDisplay = match[1];
+       }
+       return {
+          'BRAND': p.brand,
+          'PLATFORM': p.platform,
+          'TANGGAL POSTING': p.postingDate,
+          'JAM UPLOAD': jamDisplay || '-',
+          'CREATOR': getCreatorName(p.creatorId || ''),
+          'PILLAR': p.contentPillar,
+          'LINK POSTINGAN': p.linkPostingan,
+          'VIEWS': p.views,
+          'LIKES': p.likes,
+          'COMMENTS': p.comments,
+          'SAVES': p.saves,
+          'SHARES': p.shares,
+          'ENGAGEMENT RATE': calculateEngagementRate(p)
+       };
+    });
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan Konten");
@@ -498,6 +497,9 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           const creatorId = findCreatorIdByName(creatorName);
           if (!brand || !creatorId) return null;
 
+          const jamValue = String(row['JAM UPLOAD'] || '19:00');
+          const notesText = String(row['CATATAN'] || '');
+
           return {
             title: `${brand} - ${row['TANGGAL POSTING'] || 'No Date'}`,
             brand,
@@ -505,9 +507,8 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
             platform: (row['PLATFORM'] || 'TikTok') as any,
             creatorId,
             status: 'Selesai' as const,
-            notes: row['CATATAN'] || '',
+            notes: `${notesText} [Time: ${jamValue}]`.trim(),
             postingDate: parseExDate(row['TANGGAL POSTING']),
-            jamUpload: String(row['JAM UPLOAD'] || '19:00'),
             linkPostingan: String(row['LINK POSTINGAN'] || ''),
             contentPillar: String(row['PILLAR'] || pillars[0]),
             views: Number(row['VIEWS'] || 0),
@@ -519,7 +520,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         }).filter((p): p is any => p !== null);
 
         if (rawPlans.length > 0) {
-          // PERBAIKAN: Menghapus jamUpload dari select result
           const { data: inserted, error } = await supabase.from('content_plans').upsert(rawPlans).select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar');
           if (error) throw error;
           
@@ -601,11 +601,16 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   };
 
   const handleSyncItemToCalendar = (plan: ContentPlan) => {
+    let jamVal = plan.jamUpload || '19:00';
+    if (!plan.jamUpload && plan.notes && plan.notes.includes('[Time:')) {
+        const match = plan.notes.match(/\[Time:\s*(\d{2}:\d{2})\]/);
+        if (match) jamVal = match[1];
+    }
     const url = generateGoogleCalendarUrl({
       title: `POSTING: ${plan.brand} (${plan.platform})`,
       details: `Pillar: ${plan.contentPillar}\nCreator: ${getCreatorName(plan.creatorId || '')}\nSistem: HR.Visibel ID`,
       date: plan.postingDate || new Date().toISOString().split('T')[0],
-      timeSlot: plan.jamUpload || '19:00'
+      timeSlot: jamVal
     });
     window.open(url, '_blank');
   };
@@ -895,7 +900,6 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                 const er = calculateEngagementRate(plan);
                 const erValue = parseFloat(er);
 
-                // Siasati tampilan jam dari notes jika kolom DB tidak ada
                 let jamDisplay = plan.jamUpload || '';
                 if (!jamDisplay && plan.notes && plan.notes.includes('[Time:')) {
                     const match = plan.notes.match(/\[Time:\s*(\d{2}:\d{2})\]/);

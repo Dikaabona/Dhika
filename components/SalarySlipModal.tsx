@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Employee, SalaryData, AttendanceRecord, Broadcast } from '../types';
 import { Icons } from '../constants';
@@ -12,6 +13,7 @@ interface SalarySlipModalProps {
   onClose: () => void;
   onUpdate?: () => void;
   weeklyHolidays?: Record<string, string[]>;
+  positionRates?: any[];
 }
 
 const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
@@ -19,7 +21,7 @@ const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9
 
 const ALPHA_START_DATE = '2025-01-01';
 
-const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceRecords, userRole, onClose, onUpdate, weeklyHolidays }) => {
+const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceRecords, userRole, onClose, onUpdate, weeklyHolidays, positionRates = [] }) => {
   const isReadOnlyRole = userRole === 'admin' || userRole === 'employee';
   const isSuperAdmin = userRole === 'owner' || userRole === 'super';
 
@@ -137,25 +139,30 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       overtimeItems: [] as { date: string, hours: number, pay: number, notes: string }[] 
     };
     
-    const jabLower = (employee.jabatan || '').toLowerCase();
-    const divLower = (employee.division || '').toLowerCase();
-    const nameLower = (employee.nama || '').toLowerCase();
-    let hourlyRate = 10000;
+    const jabInput = (employee.jabatan || '').trim().toUpperCase();
+    const rateConfig = positionRates.find(p => p.name.toUpperCase() === jabInput);
+    let hourlyRate = rateConfig ? rateConfig.bonus : 10000;
 
-    if (
-      jabLower.includes('host') || 
-      jabLower.includes('operator') || 
-      jabLower.includes('business development') ||
-      jabLower.includes('owner') ||
-      jabLower.includes('admin') ||
-      jabLower.includes('ceo') ||
-      divLower.includes('host') || 
-      divLower.includes('operator') || 
-      nameLower.includes('mahardhika') ||
-      nameLower.includes('fikry') ||
-      nameLower.includes('dimas')
-    ) {
-      hourlyRate = 20000;
+    // Legacy Fallback
+    if (!rateConfig) {
+      const jabLower = (employee.jabatan || '').toLowerCase();
+      const divLower = (employee.division || '').toLowerCase();
+      const nameLower = (employee.nama || '').toLowerCase();
+      if (
+        jabLower.includes('host') || 
+        jabLower.includes('operator') || 
+        jabLower.includes('business development') ||
+        jabLower.includes('owner') ||
+        jabLower.includes('admin') ||
+        jabLower.includes('ceo') ||
+        divLower.includes('host') || 
+        divLower.includes('operator') || 
+        nameLower.includes('mahardhika') ||
+        nameLower.includes('fikry') ||
+        nameLower.includes('dimas')
+      ) {
+        hourlyRate = 20000;
+      }
     }
 
     const todayStr = formatDateToYYYYMMDD(new Date());
@@ -230,7 +237,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       temp.setDate(temp.getDate() + 1);
     }
     return summary;
-  }, [attendanceRecords, data.month, data.year, employee, weeklyHolidays]);
+  }, [attendanceRecords, data.month, data.year, employee, weeklyHolidays, positionRates]);
 
   useEffect(() => {
     if (!isReadOnlyRole && attendanceResults.totalOvertimePay > 0) {
@@ -822,7 +829,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           </div>
         </div>
       </div>
-      {/* ... sisanya (modal overtime details & preview) tetap ... */}
+
       {showOvertimeDetails && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-[300] animate-in fade-in duration-300">
           <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">

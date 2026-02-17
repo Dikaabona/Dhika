@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icons } from '../constants';
 import { supabase } from '../App';
@@ -9,7 +10,7 @@ interface SettingsModuleProps {
   onRefresh: () => void;
 }
 
-type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'BONUS';
+type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR';
 
 interface CustomCriteria {
   id: string;
@@ -428,10 +429,10 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                   </button>
                 )}
                 <button 
-                  onClick={() => setActiveSubTab('BONUS')} 
-                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'BONUS' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                  onClick={() => setActiveSubTab('LEMBUR')} 
+                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'LEMBUR' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                 >
-                  BONUS
+                  LEMBUR
                 </button>
                 <button 
                   onClick={() => setActiveSubTab('MAPS')} 
@@ -449,7 +450,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
             </div>
           </div>
           
-          {(activeSubTab !== 'DIVISI' && activeSubTab !== 'BONUS') && (
+          {(activeSubTab !== 'DIVISI' && activeSubTab !== 'LEMBUR') && (
             <button 
               onClick={activeSubTab === 'KPI' ? () => handleSaveKPISystem(kpiSystem) : handleSaveSettings}
               disabled={isSaving}
@@ -732,7 +733,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                           <button 
                             onClick={handleAddCriteria}
                             disabled={isSaving}
-                            className="bg-[#0f172a] text-[#FFC000] px-6 rounded-2xl shadow-xl active:scale-90 transition-all disabled:opacity-50"
+                            className="bg-[#0f172a] text-[#FFC000] px-8 rounded-2xl shadow-xl active:scale-90 transition-all disabled:opacity-50"
                           >
                             <Icons.Plus className="w-5 h-5" />
                           </button>
@@ -849,12 +850,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                </div>
             </div>
           </div>
-        ) : activeSubTab === 'BONUS' ? (
+        ) : activeSubTab === 'LEMBUR' ? (
           <div className="animate-in fade-in duration-300 space-y-12">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div className="space-y-2">
-                 <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Perhitungan Bonus Jabatan</h3>
-                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Atur nominal bonus per jam untuk setiap kategori jabatan karyawan.</p>
+                 <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Perhitungan Lembur Jabatan</h3>
+                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Atur nominal lembur per jam untuk setiap kategori jabatan karyawan.</p>
               </div>
             </div>
 
@@ -869,7 +870,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                     </div>
                     
                     <div className="space-y-2">
-                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Bonus Per Jam (Rp)</label>
+                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Lembur Per Jam (Rp)</label>
                        <div className="relative">
                           <input 
                             type="number"
