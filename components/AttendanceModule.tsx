@@ -79,8 +79,10 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         if (diffMinutes < 0) diffMinutes += 1440; 
         const hours = diffMinutes / 60;
         
-        const jabInput = (emp.jabatan || '').trim().toUpperCase();
-        const rateConfig = positionRates.find(p => p.name.toUpperCase() === jabInput);
+        // Pencocokan jabatan yang sinkron dengan settings
+        const currentJabatan = (emp.jabatan || '').trim().toUpperCase();
+        const rateConfig = positionRates.find(p => p.name.toUpperCase() === currentJabatan || currentJabatan.includes(p.name.toUpperCase()));
+        
         let hourlyRate = rateConfig ? rateConfig.bonus : 10000;
 
         // Legacy Fallback jika config tidak ada
@@ -88,7 +90,10 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
           const jabLower = (emp.jabatan || '').toLowerCase();
           const divLower = (emp.division || '').toLowerCase();
           const nameLower = (emp.nama || '').toLowerCase();
-          if (
+          
+          if (jabLower.includes('content creator')) {
+            hourlyRate = 50000;
+          } else if (
             jabLower.includes('host') || 
             jabLower.includes('operator') || 
             jabLower.includes('business development') ||

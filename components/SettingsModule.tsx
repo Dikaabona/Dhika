@@ -180,6 +180,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
       
       if (settingsError) throw settingsError;
       alert("Pengaturan sistem berhasil diperbarui!");
+      onRefresh();
     } catch (err: any) {
       alert("Gagal menyimpan: " + err.message);
     } finally {
@@ -198,6 +199,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
       if (settingsError) throw settingsError;
       setKpiSystem(newData);
       alert("Konfigurasi KPI berhasil disimpan!");
+      onRefresh();
     } catch (err: any) {
       alert("Gagal menyimpan kriteria KPI: " + err.message);
     } finally {
@@ -235,6 +237,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     await saveSettingsToCloud(`divisions_${isOwner ? selectedCompany : userCompany}`, updated);
     setDivisions(updated);
     setNewDivisionName('');
+    onRefresh();
   };
 
   const handleRemoveDivision = async (name: string) => {
@@ -242,6 +245,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     const updated = divisions.filter(d => d !== name);
     await saveSettingsToCloud(`divisions_${isOwner ? selectedCompany : userCompany}`, updated);
     setDivisions(updated);
+    onRefresh();
   };
 
   const handleAddPosition = async () => {
@@ -255,6 +259,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     await saveSettingsToCloud(`positions_${isOwner ? selectedCompany : userCompany}`, updated);
     setPositions(updated);
     setNewPositionName('');
+    onRefresh();
   };
 
   const handleRemovePosition = async (name: string) => {
@@ -262,12 +267,14 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     const updated = positions.filter(p => p.name !== name);
     await saveSettingsToCloud(`positions_${isOwner ? selectedCompany : userCompany}`, updated);
     setPositions(updated);
+    onRefresh();
   };
 
   const handleUpdatePositionBonus = async (name: string, bonus: number) => {
     const updated = positions.map(p => p.name === name ? { ...p, bonus } : p);
     setPositions(updated);
     await saveSettingsToCloud(`positions_${isOwner ? selectedCompany : userCompany}`, updated);
+    onRefresh();
   };
 
   const saveSettingsToCloud = async (key: string, value: any) => {
@@ -314,6 +321,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
 
       if (error) throw error;
       setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, isRemoteAllowed: newValue } : e));
+      onRefresh();
     } catch (err: any) {
       alert("Gagal memperbarui izin: " + err.message);
     }

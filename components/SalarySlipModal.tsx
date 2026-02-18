@@ -139,16 +139,21 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       overtimeItems: [] as { date: string, hours: number, pay: number, notes: string }[] 
     };
     
-    const jabInput = (employee.jabatan || '').trim().toUpperCase();
-    const rateConfig = positionRates.find(p => p.name.toUpperCase() === jabInput);
+    // Pencocokan jabatan yang lebih akurat
+    const currentJabatan = (employee.jabatan || '').trim().toUpperCase();
+    const rateConfig = positionRates.find(p => p.name.toUpperCase() === currentJabatan || currentJabatan.includes(p.name.toUpperCase()));
+    
     let hourlyRate = rateConfig ? rateConfig.bonus : 10000;
 
-    // Legacy Fallback
+    // Legacy Fallback hanya jika tidak ditemukan di config
     if (!rateConfig) {
       const jabLower = (employee.jabatan || '').toLowerCase();
       const divLower = (employee.division || '').toLowerCase();
       const nameLower = (employee.nama || '').toLowerCase();
-      if (
+      
+      if (jabLower.includes('content creator')) {
+        hourlyRate = 50000;
+      } else if (
         jabLower.includes('host') || 
         jabLower.includes('operator') || 
         jabLower.includes('business development') ||
