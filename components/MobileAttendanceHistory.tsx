@@ -76,34 +76,31 @@ const MobileAttendanceHistory: React.FC<MobileAttendanceHistoryProps> = ({
   return (
     <div className="fixed inset-0 bg-[#F5F7FA] z-[200] flex flex-col animate-in slide-in-from-right duration-300">
       {/* Header */}
-      <div className="bg-[#1E6BFF] p-6 pb-12 rounded-b-[40px] relative shrink-0">
-        <div className="flex items-center justify-between text-white">
+      <div className="bg-white p-6 pb-12 rounded-b-[40px] relative shrink-0 shadow-sm">
+        <div className="flex items-center justify-between text-slate-900">
           <div className="flex items-center gap-4">
-            <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
               <Icons.ChevronDown className="w-6 h-6 rotate-90" />
             </button>
             <h1 className="text-lg font-bold">Riwayat Kehadiran</h1>
           </div>
-          <button className="p-2 hover:bg-white/10 rounded-full transition-colors">
-            <Icons.Calendar className="w-6 h-6" />
-          </button>
         </div>
 
         {/* Summary Cards */}
         <div className="absolute -bottom-8 left-6 right-6 grid grid-cols-4 gap-2">
-          <div className="bg-white/10 backdrop-blur-md p-3 rounded-2xl flex flex-col items-center border border-white/20">
-            <span className="text-xl font-bold text-white">{attendanceData.stats.total}</span>
-            <span className="text-[8px] font-medium text-white/70 uppercase">Total</span>
+          <div className="bg-white p-3 rounded-2xl flex flex-col items-center shadow-sm border border-slate-100">
+            <span className="text-xl font-bold text-slate-900">{attendanceData.stats.total}</span>
+            <span className="text-[8px] font-medium text-slate-400 uppercase">Total</span>
           </div>
-          <div className="bg-white p-3 rounded-2xl flex flex-col items-center shadow-sm">
+          <div className="bg-white p-3 rounded-2xl flex flex-col items-center shadow-sm border border-slate-100">
             <span className="text-xl font-bold text-emerald-500">{attendanceData.stats.hadir}</span>
             <span className="text-[8px] font-medium text-slate-400 uppercase">Hadir</span>
           </div>
-          <div className="bg-white p-3 rounded-2xl flex flex-col items-center shadow-sm">
+          <div className="bg-white p-3 rounded-2xl flex flex-col items-center shadow-sm border border-slate-100">
             <span className="text-xl font-bold text-orange-500">{attendanceData.stats.terlambat}</span>
             <span className="text-[8px] font-medium text-slate-400 uppercase">Terlambat</span>
           </div>
-          <div className="bg-white p-3 rounded-2xl flex flex-col items-center shadow-sm">
+          <div className="bg-white p-3 rounded-2xl flex flex-col items-center shadow-sm border border-slate-100">
             <span className="text-xl font-bold text-purple-500">{attendanceData.stats.cuti}</span>
             <span className="text-[8px] font-medium text-slate-400 uppercase">Cuti</span>
           </div>
@@ -118,7 +115,7 @@ const MobileAttendanceHistory: React.FC<MobileAttendanceHistoryProps> = ({
               key={t}
               onClick={() => setFilter(t as any)}
               className={`px-6 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
-                filter === t ? 'bg-[#1E6BFF] text-white shadow-md' : 'bg-white text-slate-400 border border-slate-100'
+                filter === t ? 'bg-[#FFC000] text-black shadow-md' : 'bg-white text-slate-400 border border-slate-100'
               }`}
             >
               {t}
@@ -128,7 +125,7 @@ const MobileAttendanceHistory: React.FC<MobileAttendanceHistoryProps> = ({
       </div>
 
       {/* List */}
-      <div className="flex-grow overflow-y-auto px-6 py-4 space-y-3 custom-scrollbar">
+      <div className="flex-grow overflow-y-auto px-6 py-4 pb-24 space-y-3 custom-scrollbar">
         {attendanceData.list.map((rec) => {
           const dateObj = new Date(rec.date);
           const dayName = dateObj.toLocaleDateString('id-ID', { weekday: 'long' });
@@ -165,7 +162,7 @@ const MobileAttendanceHistory: React.FC<MobileAttendanceHistoryProps> = ({
               </div>
               {duration && (
                 <div className="text-right">
-                  <p className="text-sm font-black text-[#1E6BFF]">{duration}</p>
+                  <p className="text-sm font-black text-[#FFC000]">{duration}</p>
                   <p className="text-[8px] font-bold text-slate-300 uppercase">Jam Kerja</p>
                 </div>
               )}

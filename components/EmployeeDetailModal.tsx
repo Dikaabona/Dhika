@@ -26,14 +26,14 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, onC
   return (
     <div className="fixed inset-0 bg-[#0f172a]/95 backdrop-blur-md z-[250] flex items-center justify-center p-0 sm:p-4">
       <div className="bg-white w-full max-w-lg h-full sm:h-auto sm:max-h-[90vh] sm:rounded-[40px] overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-500">
-        {/* Header Bar - Yellow background with overlap support */}
-        <div className="bg-[#FFC000] h-32 shrink-0 relative">
+        {/* Header Bar - White background with overlap support */}
+        <div className="bg-white h-32 shrink-0 relative">
            <div className="absolute top-4 left-4 z-20">
-              <button onClick={onClose} className="text-black hover:bg-black/10 p-2 rounded-xl transition-all active:scale-90">
+              <button onClick={onClose} className="text-slate-900 hover:bg-slate-100 p-2 rounded-xl transition-all active:scale-90">
                 <Icons.ArrowLeft className="w-6 h-6" />
               </button>
            </div>
-           {/* Profile Picture overlapping the yellow bar */}
+           {/* Profile Picture overlapping the header bar */}
            <div className="absolute -bottom-14 left-1/2 -translate-x-1/2 z-10">
               <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-white shadow-2xl bg-slate-100 flex items-center justify-center">
                 {employee.photoBase64 || employee.avatarUrl ? (
@@ -45,7 +45,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, onC
            </div>
         </div>
 
-        <div className="flex-grow overflow-y-auto no-scrollbar pb-12 mt-16">
+        <div className="flex-grow overflow-y-auto no-scrollbar pb-24 mt-16">
           {/* Profile Section */}
           <div className="flex flex-col items-center pb-4 text-center px-6">
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">{employee.nama}</h2>
