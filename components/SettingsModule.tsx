@@ -7,10 +7,11 @@ import { AttendanceSettings, Employee } from '../types';
 interface SettingsModuleProps {
   userRole: string;
   userCompany: string;
+  userEmail?: string;
   onRefresh: () => void;
 }
 
-type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR';
+type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT';
 
 interface CustomCriteria {
   id: string;
@@ -32,7 +33,7 @@ interface KPISystemData {
   scores: Record<string, Record<string, Record<string, number>>>;
 }
 
-const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, onRefresh }) => {
+const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, userEmail, onRefresh }) => {
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('ROLE');
   const [selectedCompany, setSelectedCompany] = useState<string>(userCompany);
   const [allCompanies, setAllCompanies] = useState<string[]>([]);
@@ -62,6 +63,9 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const [newDivisionName, setNewDivisionName] = useState('');
   const [newPositionName, setNewPositionName] = useState('');
   
+  const [clients, setClients] = useState<any[]>([]);
+  const [newClient, setNewClient] = useState({ namaPic: '', noTelepon: '', namaBrand: '', alamat: '' });
+  
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [searchEmp, setSearchEmp] = useState('');
@@ -75,12 +79,15 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
 
   const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super';
-  const canAccessRoleManagement = isOwner || isSuper;
+  const isHighAdminAccess = isOwner || isSuper;
+  const canAccessRoleManagement = isHighAdminAccess;
+  const canAccessClientData = isHighAdminAccess || userEmail === 'wida.oktapiani99@gmail.com';
 
   useEffect(() => {
     fetchSettingsAndEmployees();
     fetchKPIConfig();
     fetchDivisionsAndPositions();
+    fetchClients();
     if (isOwner) fetchAllCompanies();
   }, [selectedCompany, isOwner]);
 
@@ -166,6 +173,20 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     } catch (e) {
       setDivisions([]);
       setPositions([]);
+    }
+  };
+
+  const fetchClients = async () => {
+    try {
+      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const { data } = await supabase.from('settings').select('value').eq('key', `clients_${targetCompany}`).single();
+      if (data && Array.isArray(data.value)) {
+        setClients(data.value);
+      } else {
+        setClients([]);
+      }
+    } catch (e) {
+      setClients([]);
     }
   };
 
@@ -311,6 +332,25 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     }
   };
 
+  const handleAddClient = async () => {
+    if (!newClient.namaPic || !newClient.namaBrand) {
+      alert("Nama PIC dan Nama Brand wajib diisi!");
+      return;
+    }
+    const updated = [...clients, { ...newClient, id: `client-${Date.now()}` }];
+    await saveSettingsToCloud(`clients_${isOwner ? selectedCompany : userCompany}`, updated);
+    setClients(updated);
+    setNewClient({ namaPic: '', noTelepon: '', namaBrand: '', alamat: '' });
+    alert("Data client berhasil ditambahkan!");
+  };
+
+  const handleRemoveClient = async (id: string) => {
+    if (!confirm("Hapus data client ini?")) return;
+    const updated = clients.filter(c => c.id !== id);
+    await saveSettingsToCloud(`clients_${isOwner ? selectedCompany : userCompany}`, updated);
+    setClients(updated);
+  };
+
   const toggleEmployeeRemote = async (emp: Employee) => {
     const newValue = !emp.isRemoteAllowed;
     try {
@@ -454,11 +494,19 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                 >
                   DIVISI & STRUKTUR
                 </button>
+                {canAccessClientData && (
+                  <button 
+                    onClick={() => setActiveSubTab('CLIENT')} 
+                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'CLIENT' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    DATA CLIENT
+                  </button>
+                )}
               </div>
             </div>
           </div>
           
-          {(activeSubTab !== 'DIVISI' && activeSubTab !== 'LEMBUR') && (
+          {(activeSubTab !== 'DIVISI' && activeSubTab !== 'LEMBUR' && activeSubTab !== 'CLIENT') && (
             <button 
               onClick={activeSubTab === 'KPI' ? () => handleSaveKPISystem(kpiSystem) : handleSaveSettings}
               disabled={isSaving}
@@ -609,6 +657,121 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
               </div>
             </div>
           </div>
+        ) : activeSubTab === 'CLIENT' ? (
+          canAccessClientData ? (
+            <div className="animate-in fade-in duration-300 space-y-12">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="space-y-2">
+                   <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Manajemen Data Client</h3>
+                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Kelola data client perusahaan untuk keperluan invoice.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                <div className="lg:col-span-1 space-y-8">
+                  <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-6">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tambah Client Baru</h4>
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama PIC</label>
+                        <input 
+                          type="text" 
+                          value={newClient.namaPic} 
+                          onChange={e => setNewClient({...newClient, namaPic: e.target.value})} 
+                          className="w-full bg-white border border-slate-200 px-5 py-3 rounded-2xl text-[11px] font-black uppercase outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">No Telepon</label>
+                        <input 
+                          type="text" 
+                          value={newClient.noTelepon} 
+                          onChange={e => setNewClient({...newClient, noTelepon: e.target.value})} 
+                          className="w-full bg-white border border-slate-200 px-5 py-3 rounded-2xl text-[11px] font-black uppercase outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Brand</label>
+                        <input 
+                          type="text" 
+                          value={newClient.namaBrand} 
+                          onChange={e => setNewClient({...newClient, namaBrand: e.target.value})} 
+                          className="w-full bg-white border border-slate-200 px-5 py-3 rounded-2xl text-[11px] font-black uppercase outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Alamat</label>
+                        <textarea 
+                          value={newClient.alamat} 
+                          onChange={e => setNewClient({...newClient, alamat: e.target.value})} 
+                          className="w-full bg-white border border-slate-200 px-5 py-3 rounded-2xl text-[11px] font-black uppercase outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm min-h-[100px]" 
+                        />
+                      </div>
+                      <button 
+                        onClick={handleAddClient}
+                        disabled={isSaving}
+                        className="w-full bg-[#0f172a] text-[#FFC000] py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                      >
+                        <Icons.Plus className="w-4 h-4" /> TAMBAH CLIENT
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="bg-white rounded-[40px] border border-slate-100 overflow-hidden shadow-sm">
+                    <table className="w-full text-left">
+                      <thead className="bg-slate-50 text-[9px] font-black uppercase tracking-widest text-slate-400 border-b">
+                        <tr>
+                          <th className="px-8 py-6">Client / Brand</th>
+                          <th className="px-8 py-6">PIC / Kontak</th>
+                          <th className="px-8 py-6">Alamat</th>
+                          <th className="px-8 py-6 text-right">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {clients.map(client => (
+                          <tr key={client.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-8 py-5">
+                              <p className="text-[11px] font-black text-slate-900 uppercase">{client.namaBrand}</p>
+                            </td>
+                            <td className="px-8 py-5">
+                              <p className="text-[10px] font-bold text-slate-700 uppercase">{client.namaPic}</p>
+                              <p className="text-[9px] text-slate-400 font-medium">{client.noTelepon}</p>
+                            </td>
+                            <td className="px-8 py-5">
+                              <p className="text-[9px] text-slate-500 uppercase line-clamp-2 max-w-[200px]">{client.alamat}</p>
+                            </td>
+                            <td className="px-8 py-5 text-right">
+                              <button 
+                                onClick={() => handleRemoveClient(client.id)}
+                                className="text-rose-400 hover:text-rose-600 p-2 rounded-lg hover:bg-rose-50 transition-all"
+                              >
+                                <Icons.Trash className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                        {clients.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="py-20 text-center opacity-30">
+                              <Icons.Database className="w-12 h-12 mx-auto mb-4" />
+                              <p className="text-[10px] font-black uppercase tracking-[0.4em]">Belum ada data client</p>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="p-10 text-center">
+              <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Akses Ditolak</h2>
+              <p className="text-slate-500">Anda tidak memiliki izin untuk mengakses data client.</p>
+            </div>
+          )
         ) : activeSubTab === 'ROLE' ? (
           <div className="animate-in fade-in duration-300 space-y-10">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">

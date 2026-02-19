@@ -25,6 +25,7 @@ import InventoryModule from './components/InventoryModule.tsx';
 import EmployeeDetailModal from './components/EmployeeDetailModal.tsx';
 import LiveMapModule from './components/LiveMapModule.tsx';
 import FinancialModule from './components/FinancialModule.tsx';
+import { InvoiceModule } from './components/InvoiceModule.tsx';
 import { getTenureYears, calculateTenure, formatDateToYYYYMMDD, getMondayISO } from './utils/dateUtils.ts';
 
 const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
@@ -629,6 +630,9 @@ export const App: React.FC = () => {
         {isAdminAccess && (
           <button onClick={() => setActiveTab('kpi')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'kpi' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>KPI</button>
         )}
+        {(isHighAdminAccess || session?.user?.email === 'wida.oktapiani99@gmail.com') && (
+          <button onClick={() => setActiveTab('invoice')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'invoice' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>INVOICE</button>
+        )}
         {isAdminAccess && (
           <button onClick={() => setActiveTab('settings')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>SETTING</button>
         )}
@@ -735,7 +739,16 @@ export const App: React.FC = () => {
               ) : activeTab === 'inbox' ? (
                 <Inbox submissions={submissions} broadcasts={broadcasts} employee={currentUserEmployee} userRole={userRole} onUpdate={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'settings' ? (
-                <SettingsModule userRole={userRole} userCompany={userCompany} onRefresh={() => fetchData(session?.user?.email, true)} />
+                <SettingsModule userRole={userRole} userCompany={userCompany} userEmail={session?.user?.email} onRefresh={() => fetchData(session?.user?.email, true)} />
+              ) : activeTab === 'invoice' ? (
+                (isHighAdminAccess || session?.user?.email === 'wida.oktapiani99@gmail.com') ? (
+                  <InvoiceModule company={userCompany} onClose={() => setActiveTab('home')} />
+                ) : (
+                  <div className="p-10 text-center">
+                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Akses Ditolak</h2>
+                    <p className="text-slate-500">Anda tidak memiliki izin untuk mengakses modul ini.</p>
+                  </div>
+                )
               ) : activeTab === 'database' ? (
                 <div className="bg-[#f8fafc] sm:bg-white rounded-none sm:rounded-[60px] sm:shadow-sm sm:border sm:border-slate-100 overflow-hidden animate-in fade-in duration-700">
                   <div className="px-5 sm:px-14 py-8 sm:py-16 flex flex-col items-center sm:items-start bg-transparent sm:bg-white gap-6">

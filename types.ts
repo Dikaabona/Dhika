@@ -204,5 +204,41 @@ export interface SalaryData {
   potonganLain: number;
 }
 
-export type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'submissions' | 'inbox' | 'settings' | 'shift' | 'minvis' | 'kpi' | 'inventory' | 'calendar' | 'live_map' | 'finance';
+export interface InvoiceItem {
+  id: string;
+  description: string;
+  qty: number;
+  price: number;
+}
+
+export interface Invoice {
+  id?: string;
+  invoiceNumber: string;
+  date: string;
+  recipientName: string;
+  recipientAddress: string;
+  items: InvoiceItem[];
+  bankName: string;
+  bankBranch: string;
+  bankSwiftCode: string;
+  accountName: string;
+  accountNumber: string;
+  paymentReference: string;
+  company: string;
+  subTotal: number;
+  taxRate: number;
+  total: number;
+}
+
+export interface Client {
+  id?: string;
+  namaPic: string;
+  noTelepon: string;
+  namaBrand: string;
+  alamat: string;
+  company: string;
+  created_at?: string;
+}
+
+export type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'submissions' | 'inbox' | 'settings' | 'shift' | 'minvis' | 'kpi' | 'inventory' | 'calendar' | 'live_map' | 'finance' | 'invoice';
 export type UserRole = 'owner' | 'super' | 'admin' | 'employee';
