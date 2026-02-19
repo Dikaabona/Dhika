@@ -240,5 +240,5 @@ export interface Client {
   created_at?: string;
 }
 
-export type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'submissions' | 'inbox' | 'settings' | 'shift' | 'minvis' | 'kpi' | 'inventory' | 'calendar' | 'live_map' | 'finance' | 'invoice';
+export type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'submissions' | 'inbox' | 'settings' | 'shift' | 'minvis' | 'kpi' | 'inventory' | 'calendar' | 'live_map' | 'finance' | 'invoice' | 'mobile_history' | 'profile';
 export type UserRole = 'owner' | 'super' | 'admin' | 'employee';

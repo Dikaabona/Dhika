@@ -23,6 +23,7 @@ import KPIModule from './components/KPIModule.tsx';
 import CalendarModule from './components/CalendarModule.tsx';
 import InventoryModule from './components/InventoryModule.tsx';
 import EmployeeDetailModal from './components/EmployeeDetailModal.tsx';
+import MobileAttendanceHistory from './components/MobileAttendanceHistory.tsx';
 import LiveMapModule from './components/LiveMapModule.tsx';
 import FinancialModule from './components/FinancialModule.tsx';
 import { InvoiceModule } from './components/InvoiceModule.tsx';
@@ -640,6 +641,36 @@ export const App: React.FC = () => {
     );
   };
 
+  const MobileNav = () => {
+    return (
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-10 py-3 flex items-center justify-between z-[150] shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
+        <button 
+          onClick={() => setActiveTab('home')}
+          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'home' ? 'text-[#1E6BFF]' : 'text-slate-300'}`}
+        >
+          <Icons.Home className="w-6 h-6" />
+          <span className="text-[8px] font-black uppercase tracking-tighter">Beranda</span>
+        </button>
+        <button 
+          onClick={() => setActiveTab('mobile_history')}
+          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'mobile_history' ? 'text-[#1E6BFF]' : 'text-slate-300'}`}
+        >
+          <Icons.Clock className="w-6 h-6" />
+          <span className="text-[8px] font-black uppercase tracking-tighter">Riwayat</span>
+        </button>
+        <button 
+          onClick={() => {
+            if (currentUserEmployee) setViewingEmployee(currentUserEmployee);
+          }}
+          className={`flex flex-col items-center gap-1 transition-all ${viewingEmployee ? 'text-[#1E6BFF]' : 'text-slate-300'}`}
+        >
+          <Icons.Users className="w-6 h-6" />
+          <span className="text-[8px] font-black uppercase tracking-tighter">Profil</span>
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc]">
       {session ? (
@@ -699,7 +730,7 @@ export const App: React.FC = () => {
               </nav>
             )}
 
-            <main className={`flex-grow w-full overflow-y-auto ${isFullscreenModule ? 'bg-white' : 'max-w-7xl mx-auto px-4 py-6 sm:py-10'}`}>
+            <main className={`flex-grow w-full overflow-y-auto pb-24 md:pb-0 ${isFullscreenModule ? 'bg-white' : 'max-w-7xl mx-auto px-4 py-6 sm:py-10'}`}>
               {fetchError ? (
                 <div className="p-10 text-center space-y-4">
                    <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto">
@@ -748,6 +779,16 @@ export const App: React.FC = () => {
                     <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Akses Ditolak</h2>
                     <p className="text-slate-500">Anda tidak memiliki izin untuk mengakses modul ini.</p>
                   </div>
+                )
+              ) : activeTab === 'mobile_history' ? (
+                currentUserEmployee && (
+                  <MobileAttendanceHistory 
+                    employee={currentUserEmployee} 
+                    records={attendanceRecords} 
+                    shiftAssignments={shiftAssignments}
+                    shifts={shifts}
+                    onClose={() => setActiveTab('home')} 
+                  />
                 )
               ) : activeTab === 'database' ? (
                 <div className="bg-[#f8fafc] sm:bg-white rounded-none sm:rounded-[60px] sm:shadow-sm sm:border sm:border-slate-100 overflow-hidden animate-in fade-in duration-700">
@@ -985,6 +1026,7 @@ export const App: React.FC = () => {
       {isBulkSalaryOpen && <BulkSalaryModal employees={filteredEmployees} attendanceRecords={attendanceRecords} userRole={userRole} company={userCompany} weeklyHolidays={weeklyHolidays} onClose={() => setIsBulkSalaryOpen(false)} positionRates={positionRates} />}
       {isAnnouncementOpen && <AnnouncementModal employees={filteredEmployees} company={userCompany} onClose={() => setIsAnnouncementOpen(false)} onSuccess={() => fetchData(session?.user?.email, true)} />}
       {legalType && <LegalModal type={legalType} onClose={() => setLegalType(null)} />}
+      {session && !isUnregistered && <MobileNav />}
     </div>
   );
 };
