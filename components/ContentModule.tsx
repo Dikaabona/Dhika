@@ -197,7 +197,10 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     });
   }, [employees]);
 
-  const getCreatorName = (id: string) => employees.find(e => e.id === id)?.nama || 'Unknown';
+  const getCreatorName = (id: string) => {
+    if (!id) return '-';
+    return employees.find(e => e.id === id)?.nama || 'Unknown';
+  };
 
   const findCreatorIdByName = (name: string) => {
     const search = String(name || '').trim().toLowerCase();
@@ -495,7 +498,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           const brand = String(row['BRAND'] || '').trim().toUpperCase();
           const creatorName = String(row['CREATOR'] || '').trim();
           const creatorId = findCreatorIdByName(creatorName);
-          if (!brand || !creatorId) return null;
+          if (!brand) return null;
 
           const jamValue = String(row['JAM UPLOAD'] || '19:00');
           const notesText = String(row['CATATAN'] || '');
@@ -1042,7 +1045,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
 
                   <div className="space-y-2.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">CREATOR</label>
-                    <select required value={formData.creatorId} onChange={e => setFormData({...formData, creatorId: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner">
+                    <select value={formData.creatorId} onChange={e => setFormData({...formData, creatorId: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner">
                       <option value="">PILIH CREATOR...</option>
                       {creatorList.map(c => <option key={c.id} value={c.id}>{c.nama.toUpperCase()}</option>)}
                     </select>
