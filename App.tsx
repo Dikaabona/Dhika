@@ -645,15 +645,21 @@ export const App: React.FC = () => {
     return (
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-10 py-3 flex items-center justify-between z-[300] shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
         <button 
-          onClick={() => setActiveTab('home')}
-          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'home' ? 'text-[#1E6BFF]' : 'text-slate-300'}`}
+          onClick={() => {
+            setActiveTab('home');
+            setViewingEmployee(null);
+          }}
+          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'home' && !viewingEmployee ? 'text-[#1E6BFF]' : 'text-slate-300'}`}
         >
           <Icons.Home className="w-6 h-6" />
           <span className="text-[8px] font-black uppercase tracking-tighter">BERANDA</span>
         </button>
         <button 
-          onClick={() => setActiveTab('mobile_history')}
-          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'mobile_history' ? 'text-[#1E6BFF]' : 'text-slate-300'}`}
+          onClick={() => {
+            setActiveTab('mobile_history');
+            setViewingEmployee(null);
+          }}
+          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'mobile_history' && !viewingEmployee ? 'text-[#1E6BFF]' : 'text-slate-300'}`}
         >
           <Icons.Clock className="w-6 h-6" />
           <span className="text-[8px] font-black uppercase tracking-tighter">RIWAYAT</span>
