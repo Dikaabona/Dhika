@@ -16,6 +16,7 @@ export interface Employee {
   noRekening: string;
   namaDiRekening: string;
   company: string;
+  gender?: 'Laki-laki' | 'Perempuan';
   avatarUrl?: string;
   photoBase64?: string;
   hutang: number;

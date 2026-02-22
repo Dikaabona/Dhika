@@ -5,6 +5,11 @@ import { Icons, DEFAULT_SHIFTS } from '../constants';
 import { getDaysUntilBirthday, formatDateToYYYYMMDD } from '../utils/dateUtils';
 import { supabase } from '../App';
 
+import { 
+  PieChart, Pie, Cell, ResponsiveContainer, 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend 
+} from 'recharts';
+
 interface DashboardProps {
   employees: Employee[];
   submissions: Submission[];
@@ -100,6 +105,69 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [employees, attendanceRecords, shiftAssignments, shifts]);
 
   const lateEmployeesCount = lateEmployeesInfo.length;
+  
+  const genderData = useMemo(() => {
+    const male = employees.filter(e => e.gender === 'Laki-laki').length;
+    const female = employees.filter(e => e.gender === 'Perempuan').length;
+    const total = male + female || 1;
+    return [
+      { name: 'Laki-laki', value: male, percentage: Math.round((male / total) * 100) },
+      { name: 'Perempuan', value: female, percentage: Math.round((female / total) * 100) }
+    ];
+  }, [employees]);
+
+  const ageData = useMemo(() => {
+    const counts = { '< 20': 0, '20-30': 0, '31-40': 0, '41-50': 0, '50+': 0 };
+    employees.forEach(e => {
+      if (!e.tanggalLahir) return;
+      const parts = e.tanggalLahir.split('/');
+      if (parts.length !== 3) return;
+      const birth = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+      const age = new Date().getFullYear() - birth.getFullYear();
+      if (age < 20) counts['< 20']++;
+      else if (age <= 30) counts['20-30']++;
+      else if (age <= 40) counts['31-40']++;
+      else if (age <= 50) counts['41-50']++;
+      else counts['50+']++;
+    });
+    const total = employees.length || 1;
+    return Object.entries(counts).map(([name, value]) => ({
+      name,
+      value,
+      percentage: Math.round((value / total) * 100)
+    }));
+  }, [employees]);
+
+  const averageAge = useMemo(() => {
+    const validAges = employees.map(e => {
+      if (!e.tanggalLahir) return null;
+      const parts = e.tanggalLahir.split('/');
+      if (parts.length !== 3) return null;
+      const birth = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+      return new Date().getFullYear() - birth.getFullYear();
+    }).filter((age): age is number => age !== null);
+    
+    if (validAges.length === 0) return 0;
+    const sum = validAges.reduce((a, b) => a + b, 0);
+    return Math.round(sum / validAges.length);
+  }, [employees]);
+
+  const salaryData = useMemo(() => {
+    const companySalaries: Record<string, number> = {};
+    employees.forEach(e => {
+      const config = e.salaryConfig;
+      if (!config) return;
+      const total = (config.gapok || 0) + 
+                    (config.tunjanganMakan || 0) + 
+                    (config.tunjanganTransport || 0) + 
+                    (config.tunjanganKomunikasi || 0) + 
+                    (config.tunjanganKesehatan || 0) + 
+                    (config.tunjanganJabatan || 0);
+      const key = e.company || 'Unknown';
+      companySalaries[key] = (companySalaries[key] || 0) + total;
+    });
+    return Object.entries(companySalaries).map(([name, value]) => ({ name, value }));
+  }, [employees]);
 
   const tenureYears = useMemo(() => {
     if (!currentUserEmployee?.tanggalMasuk) return 0;
@@ -350,6 +418,90 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
+        {/* Mobile Charts Section */}
+        {isSuper && (
+          <div className="px-2 space-y-4">
+            <div className="bg-white rounded-[28px] p-6 shadow-sm border border-slate-100">
+              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] mb-6">Analisis Karyawan</h3>
+              
+              <div className="space-y-8">
+                {/* Gender Chart */}
+                <div className="space-y-4">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Gender</p>
+                  <div className="h-40 min-h-[160px]">
+                    <ResponsiveContainer width="100%" height="100%" minHeight={160}>
+                      <PieChart>
+                        <Pie
+                          data={genderData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={40}
+                          outerRadius={60}
+                          paddingAngle={5}
+                          dataKey="value"
+                        >
+                          <Cell fill="#FFC000" />
+                          <Cell fill="#0f172a" />
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex justify-center gap-6">
+                    {genderData.map((entry, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${index === 0 ? 'bg-[#FFC000]' : 'bg-slate-900'}`}></div>
+                        <span className="text-[8px] font-bold text-slate-600 uppercase">{entry.name} ({entry.percentage}%)</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Age Chart */}
+                <div className="space-y-4">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Average Age: {averageAge} Years</p>
+                  <div className="h-40 min-h-[160px]">
+                    <ResponsiveContainer width="100%" height="100%" minHeight={160}>
+                      <BarChart data={ageData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 8, fontWeight: 'bold'}} />
+                        <YAxis hide />
+                        <Tooltip cursor={{fill: 'transparent'}} />
+                        <Bar dataKey="value" fill="#FFC000" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Salary Chart */}
+                <div className="space-y-4">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Salary</p>
+                  <div className="h-40 min-h-[160px]">
+                    <ResponsiveContainer width="100%" height="100%" minHeight={160}>
+                      <BarChart data={salaryData} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                        <XAxis type="number" hide />
+                        <YAxis 
+                          dataKey="name" 
+                          type="category" 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{fontSize: 8, fontWeight: 'bold', fill: '#94a3b8'}}
+                          width={60}
+                        />
+                        <Tooltip 
+                          formatter={(value: any) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value || 0))}
+                        />
+                        <Bar dataKey="value" fill="#0f172a" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-4 px-2 pb-2">
           <div className="flex justify-between items-center px-2">
             <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em]">Menu Utama</h4>
@@ -560,6 +712,119 @@ const Dashboard: React.FC<DashboardProps> = ({
             <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-[#FFC000]/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2 pointer-events-none opacity-40"></div>
           </div>
         </div>
+
+        {/* Desktop Charts Section */}
+        {isSuper && (
+          <div className="grid grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* Gender Distribution */}
+            <div className="bg-white p-8 rounded-[48px] shadow-sm border border-slate-100 flex flex-col">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500">
+                  <Icons.Users className="w-5 h-5" />
+                </div>
+                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">Gender</h3>
+              </div>
+              <div className="flex-grow h-64 min-h-[256px]">
+                <ResponsiveContainer width="100%" height="100%" minHeight={256}>
+                  <PieChart>
+                    <Pie
+                      data={genderData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={8}
+                      dataKey="value"
+                    >
+                      <Cell fill="#FFC000" />
+                      <Cell fill="#0f172a" />
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: 'bold' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex justify-center gap-8 mt-4">
+                {genderData.map((entry, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${index === 0 ? 'bg-[#FFC000]' : 'bg-slate-900'}`}></div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black text-slate-900 uppercase">{entry.name}</span>
+                      <span className="text-[10px] font-bold text-slate-400">{entry.percentage}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Age Distribution */}
+            <div className="bg-white p-8 rounded-[48px] shadow-sm border border-slate-100 flex flex-col">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-500">
+                  <Icons.Calendar className="w-5 h-5" />
+                </div>
+                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">Average Age: {averageAge} Years</h3>
+              </div>
+              <div className="flex-grow h-64 min-h-[256px]">
+                <ResponsiveContainer width="100%" height="100%" minHeight={256}>
+                  <BarChart data={ageData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="name" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{fontSize: 10, fontWeight: 'bold', fill: '#94a3b8'}} 
+                    />
+                    <YAxis hide />
+                    <Tooltip 
+                      cursor={{fill: '#f8fafc'}}
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: 'bold' }}
+                    />
+                    <Bar dataKey="value" fill="#FFC000" radius={[10, 10, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-4 text-center">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Distribution across age ranges</p>
+              </div>
+            </div>
+
+            {/* Salary Distribution */}
+            <div className="bg-white p-8 rounded-[48px] shadow-sm border border-slate-100 flex flex-col">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500">
+                  <Icons.DollarSign className="w-5 h-5" />
+                </div>
+                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">Total Salary (Company)</h3>
+              </div>
+              <div className="flex-grow h-64 min-h-[256px]">
+                <ResponsiveContainer width="100%" height="100%" minHeight={256}>
+                  <BarChart data={salaryData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                    <XAxis type="number" hide />
+                    <YAxis 
+                      dataKey="name" 
+                      type="category" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{fontSize: 10, fontWeight: 'bold', fill: '#94a3b8'}}
+                      width={80}
+                    />
+                    <Tooltip 
+                      formatter={(value: any) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value || 0))}
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: 'bold' }}
+                    />
+                    <Bar dataKey="value" fill="#0f172a" radius={[0, 10, 10, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-4 text-center">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total monthly payroll by company</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {isLateModalOpen && (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Employee } from '../types';
 import { BANK_OPTIONS, Icons } from '../constants';
 import { supabase } from '../App';
@@ -34,6 +34,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     noRekening: '',
     namaDiRekening: '',
     company: userCompany,
+    gender: 'Laki-laki',
     avatarUrl: '',
     photoBase64: '',
     hutang: 0,
@@ -47,6 +48,12 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
   const [positions, setPositions] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const allCompanies = useMemo(() => {
+    const companies = Array.from(new Set(employees.map(e => e.company || 'Visibel')));
+    if (!companies.includes(userCompany)) companies.push(userCompany);
+    return companies.sort();
+  }, [employees, userCompany]);
+
   useEffect(() => {
     if (formData.company) {
       fetchSettings(formData.company);
@@ -54,6 +61,8 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
   }, [formData.company]);
 
   const fetchSettings = async (targetCompany: string) => {
+    setDivisions([]);
+    setPositions([]);
     try {
       const { data: divData } = await supabase.from('settings').select('value').eq('key', `divisions_${targetCompany}`).single();
       if (divData && Array.isArray(divData.value)) {
@@ -299,7 +308,18 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
                </div>
                <div className="bg-sky-50 p-5 rounded-[24px] border border-sky-100">
                  <label className="text-[10px] font-bold text-sky-600 uppercase tracking-widest mb-1.5 block">COMPANY</label>
-                 <input required name="company" readOnly={!isOwner} value={formData.company} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-sky-100 rounded-xl text-lg font-bold text-slate-900 outline-none disabled:opacity-70" />
+                 {isOwner ? (
+                   <select 
+                     name="company" 
+                     value={formData.company} 
+                     onChange={handleChange} 
+                     className="w-full px-4 py-2 bg-white border border-sky-100 rounded-xl text-lg font-bold text-slate-900 outline-none"
+                   >
+                     {allCompanies.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                   </select>
+                 ) : (
+                   <input required name="company" readOnly value={formData.company} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-sky-100 rounded-xl text-lg font-bold text-slate-900 outline-none disabled:opacity-70" />
+                 )}
                </div>
             </div>
 
@@ -350,6 +370,13 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
                   )}
                 </div>
                 <input required type="email" name="email" value={formData.email} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Jenis Kelamin</label>
+                <select name="gender" value={formData.gender} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all">
+                  <option value="Laki-laki">Laki-laki</option>
+                  <option value="Perempuan">Perempuan</option>
+                </select>
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Nomor HP</label>
