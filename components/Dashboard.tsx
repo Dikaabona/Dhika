@@ -418,89 +418,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {/* Mobile Charts Section */}
-        {isSuper && (
-          <div className="px-2 space-y-4">
-            <div className="bg-white rounded-[28px] p-6 shadow-sm border border-slate-100">
-              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] mb-6">Analisis Karyawan</h3>
-              
-              <div className="space-y-8">
-                {/* Gender Chart */}
-                <div className="space-y-4">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Gender</p>
-                  <div className="h-40 min-h-[160px]">
-                    <ResponsiveContainer width="100%" height="100%" minHeight={160}>
-                      <PieChart>
-                        <Pie
-                          data={genderData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={40}
-                          outerRadius={60}
-                          paddingAngle={5}
-                          dataKey="value"
-                        >
-                          <Cell fill="#FFC000" />
-                          <Cell fill="#0f172a" />
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="flex justify-center gap-6">
-                    {genderData.map((entry, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${index === 0 ? 'bg-[#FFC000]' : 'bg-slate-900'}`}></div>
-                        <span className="text-[8px] font-bold text-slate-600 uppercase">{entry.name} ({entry.percentage}%)</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Age Chart */}
-                <div className="space-y-4">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Average Age: {averageAge} Years</p>
-                  <div className="h-40 min-h-[160px]">
-                    <ResponsiveContainer width="100%" height="100%" minHeight={160}>
-                      <BarChart data={ageData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 8, fontWeight: 'bold'}} />
-                        <YAxis hide />
-                        <Tooltip cursor={{fill: 'transparent'}} />
-                        <Bar dataKey="value" fill="#FFC000" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* Salary Chart */}
-                <div className="space-y-4">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Salary</p>
-                  <div className="h-40 min-h-[160px]">
-                    <ResponsiveContainer width="100%" height="100%" minHeight={160}>
-                      <BarChart data={salaryData} layout="vertical">
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                        <XAxis type="number" hide />
-                        <YAxis 
-                          dataKey="name" 
-                          type="category" 
-                          axisLine={false} 
-                          tickLine={false} 
-                          tick={{fontSize: 8, fontWeight: 'bold', fill: '#94a3b8'}}
-                          width={60}
-                        />
-                        <Tooltip 
-                          formatter={(value: any) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value || 0))}
-                        />
-                        <Bar dataKey="value" fill="#0f172a" radius={[0, 4, 4, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Mobile Charts Section removed as per request */}
 
         <div className="space-y-4 px-2 pb-2">
           <div className="flex justify-between items-center px-2">
@@ -764,7 +682,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-500">
                   <Icons.Calendar className="w-5 h-5" />
                 </div>
-                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">Average Age: {averageAge} Years</h3>
+                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">USIA</h3>
               </div>
               <div className="flex-grow h-64 min-h-[256px]">
                 <ResponsiveContainer width="100%" height="100%" minHeight={256}>

@@ -169,8 +169,20 @@ const KPIModule: React.FC<KPIModuleProps> = ({
         const d = new Date(r.date);
         return r.employeeId === emp.id && d >= attStart && d <= attEnd;
       });
+      const attendanceScore = monthRecords.length > 0 
+        ? (() => {
+            const totalWeight = monthRecords.reduce((sum, r) => {
+              if (r.status !== 'Hadir') return sum;
+              // Full point (1.0) if both clockIn and clockOut are present
+              if (r.clockIn && r.clockOut) return sum + 1;
+              // Partial point (0.5) if only clockIn is present
+              if (r.clockIn) return sum + 0.5;
+              return sum;
+            }, 0);
+            return (totalWeight / monthRecords.length) * 100;
+          })()
+        : 0;
       const presentDays = monthRecords.filter(r => r.status === 'Hadir').length;
-      const attendanceScore = monthRecords.length > 0 ? (presentDays / monthRecords.length) * 100 : 0;
 
       // Logic Ketepatan Waktu (Punctuality)
       const punctualityScore = monthRecords.filter(r => r.status === 'Hadir').length > 0

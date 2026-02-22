@@ -92,6 +92,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
       const { id, ...rest } = initialData;
       setFormData({
         ...rest,
+        gender: rest.gender || 'Laki-laki',
         hutang: rest.hutang || 0,
         isRemoteAllowed: rest.isRemoteAllowed || false
       });

@@ -2,10 +2,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { Icons } from '../constants';
+import * as XLSX from 'xlsx';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  imageUrl?: string;
 }
 
 interface MinVisModuleProps {
@@ -18,28 +20,9 @@ const MinVisModule: React.FC<MinVisModuleProps> = ({ onClose }) => {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [hasKey, setHasKey] = useState<boolean | null>(null);
+  const [selectedImage, setSelectedImage] = useState<{ data: string; mimeType: string } | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    checkApiKey();
-  }, []);
-
-  const checkApiKey = async () => {
-    if (typeof window !== 'undefined' && (window as any).aistudio) {
-      const selected = await (window as any).aistudio.hasSelectedApiKey();
-      setHasKey(selected);
-    } else {
-      setHasKey(true); // Fallback jika dijalankan di luar environment AI Studio
-    }
-  };
-
-  const handleSelectKey = async () => {
-    if (typeof window !== 'undefined' && (window as any).aistudio) {
-      await (window as any).aistudio.openSelectKey();
-      setHasKey(true); // Asumsikan sukses untuk mitigasi race condition
-    }
-  };
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -49,28 +32,69 @@ const MinVisModule: React.FC<MinVisModuleProps> = ({ onClose }) => {
     scrollToBottom();
   }, [messages]);
 
+  const handleExportToExcel = (content: string, title: string = 'SOP_Visibel') => {
+    try {
+      // Simple parsing: split by lines and try to create a basic structure
+      const lines = content.split('\n').map(line => [line]);
+      const ws = XLSX.utils.aoa_to_sheet(lines);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+      XLSX.writeFile(wb, `${title.replace(/\s+/g, '_')}.xlsx`);
+    } catch (err) {
+      console.error("Export Error:", err);
+      alert("Gagal mengekspor ke Excel");
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = (reader.result as string).split(',')[1];
+      setSelectedImage({
+        data: base64,
+        mimeType: file.type
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
-
-    // Cek ulang kunci sebelum kirim
-    if (!hasKey) {
-      await handleSelectKey();
-      return;
-    }
+    if ((!input.trim() && !selectedImage) || isLoading) return;
 
     const userMessage = input.trim();
+    const currentImage = selectedImage;
+    
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setSelectedImage(null);
+    
+    setMessages(prev => [...prev, { 
+      role: 'user', 
+      content: userMessage,
+      imageUrl: currentImage ? `data:${currentImage.mimeType};base64,${currentImage.data}` : undefined
+    }]);
     setIsLoading(true);
 
     try {
-      // Inisialisasi tepat sebelum pemanggilan (Best Practice)
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      
+      const parts: any[] = [{ text: userMessage || "Apa yang ada di gambar ini?" }];
+      if (currentImage) {
+        parts.push({
+          inlineData: {
+            data: currentImage.data,
+            mimeType: currentImage.mimeType
+          }
+        });
+      }
+
       const stream = await ai.models.generateContentStream({
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-3.1-pro-preview',
         contents: [
-          { role: 'user', parts: [{ text: userMessage }] }
+          { role: 'user', parts }
         ],
         config: {
           systemInstruction: `Anda adalah 'MinVis', Senior Digital Marketing & HR Expert di Visibel ID dengan pengalaman lebih dari 7 tahun. 
@@ -117,8 +141,7 @@ Jika tim bertanya tentang strategi, berikan langkah konkret 1, 2, 3 yang bisa la
       
       // Jika kunci tidak valid atau tidak ditemukan
       if (errorMsg.includes("requested entity was not found")) {
-        setHasKey(false);
-        setMessages(prev => [...prev, { role: 'assistant', content: 'Sistem mendeteksi kunci AI Anda perlu diatur ulang. Silakan klik tombol "Hubungkan AI" di bawah.' }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Sistem mendeteksi kesalahan pada konfigurasi model AI. Silakan hubungi administrator.' }]);
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: 'Maaf, lagi ada gangguan di sistem AI nih. Coba lagi bentar ya!' }]);
       }
@@ -154,17 +177,9 @@ Jika tim bertanya tentang strategi, berikan langkah konkret 1, 2, 3 yang bisa la
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {!hasKey && (
-            <button 
-              onClick={handleSelectKey}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest animate-bounce shadow-lg"
-            >
-              Hubungkan AI
-            </button>
-          )}
           <div className="hidden sm:block text-right">
              <p className="text-[7px] font-black text-slate-300 uppercase tracking-widest">POWERED BY</p>
-             <p className="text-[9px] font-black text-indigo-500 uppercase">Gemini 3 Pro</p>
+             <p className="text-[9px] font-black text-indigo-500 uppercase">Gemini 3.1 Pro</p>
           </div>
           <div className="w-10 h-10 bg-slate-900 rounded-2xl flex items-center justify-center text-[#FFC000] shadow-lg">
              <Icons.Cpu className="w-6 h-6" />
@@ -174,25 +189,6 @@ Jika tim bertanya tentang strategi, berikan langkah konkret 1, 2, 3 yang bisa la
 
       {/* Chat Area */}
       <div className="flex-grow overflow-y-auto px-6 py-10 space-y-8 custom-scrollbar bg-[#f8fafc]">
-        {!hasKey && (
-          <div className="flex justify-center py-10">
-            <div className="bg-amber-50 border border-amber-200 p-8 rounded-[32px] text-center max-w-sm space-y-4">
-               <div className="bg-amber-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto text-amber-600">
-                  <Icons.AlertCircle className="w-6 h-6" />
-               </div>
-               <p className="text-sm font-bold text-amber-900 uppercase tracking-tight">AI Belum Terhubung</p>
-               <p className="text-xs text-amber-700 leading-relaxed">Pengguna baru wajib memilih API Key (GCP Paid Project) untuk menggunakan fitur ini.</p>
-               <button 
-                 onClick={handleSelectKey}
-                 className="w-full bg-slate-900 text-[#FFC000] py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95"
-               >
-                 Klik Untuk Menghubungkan
-               </button>
-               <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="block text-[8px] font-bold text-slate-400 uppercase underline">Info Billing Google Cloud</a>
-            </div>
-          </div>
-        )}
-
         {messages.map((msg, idx) => (
           <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
             <div className={`max-w-[85%] sm:max-w-[75%] p-5 sm:p-7 rounded-[32px] shadow-sm border ${
@@ -201,7 +197,24 @@ Jika tim bertanya tentang strategi, berikan langkah konkret 1, 2, 3 yang bisa la
                 : 'bg-white text-slate-800 border-slate-100 rounded-tl-none'
             }`}>
               {msg.role === 'assistant' && (
-                <p className="text-[8px] font-black text-[#FFC000] uppercase tracking-widest mb-2">MINVIS EXPERT</p>
+                <div className="flex justify-between items-center mb-2">
+                  <p className="text-[8px] font-black text-[#FFC000] uppercase tracking-widest">MINVIS EXPERT</p>
+                  {msg.content.length > 50 && (
+                    <button 
+                      onClick={() => handleExportToExcel(msg.content)}
+                      className="flex items-center gap-1 text-[8px] font-black text-slate-400 hover:text-indigo-500 transition-colors uppercase tracking-widest"
+                      title="Download as Excel"
+                    >
+                      <Icons.FileText className="w-3 h-3" />
+                      Export Excel
+                    </button>
+                  )}
+                </div>
+              )}
+              {msg.imageUrl && (
+                <div className="mb-3 rounded-2xl overflow-hidden border border-white/10">
+                  <img src={msg.imageUrl} alt="User upload" className="max-w-full h-auto" />
+                </div>
               )}
               <p className="text-sm leading-relaxed font-medium whitespace-pre-wrap">{msg.content}</p>
             </div>
@@ -224,13 +237,27 @@ Jika tim bertanya tentang strategi, berikan langkah konkret 1, 2, 3 yang bisa la
 
       {/* Presets & Input */}
       <div className="p-6 bg-white border-t shrink-0">
+        {selectedImage && (
+          <div className="mb-4 flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100 animate-in slide-in-from-bottom-2">
+            <div className="relative w-16 h-16 rounded-xl overflow-hidden border-2 border-white shadow-sm">
+              <img src={`data:${selectedImage.mimeType};base64,${selectedImage.data}`} alt="Preview" className="w-full h-full object-cover" />
+              <button 
+                onClick={() => setSelectedImage(null)}
+                className="absolute top-0 right-0 bg-rose-500 text-white p-1 rounded-bl-xl hover:bg-rose-600 transition-colors"
+              >
+                <Icons.X className="w-3 h-3" />
+              </button>
+            </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Gambar Terpilih</p>
+          </div>
+        )}
+
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-4 -mx-2 px-2">
           {presetPrompts.map((p, i) => (
             <button 
               key={i} 
-              disabled={!hasKey}
               onClick={() => setInput(p)}
-              className="whitespace-nowrap px-5 py-2.5 bg-slate-50 border border-slate-200 rounded-full text-[9px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-100 hover:text-slate-900 transition-all active:scale-95 disabled:opacity-30"
+              className="whitespace-nowrap px-5 py-2.5 bg-slate-50 border border-slate-200 rounded-full text-[9px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-100 hover:text-slate-900 transition-all active:scale-95"
             >
               {p}
             </button>
@@ -239,16 +266,29 @@ Jika tim bertanya tentang strategi, berikan langkah konkret 1, 2, 3 yang bisa la
         
         <form onSubmit={handleSubmit} className="flex gap-3 relative">
           <input 
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept="image/*"
+            className="hidden"
+          />
+          <button 
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-slate-50 border-2 border-slate-100 text-slate-400 p-4 rounded-3xl hover:bg-slate-100 hover:text-slate-900 transition-all active:scale-90"
+          >
+            <Icons.Image className="w-6 h-6" />
+          </button>
+          <input 
             type="text" 
             value={input}
-            disabled={!hasKey}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={hasKey ? "Tanya strategi marketing atau buat SOP ke MinVis..." : "Harap hubungkan AI terlebih dahulu..."}
-            className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-8 py-5 text-sm font-medium outline-none focus:border-[#FFC000] focus:bg-white transition-all shadow-inner text-slate-900 disabled:opacity-50"
+            placeholder="Tanya strategi marketing atau buat SOP ke MinVis..."
+            className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-8 py-5 text-sm font-medium outline-none focus:border-[#FFC000] focus:bg-white transition-all shadow-inner text-slate-900"
           />
           <button 
             type="submit" 
-            disabled={!input.trim() || isLoading || !hasKey}
+            disabled={(!input.trim() && !selectedImage) || isLoading}
             className="absolute right-2 top-1/2 -translate-y-1/2 bg-slate-900 text-[#FFC000] p-4 rounded-2xl shadow-xl transition-all active:scale-90 hover:bg-black disabled:opacity-30"
           >
             <Icons.Plus className="w-6 h-6 rotate-45" />

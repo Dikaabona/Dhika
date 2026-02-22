@@ -215,8 +215,8 @@ export const App: React.FC = () => {
 
       const companyFilterVal = detectedCompany;
 
-      const buildQuery = (table: string) => {
-        let q = supabase.from(table);
+      const buildQuery = (table: string): any => {
+        let q: any = supabase.from(table);
         if (table === 'attendance') {
            q = q.select('id, employeeId, company, date, status, clockIn, clockOut, notes, submittedAt');
         } else if (table === 'content_plans') {
@@ -234,13 +234,13 @@ export const App: React.FC = () => {
       };
 
       const fetchPromises = [
-        buildQuery('attendance').order('date', { ascending: false }).limit(1000).then(({data, error}) => { if(error) throw error; setAttendanceRecords(data || []); }),
-        buildQuery('live_reports').order('tanggal', { ascending: false }).limit(200).then(({data, error}) => { if(error) throw error; setLiveReports(data || []); }),
-        buildQuery('submissions').order('submittedAt', { ascending: false }).limit(100).then(({data, error}) => { if(error) throw error; setSubmissions(data || []); }),
-        buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(50).then(({data, error}) => { if(error) throw error; setBroadcasts(data || []); }),
-        buildQuery('schedules').limit(1000).then(({data, error}) => { if(error) throw error; setLiveSchedules(data || []); }),
-        buildQuery('content_plans').order('postingDate', { ascending: false }).limit(200).then(({data, error}) => { if(error) throw error; setContentPlans(data || []); }),
-        buildQuery('shift_assignments').limit(500).then(({data, error}) => { if(error) throw error; setShiftAssignments(data || []); }),
+        buildQuery('attendance').order('date', { ascending: false }).limit(1000).then(({data, error}: any) => { if(error) throw error; setAttendanceRecords(data || []); }),
+        buildQuery('live_reports').order('tanggal', { ascending: false }).limit(200).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
+        buildQuery('submissions').order('submittedAt', { ascending: false }).limit(100).then(({data, error}: any) => { if(error) throw error; setSubmissions(data || []); }),
+        buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(50).then(({data, error}: any) => { if(error) throw error; setBroadcasts(data || []); }),
+        buildQuery('schedules').limit(1000).then(({data, error}: any) => { if(error) throw error; setLiveSchedules(data || []); }),
+        buildQuery('content_plans').order('postingDate', { ascending: false }).limit(200).then(({data, error}: any) => { if(error) throw error; setContentPlans(data || []); }),
+        buildQuery('shift_assignments').limit(500).then(({data, error}: any) => { if(error) throw error; setShiftAssignments(data || []); }),
         supabase.from('settings').select('value').eq('key', `shifts_config_${companyFilterVal}`).single().then(({data}) => {
           if (data && Array.isArray(data.value)) setShifts(data.value);
           else setShifts(DEFAULT_SHIFTS);

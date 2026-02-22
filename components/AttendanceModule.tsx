@@ -247,8 +247,8 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         .single();
       
       if (error) throw error;
-      if (data && data[field]) {
-        setZoomedImage(data[field]);
+      if (data && (data as any)[field]) {
+        setZoomedImage((data as any)[field]);
       } else {
         alert("Foto tidak ditemukan.");
       }
