@@ -172,23 +172,24 @@ const KPIModule: React.FC<KPIModuleProps> = ({
       const attendanceScore = monthRecords.length > 0 
         ? (() => {
             const totalWeight = monthRecords.reduce((sum, r) => {
-              if (r.status !== 'Hadir') return sum;
+              if (r.status !== 'Hadir' && r.status !== 'Lembur') return sum;
               // Full point (1.0) if both clockIn and clockOut are present
-              if (r.clockIn && r.clockOut) return sum + 1;
-              // Partial point (0.5) if only clockIn is present
-              if (r.clockIn) return sum + 0.5;
+              if (r.clockIn && r.clockOut && r.clockOut !== '--:--') return sum + 1;
+              // Partial point (0.25) if only clockIn is present (as requested: both higher than just one)
+              if (r.clockIn) return sum + 0.25;
               return sum;
             }, 0);
-            return (totalWeight / monthRecords.length) * 100;
+            const workingDays = monthRecords.filter(r => r.status !== 'Libur').length;
+            return workingDays > 0 ? (totalWeight / workingDays) * 100 : 0;
           })()
         : 0;
-      const presentDays = monthRecords.filter(r => r.status === 'Hadir').length;
+      const presentDays = monthRecords.filter(r => r.status === 'Hadir' || r.status === 'Lembur').length;
 
       // Logic Ketepatan Waktu (Punctuality)
-      const punctualityScore = monthRecords.filter(r => r.status === 'Hadir').length > 0
+      const punctualityScore = monthRecords.filter(r => r.status === 'Hadir' || r.status === 'Lembur').length > 0
         ? (() => {
             let lateCount = 0;
-            const daysHadir = monthRecords.filter(r => r.status === 'Hadir');
+            const daysHadir = monthRecords.filter(r => r.status === 'Hadir' || r.status === 'Lembur');
             daysHadir.forEach(r => {
               const assignment = shiftAssignments.find(a => a.employeeId === emp.id && a.date === r.date);
               if (assignment && r.clockIn) {

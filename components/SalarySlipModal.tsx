@@ -67,6 +67,20 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const previewSlipRef = useRef<HTMLDivElement>(null);
   const hiddenSlipRef = useRef<HTMLDivElement>(null);
 
+  const [companyDetails, setCompanyDetails] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchCompany = async () => {
+      try {
+        const { data } = await supabase.from('settings').select('value').eq('key', `company_details_${employee.company}`).maybeSingle();
+        if (data && data.value) {
+          setCompanyDetails(data.value);
+        }
+      } catch (e) {}
+    };
+    fetchCompany();
+  }, [employee.company]);
+
   const formatCurrencyValue = (num: number) => {
     return new Intl.NumberFormat('id-ID').format(num);
   };
@@ -482,7 +496,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   };
 
   const SalarySlipContent = () => {
-    const slipLogo = (employee.company || '').toLowerCase() === 'seller space' ? SELLER_SPACE_LOGO : VISIBEL_LOGO;
+    const slipLogo = companyDetails?.logo || ((employee.company || '').toLowerCase() === 'seller space' ? SELLER_SPACE_LOGO : VISIBEL_LOGO);
     return (
       <div className="bg-white" style={{ width: '794px', height: '1122px', position: 'relative', overflow: 'hidden', color: '#0f172a', boxSizing: 'border-box' }}>
         <div style={{ padding: '20px 60px 30px 60px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>

@@ -754,7 +754,7 @@ export const App: React.FC = () => {
               ) : activeTab === 'absen' ? (
                 <AbsenModule employee={currentUserEmployee} attendanceRecords={attendanceRecords} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'minvis' ? (
-                <MinVisModule onClose={() => setActiveTab('home')} />
+                <MinVisModule company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'live_map' ? (
                 <LiveMapModule employees={employees} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'finance' ? (

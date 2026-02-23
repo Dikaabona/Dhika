@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { Icons } from '../constants';
 import * as XLSX from 'xlsx';
+import { supabase } from '../App';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -11,18 +12,32 @@ interface Message {
 }
 
 interface MinVisModuleProps {
+  company: string;
   onClose: () => void;
 }
 
-const MinVisModule: React.FC<MinVisModuleProps> = ({ onClose }) => {
+export const MinVisModule: React.FC<MinVisModuleProps> = ({ company, onClose }) => {
   const [messages, setMessages] = useState<Message[]>([
     { role: 'assistant', content: 'Halo! Saya MinVis, Digital Marketing & HR Expert Visibel ID. Ada yang bisa saya bantu analisa hari ini? Saya siap bantu strategi live streaming, ads, ide konten FYP, hingga pembuatan SOP & KPI perusahaan. Langsung aja tanya ya!' }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ data: string; mimeType: string } | null>(null);
+  const [companyDetails, setCompanyDetails] = useState<any>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const fetchCompany = async () => {
+      try {
+        const { data } = await supabase.from('settings').select('value').eq('key', `company_details_${company}`).maybeSingle();
+        if (data && data.value) {
+          setCompanyDetails(data.value);
+        }
+      } catch (e) {}
+    };
+    fetchCompany();
+  }, [company]);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -34,16 +49,38 @@ const MinVisModule: React.FC<MinVisModuleProps> = ({ onClose }) => {
 
   const handleExportToExcel = (content: string, title: string = 'SOP_Visibel') => {
     try {
-      // Simple parsing: split by lines and try to create a basic structure
-      const lines = content.split('\n').map(line => [line]);
-      const ws = XLSX.utils.aoa_to_sheet(lines);
+      // Improved parsing for SOPs: split by double newlines or single newlines
+      // and try to identify headers (lines starting with # or all caps)
+      const lines = content.split('\n').map(line => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('#')) return [trimmed.replace(/^#+\s*/, '').toUpperCase(), ''];
+        if (trimmed.includes(':')) {
+          const [key, ...val] = trimmed.split(':');
+          return [key.trim(), val.join(':').trim()];
+        }
+        return [trimmed, ''];
+      });
+      
+      const ws = XLSX.utils.aoa_to_sheet([
+        ['DOKUMEN VISIBEL ID', ''],
+        ['', ''],
+        ...lines
+      ]);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-      XLSX.writeFile(wb, `${title.replace(/\s+/g, '_')}.xlsx`);
+      XLSX.utils.book_append_sheet(wb, ws, "SOP");
+      XLSX.writeFile(wb, `${title.replace(/\s+/g, '_')}_${new Date().getTime()}.xlsx`);
     } catch (err) {
       console.error("Export Error:", err);
       alert("Gagal mengekspor ke Excel");
     }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert("Teks berhasil disalin!");
+    }).catch(err => {
+      console.error("Copy Error:", err);
+    });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -79,7 +116,11 @@ const MinVisModule: React.FC<MinVisModuleProps> = ({ onClose }) => {
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("API Key tidak ditemukan. Silakan hubungi administrator.");
+      }
+      const ai = new GoogleGenAI({ apiKey });
       
       const parts: any[] = [{ text: userMessage || "Apa yang ada di gambar ini?" }];
       if (currentImage) {
@@ -97,22 +138,23 @@ const MinVisModule: React.FC<MinVisModuleProps> = ({ onClose }) => {
           { role: 'user', parts }
         ],
         config: {
-          systemInstruction: `Anda adalah 'MinVis', Senior Digital Marketing & HR Expert di Visibel ID dengan pengalaman lebih dari 7 tahun. 
+          systemInstruction: `Anda adalah 'MinVis', Senior Digital Marketing & HR Expert di ${companyDetails?.name || company || 'Visibel ID'} dengan pengalaman lebih dari 7 tahun. 
 
-DATA PERUSAHAAN VISIBEL:
-- Nama: Visibel ID
-- Alamat: Jln ciomas harapan kp neglasari RT 01/12 no 4, Kab Bogor, Jawa barat 16610
-- No Telepon: 08111743005
-- Email: kontakvisibel@gmail.com
+DATA PERUSAHAAN:
+- Nama: ${companyDetails?.name || company || 'Visibel ID'}
+- Alamat: ${companyDetails?.address || 'Jln ciomas harapan kp neglasari RT 01/12 no 4, Kab Bogor, Jawa barat 16610'}
+- No Telepon: ${companyDetails?.phone || '08111743005'}
+- Email: ${companyDetails?.email || 'N/A'}
+- NPWP: ${companyDetails?.npwp || 'N/A'}
 
 TUGAS UTAMA ANDA:
 1. Menganalisis performa live streaming (Shopee/TikTok), strategi video pendek, serta optimasi Ads.
 2. Bertindak sebagai Konsultan HR Profesional: Anda ahli dalam membuat SOP (Standard Operating Procedure) dan KPI (Key Performance Indicator).
-3. KHUSUS SOP: Jika ada yang meminta dibuatkan SOP, Anda HARUS langsung menyusunnya dengan lengkap dan menyertakan KOP SURAT VISIBEL di bagian atas dengan format:
+3. KHUSUS SOP: Jika ada yang meminta dibuatkan SOP, Anda HARUS langsung menyusunnya dengan lengkap dan menyertakan KOP SURAT di bagian atas dengan format:
    
-   VISIBEL ID
-   Jln ciomas harapan kp neglasari RT 01/12 no 4, Kab Bogor, Jawa barat 16610
-   Telepon: 08111743005 | Email: kontakvisibel@gmail.com
+   ${companyDetails?.name || company || 'VISIBEL ID'}
+   ${companyDetails?.address || 'Jln ciomas harapan kp neglasari RT 01/12 no 4, Kab Bogor, Jawa barat 16610'}
+   Telepon: ${companyDetails?.phone || '08111743005'}
    -------------------------------------------------------------------------
    [JUDUL SOP]
    
@@ -200,14 +242,24 @@ Jika tim bertanya tentang strategi, berikan langkah konkret 1, 2, 3 yang bisa la
                 <div className="flex justify-between items-center mb-2">
                   <p className="text-[8px] font-black text-[#FFC000] uppercase tracking-widest">MINVIS EXPERT</p>
                   {msg.content.length > 50 && (
-                    <button 
-                      onClick={() => handleExportToExcel(msg.content)}
-                      className="flex items-center gap-1 text-[8px] font-black text-slate-400 hover:text-indigo-500 transition-colors uppercase tracking-widest"
-                      title="Download as Excel"
-                    >
-                      <Icons.FileText className="w-3 h-3" />
-                      Export Excel
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => copyToClipboard(msg.content)}
+                        className="flex items-center gap-1 text-[8px] font-black text-slate-400 hover:text-indigo-500 transition-colors uppercase tracking-widest"
+                        title="Copy to Clipboard"
+                      >
+                        <Icons.Copy className="w-3 h-3" />
+                        Salin
+                      </button>
+                      <button 
+                        onClick={() => handleExportToExcel(msg.content)}
+                        className="flex items-center gap-1 text-[8px] font-black text-slate-400 hover:text-emerald-500 transition-colors uppercase tracking-widest"
+                        title="Download as Excel"
+                      >
+                        <Icons.FileText className="w-3 h-3" />
+                        Export Excel
+                      </button>
+                    </div>
                   )}
                 </div>
               )}

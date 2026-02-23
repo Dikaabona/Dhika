@@ -1,21 +1,46 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { Icons } from '../constants.tsx';
 import { Invoice, InvoiceItem } from '../types.ts';
 import { supabase } from '../App.tsx';
+import { QuotationModule } from './QuotationModule.tsx';
 
 interface InvoiceModuleProps {
   company: string;
   onClose: () => void;
 }
 
-const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
+const COMPANY_DATA: Record<string, any> = {
+  'Visibel': {
+    logo: "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA",
+    name: "VISIBEL ID",
+    address: "Jalan Ciomas Harapan Kp neglasari RT 01/12 No 4, Ciomas, Kab Bogor, Jawa Barat 16610",
+    email: "kontakvisibel@gmail.com",
+    npwp: "73.263.744.2-404.000"
+  },
+  'Seller Space': {
+    logo: "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w",
+    name: "SELLER SPACE",
+    address: "Jl. Terusan Soreang - Cipatik No.21, Pamekaran, Kec. Soreang, Kabupaten Bandung, Jawa Barat 40912",
+    email: "sellerspace@gmail.com",
+    npwp: "73.263.744.2-404.000"
+  }
+};
 
 export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'invoice' | 'quotation'>('invoice');
   const [sequence, setSequence] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [clients, setClients] = useState<any[]>([]);
+  const [dynamicCompanyData, setDynamicCompanyData] = useState<any>(null);
+
+  const currentCompanyData = useMemo(() => {
+    if (dynamicCompanyData) return dynamicCompanyData;
+    const key = Object.keys(COMPANY_DATA).find(k => k.toLowerCase() === (company || '').toLowerCase());
+    return COMPANY_DATA[key || 'Visibel'];
+  }, [company, dynamicCompanyData]);
 
   const getInvoiceNumber = (seq: number) => {
     const now = new Date();
@@ -25,7 +50,12 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose }
 
   const getTodayDMY = () => {
     const now = new Date();
-    return `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const dayName = days[now.getDay()];
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    return `${dayName}, ${day}/${month}/${year}`;
   };
 
   const [invoice, setInvoice] = useState<Invoice>({
@@ -55,6 +85,27 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose }
     const initInvoice = async () => {
       setIsLoading(true);
       try {
+        // Get dynamic company details
+        const { data: compDetails } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', `company_details_${company}`)
+          .maybeSingle();
+        
+        if (compDetails && compDetails.value) {
+          // Map the keys from SettingsModule (name, address, phone, npwp) 
+          // to what InvoiceModule expects (name, address, email, npwp, logo)
+          const val = compDetails.value;
+          setDynamicCompanyData({
+            name: val.name || company,
+            address: val.address || '',
+            phone: val.phone || '',
+            npwp: val.npwp || '',
+            email: val.email || '', // Added email if it exists in settings
+            logo: val.logo || (company.toLowerCase().includes('seller') ? COMPANY_DATA['Seller Space'].logo : COMPANY_DATA['Visibel'].logo)
+          });
+        }
+
         // Get clients
         const { data: clientsData } = await supabase
           .from('settings')
@@ -292,13 +343,76 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose }
   }
 
   return (
-    <div className="flex flex-col lg:flex-row gap-8 animate-in fade-in duration-500">
-      {/* Form Section */}
-      <div className="w-full lg:w-1/3 space-y-6 bg-white p-8 rounded-[48px] shadow-sm border border-slate-100 overflow-y-auto max-h-[85vh] no-scrollbar">
+    <div className="space-y-8">
+      {/* Sub-menu Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-6 bg-white p-6 rounded-[32px] shadow-sm border border-slate-100">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-black rounded-2xl flex items-center justify-center text-[#FFC000]">
+            <Icons.FileText className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-black uppercase tracking-tight">Invoice & Quotation</h2>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Kelola Invoice dan Penawaran Harga</p>
+          </div>
+        </div>
+        
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner">
+          <button 
+            onClick={() => setActiveSubTab('invoice')}
+            className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'invoice' ? 'bg-white text-black shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            INVOICE
+          </button>
+          <button 
+            onClick={() => setActiveSubTab('quotation')}
+            className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'quotation' ? 'bg-white text-black shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            QUOTATION
+          </button>
+        </div>
+
+        <button onClick={onClose} className="p-4 bg-slate-50 text-slate-400 rounded-2xl hover:bg-rose-50 hover:text-rose-500 transition-all">
+          <Icons.X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {activeSubTab === 'quotation' ? (
+        <QuotationModule company={company} onClose={onClose} />
+      ) : (
+        <div className="flex flex-col lg:flex-row gap-8 animate-in fade-in duration-500">
+          {/* Form Section */}
+          <div className="w-full lg:w-1/3 space-y-6 bg-white p-8 rounded-[48px] shadow-sm border border-slate-100 overflow-y-auto max-h-[85vh] no-scrollbar">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight">BUAT INVOICE</h2>
+          <h2 className="text-3xl font-black text-black uppercase tracking-tight">BUAT INVOICE</h2>
           <button onClick={onClose} className="p-2 hover:bg-slate-50 rounded-full transition-colors">
             <Icons.ArrowLeft className="w-6 h-6 text-slate-400" />
+          </button>
+        </div>
+
+        <div className="flex gap-2 mb-6">
+          <button 
+            onClick={handlePrint}
+            disabled={isSaving}
+            className="flex-1 bg-black text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-slate-900 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {isSaving ? <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div> : <Icons.Download className="w-3 h-3" />} 
+            PNG
+          </button>
+          <button 
+            onClick={() => {
+              const ws = XLSX.utils.json_to_sheet(invoice.items.map(item => ({
+                'Keterangan': item.description,
+                'Qty': item.qty,
+                'Harga': item.price,
+                'Total': item.qty * item.price
+              })));
+              const wb = XLSX.utils.book_new();
+              XLSX.utils.book_append_sheet(wb, ws, "Invoice Items");
+              XLSX.writeFile(wb, `Invoice_${invoice.invoiceNumber}.xlsx`);
+            }}
+            className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-emerald-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+          >
+            <Icons.FileText className="w-3 h-3" /> EXCEL
           </button>
         </div>
 
@@ -466,7 +580,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose }
         <button 
           onClick={handlePrint}
           disabled={isSaving}
-          className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all active:scale-95 flex items-center justify-center gap-3 mt-8 disabled:opacity-50"
+          className="w-full bg-black text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-slate-900 transition-all active:scale-95 flex items-center justify-center gap-3 mt-8 disabled:opacity-50"
         >
           {isSaving ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> : <Icons.Download className="w-4 h-4" />} 
           {isSaving ? 'SAVING...' : 'DOWNLOAD PNG'}
@@ -482,13 +596,13 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose }
         >
           {/* Header */}
           <div className="flex justify-between items-start mb-12">
-            <img src={VISIBEL_LOGO} alt="Visibel Logo" className="h-16 w-auto" />
+            <img src={currentCompanyData.logo} alt="Company Logo" className="h-16 w-auto" />
             <div className="text-right max-w-[300px]">
-              <h1 className="text-2xl font-black mb-2 tracking-tight">VISIBEL ID</h1>
+              <h1 className="text-2xl font-black mb-2 tracking-tight">{currentCompanyData.name}</h1>
               <p className="text-[10px] leading-relaxed font-medium text-slate-600">
-                Alamat : Jalan Ciomas Harapan Kp neglasari RT 01/12 No 4, Ciomas, Kab Bogor, Jawa Barat 16610<br />
-                Email : kontakvisibel@gmail.com<br />
-                NPWP : 73.263.744.2-404.000
+                Alamat : {currentCompanyData.address}<br />
+                Email : {currentCompanyData.email}<br />
+                NPWP : {currentCompanyData.npwp}
               </p>
             </div>
           </div>
@@ -496,14 +610,14 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose }
           {/* Recipient & Invoice Info */}
           <div className="flex justify-between items-end mb-12">
             <div className="space-y-1 max-w-[300px]">
-              <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">KEPADA</h3>
+              <h3 className="text-sm font-black uppercase tracking-widest text-black">KEPADA</h3>
               <p className="text-sm font-bold uppercase">{invoice.recipientName}</p>
               <p className="text-[10px] font-bold uppercase text-slate-500 leading-relaxed">{invoice.recipientAddress}</p>
             </div>
             <div className="bg-[#FFF3E0] p-6 rounded-none min-w-[250px] text-right">
               <h2 className="text-4xl font-black uppercase tracking-tighter mb-1">INVOICE</h2>
               <p className="text-lg font-black tracking-tight mb-1">{invoice.invoiceNumber}</p>
-              <p className="text-xs font-bold text-slate-600">{formatLongDate(invoice.date)}</p>
+              <p className="text-xs font-bold text-slate-600">{invoice.date}</p>
             </div>
           </div>
 
@@ -598,7 +712,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose }
                   className="h-24 w-auto mb-[-20px] relative z-10"
                   referrerPolicy="no-referrer"
                 />
-                <div className="w-48 h-px bg-slate-900 mx-auto"></div>
+                <div className="w-48 h-px bg-black mx-auto"></div>
                 <p className="text-sm font-black uppercase mt-2 underline">Muhammad Mahardhika D</p>
               </div>
             </div>
@@ -608,6 +722,8 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose }
           <div className="absolute bottom-0 left-0 right-0 h-4 bg-[#FFFF00]"></div>
         </div>
       </div>
+      </div>
+      )}
     </div>
   );
 };

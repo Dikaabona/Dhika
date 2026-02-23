@@ -231,6 +231,31 @@ export interface Invoice {
   total: number;
 }
 
+export interface QuotationItem {
+  id: string;
+  service: string;
+  facilities: string;
+  rate: number;
+  qty: number;
+  amount: number;
+}
+
+export interface Quotation {
+  id?: string;
+  quotationNumber: string;
+  date: string;
+  validUntil: string;
+  recipientName: string;
+  recipientAddress: string;
+  items: QuotationItem[];
+  additionalNotes: string;
+  paymentTerms: string;
+  company: string;
+  subTotal: number;
+  total: number;
+  signatureName: string;
+}
+
 export interface Client {
   id?: string;
   namaPic: string;

@@ -11,7 +11,7 @@ interface SettingsModuleProps {
   onRefresh: () => void;
 }
 
-type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT';
+type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT' | 'COMPANY';
 
 interface CustomCriteria {
   id: string;
@@ -66,6 +66,15 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const [clients, setClients] = useState<any[]>([]);
   const [newClient, setNewClient] = useState({ namaPic: '', noTelepon: '', namaBrand: '', alamat: '' });
   
+  const [companyData, setCompanyData] = useState({
+    name: '',
+    address: '',
+    phone: '',
+    email: '',
+    npwp: '',
+    logo: ''
+  });
+  
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [searchEmp, setSearchEmp] = useState('');
@@ -88,8 +97,23 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     fetchKPIConfig();
     fetchDivisionsAndPositions();
     fetchClients();
+    fetchCompanyData();
     if (isOwner) fetchAllCompanies();
   }, [selectedCompany, isOwner]);
+
+  const fetchCompanyData = async () => {
+    try {
+      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const { data } = await supabase.from('settings').select('value').eq('key', `company_details_${targetCompany}`).single();
+      if (data) {
+        setCompanyData(data.value);
+      } else {
+        setCompanyData({ name: targetCompany, address: '', phone: '', email: '', npwp: '', logo: '' });
+      }
+    } catch (e) {
+      setCompanyData({ name: isOwner ? selectedCompany : userCompany, address: '', phone: '', email: '', npwp: '', logo: '' });
+    }
+  };
 
   const fetchAllCompanies = async () => {
     try {
@@ -470,6 +494,14 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                 )}
                 {canAccessRoleManagement && (
                   <button 
+                    onClick={() => setActiveSubTab('COMPANY')} 
+                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'COMPANY' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    DATA PERUSAHAAN
+                  </button>
+                )}
+                {canAccessRoleManagement && (
+                  <button 
                     onClick={() => setActiveSubTab('KPI')} 
                     className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'KPI' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                   >
@@ -508,7 +540,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
           
           {(activeSubTab !== 'DIVISI' && activeSubTab !== 'LEMBUR' && activeSubTab !== 'CLIENT') && (
             <button 
-              onClick={activeSubTab === 'KPI' ? () => handleSaveKPISystem(kpiSystem) : handleSaveSettings}
+              onClick={
+                activeSubTab === 'KPI' ? () => handleSaveKPISystem(kpiSystem) : 
+                activeSubTab === 'COMPANY' ? () => saveSettingsToCloud(`company_details_${isOwner ? selectedCompany : userCompany}`, companyData).then(() => alert("Data Perusahaan berhasil disimpan!")) :
+                handleSaveSettings
+              }
               disabled={isSaving}
               className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-10 py-5 rounded-3xl font-black text-[10px] sm:text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-4"
             >
@@ -654,6 +690,70 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                      </div>
                    </div>
                  )}
+              </div>
+            </div>
+          </div>
+        ) : activeSubTab === 'COMPANY' ? (
+          <div className="animate-in fade-in duration-300 space-y-10">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+               <div className="space-y-2">
+                  <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Data Profil Perusahaan</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Informasi resmi yang akan tampil pada invoice dan dokumen perusahaan.</p>
+               </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+              <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Perusahaan</label>
+                    <input 
+                      type="text" 
+                      value={companyData.name} 
+                      onChange={e => setCompanyData({...companyData, name: e.target.value})}
+                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-black text-black outline-none focus:border-[#FFC000] transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">No Telepon</label>
+                    <input 
+                      type="text" 
+                      value={companyData.phone} 
+                      onChange={e => setCompanyData({...companyData, phone: e.target.value})}
+                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-black text-black outline-none focus:border-[#FFC000] transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Perusahaan</label>
+                    <input 
+                      type="email" 
+                      value={companyData.email} 
+                      onChange={e => setCompanyData({...companyData, email: e.target.value})}
+                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-black text-black outline-none focus:border-[#FFC000] transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">NPWP (Opsional)</label>
+                    <input 
+                      type="text" 
+                      value={companyData.npwp} 
+                      onChange={e => setCompanyData({...companyData, npwp: e.target.value})}
+                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-black text-black outline-none focus:border-[#FFC000] transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-6">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Alamat Lengkap Perusahaan</label>
+                  <textarea 
+                    value={companyData.address} 
+                    onChange={e => setCompanyData({...companyData, address: e.target.value})}
+                    className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-black text-black outline-none focus:border-[#FFC000] transition-all min-h-[200px]"
+                    placeholder="Masukkan alamat lengkap..."
+                  />
+                </div>
               </div>
             </div>
           </div>
