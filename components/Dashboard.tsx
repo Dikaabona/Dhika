@@ -64,6 +64,8 @@ const Dashboard: React.FC<DashboardProps> = ({
     return () => clearInterval(timer);
   }, []);
 
+  const activeEmployees = useMemo(() => employees.filter(e => !e.resigned_at || e.resigned_at.trim() === ''), [employees]);
+  
   const unreadSubmissions = useMemo(() => submissions.filter(s => s.status === 'Pending').length, [submissions]);
   
   const todayRecord = useMemo(() => {
@@ -107,18 +109,18 @@ const Dashboard: React.FC<DashboardProps> = ({
   const lateEmployeesCount = lateEmployeesInfo.length;
   
   const genderData = useMemo(() => {
-    const male = employees.filter(e => e.gender === 'Laki-laki').length;
-    const female = employees.filter(e => e.gender === 'Perempuan').length;
+    const male = activeEmployees.filter(e => e.gender === 'Laki-laki').length;
+    const female = activeEmployees.filter(e => e.gender === 'Perempuan').length;
     const total = male + female || 1;
     return [
       { name: 'Laki-laki', value: male, percentage: Math.round((male / total) * 100) },
       { name: 'Perempuan', value: female, percentage: Math.round((female / total) * 100) }
     ];
-  }, [employees]);
+  }, [activeEmployees]);
 
   const ageData = useMemo(() => {
     const counts = { '< 20': 0, '20-30': 0, '31-40': 0, '41-50': 0, '50+': 0 };
-    employees.forEach(e => {
+    activeEmployees.forEach(e => {
       if (!e.tanggalLahir) return;
       const parts = e.tanggalLahir.split('/');
       if (parts.length !== 3) return;
@@ -130,16 +132,16 @@ const Dashboard: React.FC<DashboardProps> = ({
       else if (age <= 50) counts['41-50']++;
       else counts['50+']++;
     });
-    const total = employees.length || 1;
+    const total = activeEmployees.length || 1;
     return Object.entries(counts).map(([name, value]) => ({
       name,
       value,
       percentage: Math.round((value / total) * 100)
     }));
-  }, [employees]);
+  }, [activeEmployees]);
 
   const averageAge = useMemo(() => {
-    const validAges = employees.map(e => {
+    const validAges = activeEmployees.map(e => {
       if (!e.tanggalLahir) return null;
       const parts = e.tanggalLahir.split('/');
       if (parts.length !== 3) return null;
@@ -150,11 +152,11 @@ const Dashboard: React.FC<DashboardProps> = ({
     if (validAges.length === 0) return 0;
     const sum = validAges.reduce((a, b) => a + b, 0);
     return Math.round(sum / validAges.length);
-  }, [employees]);
+  }, [activeEmployees]);
 
   const salaryData = useMemo(() => {
     const companySalaries: Record<string, number> = {};
-    employees.forEach(e => {
+    activeEmployees.forEach(e => {
       const config = e.salaryConfig;
       if (!config) return;
       const total = (config.gapok || 0) + 
@@ -167,7 +169,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       companySalaries[key] = (companySalaries[key] || 0) + total;
     });
     return Object.entries(companySalaries).map(([name, value]) => ({ name, value }));
-  }, [employees]);
+  }, [activeEmployees]);
 
   const tenureYears = useMemo(() => {
     if (!currentUserEmployee?.tanggalMasuk) return 0;
@@ -498,7 +500,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                  </div>
                  <div>
                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1 whitespace-nowrap">Total Karyawan</p>
-                   <p className="text-3xl font-black text-slate-900 leading-none">{employees.length}</p>
+                   <p className="text-3xl font-black text-slate-900 leading-none">{activeEmployees.length}</p>
                  </div>
                </div>
                <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex items-center gap-6">
@@ -507,7 +509,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                  </div>
                  <div>
                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1 whitespace-nowrap">Karyawan Baru</p>
-                   <p className="text-3xl font-black text-slate-900 leading-none">{employees.filter(e => {
+                   <p className="text-3xl font-black text-slate-900 leading-none">{activeEmployees.filter(e => {
                      if (!e.tanggalMasuk) return false;
                      const parts = e.tanggalMasuk.split('/');
                      const joinDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
@@ -535,7 +537,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                  </div>
                  <div>
                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1 whitespace-nowrap">Ulang Tahun</p>
-                   <p className="text-3xl font-black text-slate-900 leading-none">{employees.filter(emp => getDaysUntilBirthday(emp.tanggalLahir) <= 7).length}</p>
+                   <p className="text-3xl font-black text-slate-900 leading-none">{activeEmployees.filter(emp => getDaysUntilBirthday(emp.tanggalLahir) <= 7).length}</p>
                  </div>
                </div>
              </div>
