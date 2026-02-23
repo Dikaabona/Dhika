@@ -741,6 +741,16 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                       className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-black text-black outline-none focus:border-[#FFC000] transition-all"
                     />
                   </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Logo URL</label>
+                    <input 
+                      type="text" 
+                      value={companyData.logo} 
+                      onChange={e => setCompanyData({...companyData, logo: e.target.value})}
+                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-black text-black outline-none focus:border-[#FFC000] transition-all"
+                      placeholder="https://..."
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -755,6 +765,16 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                   />
                 </div>
               </div>
+            </div>
+
+            <div className="flex justify-end pt-6">
+              <button 
+                onClick={() => saveSettingsToCloud(`company_details_${isOwner ? selectedCompany : userCompany}`, companyData).then(() => alert("Data Perusahaan berhasil disimpan!"))}
+                disabled={isSaving}
+                className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-12 py-5 rounded-3xl font-black text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50 flex items-center gap-4"
+              >
+                {isSaving ? 'Menyimpan...' : <><Icons.Database className="w-5 h-5"/> Simpan Data Perusahaan</>}
+              </button>
             </div>
           </div>
         ) : activeSubTab === 'CLIENT' ? (
