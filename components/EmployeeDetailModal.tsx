@@ -98,6 +98,22 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, onC
                 <DetailRow label="Job Position" value={employee.jabatan} />
                 <DetailRow label="Join Date" value={employee.tanggalMasuk} />
                 <DetailRow label="Tenure" value={calculateTenure(employee.tanggalMasuk)} />
+                {employee.resigned_at && (
+                  <>
+                    <div className="py-4 border-b border-rose-50">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-rose-400">Resign Date</span>
+                        <span className="text-sm font-black text-rose-600 text-right">{employee.resigned_at}</span>
+                      </div>
+                      {employee.resign_reason && (
+                        <div className="mt-2 p-3 bg-rose-50 rounded-xl">
+                          <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-1">Reason</p>
+                          <p className="text-xs font-semibold text-rose-700 leading-relaxed">{employee.resign_reason}</p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
                 {/* Baris Status telah dihapus sesuai permintaan */}
               </div>
             )}

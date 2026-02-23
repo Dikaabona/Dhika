@@ -424,12 +424,14 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                       <div className="flex items-center gap-2">
                         <span className={`text-[10px] font-black ${rec.clockIn ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockIn || '--:--'}</span>
                         {rec.id && (rec.clockIn || rec.photoIn) && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoIn')} className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"><Icons.Camera className="w-3.5 h-3.5" /></button>}
+                        {rec.docBase64 && <button onClick={() => setZoomedImage(rec.docBase64!)} className="p-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-all"><Icons.Image className="w-3.5 h-3.5" /></button>}
                       </div>
                     </td>
                     <td className="px-3 py-4">
                       <div className="flex items-center gap-2">
                         <span className={`text-[10px] font-black ${rec.clockOut ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockOut || '--:--'}</span>
                         {rec.id && (rec.clockOut || rec.photoOut) && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoOut')} className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"><Icons.Camera className="w-3.5 h-3.5" /></button>}
+                        {rec.docBase64 && <button onClick={() => setZoomedImage(rec.docBase64!)} className="p-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-all"><Icons.Image className="w-3.5 h-3.5" /></button>}
                       </div>
                     </td>
                     <td className="px-3 py-4 text-center">
@@ -495,6 +497,9 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                        </div>
                     </div>
                     <div className="flex flex-col items-end justify-end self-end gap-2.5">
+                       {rec.docBase64 && (
+                          <button onClick={() => setZoomedImage(rec.docBase64!)} className="p-2.5 bg-indigo-50 text-indigo-500 rounded-xl border border-indigo-100 transition-colors active:scale-90"><Icons.Image className="w-4 h-4"/></button>
+                       )}
                        {rec.id && (rec.clockIn || rec.clockOut || rec.photoIn || rec.photoOut) && (
                           <button onClick={() => fetchRecordPhoto(rec.id!, rec.photoIn ? 'photoIn' : (rec.photoOut ? 'photoOut' : (rec.clockIn ? 'photoIn' : 'photoOut')))} className="p-2.5 bg-slate-50 text-slate-300 rounded-xl hover:text-[#FFC000] border border-slate-100 transition-colors active:scale-90"><Icons.Camera className="w-4 h-4"/></button>
                        )}

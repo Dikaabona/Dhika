@@ -31,6 +31,8 @@ export interface Employee {
   lastLongitude?: number;
   lastLocationUpdate?: string;
   isTrackingActive?: boolean;
+  resigned_at?: string | null;
+  resign_reason?: string | null;
 }
 
 export interface FlipTransaction {

@@ -13,6 +13,16 @@ interface EmployeeFormProps {
   onCancel: () => void;
 }
 
+const RESIGN_REASONS = [
+  'Mengundurkan diri atas keinginan sendiri tanpa paksaan dari pihak mana pun.',
+  'Tidak lulus masa percobaan (probation).',
+  'Kontrak kerja telah berakhir dan tidak diperpanjang.',
+  'Ingin mencari tantangan dan pengalaman baru.',
+  'Mendapatkan kesempatan karier yang lebih sesuai dengan tujuan pribadi.',
+  'Perubahan arah karier.',
+  'Ingin fokus mengembangkan usaha pribadi.'
+];
+
 const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, userRole, userCompany, currentUserEmployee, onSave, onCancel }) => {
   const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super';
@@ -41,7 +51,9 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     isRemoteAllowed: false,
     ktpDocBase64: '',
     ktpDocType: 'image',
-    contractDocBase64: ''
+    contractDocBase64: '',
+    resigned_at: null,
+    resign_reason: null
   });
 
   const [divisions, setDivisions] = useState<string[]>([]);
@@ -94,7 +106,9 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
         ...rest,
         gender: rest.gender || 'Laki-laki',
         hutang: rest.hutang || 0,
-        isRemoteAllowed: rest.isRemoteAllowed || false
+        isRemoteAllowed: rest.isRemoteAllowed || false,
+        resigned_at: rest.resigned_at || null,
+        resign_reason: rest.resign_reason || null
       });
     } else {
       const generateNextSequentialId = (list: Employee[], currentCompany: string) => {
@@ -395,8 +409,8 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total Hutang Karyawan (Rp)</label>
                 <div className="relative">
-                  <input name="hutang" readOnly={!isSystemAdmin} value={formatCurrencyInput(String(formData.hutang || 0))} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-black text-black outline-none focus:bg-white transition-all text-lg disabled:opacity-70 pl-12" />
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-xs">Rp</span>
+                  <input name="hutang" readOnly={!isSystemAdmin} value={formatCurrencyInput(String(formData.hutang || 0))} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-black outline-none focus:bg-white transition-all text-lg disabled:opacity-70 pl-12" />
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">Rp</span>
                 </div>
               </div>
               <div className="flex items-center gap-3 bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
@@ -416,6 +430,39 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
               <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Alamat</label>
               <textarea required name="alamat" value={formData.alamat} onChange={handleChange} rows={3} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
             </div>
+
+            {isSystemAdmin && (
+              <div className="pt-6 border-t">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-4 block">PENGATURAN RESIGN (OPSIONAL)</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tanggal Resign (DD/MM/YYYY)</label>
+                    <input 
+                      name="resigned_at" 
+                      value={formData.resigned_at || ''} 
+                      onChange={handleChange} 
+                      placeholder="Contoh: 23/02/2026"
+                      className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Alasan Resign</label>
+                    <select 
+                      name="resign_reason" 
+                      value={formData.resign_reason || ''} 
+                      onChange={handleChange} 
+                      className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all"
+                    >
+                      <option value="">Pilih Alasan...</option>
+                      {RESIGN_REASONS.map(reason => (
+                        <option key={reason} value={reason}>{reason}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="pt-6 border-t"><label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-4 block">REKENING</label>
               <div className="grid grid-cols-3 gap-4">
                 <select name="bank" value={formData.bank} onChange={handleChange} className="bg-slate-50 border border-slate-100 rounded-2xl p-3 text-xs font-bold text-black outline-none focus:bg-white transition-all">{BANK_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}</select>

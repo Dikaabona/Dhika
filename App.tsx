@@ -224,7 +224,7 @@ export const App: React.FC = () => {
         } else if (table === 'broadcasts') {
            q = q.select('id, title, message, company, targetEmployeeIds, sentAt');
         } else if (table === 'submissions') {
-           q = q.select('id, employeeId, employeeName, company, type, startDate, endDate, notes, status, submittedAt');
+           q = q.select('id, employeeId, employeeName, company, type, startDate, endDate, notes, status, submittedAt, docBase64');
         } else {
            q = q.select('*');
         }
@@ -881,7 +881,10 @@ export const App: React.FC = () => {
                               <div className="md:hidden p-6 flex items-center justify-between relative group overflow-hidden">
                                 <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-rose-500 rounded-r-full shadow-[2px_0_10px_rgba(244,63,94,0.3)]"></div>
                                 <div className="flex-1 min-w-0" onClick={() => handleViewEmployee(emp)}>
-                                  <p className="text-[14px] font-black text-slate-900 uppercase tracking-tight truncate pl-2">{emp.nama}</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-[14px] font-black text-slate-900 uppercase tracking-tight truncate pl-2">{emp.nama}</p>
+                                    {emp.resigned_at && <span className="text-[8px] font-black bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full uppercase tracking-widest">RESIGN</span>}
+                                  </div>
                                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-2 mt-1 truncate">{emp.jabatan}</p>
                                 </div>
                                 <div className="flex items-center gap-4 shrink-0">
@@ -897,7 +900,10 @@ export const App: React.FC = () => {
                               <div className="hidden md:grid grid-cols-8 items-center px-14 py-7 gap-4">
                                 <div className="col-span-1"><span className="inline-block bg-slate-50 text-slate-700 font-black text-[10px] uppercase px-4 py-2 rounded-xl border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span></div>
                                 <div className="col-span-2">
-                                  <p className="font-semibold text-slate-900 text-[14px] uppercase truncate cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleViewEmployee(emp)}>{emp.nama}</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-semibold text-slate-900 text-[14px] uppercase truncate cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleViewEmployee(emp)}>{emp.nama}</p>
+                                    {emp.resigned_at && <span className="text-[8px] font-black bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full uppercase tracking-widest">RESIGN</span>}
+                                  </div>
                                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{emp.jabatan}</p>
                                 </div>
                                 <div className="col-span-1">

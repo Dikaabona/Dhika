@@ -711,7 +711,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                       type="text" 
                       value={companyData.name} 
                       onChange={e => setCompanyData({...companyData, name: e.target.value})}
-                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-black text-black outline-none focus:border-[#FFC000] transition-all"
+                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all"
                     />
                   </div>
                   <div className="space-y-1">
@@ -720,7 +720,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                       type="text" 
                       value={companyData.phone} 
                       onChange={e => setCompanyData({...companyData, phone: e.target.value})}
-                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-black text-black outline-none focus:border-[#FFC000] transition-all"
+                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all"
                     />
                   </div>
                   <div className="space-y-1">
@@ -729,7 +729,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                       type="email" 
                       value={companyData.email} 
                       onChange={e => setCompanyData({...companyData, email: e.target.value})}
-                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-black text-black outline-none focus:border-[#FFC000] transition-all"
+                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all"
                     />
                   </div>
                   <div className="space-y-1">
@@ -738,7 +738,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                       type="text" 
                       value={companyData.npwp} 
                       onChange={e => setCompanyData({...companyData, npwp: e.target.value})}
-                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-black text-black outline-none focus:border-[#FFC000] transition-all"
+                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all"
                     />
                   </div>
                   <div className="space-y-1">
@@ -747,7 +747,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                       type="text" 
                       value={companyData.logo} 
                       onChange={e => setCompanyData({...companyData, logo: e.target.value})}
-                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-black text-black outline-none focus:border-[#FFC000] transition-all"
+                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all"
                       placeholder="https://..."
                     />
                   </div>
@@ -760,7 +760,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                   <textarea 
                     value={companyData.address} 
                     onChange={e => setCompanyData({...companyData, address: e.target.value})}
-                    className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-black text-black outline-none focus:border-[#FFC000] transition-all min-h-[200px]"
+                    className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all min-h-[200px]"
                     placeholder="Masukkan alamat lengkap..."
                   />
                 </div>

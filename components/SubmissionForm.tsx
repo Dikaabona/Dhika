@@ -148,7 +148,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
                     placeholder="Masukkan nama brand..."
                     value={overtimeBrand} 
                     onChange={e => setOvertimeBrand(e.target.value.toUpperCase())}
-                    className="w-full bg-white px-8 py-5 rounded-[22px] border-none text-sm font-black text-slate-900 outline-none placeholder:text-slate-300 uppercase tracking-widest shadow-sm transition-all focus:ring-2 focus:ring-[#FFC000]/10"
+                    className="w-full bg-white px-8 py-5 rounded-[22px] border-none text-sm font-bold text-slate-900 outline-none placeholder:text-slate-300 uppercase tracking-widest shadow-sm transition-all focus:ring-2 focus:ring-[#FFC000]/10"
                   />
                 </div>
              </div>
@@ -162,7 +162,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
                       type="date" 
                       value={startDate} 
                       onChange={e => setStartDate(e.target.value)} 
-                      className="w-full text-xs sm:text-sm font-black text-slate-900 bg-transparent outline-none cursor-pointer text-center" 
+                      className="w-full text-xs sm:text-sm font-bold text-slate-900 bg-transparent outline-none cursor-pointer text-center" 
                     />
                   </div>
                 </div>
@@ -174,7 +174,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
                       type="time" 
                       value={overtimeStart} 
                       onChange={e => setOvertimeStart(e.target.value)} 
-                      className="w-full text-xs sm:text-sm font-black text-slate-900 bg-transparent outline-none cursor-pointer text-center" 
+                      className="w-full text-xs sm:text-sm font-bold text-slate-900 bg-transparent outline-none cursor-pointer text-center" 
                     />
                   </div>
                 </div>
@@ -186,7 +186,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
                       type="time" 
                       value={overtimeEnd} 
                       onChange={e => setOvertimeEnd(e.target.value)} 
-                      className="w-full text-xs sm:text-sm font-black text-slate-900 bg-transparent outline-none cursor-pointer text-center" 
+                      className="w-full text-xs sm:text-sm font-bold text-slate-900 bg-transparent outline-none cursor-pointer text-center" 
                     />
                   </div>
                 </div>
@@ -203,7 +203,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
                       type="date" 
                       value={startDate} 
                       onChange={e => setStartDate(e.target.value)} 
-                      className="w-full text-xs sm:text-sm font-black text-slate-900 bg-transparent outline-none cursor-pointer text-center" 
+                      className="w-full text-xs sm:text-sm font-bold text-slate-900 bg-transparent outline-none cursor-pointer text-center" 
                     />
                   </div>
                 </div>
@@ -217,7 +217,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
                       value={new Intl.NumberFormat('id-ID').format(Number(reimburseAmount || 0))}
                       onChange={handleAmountChange} 
                       placeholder="0"
-                      className="w-full text-xs sm:text-sm font-black text-slate-900 bg-transparent outline-none" 
+                      className="w-full text-xs sm:text-sm font-bold text-slate-900 bg-transparent outline-none" 
                     />
                   </div>
                 </div>
@@ -243,7 +243,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
                   type="date" 
                   value={startDate} 
                   onChange={e => setStartDate(e.target.value)} 
-                  className="w-full text-xs sm:text-sm font-black text-slate-900 bg-transparent outline-none cursor-pointer text-center" 
+                  className="w-full text-xs sm:text-sm font-bold text-slate-900 bg-transparent outline-none cursor-pointer text-center" 
                 />
               </div>
             </div>
@@ -255,7 +255,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
                   type="date" 
                   value={endDate} 
                   onChange={e => setEndDate(e.target.value)} 
-                  className="w-full text-xs sm:text-sm font-black text-slate-900 bg-transparent outline-none cursor-pointer text-center" 
+                  className="w-full text-xs sm:text-sm font-bold text-slate-900 bg-transparent outline-none cursor-pointer text-center" 
                 />
               </div>
             </div>
