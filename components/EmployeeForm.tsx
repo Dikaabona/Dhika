@@ -275,6 +275,8 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
 
     onSave({
       ...formData,
+      resigned_at: formData.resigned_at?.trim() || null,
+      resign_reason: formData.resign_reason || null,
       id: initialData?.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     });
   };

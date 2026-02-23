@@ -94,6 +94,7 @@ export const App: React.FC = () => {
   
   const [searchQuery, setSearchQuery] = useState('');
   const [companyFilter, setCompanyFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'Aktif' | 'Resign' | 'ALL'>('Aktif');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isAnnouncementOpen, setIsAnnouncementOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
@@ -198,6 +199,12 @@ export const App: React.FC = () => {
       const activeUserRole = getRoleBasedOnEmail(targetEmail, myProfile?.role);
       const isOwner = activeUserRole === 'owner';
       const detectedCompany = myProfile?.company || 'Visibel';
+
+      if (myProfile?.resigned_at) {
+        alert("Akun Anda telah dinonaktifkan (Resign). Silakan hubungi admin.");
+        await supabase.auth.signOut();
+        return;
+      }
 
       setUserRole(activeUserRole);
       setUserCompany(detectedCompany);
@@ -341,6 +348,7 @@ export const App: React.FC = () => {
 
   const uniqueCompanies = useMemo(() => {
     const set = new Set(employees.map(e => e.company || 'Visibel'));
+    set.add('YONGKI KOMALADI');
     return Array.from(set).sort();
   }, [employees]);
 
@@ -352,6 +360,14 @@ export const App: React.FC = () => {
     if (userRole === 'owner' && companyFilter !== 'ALL') {
       baseList = baseList.filter(emp => (emp.company || 'Visibel') === companyFilter);
     }
+    
+    // Status Filter
+    if (statusFilter === 'Aktif') {
+      baseList = baseList.filter(emp => !emp.resigned_at);
+    } else if (statusFilter === 'Resign') {
+      baseList = baseList.filter(emp => !!emp.resigned_at);
+    }
+
     if (userRole === 'employee' && currentUserEmployee) {
       baseList = baseList.filter(emp => emp.id === currentUserEmployee.id);
     }
@@ -359,7 +375,7 @@ export const App: React.FC = () => {
       (emp.nama || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (emp.idKaryawan || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [employees, searchQuery, userRole, currentUserEmployee, companyFilter]);
+  }, [employees, searchQuery, userRole, currentUserEmployee, companyFilter, statusFilter]);
 
   const totalEmpPages = Math.ceil(filteredEmployees.length / empRowsPerPage);
   const paginatedEmployeesList = useMemo(() => {
@@ -624,17 +640,14 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {isHighAdminAccess && (
-          <button onClick={() => setActiveTab('finance')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'finance' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>PAYROLL</button>
+        {(isHighAdminAccess || session?.user?.email === 'wida.oktapiani99@gmail.com') && (
+          <button onClick={() => setActiveTab('finance')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'finance' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>FINANCE</button>
         )}
         {isAdminAccess && (
           <button onClick={() => setActiveTab('inventory')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'inventory' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>ASET</button>
         )}
         {isAdminAccess && (
           <button onClick={() => setActiveTab('kpi')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'kpi' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>KPI</button>
-        )}
-        {(isHighAdminAccess || session?.user?.email === 'wida.oktapiani99@gmail.com') && (
-          <button onClick={() => setActiveTab('invoice')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'invoice' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>INVOICE</button>
         )}
         {isAdminAccess && (
           <button onClick={() => setActiveTab('settings')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>SETTING</button>
@@ -779,15 +792,6 @@ export const App: React.FC = () => {
                 <Inbox submissions={submissions} broadcasts={broadcasts} employee={currentUserEmployee} userRole={userRole} onUpdate={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'settings' ? (
                 <SettingsModule userRole={userRole} userCompany={userCompany} userEmail={session?.user?.email} onRefresh={() => fetchData(session?.user?.email, true)} />
-              ) : activeTab === 'invoice' ? (
-                (isHighAdminAccess || session?.user?.email === 'wida.oktapiani99@gmail.com') ? (
-                  <InvoiceModule company={userCompany} onClose={() => setActiveTab('home')} />
-                ) : (
-                  <div className="p-10 text-center">
-                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Akses Ditolak</h2>
-                    <p className="text-slate-500">Anda tidak memiliki izin untuk mengakses modul ini.</p>
-                  </div>
-                )
               ) : activeTab === 'mobile_history' ? (
                 currentUserEmployee && (
                   <MobileAttendanceHistory 
@@ -805,20 +809,40 @@ export const App: React.FC = () => {
                       <span className="inline-block bg-white sm:bg-slate-50 text-slate-400 text-[10px] font-black uppercase px-5 py-2.5 rounded-full tracking-widest shadow-sm sm:shadow-none border border-slate-100 sm:border-none">{filteredEmployees.length} ENTRI {userRole === 'owner' ? '(GLOBAL)' : `(${userCompany})`}</span>
                       <div className="w-full flex flex-col gap-4 max-w-lg mx-auto sm:max-w-none">
                         <div className="flex flex-col sm:flex-row gap-4 w-full">
-                          {userRole === 'owner' && (
-                            <div className="relative w-full sm:w-72 shrink-0">
-                               <div className="bg-[#0f172a] text-[#FFC000] px-8 py-3 rounded-full text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-3 cursor-pointer shadow-xl active:scale-95 transition-all">
-                                 {companyFilter === 'ALL' ? 'SEMUA COMPANY' : companyFilter}
-                                 <Icons.ChevronDown className="w-3.5 h-3.5" />
-                                 <select 
-                                  value={companyFilter} 
-                                  onChange={(e) => { setCompanyFilter(e.target.value); setCurrentEmpPage(1); }}
-                                  className="absolute inset-0 opacity-0 cursor-pointer"
-                                 >
-                                    <option value="ALL">SEMUA COMPANY</option>
-                                    {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
-                                 </select>
-                               </div>
+                          {(userRole === 'owner' || userRole === 'super' || userRole === 'admin') && (
+                            <div className="flex gap-2 w-full sm:w-auto">
+                              {userRole === 'owner' && (
+                                <div className="relative w-full sm:w-56 shrink-0">
+                                   <div className="bg-[#0f172a] text-[#FFC000] px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-3 cursor-pointer shadow-xl active:scale-95 transition-all">
+                                     {companyFilter === 'ALL' ? 'SEMUA COMPANY' : companyFilter}
+                                     <Icons.ChevronDown className="w-3.5 h-3.5" />
+                                     <select 
+                                      value={companyFilter} 
+                                      onChange={(e) => { setCompanyFilter(e.target.value); setCurrentEmpPage(1); }}
+                                      className="absolute inset-0 opacity-0 cursor-pointer"
+                                     >
+                                        <option value="ALL">SEMUA COMPANY</option>
+                                        {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
+                                     </select>
+                                   </div>
+                                </div>
+                              )}
+                              
+                              <div className="relative w-full sm:w-44 shrink-0">
+                                 <div className="bg-white border border-slate-200 text-slate-900 px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-3 cursor-pointer shadow-sm active:scale-95 transition-all">
+                                   {statusFilter === 'ALL' ? 'SEMUA STATUS' : statusFilter.toUpperCase()}
+                                   <Icons.ChevronDown className="w-3.5 h-3.5" />
+                                   <select 
+                                    value={statusFilter} 
+                                    onChange={(e) => { setStatusFilter(e.target.value as any); setCurrentEmpPage(1); }}
+                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                   >
+                                      <option value="Aktif">AKTIF</option>
+                                      <option value="Resign">RESIGN</option>
+                                      <option value="ALL">SEMUA STATUS</option>
+                                   </select>
+                                 </div>
+                              </div>
                             </div>
                           )}
                           <div className="relative flex-grow w-full bg-white rounded-full shadow-md border border-slate-100 px-6 py-3 flex items-center gap-4 sm:gap-6">
@@ -877,7 +901,7 @@ export const App: React.FC = () => {
                       <div className="bg-white">
                         {paginatedEmployeesList.map((emp) => {
                           return (
-                            <div key={emp.id} className="hover:bg-slate-50/70 transition-all duration-300 border-b border-slate-50 last:border-0">
+                            <div key={emp.id} className={`hover:bg-slate-50/70 transition-all duration-300 border-b border-slate-50 last:border-0 ${emp.resigned_at ? 'opacity-60 grayscale-[0.5]' : ''}`}>
                               <div className="md:hidden p-6 flex items-center justify-between relative group overflow-hidden">
                                 <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-rose-500 rounded-r-full shadow-[2px_0_10px_rgba(244,63,94,0.3)]"></div>
                                 <div className="flex-1 min-w-0" onClick={() => handleViewEmployee(emp)}>

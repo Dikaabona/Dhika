@@ -9,6 +9,7 @@ import { QuotationModule } from './QuotationModule.tsx';
 interface InvoiceModuleProps {
   company: string;
   onClose: () => void;
+  forceTab?: 'invoice' | 'quotation';
 }
 
 const COMPANY_DATA: Record<string, any> = {
@@ -28,8 +29,8 @@ const COMPANY_DATA: Record<string, any> = {
   }
 };
 
-export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'invoice' | 'quotation'>('invoice');
+export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, forceTab }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'invoice' | 'quotation'>(forceTab || 'invoice');
   const [sequence, setSequence] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -79,6 +80,13 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose }
   });
 
   const invoiceRef = useRef<HTMLDivElement>(null);
+
+  // Sync activeSubTab with forceTab prop
+  useEffect(() => {
+    if (forceTab) {
+      setActiveSubTab(forceTab);
+    }
+  }, [forceTab]);
 
   // Fetch latest sequence, draft and clients from Supabase
   useEffect(() => {
@@ -344,38 +352,6 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose }
 
   return (
     <div className="space-y-8">
-      {/* Sub-menu Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-6 bg-white p-6 rounded-[32px] shadow-sm border border-slate-100">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-black rounded-2xl flex items-center justify-center text-[#FFC000]">
-            <Icons.FileText className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-black text-black uppercase tracking-tight">Invoice & Quotation</h2>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Kelola Invoice dan Penawaran Harga</p>
-          </div>
-        </div>
-        
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner">
-          <button 
-            onClick={() => setActiveSubTab('invoice')}
-            className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'invoice' ? 'bg-white text-black shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            INVOICE
-          </button>
-          <button 
-            onClick={() => setActiveSubTab('quotation')}
-            className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'quotation' ? 'bg-white text-black shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            QUOTATION
-          </button>
-        </div>
-
-        <button onClick={onClose} className="p-4 bg-slate-50 text-slate-400 rounded-2xl hover:bg-rose-50 hover:text-rose-500 transition-all">
-          <Icons.X className="w-5 h-5" />
-        </button>
-      </div>
-
       {activeSubTab === 'quotation' ? (
         <QuotationModule company={company} onClose={onClose} />
       ) : (

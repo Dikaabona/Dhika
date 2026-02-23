@@ -68,7 +68,8 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         setBrands([
           { name: 'HITJAB', target: 30, quotaDeadline: '', jamUpload: '19:00' },
           { name: 'NAMASKARA', target: 30, quotaDeadline: '', jamUpload: '19:00' },
-          { name: 'SECONDSHAPE', target: 30, quotaDeadline: '', jamUpload: '19:00' }
+          { name: 'SECONDSHAPE', target: 30, quotaDeadline: '', jamUpload: '19:00' },
+          { name: 'YONGKI KOMALADI', target: 30, quotaDeadline: '', jamUpload: '19:00' }
         ]);
       }
 

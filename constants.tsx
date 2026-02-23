@@ -10,7 +10,8 @@ export const LIVE_BRANDS = [
   { name: 'HITJAB', color: 'bg-yellow-400' },
   { name: 'MIVVER', color: 'bg-yellow-200' },
   { name: 'CWJ SHOPEE', color: 'bg-blue-500 text-white' },
-  { name: 'CWJ TIKTOK', color: 'bg-orange-500 text-white' }
+  { name: 'CWJ TIKTOK', color: 'bg-orange-500 text-white' },
+  { name: 'YONGKI KOMALADI', color: 'bg-slate-800 text-white' }
 ];
 
 export const TIME_SLOTS = [

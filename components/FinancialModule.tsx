@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Icons } from '../constants';
 import { flipService } from '../services/flipService';
 import { supabase } from '../App';
+import { InvoiceModule } from './InvoiceModule';
 
 interface FinancialModuleProps {
   company: string;
@@ -12,7 +13,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'PAYROLL' | 'INVOICE'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'PAYROLL' | 'INVOICE' | 'QUOTATION'>('OVERVIEW');
 
   useEffect(() => {
     loadFinanceData();
@@ -55,7 +56,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
               </div>
               <div>
-                <h2 className="text-3xl font-black text-[#0f172a] uppercase tracking-tight leading-none">FINANCIAL HUB</h2>
+                <h2 className="text-3xl font-black text-[#0f172a] uppercase tracking-tight leading-none">FINANCE HUB</h2>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.4em] mt-3">Flip for Business Integrated</p>
               </div>
             </div>
@@ -79,9 +80,8 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
             </div>
           </div>
 
-          {/* Navigation Tabs - Sesuai Screenshot */}
           <div className="flex bg-[#f1f5f9] p-1.5 rounded-2xl border border-slate-100 shadow-inner w-fit mb-12">
-            {['OVERVIEW', 'PAYROLL', 'INVOICE'].map(t => (
+            {['OVERVIEW', 'PAYROLL', 'INVOICE', 'QUOTATION'].map(t => (
               <button 
                 key={t}
                 onClick={() => setActiveTab(t as any)}
@@ -209,9 +209,14 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
           )}
 
           {activeTab === 'INVOICE' && (
-            <div className="py-32 text-center opacity-10">
-               <Icons.FileText className="w-20 h-20 mx-auto" />
-               <p className="text-[11px] font-black uppercase tracking-[0.5em] mt-6">MODUL INVOICE SEGERA HADIR</p>
+            <div className="animate-in fade-in duration-500">
+               <InvoiceModule company={company} onClose={onClose} forceTab="invoice" />
+            </div>
+          )}
+
+          {activeTab === 'QUOTATION' && (
+            <div className="animate-in fade-in duration-500">
+               <InvoiceModule company={company} onClose={onClose} forceTab="quotation" />
             </div>
           )}
         </div>
