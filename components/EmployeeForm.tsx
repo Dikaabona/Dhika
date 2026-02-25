@@ -26,8 +26,7 @@ const RESIGN_REASONS = [
 const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, userRole, userCompany, currentUserEmployee, onSave, onCancel }) => {
   const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super';
-  const isAdmin = userRole === 'admin';
-  const isSystemAdmin = isOwner || isSuper || isAdmin;
+  const isSystemAdmin = isOwner || isSuper;
 
   const [formData, setFormData] = useState<Omit<Employee, 'id'>>({
     idKaryawan: '',
