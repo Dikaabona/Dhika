@@ -200,7 +200,8 @@ export const App: React.FC = () => {
       const isOwner = activeUserRole === 'owner';
       const detectedCompany = myProfile?.company || 'Visibel';
 
-      if (myProfile?.resigned_at) {
+      const isResignedUser = (myProfile?.resigned_at && myProfile.resigned_at.trim() !== '') || (myProfile?.resign_reason && myProfile.resign_reason.trim() !== '');
+      if (isResignedUser) {
         alert("Akun Anda telah dinonaktifkan (Resign). Silakan hubungi admin.");
         await supabase.auth.signOut();
         return;
@@ -352,6 +353,8 @@ export const App: React.FC = () => {
     return Array.from(set).sort();
   }, [employees]);
 
+  const isResigned = (emp: Employee) => (emp.resigned_at && emp.resigned_at.trim() !== '') || (emp.resign_reason && emp.resign_reason.trim() !== '');
+
   const filteredEmployees = useMemo(() => {
     let baseList = employees;
     if (userRole !== 'owner') {
@@ -363,9 +366,9 @@ export const App: React.FC = () => {
     
     // Status Filter
     if (statusFilter === 'Aktif') {
-      baseList = baseList.filter(emp => !emp.resigned_at || emp.resigned_at.trim() === '');
+      baseList = baseList.filter(emp => !isResigned(emp));
     } else if (statusFilter === 'Resign') {
-      baseList = baseList.filter(emp => emp.resigned_at && emp.resigned_at.trim() !== '');
+      baseList = baseList.filter(emp => isResigned(emp));
     }
 
     if (userRole === 'employee' && currentUserEmployee) {
@@ -901,13 +904,13 @@ export const App: React.FC = () => {
                       <div className="bg-white">
                         {paginatedEmployeesList.map((emp) => {
                           return (
-                            <div key={emp.id} className={`hover:bg-slate-50/70 transition-all duration-300 border-b border-slate-50 last:border-0 ${(emp.resigned_at && emp.resigned_at.trim() !== '') ? 'opacity-60 grayscale-[0.5]' : ''}`}>
+                            <div key={emp.id} className={`hover:bg-slate-50/70 transition-all duration-300 border-b border-slate-50 last:border-0 ${isResigned(emp) ? 'opacity-60 grayscale-[0.5]' : ''}`}>
                               <div className="md:hidden p-6 flex items-center justify-between relative group overflow-hidden">
                                 <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-rose-500 rounded-r-full shadow-[2px_0_10px_rgba(244,63,94,0.3)]"></div>
                                 <div className="flex-1 min-w-0" onClick={() => handleViewEmployee(emp)}>
                                   <div className="flex items-center gap-2">
                                     <p className="text-[14px] font-black text-slate-900 uppercase tracking-tight truncate pl-2">{emp.nama}</p>
-                                    {(emp.resigned_at && emp.resigned_at.trim() !== '') && <span className="text-[8px] font-black bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full uppercase tracking-widest">RESIGN</span>}
+                                    {isResigned(emp) && <span className="text-[8px] font-black bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full uppercase tracking-widest">RESIGN</span>}
                                   </div>
                                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-2 mt-1 truncate">{emp.jabatan}</p>
                                 </div>
@@ -926,7 +929,7 @@ export const App: React.FC = () => {
                                 <div className="col-span-2">
                                   <div className="flex items-center gap-2">
                                     <p className="font-semibold text-slate-900 text-[14px] uppercase truncate cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleViewEmployee(emp)}>{emp.nama}</p>
-                                    {(emp.resigned_at && emp.resigned_at.trim() !== '') && <span className="text-[8px] font-black bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full uppercase tracking-widest">RESIGN</span>}
+                                    {isResigned(emp) && <span className="text-[8px] font-black bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full uppercase tracking-widest">RESIGN</span>}
                                   </div>
                                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{emp.jabatan}</p>
                                 </div>

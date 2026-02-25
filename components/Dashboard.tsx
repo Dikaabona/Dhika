@@ -64,7 +64,10 @@ const Dashboard: React.FC<DashboardProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const activeEmployees = useMemo(() => employees.filter(e => !e.resigned_at || e.resigned_at.trim() === ''), [employees]);
+  const activeEmployees = useMemo(() => employees.filter(e => {
+    const isResigned = (e.resigned_at && e.resigned_at.trim() !== '') || (e.resign_reason && e.resign_reason.trim() !== '');
+    return !isResigned;
+  }), [employees]);
   
   const unreadSubmissions = useMemo(() => submissions.filter(s => s.status === 'Pending').length, [submissions]);
   

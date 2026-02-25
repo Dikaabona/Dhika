@@ -94,8 +94,7 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
           status: sub.type,
           clockIn,
           clockOut,
-          notes: `Pengajuan disetujui: ${sub.notes}`,
-          docBase64: sub.docBase64
+          notes: `Pengajuan disetujui: ${sub.notes}`
         };
       });
 

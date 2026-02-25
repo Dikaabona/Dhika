@@ -367,7 +367,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     if (!silent) setIsProcessing(true);
     try {
       const worker = (window as any).html2pdf().from(target).set({ 
-        html2canvas: { scale: 3, useCORS: true, scrollY: 0, scrollX: 0 } 
+        html2canvas: { scale: 2, useCORS: true, scrollY: 0, scrollX: 0, width: 794, windowWidth: 1024 } 
       });
       const canvas = await worker.toCanvas().get('canvas');
       const link = document.createElement('a');
@@ -390,7 +390,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       margin: 0,
       filename: fileName,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
+      html2canvas: { scale: 2, useCORS: true, letterRendering: true, scrollY: 0, scrollX: 0, width: 794, windowWidth: 1024 },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
@@ -469,7 +469,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     setIsProcessing(true);
     try {
       const worker = (window as any).html2pdf().from(target).set({ 
-        html2canvas: { scale: 3, useCORS: true, scrollY: 0, scrollX: 0 } 
+        html2canvas: { scale: 2, useCORS: true, scrollY: 0, scrollX: 0, width: 794, windowWidth: 1024 } 
       });
       const canvas = await worker.toCanvas().get('canvas');
       const pngBase64 = canvas.toDataURL('image/png');
@@ -591,7 +591,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         </div>
         
         <div className="p-4 sm:p-6 overflow-y-auto space-y-4 sm:space-y-6 bg-white flex-grow custom-scrollbar">
-          <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', pointerEvents: 'none' }}>
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '794px', height: '1122px', zIndex: -1, opacity: 0, pointerEvents: 'none' }}>
             <div ref={hiddenSlipRef}><SalarySlipContent /></div>
           </div>
           

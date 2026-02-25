@@ -298,10 +298,10 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
       try {
         // @ts-ignore
         const canvas = await html2canvas(element, {
-          scale: 2,
+          scale: 3,
           useCORS: true,
           letterRendering: true,
-          scrollY: -window.scrollY,
+          scrollY: 0,
           windowWidth: element.clientWidth,
           backgroundColor: '#ffffff'
         });
