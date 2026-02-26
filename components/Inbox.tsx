@@ -54,6 +54,28 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
     }
   };
 
+  const fetchSubmissionAttachment = async (id: string) => {
+    setIsPhotoLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('submissions')
+        .select('docBase64')
+        .eq('id', id)
+        .single();
+      
+      if (error) throw error;
+      if (data?.docBase64) {
+        setZoomedImage(data.docBase64);
+      } else {
+        alert("Lampiran tidak ditemukan.");
+      }
+    } catch (err: any) {
+      alert("Gagal memuat lampiran: " + err.message);
+    } finally {
+      setIsPhotoLoading(false);
+    }
+  };
+
   const handleApprove = async (sub: Submission) => {
     if (!sub.id) {
       alert("ID Pengajuan tidak ditemukan.");
@@ -220,15 +242,13 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
                   <p className="text-sm text-slate-500 italic font-medium leading-relaxed">
                     "{sub.notes}"
                   </p>
-                  {sub.docBase64 && (
-                    <button 
-                      onClick={() => setZoomedImage(sub.docBase64!)}
-                      className="flex items-center gap-2 text-[10px] font-black text-indigo-600 bg-indigo-50 px-4 py-2 rounded-xl hover:bg-indigo-100 transition-all uppercase tracking-widest"
-                    >
-                      <Icons.Image className="w-4 h-4" />
-                      Lihat Lampiran
-                    </button>
-                  )}
+                  <button 
+                    onClick={() => sub.id && fetchSubmissionAttachment(sub.id)}
+                    className="flex items-center gap-2 text-[10px] font-black text-indigo-600 bg-indigo-50 px-4 py-2 rounded-xl hover:bg-indigo-100 transition-all uppercase tracking-widest"
+                  >
+                    <Icons.Image className="w-4 h-4" />
+                    Lihat Lampiran
+                  </button>
                 </div>
                 <div className="flex gap-3 shrink-0 w-full md:w-auto">
                   <button onClick={() => handleApprove(sub)} className="flex-1 md:flex-none bg-[#059669] hover:bg-[#047857] text-white px-10 py-4 rounded-[18px] font-black text-[11px] uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-all active:scale-95">SETUJUI</button>
@@ -278,15 +298,13 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
                 </div>
                 <p className="text-[9px] text-slate-500 font-bold">{sub.startDate} {sub.startDate !== sub.endDate ? `- ${sub.endDate}` : ''}</p>
                 <p className="text-[9px] text-slate-400 italic truncate" title={sub.notes}>"{sub.notes}"</p>
-                {sub.docBase64 && (
-                  <button 
-                    onClick={() => setZoomedImage(sub.docBase64!)}
-                    className="text-[8px] font-black text-indigo-600 hover:underline uppercase tracking-widest flex items-center gap-1 mt-1"
-                  >
-                    <Icons.Image className="w-3 h-3" />
-                    Lampiran
-                  </button>
-                )}
+                <button 
+                  onClick={() => sub.id && fetchSubmissionAttachment(sub.id)}
+                  className="text-[8px] font-black text-indigo-600 hover:underline uppercase tracking-widest flex items-center gap-1 mt-1"
+                >
+                  <Icons.Image className="w-3 h-3" />
+                  Lampiran
+                </button>
               </div>
               <div className="shrink-0">
                 <Icons.Sparkles className={sub.status === 'Approved' ? 'text-emerald-500 w-5 h-5' : 'text-rose-500 w-5 h-5'} />

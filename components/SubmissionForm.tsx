@@ -52,6 +52,11 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ employee, company, onSu
       return;
     }
 
+    if (status !== 'Lembur' && status !== 'Reimburse' && new Date(startDate) > new Date(endDate)) {
+      alert("Tanggal mulai tidak boleh setelah tanggal selesai.");
+      return;
+    }
+
     setIsLoading(true);
     try {
       let finalNotes = notes;

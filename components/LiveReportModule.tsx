@@ -320,12 +320,22 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
           });
 
           const finalToUpsert: Partial<LiveReport>[] = [];
-          const existingInDbMap = new Map<string, LiveReport>(reports.map(r => [r.roomId, r]));
+          
+          // Fetch existing records from DB for the roomIds being imported to avoid duplicates
+          const roomIdsInFile = Array.from(fileDeduperMap.keys());
+          const { data: existingRecords } = await supabase
+            .from('live_reports')
+            .select('id, roomId')
+            .in('roomId', roomIdsInFile);
+
+          const existingInDbMap = new Map<string, string>(
+            (existingRecords || []).map(r => [r.roomId, r.id])
+          );
 
           fileDeduperMap.forEach((newReport, roomId) => {
-            const existingInDb = existingInDbMap.get(roomId);
-            if (existingInDb) {
-              finalToUpsert.push({ ...newReport, id: existingInDb.id });
+            const existingId = existingInDbMap.get(roomId);
+            if (existingId) {
+              finalToUpsert.push({ ...newReport, id: existingId });
             } else {
               finalToUpsert.push(newReport);
             }

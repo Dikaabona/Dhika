@@ -513,13 +513,13 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                             {brandsForSlot.map((brand: any) => {
                               const sched = schedules.find(s => s.date === date && s.brand === brand.name.toUpperCase() && s.hourSlot === slot) || { hostId: '', opId: '' };
                               return (
-                                <div key={`${date}-${slot}-${brand.name}`} className="bg-white border border-slate-100 rounded-[32px] p-8 space-y-6 shadow-sm hover:shadow-xl transition-all relative group/slot">
-                                  <div className="flex justify-between items-center border-b border-slate-50 pb-4">
-                                    <p className="text-[12px] font-black text-slate-900 uppercase tracking-[0.1em]">{brand.name}</p>
+                                <div key={`${date}-${slot}-${brand.name}`} className="bg-[#0f172a] border border-white/5 rounded-[32px] p-8 space-y-6 shadow-xl hover:shadow-2xl transition-all relative group/slot">
+                                  <div className="flex justify-between items-center border-b border-white/5 pb-4">
+                                    <p className="text-[12px] font-black text-[#FFC000] uppercase tracking-[0.1em]">{brand.name}</p>
                                     {!readOnly && (sched.hostId || sched.opId) && (
                                       <button 
                                         onClick={() => deleteScheduleSlot(date, brand.name, slot)}
-                                        className="text-rose-400 hover:text-rose-600 opacity-0 group-hover/slot:opacity-100 transition-all p-2 rounded-xl hover:bg-rose-50"
+                                        className="text-rose-400 hover:text-rose-600 opacity-0 group-hover/slot:opacity-100 transition-all p-2 rounded-xl hover:bg-rose-50/10"
                                       >
                                         <Icons.Trash className="w-4 h-4" />
                                       </button>
@@ -527,17 +527,17 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                                   </div>
                                   <div className="grid grid-cols-2 gap-6">
                                      <div className="space-y-2.5">
-                                        <label className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-1">HOST</label>
-                                        <select value={sched.hostId} disabled={readOnly} onChange={(e) => updateSchedule(date, brand.name, slot, 'hostId', e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 text-[10px] font-black appearance-none cursor-pointer text-slate-900 outline-none focus:bg-white focus:border-indigo-400 transition-all shadow-inner">
-                                          <option value="">-</option>
-                                          {hostList.map(h => <option key={h.id} value={h.id}>{h.nama.toUpperCase()}</option>)}
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">HOST</label>
+                                        <select value={sched.hostId} disabled={readOnly} onChange={(e) => updateSchedule(date, brand.name, slot, 'hostId', e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-[10px] font-black appearance-none cursor-pointer text-white outline-none focus:bg-white/10 focus:border-[#FFC000] transition-all shadow-inner disabled:opacity-100 disabled:text-white">
+                                          <option value="" className="bg-[#0f172a]">-</option>
+                                          {hostList.map(h => <option key={h.id} value={h.id} className="bg-[#0f172a]">{h.nama.toUpperCase()}</option>)}
                                         </select>
                                      </div>
                                      <div className="space-y-2.5">
-                                        <label className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-1">OP</label>
-                                        <select value={sched.opId} disabled={readOnly} onChange={(e) => updateSchedule(date, brand.name, slot, 'opId', e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 text-[10px] font-black appearance-none cursor-pointer text-slate-900 outline-none focus:bg-white focus:border-indigo-400 transition-all shadow-inner">
-                                          <option value="">-</option>
-                                          {opList.map(o => <option key={o.id} value={o.id}>{o.nama.toUpperCase()}</option>)}
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">OP</label>
+                                        <select value={sched.opId} disabled={readOnly} onChange={(e) => updateSchedule(date, brand.name, slot, 'opId', e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-[10px] font-black appearance-none cursor-pointer text-white outline-none focus:bg-white/10 focus:border-[#FFC000] transition-all shadow-inner disabled:opacity-100 disabled:text-white">
+                                          <option value="" className="bg-[#0f172a]">-</option>
+                                          {opList.map(o => <option key={o.id} value={o.id} className="bg-[#0f172a]">{o.nama.toUpperCase()}</option>)}
                                         </select>
                                      </div>
                                   </div>
