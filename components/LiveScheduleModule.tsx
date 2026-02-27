@@ -400,7 +400,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         {/* Navigation Tabs - Refined for Mobile */}
         <div className="bg-[#f1f5f9] p-1 rounded-[28px] sm:rounded-[32px] flex shadow-inner max-w-4xl mx-auto gap-1">
           {['JADWAL', 'REPORT', 'GRAFIK', 'LIBUR', 'BRAND'].map((tab) => {
-             const isMobileHidden = ['GRAFIK', 'BRAND'].includes(tab);
+             const isMobileHidden = ['REPORT', 'GRAFIK', 'BRAND'].includes(tab);
              return (
               ((tab !== 'BRAND') || !readOnly) && (
                 <button 

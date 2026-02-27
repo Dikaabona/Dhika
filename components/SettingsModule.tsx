@@ -74,6 +74,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     npwp: '',
     logo: ''
   });
+  const [trialInfo, setTrialInfo] = useState<{ startDate: string; isPremium: boolean } | null>(null);
   
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -98,8 +99,37 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     fetchDivisionsAndPositions();
     fetchClients();
     fetchCompanyData();
+    fetchTrialInfo();
     if (isOwner) fetchAllCompanies();
-  }, [selectedCompany, isOwner]);
+  }, [selectedCompany, isOwner, userCompany]);
+
+  const fetchTrialInfo = async () => {
+    try {
+      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const { data } = await supabase.from('settings').select('value').eq('key', `trial_info_${targetCompany}`).single();
+      if (data) setTrialInfo(data.value);
+      else setTrialInfo(null);
+    } catch (e) {
+      setTrialInfo(null);
+    }
+  };
+
+  const handleActivatePremium = async () => {
+    if (!confirm("Aktifkan layanan Premium untuk perusahaan ini?")) return;
+    try {
+      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const { error } = await supabase.from('settings').upsert({
+        key: `trial_info_${targetCompany}`,
+        value: { ...(trialInfo || { startDate: new Date().toISOString() }), isPremium: true }
+      });
+      if (error) throw error;
+      alert("Layanan Premium Aktif!");
+      fetchTrialInfo();
+      onRefresh();
+    } catch (e: any) {
+      alert("Gagal mengaktifkan premium: " + e.message);
+    }
+  };
 
   const fetchCompanyData = async () => {
     try {
@@ -763,6 +793,58 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                     className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all min-h-[200px]"
                     placeholder="Masukkan alamat lengkap..."
                   />
+                </div>
+              </div>
+
+              <div className="space-y-8">
+                <div className="bg-slate-900 p-8 rounded-[40px] border border-slate-800 space-y-6 shadow-2xl">
+                  <div className="flex items-center gap-4 mb-2">
+                    <div className="w-12 h-12 bg-amber-500/20 rounded-2xl flex items-center justify-center">
+                      <Icons.Sparkles className="w-6 h-6 text-amber-500" />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-black text-white uppercase tracking-tight">Status Layanan</h4>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Kelola paket langganan perusahaan.</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Paket Saat Ini</span>
+                      <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${trialInfo?.isPremium ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                        {trialInfo?.isPremium ? 'PREMIUM ACCESS' : 'TRIAL MODE'}
+                      </span>
+                    </div>
+                    {!trialInfo?.isPremium && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Masa Berlaku</span>
+                        <span className="text-sm font-black text-white">
+                          {trialInfo ? (() => {
+                            const start = new Date(trialInfo.startDate);
+                            const now = new Date();
+                            const diff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                            const left = 7 - diff;
+                            return left > 0 ? `${left} Hari Tersisa` : 'Trial Berakhir';
+                          })() : '7 Hari'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {!trialInfo?.isPremium && (
+                    <button 
+                      onClick={handleActivatePremium}
+                      className="w-full bg-[#FFC000] text-slate-900 py-5 rounded-3xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-white transition-all active:scale-95 flex items-center justify-center gap-3"
+                    >
+                      <Icons.Check className="w-5 h-5" /> AKTIFKAN PREMIUM
+                    </button>
+                  )}
+                  
+                  {trialInfo?.isPremium && (
+                    <div className="p-5 bg-emerald-500/10 border border-emerald-500/20 rounded-3xl text-center">
+                      <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Sistem Berjalan dalam Mode Full Akses</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

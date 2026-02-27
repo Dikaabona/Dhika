@@ -90,19 +90,19 @@ const MobileAttendanceHistory: React.FC<MobileAttendanceHistoryProps> = ({
         <div className="absolute -bottom-8 left-6 right-6 grid grid-cols-4 gap-2">
           <div className="bg-white p-3 rounded-2xl flex flex-col items-center shadow-sm border border-slate-100">
             <span className="text-xl font-bold text-slate-900">{attendanceData.stats.total}</span>
-            <span className="text-[8px] font-medium text-slate-400 uppercase">Total</span>
+            <span className="text-[8px] font-medium text-slate-600 uppercase">Total</span>
           </div>
           <div className="bg-white p-3 rounded-2xl flex flex-col items-center shadow-sm border border-slate-100">
             <span className="text-xl font-bold text-emerald-500">{attendanceData.stats.hadir}</span>
-            <span className="text-[8px] font-medium text-slate-400 uppercase">Hadir</span>
+            <span className="text-[8px] font-medium text-slate-600 uppercase">Hadir</span>
           </div>
           <div className="bg-white p-3 rounded-2xl flex flex-col items-center shadow-sm border border-slate-100">
             <span className="text-xl font-bold text-orange-500">{attendanceData.stats.terlambat}</span>
-            <span className="text-[8px] font-medium text-slate-400 uppercase">Terlambat</span>
+            <span className="text-[8px] font-medium text-slate-600 uppercase">Terlambat</span>
           </div>
           <div className="bg-white p-3 rounded-2xl flex flex-col items-center shadow-sm border border-slate-100">
             <span className="text-xl font-bold text-purple-500">{attendanceData.stats.cuti}</span>
-            <span className="text-[8px] font-medium text-slate-400 uppercase">Cuti</span>
+            <span className="text-[8px] font-medium text-slate-600 uppercase">Cuti</span>
           </div>
         </div>
       </div>
@@ -115,7 +115,7 @@ const MobileAttendanceHistory: React.FC<MobileAttendanceHistoryProps> = ({
               key={t}
               onClick={() => setFilter(t as any)}
               className={`px-6 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
-                filter === t ? 'bg-[#FFC000] text-black shadow-md' : 'bg-white text-slate-400 border border-slate-100'
+                filter === t ? 'bg-[#FFC000] text-black shadow-md' : 'bg-white text-slate-600 border border-slate-100'
               }`}
             >
               {t}
@@ -148,7 +148,7 @@ const MobileAttendanceHistory: React.FC<MobileAttendanceHistoryProps> = ({
                   <span className="text-sm font-bold text-slate-900">{dayName}</span>
                   {getStatusBadge(rec.status, isLate)}
                 </div>
-                <div className="flex items-center gap-3 mt-1 text-[10px] font-medium text-slate-400">
+                <div className="flex items-center gap-3 mt-1 text-[10px] font-medium text-slate-600">
                   <div className="flex items-center gap-1">
                     <Icons.Clock className="w-3 h-3" />
                     <span>{rec.clockIn || '--:--'}</span>
@@ -163,7 +163,7 @@ const MobileAttendanceHistory: React.FC<MobileAttendanceHistoryProps> = ({
               {duration && (
                 <div className="text-right">
                   <p className="text-sm font-black text-[#FFC000]">{duration}</p>
-                  <p className="text-[8px] font-bold text-slate-300 uppercase">Jam Kerja</p>
+                  <p className="text-[8px] font-bold text-slate-500 uppercase">Jam Kerja</p>
                 </div>
               )}
             </div>

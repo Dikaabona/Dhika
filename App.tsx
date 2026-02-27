@@ -49,6 +49,7 @@ export const App: React.FC = () => {
   const [userRole, setUserRole] = useState<UserRole>('employee');
   const [currentUserEmployee, setCurrentUserEmployee] = useState<Employee | null>(null);
   const [userCompany, setUserCompany] = useState<string>('Visibel');
+  const [trialInfo, setTrialInfo] = useState<{ daysLeft: number; isExpired: boolean; isActive: boolean }>({ daysLeft: 7, isExpired: false, isActive: false });
   
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
@@ -210,6 +211,43 @@ export const App: React.FC = () => {
       setUserRole(activeUserRole);
       setUserCompany(detectedCompany);
       setCurrentUserEmployee(myProfile);
+
+      // Trial Check Logic
+      try {
+        const { data: trialData } = await supabase.from('settings').select('value').eq('key', `trial_info_${detectedCompany}`).single();
+        let startDateStr: string;
+        
+        if (!trialData) {
+          startDateStr = new Date().toISOString();
+          // Auto-initialize trial for new company if user is admin/owner
+          if (activeUserRole === 'owner' || activeUserRole === 'super' || activeUserRole === 'admin') {
+            await supabase.from('settings').upsert({ 
+              key: `trial_info_${detectedCompany}`, 
+              value: { startDate: startDateStr, isPremium: false } 
+            });
+          }
+          setTrialInfo({ daysLeft: 7, isExpired: false, isActive: true });
+        } else {
+          const isPremium = trialData.value.isPremium || false;
+          if (isPremium) {
+            setTrialInfo({ daysLeft: 999, isExpired: false, isActive: false });
+          } else {
+            startDateStr = trialData.value.startDate;
+            const start = new Date(startDateStr);
+            const now = new Date();
+            const diffTime = now.getTime() - start.getTime();
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            const remaining = 7 - diffDays;
+            setTrialInfo({ 
+              daysLeft: remaining < 0 ? 0 : remaining, 
+              isExpired: remaining < 0,
+              isActive: true
+            });
+          }
+        }
+      } catch (e) {
+        console.error("Trial check error:", e);
+      }
 
       let empQuery = supabase.from('employees').select('*').is('deleted_at', null);
       if (!isOwner) {
@@ -652,7 +690,7 @@ export const App: React.FC = () => {
         {isAdminAccess && (
           <button onClick={() => setActiveTab('kpi')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'kpi' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>KPI</button>
         )}
-        {isAdminAccess && (
+        {isHighAdminAccess && (
           <button onClick={() => setActiveTab('settings')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>SETTING</button>
         )}
       </div>
@@ -667,7 +705,7 @@ export const App: React.FC = () => {
             setActiveTab('home');
             setViewingEmployee(null);
           }}
-          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'home' && !viewingEmployee ? 'text-[#1E6BFF]' : 'text-slate-300'}`}
+          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'home' && !viewingEmployee ? 'text-[#1E6BFF]' : 'text-slate-400'}`}
         >
           <Icons.Home className="w-6 h-6" />
           <span className="text-[8px] font-black uppercase tracking-tighter">BERANDA</span>
@@ -677,7 +715,7 @@ export const App: React.FC = () => {
             setActiveTab('mobile_history');
             setViewingEmployee(null);
           }}
-          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'mobile_history' && !viewingEmployee ? 'text-[#1E6BFF]' : 'text-slate-300'}`}
+          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'mobile_history' && !viewingEmployee ? 'text-[#1E6BFF]' : 'text-slate-400'}`}
         >
           <Icons.Clock className="w-6 h-6" />
           <span className="text-[8px] font-black uppercase tracking-tighter">RIWAYAT</span>
@@ -686,7 +724,7 @@ export const App: React.FC = () => {
           onClick={() => {
             if (currentUserEmployee) setViewingEmployee(currentUserEmployee);
           }}
-          className={`flex flex-col items-center gap-1 transition-all ${viewingEmployee ? 'text-[#1E6BFF]' : 'text-slate-300'}`}
+          className={`flex flex-col items-center gap-1 transition-all ${viewingEmployee ? 'text-[#1E6BFF]' : 'text-slate-400'}`}
         >
           <Icons.Users className="w-6 h-6" />
           <span className="text-[8px] font-black uppercase tracking-tighter">PROFIL</span>
@@ -698,7 +736,24 @@ export const App: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc]">
       {session ? (
-        isUnregistered ? (
+        (trialInfo.isExpired && userRole !== 'owner') ? (
+          <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center">
+            <div className="w-24 h-24 bg-rose-500/20 rounded-full flex items-center justify-center mb-6 animate-pulse">
+              <Icons.Clock className="w-12 h-12 text-rose-500" />
+            </div>
+            <h1 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Masa Trial Berakhir</h1>
+            <p className="text-slate-400 max-w-md mb-8 font-medium">
+              Masa percobaan 7 hari untuk perusahaan <span className="text-[#FFC000] font-bold">{userCompany}</span> telah berakhir. 
+              Silakan hubungi administrator atau Owner untuk mengaktifkan layanan premium.
+            </p>
+            <button 
+              onClick={() => supabase.auth.signOut()}
+              className="px-8 py-3 bg-white text-slate-900 rounded-full font-black uppercase tracking-widest hover:bg-[#FFC000] transition-all active:scale-95"
+            >
+              Keluar Aplikasi
+            </button>
+          </div>
+        ) : isUnregistered ? (
           <div className="flex-grow flex items-center justify-center p-6 animate-in fade-in duration-700 bg-slate-50">
             <div className="bg-white p-12 rounded-[48px] shadow-2xl border border-slate-200 text-center max-w-lg w-full space-y-10">
               <div className="w-24 h-24 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto shadow-sm">
@@ -736,8 +791,15 @@ export const App: React.FC = () => {
                       <img src={currentLogo} alt="Logo" className={`${ (userCompany || '').trim().toLowerCase() === 'seller space' ? 'h-[80px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} />
                     </div>
                     <div className="flex-1 min-w-0 flex justify-center">
-                      <div className="hidden md:block bg-slate-100/60 p-1.5 rounded-full border border-slate-100 shadow-inner relative">
-                        <DesktopNav />
+                      <div className="hidden md:flex flex-col items-center gap-1">
+                        <div className="bg-slate-100/60 p-1.5 rounded-full border border-slate-100 shadow-inner relative">
+                          <DesktopNav />
+                        </div>
+                        {trialInfo.isActive && (
+                          <div className={`text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${trialInfo.isExpired ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
+                            Trial Mode: {trialInfo.daysLeft} Hari Tersisa
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 w-[75px] sm:w-auto justify-end">
@@ -793,7 +855,7 @@ export const App: React.FC = () => {
                 <SubmissionForm employee={currentUserEmployee} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'inbox' ? (
                 <Inbox submissions={submissions} broadcasts={broadcasts} employee={currentUserEmployee} userRole={userRole} onUpdate={() => fetchData(session?.user?.email, true)} />
-              ) : activeTab === 'settings' ? (
+              ) : (activeTab === 'settings' && isHighAdminAccess) ? (
                 <SettingsModule userRole={userRole} userCompany={userCompany} userEmail={session?.user?.email} onRefresh={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'mobile_history' ? (
                 currentUserEmployee && (

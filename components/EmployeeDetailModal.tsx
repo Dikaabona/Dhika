@@ -17,16 +17,16 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, onC
   ];
 
   const DetailRow = ({ label, value, icon: Icon }: { label: string; value: string | number; icon?: any }) => (
-    <div className="flex items-center justify-between py-4 px-4 bg-white rounded-[24px] mb-3 border border-slate-50 shadow-sm">
-      <div className="flex items-center gap-4">
+    <div className="flex items-center justify-between py-5 px-6 bg-white rounded-[32px] mb-4 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+      <div className="flex items-center gap-5">
         {Icon && (
-          <div className="w-10 h-10 rounded-2xl bg-[#f1f5f9] flex items-center justify-center text-[#64748b]">
-            <Icon className="w-5 h-5" />
+          <div className="w-12 h-12 rounded-[20px] bg-[#f1f5f9] flex items-center justify-center text-[#64748b]">
+            <Icon className="w-6 h-6" />
           </div>
         )}
         <div className="flex flex-col">
-          <span className="text-[9px] font-black text-[#94a3b8] uppercase tracking-[0.15em] leading-none mb-1">{label}</span>
-          <span className="text-[13px] font-black text-black uppercase tracking-tight leading-none">{value || '-'}</span>
+          <span className="text-[10px] font-black text-[#94a3b8] uppercase tracking-[0.2em] leading-none mb-1.5">{label}</span>
+          <span className="text-[15px] font-black text-black uppercase tracking-tight leading-none">{value || '-'}</span>
         </div>
       </div>
     </div>
@@ -90,22 +90,23 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, onC
         {/* Content Area */}
         <div className="space-y-1 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {activeTab === 'employment' && (
-            <div className="bg-[#f8fafc] rounded-[40px] p-6">
+            <div className="bg-[#f8fafc] rounded-[48px] p-8">
               <DetailRow label="Company" value={employee.company} icon={Icons.Briefcase} />
+              <DetailRow label="Division" value={employee.division || 'OPERATIONAL'} icon={Icons.Layers} />
               <DetailRow label="Position" value={employee.jabatan} icon={Icons.Shield} />
               <DetailRow label="Join Date" value={employee.tanggalMasuk} icon={Icons.Calendar} />
               <DetailRow label="Tenure" value={calculateTenure(employee.tanggalMasuk)} icon={Icons.Clock} />
               
               {employee.resigned_at && (
-                <div className="mt-4 p-6 bg-rose-50 rounded-[32px] border border-rose-100">
+                <div className="mt-6 p-8 bg-rose-50 rounded-[40px] border border-rose-100">
                   <div className="flex justify-between items-center mb-4">
-                    <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest">Resignation Date</span>
-                    <span className="text-sm font-black text-rose-600 uppercase">{employee.resigned_at}</span>
+                    <span className="text-[11px] font-black text-rose-400 uppercase tracking-widest">Resignation Date</span>
+                    <span className="text-base font-black text-rose-600 uppercase">{employee.resigned_at}</span>
                   </div>
                   {employee.resign_reason && (
-                    <div className="pt-4 border-t border-rose-100">
-                      <p className="text-[9px] font-black text-rose-300 uppercase tracking-widest mb-2">Reason</p>
-                      <p className="text-xs font-bold text-rose-700 leading-relaxed italic">"{employee.resign_reason}"</p>
+                    <div className="pt-6 border-t border-rose-100">
+                      <p className="text-[10px] font-black text-rose-300 uppercase tracking-widest mb-2">Reason</p>
+                      <p className="text-sm font-bold text-rose-700 leading-relaxed italic">"{employee.resign_reason}"</p>
                     </div>
                   )}
                 </div>
@@ -114,12 +115,16 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, onC
           )}
           
           {activeTab === 'personal' && (
-            <div className="bg-[#f8fafc] rounded-[40px] p-6">
+            <div className="bg-[#f8fafc] rounded-[48px] p-8">
               <DetailRow label="Full Name" value={employee.nama} icon={Icons.User} />
+              <DetailRow label="Gender" value={employee.gender || '-'} icon={Icons.Users} />
+              <DetailRow label="Email" value={employee.email} icon={Icons.Mail} />
+              <DetailRow label="Phone Number" value={employee.noHandphone} icon={Icons.Phone} />
               <DetailRow label="Identity (KTP)" value={employee.noKtp} icon={Icons.FileText} />
               <DetailRow label="Birth Info" value={`${employee.tempatLahir}, ${employee.tanggalLahir}`} icon={Icons.Cake} />
               <DetailRow label="Address" value={employee.alamat} icon={Icons.MapPin} />
               <DetailRow label="Bank Info" value={`${employee.bank} - ${employee.noRekening}`} icon={Icons.CreditCard} />
+              <DetailRow label="Account Name" value={employee.namaDiRekening} icon={Icons.UserCheck} />
             </div>
           )}
         </div>

@@ -264,10 +264,10 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
           </div>
           <div className="flex flex-col min-w-0">
-            <h2 className="text-base font-bold text-white leading-tight uppercase truncate group-hover:text-[#FFC000] transition-colors">
+            <h2 className="text-base font-black text-black leading-tight uppercase truncate group-hover:text-amber-500 transition-colors">
               {currentUserEmployee?.nama || 'User'}
             </h2>
-            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">
+            <p className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">
               {currentUserEmployee?.jabatan || 'Staff'}
             </p>
           </div>
@@ -275,14 +275,14 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         {/* LIVE TRACKER TOGGLE (Hanya Mobile) */}
         <div className="px-2">
-          <div className={`rounded-[24px] p-5 border shadow-sm transition-all flex items-center justify-between ${currentUserEmployee?.isTrackingActive ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-white/5 border-white/10'}`}>
+          <div className={`rounded-[24px] p-5 border shadow-sm transition-all flex items-center justify-between ${currentUserEmployee?.isTrackingActive ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
              <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${currentUserEmployee?.isTrackingActive ? 'bg-emerald-500 text-white animate-pulse' : 'bg-white/10 text-slate-500'}`}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${currentUserEmployee?.isTrackingActive ? 'bg-emerald-500 text-white animate-pulse' : 'bg-slate-200 text-slate-400'}`}>
                    <Icons.MapPin className="w-5 h-5" />
                 </div>
                 <div>
-                   <p className="text-[10px] font-black text-white uppercase">Live Location Tracking</p>
-                   <p className={`text-[8px] font-bold uppercase tracking-widest ${currentUserEmployee?.isTrackingActive ? 'text-emerald-400' : 'text-slate-500'}`}>
+                   <p className="text-[10px] font-black text-black uppercase">Live Location Tracking</p>
+                   <p className={`text-[8px] font-bold uppercase tracking-widest ${currentUserEmployee?.isTrackingActive ? 'text-emerald-700' : 'text-slate-600'}`}>
                      {currentUserEmployee?.isTrackingActive ? 'GPS AKTIF & TERPANTAU' : 'GPS TIDAK AKTIF'}
                    </p>
                 </div>
@@ -290,7 +290,7 @@ const Dashboard: React.FC<DashboardProps> = ({
              <button 
               onClick={handleToggleTracking}
               disabled={isUpdatingTracking}
-              className={`w-14 h-8 rounded-full relative transition-all duration-300 ${currentUserEmployee?.isTrackingActive ? 'bg-emerald-600' : 'bg-white/10'}`}
+              className={`w-14 h-8 rounded-full relative transition-all duration-300 ${currentUserEmployee?.isTrackingActive ? 'bg-emerald-600' : 'bg-slate-300'}`}
              >
                 <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all duration-300 ${currentUserEmployee?.isTrackingActive ? 'left-7' : 'left-1'}`}></div>
              </button>
@@ -298,30 +298,30 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         <div className="px-2">
-          <div className="bg-[#0f172a] rounded-[28px] overflow-hidden shadow-2xl border border-white/5 relative group">
-            <div className="bg-white/5 px-5 py-4 flex justify-center items-center border-b border-white/5">
-              <span className="text-[11px] font-black text-[#FFC000] uppercase tracking-[0.2em]">
+          <div className="bg-white rounded-[28px] overflow-hidden shadow-lg shadow-slate-200/50 border border-slate-100 relative group">
+            <div className="bg-[#0f172a] px-5 py-4 flex justify-center items-center">
+              <span className="text-[11px] font-black text-white uppercase tracking-[0.2em]">
                 {currentTime.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase()}
               </span>
             </div>
             
             <div className="p-5 flex flex-col items-center gap-4">
               <div className="text-center">
-                <h1 className="text-3xl font-black text-white tracking-tighter tabular-nums">
+                <h1 className="text-3xl font-black text-black tracking-tighter tabular-nums">
                   {currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}<span className="text-sm opacity-40 ml-1">{currentTime.toLocaleTimeString('en-GB', { second: '2-digit' })}</span>
                 </h1>
-                <p className="text-[8px] font-bold text-slate-500 uppercase tracking-[0.3em] mt-1">Current System Time</p>
+                <p className="text-[8px] font-bold text-slate-600 uppercase tracking-[0.3em] mt-1">Current System Time</p>
               </div>
 
               <div className="w-full flex flex-col items-center gap-2">
-                <div className="bg-indigo-500/10 px-4 py-2 rounded-full border border-indigo-500/20 flex items-center gap-2">
-                  <Icons.Clock className="w-3 h-3 text-indigo-400" />
-                  <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest whitespace-nowrap">
+                <div className="bg-indigo-50 px-4 py-2 rounded-full border border-indigo-100 flex items-center gap-2">
+                  <Icons.Clock className="w-3 h-3 text-indigo-500" />
+                  <span className="text-[9px] font-black text-indigo-700 uppercase tracking-widest whitespace-nowrap">
                     Jadwal Shift: {todayShift ? `${todayShift.name.toUpperCase()} (${todayShift.startTime} - ${todayShift.endTime})` : 'TIDAK ADA SHIFT'}
                   </span>
                 </div>
                 {isLate && (
-                  <div className="bg-rose-500/10 text-rose-500 px-3 py-1 rounded-lg border border-rose-500/20 animate-pulse flex items-center gap-1.5">
+                  <div className="bg-rose-50 text-rose-600 px-3 py-1 rounded-lg border border-rose-100 animate-pulse flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 bg-rose-500 rounded-full"></div>
                     <span className="text-[10px] font-black uppercase tracking-widest">TERLAMBAT</span>
                   </div>
@@ -329,14 +329,14 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
 
               <div className="w-full grid grid-cols-2 gap-3">
-                <div className="bg-white/5 p-3.5 rounded-[20px] border border-white/10 flex flex-col items-center gap-0.5">
-                   <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Clock In</span>
-                   <p className={`text-base font-black ${isLate ? 'text-rose-500' : 'text-white'}`}>{todayRecord?.clockIn || '--:--'}</p>
+                <div className="bg-slate-50 p-3.5 rounded-[20px] border border-slate-100 flex flex-col items-center gap-0.5">
+                   <span className="text-[7px] font-black text-slate-600 uppercase tracking-widest">Clock In</span>
+                   <p className={`text-base font-black ${isLate ? 'text-rose-600' : 'text-black'}`}>{todayRecord?.clockIn || '--:--'}</p>
                    {todayRecord?.clockIn && <div className={`mt-0.5 w-1 h-1 ${isLate ? 'bg-rose-500' : 'bg-emerald-500'} rounded-full`}></div>}
                 </div>
-                <div className="bg-white/5 p-3.5 rounded-[20px] border border-white/10 flex flex-col items-center gap-0.5">
-                   <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Clock Out</span>
-                   <p className="text-base font-black text-white">{todayRecord?.clockOut || '--:--'}</p>
+                <div className="bg-slate-50 p-3.5 rounded-[20px] border border-slate-100 flex flex-col items-center gap-0.5">
+                   <span className="text-[7px] font-black text-slate-600 uppercase tracking-widest">Clock Out</span>
+                   <p className="text-base font-black text-black">{todayRecord?.clockOut || '--:--'}</p>
                    {todayRecord?.clockOut && <div className="mt-0.5 w-1 h-1 bg-indigo-500 rounded-full"></div>}
                 </div>
               </div>
@@ -353,32 +353,32 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         <div className="grid grid-cols-2 gap-3 px-2">
-          <div className="bg-white/5 p-3.5 rounded-[24px] border border-white/10 flex items-center gap-3">
+          <div className="bg-slate-50/50 p-3.5 rounded-[24px] border border-slate-100 flex items-center gap-3">
             <div className="text-[#FFC000] shrink-0">
               <Icons.Calendar className="w-4 h-4" />
             </div>
             <div className="flex-grow">
               <div className="flex items-baseline gap-2">
-                <p className="text-lg font-black text-white leading-none">{saldoCuti}</p>
-                <div className="h-1 flex-grow bg-white/10 rounded-full overflow-hidden">
+                <p className="text-lg font-black text-slate-900 leading-none">{saldoCuti}</p>
+                <div className="h-1 flex-grow bg-slate-200 rounded-full overflow-hidden">
                    <div className="h-full bg-[#FFC000]" style={{ width: `${(saldoCuti/12)*100}%` }}></div>
                 </div>
               </div>
-              <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest mt-1">Saldo Cuti</p>
+              <p className="text-[7px] font-black text-slate-600 uppercase tracking-widest mt-1">Saldo Cuti</p>
             </div>
           </div>
-          <div className="bg-white/5 p-3.5 rounded-[24px] border border-white/10 flex items-center gap-3">
+          <div className="bg-slate-50/50 p-3.5 rounded-[24px] border border-slate-100 flex items-center gap-3">
             <div className="text-indigo-400 shrink-0">
               <Icons.FileText className="w-4 h-4" />
             </div>
             <div className="flex-grow">
                <div className="flex items-baseline gap-2">
-                <p className="text-lg font-black text-white leading-none">{unreadSubmissions}</p>
-                <div className="h-1 flex-grow bg-white/10 rounded-full overflow-hidden">
+                <p className="text-lg font-black text-slate-900 leading-none">{unreadSubmissions}</p>
+                <div className="h-1 flex-grow bg-slate-200 rounded-full overflow-hidden">
                    <div className="h-full bg-indigo-400" style={{ width: '30%' }}></div>
                 </div>
               </div>
-              <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest mt-1">Pengajuan</p>
+              <p className="text-[7px] font-black text-slate-600 uppercase tracking-widest mt-1">Pengajuan</p>
             </div>
           </div>
         </div>
@@ -413,7 +413,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   <p className="text-[13px] font-black leading-tight text-white uppercase tracking-tight">
                     BELUM ADA NOTIFIKASI MENDESAK SAAT INI.
                   </p>
-                  <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest">SISTEM BERJALAN OPTIMAL</p>
+                  <p className="text-[8px] text-slate-600 font-bold uppercase tracking-widest">SISTEM BERJALAN OPTIMAL</p>
                 </div>
               )}
             </div>
@@ -427,7 +427,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         <div className="space-y-4 px-2 pb-2">
           <div className="flex justify-between items-center px-2">
-            <h4 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Menu Utama</h4>
+            <h4 className="text-[10px] font-black text-black uppercase tracking-[0.2em]">Menu Utama</h4>
           </div>
           <div className="grid grid-cols-4 gap-x-2 gap-y-5">
             {menuItems.filter(i => !['absen', 'shift', 'database', 'kpi', 'settings', 'live_map'].includes(i.tab)).map((item) => (
@@ -436,10 +436,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                 onClick={() => onNavigate(item.tab)}
                 className="flex flex-col items-center gap-2 transition-all active:scale-90 group"
               >
-                <div className="w-[62px] h-[62px] bg-white/5 border border-white/10 rounded-[20px] flex items-center justify-center text-slate-400 group-hover:bg-white/10 group-hover:text-[#FFC000] transition-all shadow-sm">
+                <div className="w-[62px] h-[62px] bg-slate-50 border border-slate-100 rounded-[20px] flex items-center justify-center text-slate-700 group-hover:bg-slate-900 group-hover:text-[#FFC000] transition-all shadow-sm">
                   {item.icon}
                 </div>
-                <span className="text-[7px] font-black text-slate-500 uppercase tracking-tighter text-center leading-tight">
+                <span className="text-[7px] font-black text-slate-700 uppercase tracking-tighter text-center leading-tight">
                   {item.label}
                 </span>
               </button>
@@ -448,10 +448,10 @@ const Dashboard: React.FC<DashboardProps> = ({
               onClick={() => onNavigate('calendar')}
               className="flex flex-col items-center gap-2 active:scale-90 group"
             >
-              <div className="w-[62px] h-[62px] bg-[#0ea5e9]/20 border border-[#0ea5e9]/30 rounded-[20px] flex items-center justify-center text-[#0ea5e9] shadow-md group-hover:bg-[#0ea5e9]/30 transition-all">
+              <div className="w-[62px] h-[62px] bg-[#0ea5e9] rounded-[20px] flex items-center justify-center text-white shadow-md shadow-sky-100 group-hover:bg-slate-900 group-hover:text-[#FFC000] transition-all">
                 <Icons.Calendar className="w-5 h-5" />
               </div>
-              <span className="text-[7px] font-black text-slate-500 uppercase tracking-tighter text-center leading-tight">
+              <span className="text-[7px] font-black text-slate-900 uppercase tracking-tighter text-center leading-tight">
                 CALENDAR
               </span>
             </button>
@@ -459,10 +459,10 @@ const Dashboard: React.FC<DashboardProps> = ({
               onClick={onOpenBroadcast}
               className="flex flex-col items-center gap-2 active:scale-90 group"
             >
-              <div className="w-[62px] h-[62px] bg-[#FFC000] rounded-[20px] flex items-center justify-center text-black shadow-md shadow-amber-500/20 group-hover:bg-amber-400 transition-all">
+              <div className="w-[62px] h-[62px] bg-[#FFC000] rounded-[20px] flex items-center justify-center text-black shadow-md shadow-amber-100 group-hover:bg-black group-hover:text-[#FFC000] transition-all">
                 <Icons.Megaphone className="w-5 h-5" />
               </div>
-              <span className="text-[7px] font-black text-slate-500 uppercase tracking-tighter text-center leading-tight">
+              <span className="text-[7px] font-black text-slate-900 uppercase tracking-tighter text-center leading-tight">
                 BROADCAST
               </span>
             </button>
@@ -471,48 +471,48 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       <div className="hidden md:block space-y-10">
-        <div className="flex justify-between items-center bg-[#0f172a] px-8 py-8 rounded-[40px] sm:rounded-[48px] border border-white/5 shadow-2xl relative overflow-hidden">
+        <div className="flex justify-between items-center bg-white px-8 py-8 rounded-[40px] sm:rounded-[48px] border border-slate-100 shadow-sm relative overflow-hidden">
            <div className="flex flex-col gap-1 relative z-10">
-              <h1 className="text-xl sm:text-3xl font-black text-white uppercase tracking-tight">
+              <h1 className="text-xl sm:text-3xl font-black text-slate-900 uppercase tracking-tight">
                 WORKSPACE: {isOwner ? 'GLOBAL ACCESS' : userCompany.toUpperCase()}
               </h1>
-              <p className="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Sistem Manajemen Terpadu</p>
+              <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">Sistem Manajemen Terpadu</p>
            </div>
            <div className="flex items-center gap-4 relative z-10">
               <div className="text-right">
-                 <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">USER ACCESS</p>
-                 <p className="text-xs font-black text-[#FFC000] uppercase tracking-widest">{userRole}</p>
+                 <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">USER ACCESS</p>
+                 <p className="text-xs font-black text-slate-900 uppercase tracking-widest">{userRole}</p>
               </div>
               <div 
                 onClick={() => currentUserEmployee && onViewProfile && onViewProfile(currentUserEmployee)}
-                className="w-12 h-12 bg-white/5 border border-white/10 rounded-[20px] flex items-center justify-center text-slate-400 shadow-sm cursor-pointer hover:border-[#FFC000] transition-colors active:scale-90"
+                className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-[20px] flex items-center justify-center text-slate-300 shadow-sm cursor-pointer hover:border-amber-400 transition-colors active:scale-90"
               >
                  <Icons.Users className="w-6 h-6" />
               </div>
            </div>
-           <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 opacity-50"></div>
+           <div className="absolute top-0 right-0 w-48 h-48 bg-slate-50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 opacity-50"></div>
         </div>
 
         <div className="space-y-4">
-           <h2 className="text-3xl font-black text-white uppercase tracking-tight ml-2">DATA KARYAWAN</h2>
+           <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight ml-2">DATA KARYAWAN</h2>
            {isSuper && (
              <div className="grid grid-cols-4 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-               <div className="bg-[#0f172a] p-8 rounded-[40px] shadow-2xl border border-white/5 flex items-center gap-6">
-                 <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500 shadow-inner">
+               <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex items-center gap-6">
+                 <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 shadow-inner">
                    <Icons.Users className="w-7 h-7" />
                  </div>
                  <div>
-                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 whitespace-nowrap">Total Karyawan</p>
-                   <p className="text-3xl font-black text-white leading-none">{activeEmployees.length}</p>
+                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1 whitespace-nowrap">Total Karyawan</p>
+                   <p className="text-3xl font-black text-slate-900 leading-none">{activeEmployees.length}</p>
                  </div>
                </div>
-               <div className="bg-[#0f172a] p-8 rounded-[40px] shadow-2xl border border-white/5 flex items-center gap-6">
-                 <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 shadow-inner">
+               <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex items-center gap-6">
+                 <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500 shadow-inner">
                    <Icons.Users className="w-7 h-7" />
                  </div>
                  <div>
-                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 whitespace-nowrap">Karyawan Baru</p>
-                   <p className="text-3xl font-black text-white leading-none">{activeEmployees.filter(e => {
+                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1 whitespace-nowrap">Karyawan Baru</p>
+                   <p className="text-3xl font-black text-slate-900 leading-none">{activeEmployees.filter(e => {
                      if (!e.tanggalMasuk) return false;
                      const parts = e.tanggalMasuk.split('/');
                      const joinDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
@@ -524,23 +524,23 @@ const Dashboard: React.FC<DashboardProps> = ({
                </div>
                <button 
                  onClick={() => setIsLateModalOpen(true)}
-                 className="bg-[#0f172a] p-8 rounded-[40px] shadow-2xl border border-white/5 flex items-center gap-6 text-left hover:border-rose-500/50 transition-all active:scale-95 group"
+                 className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-rose-300 transition-all active:scale-95 group"
                >
-                 <div className="w-14 h-14 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-500 shadow-inner group-hover:bg-rose-500/20 transition-colors">
+                 <div className="w-14 h-14 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-500 shadow-inner group-hover:bg-rose-100 transition-colors">
                    <Icons.AlertCircle className="w-7 h-7" />
                  </div>
                  <div>
-                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 whitespace-nowrap">Karyawan Telat</p>
-                   <p className="text-3xl font-black text-rose-500 leading-none">{lateEmployeesCount}</p>
+                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1 whitespace-nowrap">Karyawan Telat</p>
+                   <p className="text-3xl font-black text-rose-600 leading-none">{lateEmployeesCount}</p>
                  </div>
                </button>
-               <div className="bg-[#0f172a] p-8 rounded-[40px] shadow-2xl border border-white/5 flex items-center gap-6">
-                 <div className="w-14 h-14 rounded-2xl bg-sky-500/10 flex items-center justify-center text-sky-500 shadow-inner">
+               <div className="bg-white p-8 rounded-[40px] shadow-sm border border-sky-100 flex items-center gap-6">
+                 <div className="w-14 h-14 rounded-2xl bg-sky-50 flex items-center justify-center text-sky-500 shadow-inner">
                    <Icons.Cake className="w-7 h-7" />
                  </div>
                  <div>
-                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 whitespace-nowrap">Ulang Tahun</p>
-                   <p className="text-3xl font-black text-white leading-none">{activeEmployees.filter(emp => getDaysUntilBirthday(emp.tanggalLahir) <= 7).length}</p>
+                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1 whitespace-nowrap">Ulang Tahun</p>
+                   <p className="text-3xl font-black text-slate-900 leading-none">{activeEmployees.filter(emp => getDaysUntilBirthday(emp.tanggalLahir) <= 7).length}</p>
                  </div>
                </div>
              </div>
@@ -640,12 +640,12 @@ const Dashboard: React.FC<DashboardProps> = ({
         {isSuper && (
           <div className="grid grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Gender Distribution */}
-            <div className="bg-[#0f172a] p-8 rounded-[48px] shadow-2xl border border-white/5 flex flex-col">
+            <div className="bg-white p-8 rounded-[48px] shadow-sm border border-slate-100 flex flex-col">
               <div className="flex items-center gap-3 mb-8">
-                <div className="w-10 h-10 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-500">
+                <div className="w-10 h-10 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500">
                   <Icons.Users className="w-5 h-5" />
                 </div>
-                <h3 className="text-xs font-black text-white uppercase tracking-widest">Gender</h3>
+                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">Gender</h3>
               </div>
               <div className="flex-grow h-64 min-h-[256px]">
                 <ResponsiveContainer width="100%" height="100%" minHeight={256}>
@@ -660,11 +660,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                       dataKey="value"
                     >
                       <Cell fill="#FFC000" />
-                      <Cell fill="#ffffff20" />
+                      <Cell fill="#0f172a" />
                     </Pie>
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#1e293b', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 10px 25px rgba(0,0,0,0.3)', fontSize: '12px', fontWeight: 'bold', color: '#fff' }}
-                      itemStyle={{ color: '#fff' }}
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: 'bold' }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -672,10 +671,10 @@ const Dashboard: React.FC<DashboardProps> = ({
               <div className="flex justify-center gap-8 mt-4">
                 {genderData.map((entry, index) => (
                   <div key={index} className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${index === 0 ? 'bg-[#FFC000]' : 'bg-white/20'}`}></div>
+                    <div className={`w-3 h-3 rounded-full ${index === 0 ? 'bg-[#FFC000]' : 'bg-slate-900'}`}></div>
                     <div className="flex flex-col">
-                      <span className="text-[10px] font-black text-white uppercase">{entry.name}</span>
-                      <span className="text-[10px] font-bold text-slate-500">{entry.percentage}%</span>
+                      <span className="text-[10px] font-black text-slate-900 uppercase">{entry.name}</span>
+                      <span className="text-[10px] font-bold text-slate-400">{entry.percentage}%</span>
                     </div>
                   </div>
                 ))}
@@ -683,70 +682,68 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             {/* Age Distribution */}
-            <div className="bg-[#0f172a] p-8 rounded-[48px] shadow-2xl border border-white/5 flex flex-col">
+            <div className="bg-white p-8 rounded-[48px] shadow-sm border border-slate-100 flex flex-col">
               <div className="flex items-center gap-3 mb-8">
-                <div className="w-10 h-10 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-500">
+                <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-500">
                   <Icons.Calendar className="w-5 h-5" />
                 </div>
-                <h3 className="text-xs font-black text-white uppercase tracking-widest">USIA</h3>
+                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">USIA</h3>
               </div>
               <div className="flex-grow h-64 min-h-[256px]">
                 <ResponsiveContainer width="100%" height="100%" minHeight={256}>
                   <BarChart data={ageData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis 
                       dataKey="name" 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{fontSize: 10, fontWeight: 'bold', fill: '#64748b'}} 
+                      tick={{fontSize: 10, fontWeight: 'bold', fill: '#94a3b8'}} 
                     />
                     <YAxis hide />
                     <Tooltip 
-                      cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                      contentStyle={{ backgroundColor: '#1e293b', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 10px 25px rgba(0,0,0,0.3)', fontSize: '12px', fontWeight: 'bold', color: '#fff' }}
-                      itemStyle={{ color: '#fff' }}
+                      cursor={{fill: '#f8fafc'}}
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: 'bold' }}
                     />
                     <Bar dataKey="value" fill="#FFC000" radius={[10, 10, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
               <div className="mt-4 text-center">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Distribution across age ranges</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Distribution across age ranges</p>
               </div>
             </div>
 
             {/* Salary Distribution */}
-            <div className="bg-[#0f172a] p-8 rounded-[48px] shadow-2xl border border-white/5 flex flex-col">
+            <div className="bg-white p-8 rounded-[48px] shadow-sm border border-slate-100 flex flex-col">
               <div className="flex items-center gap-3 mb-8">
-                <div className="w-10 h-10 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
+                <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500">
                   <Icons.DollarSign className="w-5 h-5" />
                 </div>
-                <h3 className="text-xs font-black text-white uppercase tracking-widest">Total Salary (Company)</h3>
+                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">Total Salary (Company)</h3>
               </div>
               <div className="flex-grow h-64 min-h-[256px]">
                 <ResponsiveContainer width="100%" height="100%" minHeight={256}>
                   <BarChart data={salaryData} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(255,255,255,0.05)" />
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                     <XAxis type="number" hide />
                     <YAxis 
                       dataKey="name" 
                       type="category" 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{fontSize: 10, fontWeight: 'bold', fill: '#64748b'}}
+                      tick={{fontSize: 10, fontWeight: 'bold', fill: '#94a3b8'}}
                       width={80}
                     />
                     <Tooltip 
                       formatter={(value: any) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value || 0))}
-                      contentStyle={{ backgroundColor: '#1e293b', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 10px 25px rgba(0,0,0,0.3)', fontSize: '12px', fontWeight: 'bold', color: '#fff' }}
-                      itemStyle={{ color: '#fff' }}
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: 'bold' }}
                     />
-                    <Bar dataKey="value" fill="#FFC000" radius={[0, 10, 10, 0]} />
+                    <Bar dataKey="value" fill="#0f172a" radius={[0, 10, 10, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
               <div className="mt-4 text-center">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total monthly payroll by company</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total monthly payroll by company</p>
               </div>
             </div>
           </div>
@@ -754,9 +751,9 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {isLateModalOpen && (
-        <div className="fixed inset-0 bg-[#0f172a]/95 backdrop-blur-xl z-[200] flex items-center justify-center p-4">
-          <div className="bg-[#0f172a] rounded-[40px] shadow-2xl w-full max-w-xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 max-h-[85vh] border border-white/5">
-            <div className="p-8 border-b border-white/5 bg-rose-500 text-white flex justify-between items-center shrink-0">
+        <div className="fixed inset-0 bg-[#0f172a]/90 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 max-h-[85vh]">
+            <div className="p-8 border-b bg-[#f43f5e] text-white flex justify-between items-center shrink-0">
               <div className="flex items-center gap-4">
                  <div className="bg-white/20 p-3 rounded-2xl">
                     <Icons.AlertCircle className="w-6 h-6 text-white" />
@@ -769,44 +766,44 @@ const Dashboard: React.FC<DashboardProps> = ({
               <button onClick={() => setIsLateModalOpen(false)} className="text-4xl leading-none font-black opacity-40 hover:opacity-100">&times;</button>
             </div>
             
-            <div className="flex-grow overflow-y-auto p-6 sm:p-8 space-y-4 custom-scrollbar bg-transparent">
+            <div className="flex-grow overflow-y-auto p-6 sm:p-8 space-y-4 custom-scrollbar bg-slate-50/50">
                {lateEmployeesInfo.length > 0 ? (
                  lateEmployeesInfo.map((item, idx) => (
-                   <div key={idx} className="bg-white/5 p-5 rounded-[28px] border border-white/10 flex items-center justify-between shadow-sm group hover:bg-white/10 transition-all">
+                   <div key={idx} className="bg-white p-5 rounded-[28px] border border-slate-100 flex items-center justify-between shadow-sm group hover:shadow-md transition-all">
                       <div className="flex items-center gap-4">
-                         <div className="w-12 h-12 rounded-2xl bg-white/5 overflow-hidden flex items-center justify-center shrink-0 border border-white/10">
+                         <div className="w-12 h-12 rounded-2xl bg-slate-100 overflow-hidden flex items-center justify-center shrink-0 border border-slate-100">
                             {item.employee.photoBase64 ? (
                               <img src={item.employee.photoBase64} alt="" className="w-full h-full object-cover" />
                             ) : (
-                              <Icons.Users className="w-6 h-6 text-slate-500" />
+                              <Icons.Users className="w-6 h-6 text-slate-300" />
                             )}
                          </div>
                          <div className="min-w-0">
-                            <p className="text-[13px] font-bold text-white uppercase truncate leading-tight">{item.employee.nama}</p>
-                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest truncate mt-1">{item.employee.jabatan}</p>
+                            <p className="text-[13px] font-black text-slate-900 uppercase truncate leading-tight">{item.employee.nama}</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest truncate mt-1">{item.employee.jabatan}</p>
                          </div>
                       </div>
                       <div className="text-right shrink-0">
-                         <div className="bg-rose-500/10 px-4 py-1.5 rounded-xl border border-rose-500/20 flex flex-col items-center">
+                         <div className="bg-rose-50 px-4 py-1.5 rounded-xl border border-rose-100 flex flex-col items-center">
                             <span className="text-[8px] font-black text-rose-400 uppercase tracking-widest">CLOCK IN</span>
-                            <span className="text-xs font-black text-rose-500">{item.record.clockIn}</span>
+                            <span className="text-xs font-black text-rose-600">{item.record.clockIn}</span>
                          </div>
-                         <p className="text-[7px] font-bold text-slate-500 uppercase tracking-widest mt-1.5">SHIFT: {item.shift.startTime}</p>
+                         <p className="text-[7px] font-bold text-slate-300 uppercase tracking-widest mt-1.5">SHIFT: {item.shift.startTime}</p>
                       </div>
                    </div>
                  ))
                ) : (
                  <div className="py-20 text-center flex flex-col items-center gap-6 opacity-30">
                     <Icons.Check className="w-16 h-16 text-emerald-500" />
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Tidak Ada Karyawan Terlambat</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">Tidak Ada Karyawan Terlambat</p>
                  </div>
                )}
             </div>
             
-            <div className="p-8 border-t border-white/5 bg-transparent shrink-0">
+            <div className="p-8 border-t bg-white shrink-0">
                <button 
                  onClick={() => setIsLateModalOpen(false)}
-                 className="w-full bg-[#FFC000] text-black py-5 rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all"
+                 className="w-full bg-[#0f172a] text-white py-5 rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all"
                >
                  Tutup Dashboard
                </button>
