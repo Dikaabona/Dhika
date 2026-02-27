@@ -509,8 +509,9 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                 const host = employees.find(e => e.id === report.hostId);
                 const op = employees.find(e => e.id === report.opId);
                 const globalIdx = (currentPage - 1) * rowsPerPage + idx + 1;
+                const isEven = idx % 2 === 1;
                 return (
-                  <tr key={report.id} className={`hover:bg-slate-50/50 transition-colors group ${selectedIds.has(report.id!) ? 'bg-indigo-50/30' : ''}`}>
+                  <tr key={report.id} className={`hover:bg-slate-50/50 transition-colors group ${selectedIds.has(report.id!) ? 'bg-indigo-50/30' : (isEven ? 'bg-slate-50/80' : 'bg-white')}`}>
                     <td className="px-4 py-5 text-center">
                        <input 
                          type="checkbox" 

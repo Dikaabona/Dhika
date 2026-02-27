@@ -349,7 +349,7 @@ const KPIModule: React.FC<KPIModuleProps> = ({
 
       <div className="space-y-3 sm:space-y-4">
         {paginatedKpiData.map((data, idx) => (
-          <div key={data.id} className="bg-white p-4 sm:p-6 rounded-[28px] sm:rounded-[36px] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 group">
+          <div key={data.id} className={`p-4 sm:p-6 rounded-[28px] sm:rounded-[36px] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 group ${idx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
             <div className="space-y-4">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-4">

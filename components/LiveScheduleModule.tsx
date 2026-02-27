@@ -366,11 +366,27 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
       
       {/* Header Visual Match Screenshot */}
       <div className="px-6 sm:px-14 pt-10 sm:pt-14 pb-8 bg-white shrink-0 space-y-10">
-        <div className="flex items-center gap-8">
-           <button onClick={onClose} className="bg-[#0f172a] p-5 rounded-3xl text-white shadow-xl hover:scale-105 active:scale-95 transition-all">
-              <Icons.Home className="w-8 h-8 text-[#FFC000]" />
-           </button>
-           <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tighter leading-none uppercase">LIVE STREAMING</h2>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+           <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tighter leading-none uppercase shrink-0">LIVE STREAMING</h2>
+           {activeSubTab === 'JADWAL' && (
+             <div className="flex items-center bg-[#f1f5f9] rounded-[24px] sm:rounded-[32px] px-3 sm:px-8 py-2 sm:py-2.5 shadow-inner gap-2 sm:gap-6 relative overflow-hidden w-full sm:w-auto max-w-xl">
+                <div className="flex flex-col flex-1 min-w-0">
+                  <span className="text-[7px] sm:text-[8px] font-black text-[#cbd5e1] uppercase tracking-widest mb-0.5">START</span>
+                  <input type="date" value={startDate} onChange={e => {setStartDate(e.target.value);}} className="text-[9px] sm:text-[11px] font-black text-slate-900 outline-none bg-transparent cursor-pointer w-full" />
+                </div>
+                <div className="w-px h-5 sm:h-7 bg-[#e2e8f0] shrink-0"></div>
+                <div className="flex flex-col flex-1 min-w-0">
+                  <span className="text-[7px] sm:text-[8px] font-black text-[#cbd5e1] uppercase tracking-widest mb-0.5">END</span>
+                  <input type="date" value={endDate} onChange={e => {setEndDate(e.target.value);}} className="text-[9px] sm:text-[11px] font-black text-slate-900 outline-none bg-transparent cursor-pointer w-full" />
+                </div>
+                <button 
+                  onClick={handleSetToday}
+                  className="bg-[#0f172a] text-[#FFC000] px-3 py-1.5 sm:px-5 sm:py-2 sm:h-auto rounded-full flex items-center justify-center text-[7px] sm:text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-xl z-10 shrink-0"
+                >
+                  TODAY
+                </button>
+             </div>
+           )}
         </div>
 
         {/* Sync Indicator */}
@@ -381,80 +397,63 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
           </div>
         )}
 
-        {/* Navigation Tabs Match Screenshot */}
-        <div className="bg-slate-100/60 p-2 rounded-full flex shadow-inner overflow-x-auto no-scrollbar max-w-4xl mx-auto">
-          {['JADWAL', 'REPORT', 'GRAFIK', 'LIBUR', 'BRAND'].map((tab) => (
-             ((tab !== 'BRAND' && tab !== 'LIBUR') || !readOnly) && (
-              <button 
-                key={tab} 
-                onClick={() => setActiveSubTab(tab as any)} 
-                className={`flex-1 py-4 px-10 rounded-full text-[11px] font-black tracking-widest uppercase transition-all duration-500 whitespace-nowrap ${activeSubTab === tab ? 'bg-white text-slate-900 shadow-md scale-105' : 'text-slate-400 hover:text-slate-600'}`}
-              >
-                {tab}
-              </button>
-             )
-          ))}
+        {/* Navigation Tabs - Refined for Mobile */}
+        <div className="bg-[#f1f5f9] p-1 rounded-[28px] sm:rounded-[32px] flex shadow-inner max-w-4xl mx-auto gap-1">
+          {['JADWAL', 'REPORT', 'GRAFIK', 'LIBUR', 'BRAND'].map((tab) => {
+             const isMobileHidden = ['GRAFIK', 'BRAND'].includes(tab);
+             return (
+              ((tab !== 'BRAND') || !readOnly) && (
+                <button 
+                  key={tab} 
+                  onClick={() => setActiveSubTab(tab as any)} 
+                  className={`flex-1 py-3 sm:py-4 px-2 sm:px-8 rounded-[22px] sm:rounded-[28px] text-[9px] sm:text-[11px] font-black tracking-widest uppercase transition-all duration-500 whitespace-nowrap ${isMobileHidden ? 'hidden sm:block' : ''} ${activeSubTab === tab ? 'bg-white text-slate-900 shadow-md scale-100' : 'text-[#94a3b8] hover:text-slate-600'}`}
+                >
+                  {tab}
+                </button>
+              )
+             );
+          })}
         </div>
 
         {activeSubTab === 'JADWAL' && (
-          <div className="space-y-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1 flex items-center bg-slate-100/50 border border-slate-50 rounded-[28px] px-4 py-5 shadow-inner gap-3 overflow-hidden">
-                <div className="flex flex-col shrink-0">
-                  <span className="text-[7px] font-black text-slate-300 uppercase tracking-widest mb-1">START</span>
-                  <input type="date" value={startDate} onChange={e => {setStartDate(e.target.value);}} className="text-[10px] font-black text-slate-900 outline-none bg-transparent cursor-pointer" />
-                </div>
-                <div className="w-px h-8 bg-slate-200 shrink-0"></div>
-                <div className="flex flex-col shrink-0">
-                  <span className="text-[7px] font-black text-slate-300 uppercase tracking-widest mb-1">END</span>
-                  <input type="date" value={endDate} onChange={e => {setEndDate(e.target.value);}} className="text-[10px] font-black text-slate-900 outline-none bg-transparent cursor-pointer" />
-                </div>
-                <button 
-                  onClick={handleSetToday}
-                  className="bg-slate-900 text-[#FFC000] px-5 py-2.5 rounded-2xl text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shrink-0 ml-auto"
-                >
-                  TODAY
-                </button>
+          <div className="space-y-3 sm:space-y-4 max-w-6xl mx-auto">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full">
+              {/* Search Bar */}
+              <div className="w-full sm:w-80 relative bg-[#f1f5f9] rounded-[24px] sm:rounded-[32px] px-6 sm:px-8 py-2 sm:py-2.5 shadow-inner flex items-center gap-3 sm:gap-6">
+                <Icons.Search className="w-4 h-4 sm:w-5 sm:h-5 text-[#cbd5e1]" />
+                <input type="text" placeholder="CARI..." value={localSearch} onChange={e => setLocalSearch(e.target.value)} className="w-full bg-transparent text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-slate-900 outline-none placeholder:text-[#cbd5e1]" />
               </div>
-              <div className="relative flex-1 bg-slate-100/50 border border-slate-50 rounded-[28px] px-8 py-5 shadow-inner flex items-center gap-4">
-                <Icons.Search className="w-6 h-6 text-slate-300" />
-                <input type="text" placeholder="CARI HOST / BRAND..." value={localSearch} onChange={e => setLocalSearch(e.target.value)} className="w-full bg-transparent text-[11px] font-black uppercase tracking-widest text-slate-900 outline-none placeholder:text-slate-200" />
-              </div>
-            </div>
 
-            {!readOnly && (
-              <div className="flex flex-col items-center gap-6">
-                <div className="grid grid-cols-3 gap-6 w-full max-w-5xl">
-                  <button onClick={handleDownloadScheduleTemplate} className="bg-slate-100/60 text-slate-500 px-8 py-7 rounded-[32px] text-[11px] font-black uppercase tracking-widest shadow-sm flex items-center justify-center gap-3 hover:bg-slate-200 transition-all border border-slate-100">
-                    <Icons.Download className="w-5 h-5" /> TEMPLATE
+              {!readOnly && (
+                <div className="hidden sm:flex flex-wrap items-center gap-3">
+                  <button 
+                    onClick={handleDownloadScheduleTemplate} 
+                    className="bg-[#f8fafc] border border-[#e2e8f0] text-[#64748b] px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm flex items-center gap-2 hover:bg-slate-100 transition-all active:scale-95"
+                  >
+                    <Icons.Download className="w-4 h-4" /> 
+                    <span>Template</span>
                   </button>
                   
                   <input type="file" ref={fileInputRef} onChange={handleImportExcel} className="hidden" accept=".xlsx,.xls" />
                   <button 
                     onClick={() => fileInputRef.current?.click()} 
                     disabled={isImporting} 
-                    className={`bg-white border border-slate-100 text-slate-900 px-8 py-7 rounded-[32px] text-[11px] font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-3 hover:bg-slate-50 transition-all animate-in fade-in duration-1000`}
+                    className="bg-[#059669] text-white px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-[#047857] transition-all active:scale-95"
                   >
-                    <Icons.Upload className="w-5 h-5 text-indigo-500" /> {isImporting ? 'IMPORTING...' : 'IMPORT'}
+                    <Icons.Upload className="w-4 h-4" /> 
+                    <span>{isImporting ? '...' : 'Import'}</span>
                   </button>
 
-                  <button onClick={handleExportExcel} className="bg-emerald-50 border border-emerald-100 text-emerald-600 px-8 py-7 rounded-[32px] text-[11px] font-black uppercase tracking-widest shadow-sm flex items-center justify-center gap-3 hover:bg-emerald-100 transition-all">
-                    <Icons.Download className="w-5 h-5" /> EKSPOR
+                  <button 
+                    onClick={handleExportExcel} 
+                    className="bg-[#ffc000] text-black px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-[#eab308] transition-all active:scale-95"
+                  >
+                    <Icons.Download className="w-4 h-4" /> 
+                    <span>Ekspor</span>
                   </button>
                 </div>
-
-                <div className="flex items-center gap-4 px-8 py-3 bg-slate-50 border border-slate-100 rounded-2xl shadow-sm">
-                  <input 
-                    type="checkbox" 
-                    id="toggle-empty" 
-                    checked={showEmptySlots} 
-                    onChange={e => setShowEmptySlots(e.target.checked)}
-                    className="w-5 h-5 rounded border-slate-300 text-slate-900 focus:ring-slate-900 cursor-pointer" 
-                  />
-                  <label htmlFor="toggle-empty" className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] cursor-pointer">Tampilkan Slot Kosong</label>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -504,18 +503,19 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                       });
                       if (brandsForSlot.length === 0) return null;
                       return (
-                        <div key={`${date}-${slot}`} className="bg-slate-50/40 p-8 rounded-[48px] border border-slate-100 space-y-8 animate-in slide-in-from-bottom-2">
-                          <div className="flex items-center gap-6">
-                            <span className="bg-[#0f172a] text-[#FFC000] px-8 py-2.5 rounded-full text-[11px] font-black tracking-widest">{slot}</span>
+                        <div key={`${date}-${slot}`} className="bg-slate-50/40 p-4 sm:p-8 rounded-[36px] sm:rounded-[48px] border border-slate-100 space-y-6 sm:space-y-8 animate-in slide-in-from-bottom-2">
+                          <div className="flex items-center gap-4 sm:gap-6">
+                            <span className="bg-[#0f172a] text-[#FFC000] px-6 sm:px-8 py-2 sm:py-2.5 rounded-full text-[10px] sm:text-[11px] font-black tracking-widest shrink-0">{slot}</span>
                             <div className="h-px flex-grow bg-slate-200"></div>
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            {brandsForSlot.map((brand: any) => {
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
+                            {brandsForSlot.map((brand: any, bIdx: number) => {
                               const sched = schedules.find(s => s.date === date && s.brand === brand.name.toUpperCase() && s.hourSlot === slot) || { hostId: '', opId: '' };
+                              const isEven = bIdx % 2 === 1;
                               return (
-                                <div key={`${date}-${slot}-${brand.name}`} className="bg-[#0f172a] border border-white/5 rounded-[32px] p-8 space-y-6 shadow-xl hover:shadow-2xl transition-all relative group/slot">
+                                <div key={`${date}-${slot}-${brand.name}`} className={`${isEven ? 'bg-[#1e293b]' : 'bg-[#0f172a]'} border border-white/5 rounded-[28px] sm:rounded-[32px] p-6 sm:p-8 space-y-5 sm:space-y-6 shadow-xl hover:shadow-2xl transition-all relative group/slot`}>
                                   <div className="flex justify-between items-center border-b border-white/5 pb-4">
-                                    <p className="text-[12px] font-black text-[#FFC000] uppercase tracking-[0.1em]">{brand.name}</p>
+                                    <p className="text-[11px] sm:text-[12px] font-black text-[#FFC000] uppercase tracking-[0.1em]">{brand.name}</p>
                                     {!readOnly && (sched.hostId || sched.opId) && (
                                       <button 
                                         onClick={() => deleteScheduleSlot(date, brand.name, slot)}
@@ -525,17 +525,17 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                                       </button>
                                     )}
                                   </div>
-                                  <div className="grid grid-cols-2 gap-6">
-                                     <div className="space-y-2.5">
-                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">HOST</label>
-                                        <select value={sched.hostId} disabled={readOnly} onChange={(e) => updateSchedule(date, brand.name, slot, 'hostId', e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-[10px] font-black appearance-none cursor-pointer text-white outline-none focus:bg-white/10 focus:border-[#FFC000] transition-all shadow-inner disabled:opacity-100 disabled:text-white">
+                                  <div className="grid grid-cols-2 sm:grid-cols-2 gap-4 sm:gap-6">
+                                     <div className="space-y-2">
+                                        <label className="text-[8px] sm:text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">HOST</label>
+                                        <select value={sched.hostId} disabled={readOnly} onChange={(e) => updateSchedule(date, brand.name, slot, 'hostId', e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl sm:rounded-2xl px-2 sm:px-4 py-3 sm:py-4 text-[8px] sm:text-[10px] font-black appearance-none cursor-pointer text-white outline-none focus:bg-white/10 focus:border-[#FFC000] transition-all shadow-inner disabled:opacity-100 disabled:text-white truncate">
                                           <option value="" className="bg-[#0f172a]">-</option>
                                           {hostList.map(h => <option key={h.id} value={h.id} className="bg-[#0f172a]">{h.nama.toUpperCase()}</option>)}
                                         </select>
                                      </div>
-                                     <div className="space-y-2.5">
-                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">OP</label>
-                                        <select value={sched.opId} disabled={readOnly} onChange={(e) => updateSchedule(date, brand.name, slot, 'opId', e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-[10px] font-black appearance-none cursor-pointer text-white outline-none focus:bg-white/10 focus:border-[#FFC000] transition-all shadow-inner disabled:opacity-100 disabled:text-white">
+                                     <div className="space-y-2">
+                                        <label className="text-[8px] sm:text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">OP</label>
+                                        <select value={sched.opId} disabled={readOnly} onChange={(e) => updateSchedule(date, brand.name, slot, 'opId', e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl sm:rounded-2xl px-2 sm:px-4 py-3 sm:py-4 text-[8px] sm:text-[10px] font-black appearance-none cursor-pointer text-white outline-none focus:bg-white/10 focus:border-[#FFC000] transition-all shadow-inner disabled:opacity-100 disabled:text-white truncate">
                                           <option value="" className="bg-[#0f172a]">-</option>
                                           {opList.map(o => <option key={o.id} value={o.id} className="bg-[#0f172a]">{o.nama.toUpperCase()}</option>)}
                                         </select>
@@ -564,40 +564,40 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         ) : activeSubTab === 'GRAFIK' ? (
           <LiveCharts reports={reports} employees={employees} />
         ) : activeSubTab === 'LIBUR' ? (
-          <div className="space-y-12">
-            <div className="flex items-center bg-slate-100/50 border border-slate-100 rounded-[28px] px-8 py-5 shadow-inner gap-8 w-fit mx-auto mb-12">
+          <div className="space-y-6 sm:space-y-10">
+            <div className="flex items-center bg-[#f1f5f9] rounded-[24px] sm:rounded-[28px] px-6 sm:px-8 py-3 sm:py-4 shadow-inner gap-6 sm:gap-8 w-fit mx-auto mb-8 sm:mb-12">
                 <div className="flex flex-col shrink-0">
-                  <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-1">DARI</span>
-                  <input type="date" value={holidayStartDate} onChange={e => setHolidayStartDate(e.target.value)} className="text-[12px] font-black text-slate-900 outline-none bg-transparent cursor-pointer" />
+                  <span className="text-[7px] sm:text-[8px] font-black text-[#cbd5e1] uppercase tracking-widest mb-0.5">DARI</span>
+                  <input type="date" value={holidayStartDate} onChange={e => setHolidayStartDate(e.target.value)} className="text-[10px] sm:text-[12px] font-black text-slate-900 outline-none bg-transparent cursor-pointer" />
                 </div>
-                <div className="w-px h-10 bg-slate-200 shrink-0"></div>
+                <div className="w-px h-8 sm:h-10 bg-[#e2e8f0] shrink-0"></div>
                 <div className="flex flex-col shrink-0">
-                  <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-1">SAMPAI</span>
-                  <input type="date" value={holidayEndDate} onChange={e => setHolidayEndDate(e.target.value)} className="text-[12px] font-black text-slate-900 outline-none bg-transparent cursor-pointer" />
+                  <span className="text-[7px] sm:text-[8px] font-black text-[#cbd5e1] uppercase tracking-widest mb-0.5">SAMPAI</span>
+                  <input type="date" value={holidayEndDate} onChange={e => setHolidayEndDate(e.target.value)} className="text-[10px] sm:text-[12px] font-black text-slate-900 outline-none bg-transparent cursor-pointer" />
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-8">
               {holidayListByDate.map(item => (
-                <div key={item.date} className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 shadow-sm animate-in zoom-in-95 duration-500 hover:shadow-lg transition-all">
-                  <div className="flex justify-between items-center mb-8">
+                <div key={item.date} className="bg-slate-50 p-5 sm:p-8 rounded-[32px] sm:rounded-[40px] border border-slate-100 shadow-sm animate-in zoom-in-95 duration-500 hover:shadow-lg transition-all">
+                  <div className="flex justify-between items-center mb-5 sm:mb-8">
                     <div>
-                      <p className="text-sm font-black text-slate-900 uppercase leading-none">{item.day}</p>
-                      <p className="text-[10px] font-bold text-slate-400 mt-2">{new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                      <p className="text-xs sm:text-sm font-black text-slate-900 uppercase leading-none">{item.day}</p>
+                      <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 mt-1.5 sm:mt-2">{new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                     </div>
-                    <div className="w-2 h-10 bg-indigo-500 rounded-full shadow-lg shadow-indigo-100"></div>
+                    <div className="w-1.5 sm:w-2 h-8 sm:h-10 bg-indigo-500 rounded-full shadow-lg shadow-indigo-100"></div>
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-2 sm:space-y-3">
                     {item.names.length > 0 ? (
                       item.names.map(name => (
-                        <div key={name} className="p-5 bg-white rounded-3xl border border-indigo-50 shadow-sm flex items-center justify-between group">
-                           <span className="text-[11px] font-black uppercase text-slate-700 group-hover:text-indigo-600 transition-colors">{name}</span>
-                           <span className="bg-indigo-50 text-indigo-500 px-3 py-1 rounded-lg text-[9px] font-black tracking-widest uppercase shadow-inner">OFF</span>
+                        <div key={name} className="p-3 sm:p-5 bg-white rounded-[20px] sm:rounded-3xl border border-indigo-50 shadow-sm flex items-center justify-between group">
+                           <span className="text-[10px] sm:text-[11px] font-black uppercase text-slate-700 group-hover:text-indigo-600 transition-colors truncate pr-2">{name}</span>
+                           <span className="bg-indigo-50 text-indigo-500 px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg text-[8px] sm:text-[9px] font-black tracking-widest uppercase shadow-inner shrink-0">OFF</span>
                         </div>
                       ))
                     ) : (
-                      <div className="py-12 text-center opacity-20 border-2 border-dashed border-slate-200 rounded-[32px]">
-                         <p className="text-[10px] font-black uppercase tracking-widest">Semua Aktif</p>
+                      <div className="py-8 sm:py-12 text-center opacity-20 border-2 border-dashed border-slate-200 rounded-[24px] sm:rounded-[32px]">
+                         <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest">Semua Aktif</p>
                       </div>
                     )}
                   </div>

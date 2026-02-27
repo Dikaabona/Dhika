@@ -308,39 +308,39 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         </div>
       )}
 
-      <div className="bg-[#0f172a] rounded-[40px] p-6 sm:p-8 shadow-2xl border border-white/5 flex flex-col items-center text-center gap-6">
+      <div className="bg-white rounded-[40px] p-6 sm:p-8 shadow-sm border border-slate-100 flex flex-col items-center text-center gap-6">
         <div className="space-y-1">
-          <h2 className="font-black text-white text-3xl sm:text-4xl tracking-tighter uppercase leading-tight">Log Kehadiran</h2>
+          <h2 className="font-black text-slate-900 text-3xl sm:text-4xl tracking-tighter uppercase leading-tight">Log Kehadiran</h2>
           <div className="h-1 w-12 bg-[#FFC000] mx-auto rounded-full"></div>
-          <p className="text-[8px] sm:text-[10px] text-slate-500 font-bold uppercase tracking-[0.5em] pt-1">Monitoring & History</p>
+          <p className="text-[8px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-[0.5em] pt-1">Monitoring & History</p>
         </div>
         
         <div className="w-full max-w-4xl space-y-4">
-          <div className="flex flex-col lg:flex-row items-center gap-3 bg-white/5 p-1.5 rounded-[28px] border border-white/5 shadow-inner w-full overflow-hidden">
-            <div className="flex items-center gap-3 px-6 py-3 bg-[#0f172a] rounded-[22px] shadow-sm border border-white/10 shrink-0">
+          <div className="flex flex-col lg:flex-row items-center gap-3 bg-slate-50 p-1.5 rounded-[28px] border border-slate-100 shadow-inner w-full overflow-hidden">
+            <div className="flex items-center gap-3 px-6 py-3 bg-white rounded-[22px] shadow-sm border border-slate-100 shrink-0">
               <div className="flex flex-col items-start min-w-[100px]">
-                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Mulai</span>
+                <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Mulai</span>
                 <input 
                   type="date" 
                   value={startDate} 
                   onChange={(e) => { onStartDateChange(e.target.value); setCurrentPage(1); }} 
-                  className="bg-transparent text-xs sm:text-sm font-black outline-none text-white cursor-pointer invert-0" 
+                  className="bg-transparent text-xs sm:text-sm font-black outline-none text-slate-900 cursor-pointer" 
                 />
               </div>
-              <div className="h-8 w-px bg-white/10"></div>
+              <div className="h-8 w-px bg-slate-100"></div>
               <div className="flex flex-col items-start min-w-[100px]">
-                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Sampai</span>
+                <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Sampai</span>
                 <input 
                   type="date" 
                   value={endDate} 
                   onChange={(e) => { onEndDateChange(e.target.value); setCurrentPage(1); }} 
-                  className="bg-transparent text-xs sm:text-sm font-black outline-none text-white cursor-pointer invert-0" 
+                  className="bg-transparent text-xs sm:text-sm font-black outline-none text-slate-900 cursor-pointer" 
                 />
               </div>
             </div>
 
-            <div className="relative flex-grow w-full lg:w-auto px-4 py-3 bg-[#0f172a] rounded-[22px] shadow-sm border border-white/10 flex items-center gap-3 h-[52px]">
-               <Icons.Search className="w-4 h-4 text-slate-500" />
+            <div className="relative flex-grow w-full lg:w-auto px-4 py-3 bg-white rounded-[22px] shadow-sm border border-slate-100 flex items-center gap-3 h-[52px]">
+               <Icons.Search className="w-4 h-4 text-slate-300" />
                <input 
                 type="text" 
                 placeholder="CARI NAMA ATAU ID..." 
@@ -349,10 +349,10 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                   setLocalSearch(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="w-full bg-transparent text-[10px] font-black outline-none text-white placeholder:text-white/20 uppercase tracking-widest"
+                className="w-full bg-transparent text-[10px] font-black outline-none text-slate-800 placeholder:text-slate-300 uppercase tracking-widest"
                />
             </div>
-            <button onClick={() => { setLocalSearch(''); onStartDateChange(formatDateToYYYYMMDD(new Date())); onEndDateChange(formatDateToYYYYMMDD(new Date())); setCurrentPage(1); }} className="hidden lg:flex bg-[#FFC000] text-[#0f172a] px-6 h-[52px] rounded-[20px] items-center justify-center text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shrink-0">Refresh</button>
+            <button onClick={() => { setLocalSearch(''); onStartDateChange(formatDateToYYYYMMDD(new Date())); onEndDateChange(formatDateToYYYYMMDD(new Date())); setCurrentPage(1); }} className="hidden lg:flex bg-slate-900 text-[#FFC000] px-6 h-[52px] rounded-[20px] items-center justify-center text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shrink-0">Refresh</button>
           </div>
 
           {isAdmin && (
@@ -372,11 +372,11 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         </div>
       </div>
 
-      <div className="bg-[#0f172a] rounded-[32px] shadow-2xl border border-white/5 overflow-hidden mb-6 flex flex-col">
+      <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden mb-6 flex flex-col">
         {/* DESKTOP TABLE VIEW */}
         <div className="hidden md:block overflow-x-auto custom-scrollbar touch-pan-x">
           <table className="w-full text-left min-w-[1000px]">
-            <thead className="bg-white/5 text-[10px] uppercase font-black tracking-[0.1em] border-b border-white/5 text-slate-400">
+            <thead className="bg-slate-50/50 text-[10px] uppercase font-black tracking-[0.1em] border-b border-slate-100">
               <tr>
                 <th className="px-6 sm:px-10 py-5">Tanggal</th>
                 <th className="px-5 py-5">Karyawan</th>
@@ -387,8 +387,8 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                 <th className="px-6 sm:px-10 py-5 text-right">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
-              {paginatedRows.map(row => {
+            <tbody className="divide-y divide-slate-50">
+              {paginatedRows.map((row, index) => {
                 const existingRec = records.find(r => r.employeeId === row.employee.id && r.date === row.date);
                 const isToday = row.date === formatDateToYYYYMMDD(new Date());
                 const isPast = row.date < formatDateToYYYYMMDD(new Date());
@@ -400,20 +400,21 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                 }) as AttendanceRecord;
 
                 const overtimePay = calculateRowOvertime(rec, row.employee);
+                const isEven = index % 2 === 1;
                 
                 return (
-                  <tr key={`${row.employee.id}-${row.date}`} className={`hover:bg-white/5 transition-all duration-300 group ${isToday ? 'bg-[#FFC000]/5' : ''}`}>
+                  <tr key={`${row.employee.id}-${row.date}`} className={`hover:bg-slate-100/50 transition-all duration-300 group ${isToday ? 'bg-amber-50/30' : (isEven ? 'bg-slate-50/80' : 'bg-white')}`}>
                     <td className="px-6 sm:px-10 py-4">
                       <div className="flex flex-col">
-                        <p className="text-[10px] font-black text-[#FFC000] whitespace-nowrap">{row.date}</p>
-                        <p className="text-[7px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{new Date(row.date).toLocaleDateString('id-ID', { weekday: 'short' })}</p>
+                        <p className="text-[10px] font-black text-slate-900 whitespace-nowrap">{row.date}</p>
+                        <p className="text-[7px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{new Date(row.date).toLocaleDateString('id-ID', { weekday: 'short' })}</p>
                       </div>
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                          <div className="min-w-0">
-                            <p className="text-[10px] sm:text-[11px] font-bold uppercase text-white truncate max-w-[150px]">{row.employee.nama}</p>
-                            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest truncate">{row.employee.jabatan}</p>
+                            <p className="text-[10px] sm:text-[11px] font-black uppercase text-slate-900 truncate max-w-[150px]">{row.employee.nama}</p>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate">{row.employee.jabatan}</p>
                          </div>
                       </div>
                     </td>
@@ -422,27 +423,27 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                     </td>
                     <td className="px-3 py-4">
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-black ${rec.clockIn ? 'text-white' : 'text-white/10'}`}>{rec.clockIn || '--:--'}</span>
-                        {rec.id && (rec.clockIn || rec.photoIn) && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoIn')} className="p-1 bg-white/5 hover:bg-[#FFC000] hover:text-[#0f172a] text-slate-400 rounded-lg transition-all"><Icons.Camera className="w-3.5 h-3.5" /></button>}
-                        {rec.id && <button onClick={() => fetchRecordPhoto(rec.id!, 'docBase64')} className="p-1 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500 hover:text-white rounded-lg transition-all"><Icons.Image className="w-3.5 h-3.5" /></button>}
+                        <span className={`text-[10px] font-black ${rec.clockIn ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockIn || '--:--'}</span>
+                        {rec.id && (rec.clockIn || rec.photoIn) && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoIn')} className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"><Icons.Camera className="w-3.5 h-3.5" /></button>}
+                        {rec.id && <button onClick={() => fetchRecordPhoto(rec.id!, 'docBase64')} className="p-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-all"><Icons.Image className="w-3.5 h-3.5" /></button>}
                       </div>
                     </td>
                     <td className="px-3 py-4">
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-black ${rec.clockOut ? 'text-white' : 'text-white/10'}`}>{rec.clockOut || '--:--'}</span>
-                        {rec.id && (rec.clockOut || rec.photoOut) && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoOut')} className="p-1 bg-white/5 hover:bg-[#FFC000] hover:text-[#0f172a] text-slate-400 rounded-lg transition-all"><Icons.Camera className="w-3.5 h-3.5" /></button>}
-                        {rec.id && <button onClick={() => fetchRecordPhoto(rec.id!, 'docBase64')} className="p-1 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500 hover:text-white rounded-lg transition-all"><Icons.Image className="w-3.5 h-3.5" /></button>}
+                        <span className={`text-[10px] font-black ${rec.clockOut ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockOut || '--:--'}</span>
+                        {rec.id && (rec.clockOut || rec.photoOut) && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoOut')} className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"><Icons.Camera className="w-3.5 h-3.5" /></button>}
+                        {rec.id && <button onClick={() => fetchRecordPhoto(rec.id!, 'docBase64')} className="p-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-all"><Icons.Image className="w-3.5 h-3.5" /></button>}
                       </div>
                     </td>
                     <td className="px-3 py-4 text-center">
                        {overtimePay > 0 ? (
-                         <span className="bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-lg text-[9px] font-black tracking-tight border border-indigo-500/20">Rp {overtimePay.toLocaleString('id-ID')}</span>
+                         <span className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg text-[9px] font-black tracking-tight border border-indigo-100">Rp {overtimePay.toLocaleString('id-ID')}</span>
                        ) : (
-                         <span className="text-[10px] text-white/10 font-bold">-</span>
+                         <span className="text-[10px] text-slate-200 font-bold">-</span>
                        )}
                     </td>
                     <td className="px-6 sm:px-10 py-4 text-right">
-                      {isAdmin && <button onClick={() => { setEditingRecord(rec); setIsEditModalOpen(true); }} className="p-2 text-slate-500 hover:text-[#FFC000] hover:bg-white/5 rounded-xl transition-all"><Icons.Edit className="w-4 h-4" /></button>}
+                      {isAdmin && <button onClick={() => { setEditingRecord(rec); setIsEditModalOpen(true); }} className="p-2 text-slate-300 hover:text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all"><Icons.Edit className="w-4 h-4" /></button>}
                     </td>
                   </tr>
                 );
@@ -452,8 +453,8 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         </div>
 
         {/* MOBILE LIST VIEW */}
-        <div className="md:hidden divide-y divide-white/5">
-          {paginatedRows.map(row => {
+        <div className="md:hidden divide-y divide-slate-100">
+          {paginatedRows.map((row, index) => {
             const existingRec = records.find(r => r.employeeId === row.employee.id && r.date === row.date);
             const isToday = row.date === formatDateToYYYYMMDD(new Date());
             const isPast = row.date < formatDateToYYYYMMDD(new Date());
@@ -465,13 +466,14 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
             }) as AttendanceRecord;
 
             const overtimePay = calculateRowOvertime(rec, row.employee);
+            const isEven = index % 2 === 1;
 
             return (
-              <div key={`${row.employee.id}-${row.date}`} className={`p-6 flex flex-col gap-5 transition-all ${isToday ? 'bg-[#FFC000]/5' : 'bg-transparent'}`}>
+              <div key={`${row.employee.id}-${row.date}`} className={`p-6 flex flex-col gap-5 transition-all ${isToday ? 'bg-amber-50/20' : (isEven ? 'bg-slate-50/50' : 'bg-white')}`}>
                  <div className="flex items-center justify-between gap-4">
                    <div className="shrink-0 border-l-4 border-[#FFC000] pl-4 py-1.5 min-w-[90px]">
-                      <p className="text-[11px] font-black text-[#FFC000] leading-none">{row.date}</p>
-                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1.5">{new Date(row.date).toLocaleDateString('id-ID', { weekday: 'short' }).toUpperCase()}</p>
+                      <p className="text-[11px] font-black text-slate-900 leading-none">{row.date}</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">{new Date(row.date).toLocaleDateString('id-ID', { weekday: 'short' }).toUpperCase()}</p>
                    </div>
                    <div className="flex items-center gap-2">
                      {overtimePay > 0 && <span className="bg-indigo-600 text-white px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-tight shadow-sm">Rp {overtimePay.toLocaleString('id-ID')}</span>}
@@ -482,29 +484,29 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                  <div className="flex items-center gap-5">
                     <div className="flex-grow min-w-0">
                        <div className="flex flex-col mb-3">
-                          <p className="text-[14px] font-bold uppercase text-white truncate tracking-tight leading-tight">{row.employee.nama}</p>
-                          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter truncate mt-0.5">{row.employee.jabatan}</p>
+                          <p className="text-[14px] font-black uppercase text-slate-900 truncate tracking-tight leading-tight">{row.employee.nama}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter truncate mt-0.5">{row.employee.jabatan}</p>
                        </div>
                        <div className="flex items-center gap-8">
                           <div className="flex flex-col">
-                             <span className="text-[7px] font-black text-slate-500 uppercase tracking-[0.2em] mb-0.5">Masuk</span>
-                             <span className={`text-[12px] font-black ${rec.clockIn ? 'text-white' : 'text-white/10'}`}>{rec.clockIn || '--:--'}</span>
+                             <span className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Masuk</span>
+                             <span className={`text-[12px] font-black ${rec.clockIn ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockIn || '--:--'}</span>
                           </div>
                           <div className="flex flex-col">
-                             <span className="text-[7px] font-black text-slate-500 uppercase tracking-[0.2em] mb-0.5">Pulang</span>
-                             <span className={`text-[12px] font-black ${rec.clockOut ? 'text-white' : 'text-white/10'}`}>{rec.clockOut || '--:--'}</span>
+                             <span className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Pulang</span>
+                             <span className={`text-[12px] font-black ${rec.clockOut ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockOut || '--:--'}</span>
                           </div>
                        </div>
                     </div>
                     <div className="flex flex-col items-end justify-end self-end gap-2.5">
                        {rec.id && (
-                          <button onClick={() => fetchRecordPhoto(rec.id!, 'docBase64')} className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20 transition-colors active:scale-90"><Icons.Image className="w-4 h-4"/></button>
+                          <button onClick={() => fetchRecordPhoto(rec.id!, 'docBase64')} className="p-2.5 bg-indigo-50 text-indigo-500 rounded-xl border border-indigo-100 transition-colors active:scale-90"><Icons.Image className="w-4 h-4"/></button>
                        )}
                        {rec.id && (rec.clockIn || rec.clockOut || rec.photoIn || rec.photoOut) && (
-                          <button onClick={() => fetchRecordPhoto(rec.id!, rec.photoIn ? 'photoIn' : (rec.photoOut ? 'photoOut' : (rec.clockIn ? 'photoIn' : 'photoOut')))} className="p-2.5 bg-white/5 text-slate-500 rounded-xl hover:text-[#FFC000] border border-white/10 transition-colors active:scale-90"><Icons.Camera className="w-4 h-4"/></button>
+                          <button onClick={() => fetchRecordPhoto(rec.id!, rec.photoIn ? 'photoIn' : (rec.photoOut ? 'photoOut' : (rec.clockIn ? 'photoIn' : 'photoOut')))} className="p-2.5 bg-slate-50 text-slate-300 rounded-xl hover:text-[#FFC000] border border-slate-100 transition-colors active:scale-90"><Icons.Camera className="w-4 h-4"/></button>
                        )}
                        {isAdmin && (
-                          <button onClick={() => { setEditingRecord(rec); setIsEditModalOpen(true); }} className="p-2.5 bg-white/5 text-slate-500 rounded-xl active:scale-90 border border-white/10 transition-transform hover:text-[#FFC000]"><Icons.Edit className="w-4 h-4"/></button>
+                          <button onClick={() => { setEditingRecord(rec); setIsEditModalOpen(true); }} className="p-2.5 bg-indigo-50 text-indigo-500 rounded-xl active:scale-90 border border-indigo-100 transition-transform"><Icons.Edit className="w-4 h-4"/></button>
                        )}
                     </div>
                  </div>
@@ -520,23 +522,23 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         )}
         
         {totalPages > 1 && (
-          <div className="bg-white/5 px-6 sm:px-10 py-5 flex items-center justify-between border-t border-white/5">
+          <div className="bg-slate-50/50 px-6 sm:px-10 py-5 flex items-center justify-between border-t border-slate-100">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Halaman</span>
-              <span className="text-xs font-black text-[#FFC000] px-4 py-2 bg-white/5 rounded-lg shadow-sm border border-white/10">{currentPage} / {totalPages}</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Halaman</span>
+              <span className="text-xs font-black text-slate-900 px-4 py-2 bg-white rounded-lg shadow-sm border border-slate-200">{currentPage} / {totalPages}</span>
             </div>
             <div className="flex gap-2">
               <button 
                 disabled={currentPage === 1}
                 onClick={() => { setCurrentPage(prev => prev - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className="w-12 h-12 rounded-full bg-white/5 border border-white/10 text-slate-500 hover:text-[#FFC000] disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
+                className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
               >
                 <Icons.ChevronDown className="w-5 h-5 rotate-90" />
               </button>
               <button 
                 disabled={currentPage === totalPages}
                 onClick={() => { setCurrentPage(prev => prev + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className="w-12 h-12 rounded-full bg-white/5 border border-white/10 text-slate-500 hover:text-[#FFC000] disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
+                className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
               >
                 <Icons.ChevronDown className="w-5 h-5 -rotate-90" />
               </button>

@@ -900,7 +900,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
               </tr>
             </thead>
             <tbody className="bg-white">
-              {paginatedPlans.map(plan => {
+              {paginatedPlans.map((plan, idx) => {
                 const er = calculateEngagementRate(plan);
                 const erValue = parseFloat(er);
 
@@ -910,8 +910,9 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                     if (match) jamDisplay = match[1];
                 }
 
+                const isEven = idx % 2 === 1;
                 return (
-                  <tr key={plan.id} className="hover:bg-slate-50/70 transition-all duration-300 group border-b border-slate-50 last:border-0">
+                  <tr key={plan.id} className={`hover:bg-slate-50/70 transition-all duration-300 group border-b border-slate-50 last:border-0 ${isEven ? 'bg-slate-50/50' : 'bg-white'}`}>
                     <td className="px-10 py-8 whitespace-nowrap">
                       <div className="flex items-center gap-5">
                         <div 

@@ -223,10 +223,10 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
         <div className="space-y-6">
           <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-4">PENGAJUAN MENUNGGU PERSETUJUAN</h3>
           <div className="grid grid-cols-1 gap-6">
-            {pendingApprovals.map((sub) => (
+            {pendingApprovals.map((sub, idx) => (
               <div 
                 key={sub.id} 
-                className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8 border-l-[12px] border-l-[#FFC000] hover:shadow-xl transition-all duration-300"
+                className={`p-8 rounded-[40px] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8 border-l-[12px] border-l-[#FFC000] hover:shadow-xl transition-all duration-300 ${idx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}
               >
                 <div className="flex-grow space-y-4 w-full">
                   <div className="flex items-center gap-4">
@@ -286,8 +286,8 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
           )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {paginatedHistory.map((sub) => (
-            <div key={sub.id} className={`bg-white p-6 rounded-[32px] shadow-sm border border-slate-100 flex justify-between items-center gap-6 border-l-[10px] ${sub.status === 'Approved' ? 'border-l-emerald-500' : 'border-l-rose-500'}`}>
+          {paginatedHistory.map((sub, idx) => (
+            <div key={sub.id} className={`p-6 rounded-[32px] shadow-sm border border-slate-100 flex justify-between items-center gap-6 border-l-[10px] ${sub.status === 'Approved' ? 'border-l-emerald-500' : 'border-l-rose-500'} ${idx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
               <div className="space-y-1.5 overflow-hidden">
                 <div className="flex items-center gap-2">
                   <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${sub.status === 'Approved' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>

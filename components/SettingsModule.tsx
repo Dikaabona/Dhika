@@ -850,8 +850,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {clients.map(client => (
-                          <tr key={client.id} className="hover:bg-slate-50/50 transition-colors">
+                        {clients.map((client, idx) => (
+                          <tr key={client.id} className={`hover:bg-slate-50/50 transition-colors ${idx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
                             <td className="px-8 py-5">
                               <p className="text-[11px] font-black text-slate-900 uppercase">{client.namaBrand}</p>
                             </td>
@@ -922,8 +922,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                      </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                     {paginatedEmployees.map(emp => (
-                       <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
+                     {paginatedEmployees.map((emp, idx) => (
+                       <tr key={emp.id} className={`hover:bg-slate-50/50 transition-colors ${idx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
                           <td className="px-10 py-5 whitespace-nowrap">
                              <div className="flex items-center gap-4">
                                 <div>
@@ -1226,8 +1226,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                        <div className="space-y-4">
                           <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Daftar Divisi ({(divisions as string[]).length})</h3>
                           <div className="space-y-3">
-                             {(divisions as string[]).map(d => (
-                               <div key={d} className="bg-white p-5 rounded-2xl border border-slate-100 group shadow-sm flex items-center justify-between">
+                             {(divisions as string[]).map((d, idx) => (
+                               <div key={d} className={`p-5 rounded-2xl border border-slate-100 group shadow-sm flex items-center justify-between ${idx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
                                   <span className="text-[11px] font-black text-black uppercase tracking-widest">{d}</span>
                                   <button 
                                     onClick={() => handleRemoveDivision(d)} 
@@ -1274,8 +1274,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                        <div className="space-y-4">
                           <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Daftar Jabatan ({(positions as PositionConfig[]).length})</h3>
                           <div className="space-y-3">
-                             {(positions as PositionConfig[]).map(p => (
-                               <div key={p.name} className="bg-white p-5 rounded-2xl border border-slate-100 group shadow-sm flex items-center justify-between">
+                             {(positions as PositionConfig[]).map((p, idx) => (
+                               <div key={p.name} className={`p-5 rounded-2xl border border-slate-100 group shadow-sm flex items-center justify-between ${idx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
                                   <span className="text-[11px] font-black text-black uppercase tracking-widest">{p.name}</span>
                                   <button 
                                     onClick={() => handleRemovePosition(p.name)} 
