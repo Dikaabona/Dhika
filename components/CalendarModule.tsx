@@ -219,6 +219,69 @@ const CalendarModule: React.FC<CalendarModuleProps> = ({ employees, userRole, co
              </div>
           </div>
 
+          {/* MOBILE SUMMARY SECTION */}
+          <div className="lg:hidden space-y-6">
+             <div className="bg-[#FFFBEB] p-6 rounded-[32px] border border-amber-100 shadow-sm">
+                <div className="flex items-center justify-between mb-6">
+                   <h4 className="text-[10px] font-black text-[#806000] uppercase tracking-[0.2em]">Agenda {monthNames[currentDate.getMonth()]}</h4>
+                   <span className="bg-amber-100 text-amber-700 text-[8px] font-black px-3 py-1 rounded-full uppercase">
+                      {monthBirthdays.length + events.filter(e => {
+                        const d = new Date(e.date);
+                        return d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear();
+                      }).length} Kegiatan
+                   </span>
+                </div>
+                
+                <div className="space-y-3">
+                   {/* BIRTHDAYS */}
+                   {monthBirthdays.map(emp => {
+                     const bday = parseFlexibleDate(emp.tanggalLahir);
+                     return (
+                       <div key={emp.id} className="bg-white p-4 rounded-2xl shadow-sm border border-amber-50 flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-rose-500 shrink-0">
+                             <Icons.Cake className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                             <p className="text-[11px] font-black text-slate-900 uppercase truncate leading-tight mb-1">{emp.nama}</p>
+                             <p className="text-[9px] font-bold text-amber-600 uppercase tracking-widest">HBD: {bday.getDate()} {monthNames[bday.getMonth()]}</p>
+                          </div>
+                       </div>
+                     );
+                   })}
+
+                   {/* EVENTS/REMINDERS */}
+                   {events.filter(e => {
+                     const d = new Date(e.date);
+                     return d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear();
+                   }).map(ev => (
+                     <div 
+                       key={ev.id} 
+                       onClick={() => handleOpenModal(ev.date, ev)}
+                       className="bg-white p-4 rounded-2xl shadow-sm border border-indigo-50 flex items-center gap-4 active:scale-95 transition-all"
+                     >
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
+                           <Icons.Bell className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                           <p className="text-[11px] font-black text-slate-900 uppercase truncate leading-tight mb-1">{ev.title}</p>
+                           <p className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">{new Date(ev.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</p>
+                        </div>
+                     </div>
+                   ))}
+
+                   {monthBirthdays.length === 0 && events.filter(e => {
+                     const d = new Date(e.date);
+                     return d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear();
+                   }).length === 0 && (
+                     <div className="text-center py-8 opacity-30">
+                        <Icons.Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                        <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Tidak ada agenda bulan ini</p>
+                     </div>
+                   )}
+                </div>
+             </div>
+          </div>
+
           {/* Sembunyikan blok ini di mobile agar lebih rapi */}
           <div className="hidden lg:block space-y-8">
              <div className="bg-[#FFFBEB] p-8 rounded-[40px] border border-amber-100 shadow-sm">

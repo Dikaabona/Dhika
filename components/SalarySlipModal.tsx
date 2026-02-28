@@ -52,8 +52,8 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     lembur: employee.salaryConfig?.lembur ?? 0,
     bonus: employee.salaryConfig?.bonus ?? 0,
     thr: employee.salaryConfig?.thr ?? 0,
-    potonganHutang: 0,
-    potonganLain: 0,
+    potonganHutang: employee.salaryConfig?.potonganHutang ?? 0,
+    potonganLain: employee.salaryConfig?.potonganLain ?? 0,
     adjustment: 0
   });
 
@@ -316,7 +316,9 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         pph21: data.pph21,
         lembur: data.lembur,
         bonus: data.bonus,
-        thr: data.thr
+        thr: data.thr,
+        potonganHutang: data.potonganHutang,
+        potonganLain: data.potonganLain
       };
       const updates: any = { salaryConfig: configToSave };
       if (data.potonganHutang > 0) updates.hutang = sisaHutang;

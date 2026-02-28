@@ -25,6 +25,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [showSlipModal, setShowSlipModal] = useState<{ employee: any } | null>(null);
   const [isSendingEmails, setIsSendingEmails] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const monthOptions = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -194,12 +195,22 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
     loadFinanceData();
   };
 
+  const filteredEmployees = useMemo(() => {
+    if (!searchQuery) return payrollEmployees;
+    const q = searchQuery.toLowerCase();
+    return payrollEmployees.filter(emp => 
+      emp.nama.toLowerCase().includes(q) || 
+      emp.jabatan.toLowerCase().includes(q) ||
+      emp.idKaryawan?.toLowerCase().includes(q)
+    );
+  }, [payrollEmployees, searchQuery]);
+
   const paginatedEmployees = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
-    return payrollEmployees.slice(startIndex, startIndex + itemsPerPage);
-  }, [payrollEmployees, currentPage]);
+    return filteredEmployees.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredEmployees, currentPage]);
 
-  const totalPages = Math.ceil(payrollEmployees.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
 
   const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
   const [positionRates, setPositionRates] = useState<any[]>([]);
@@ -436,6 +447,19 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
                              >
                                {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
                              </select>
+                             <div className="relative">
+                                <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
+                                <input 
+                                  type="text"
+                                  placeholder="CARI KARYAWAN..."
+                                  value={searchQuery}
+                                  onChange={(e) => {
+                                    setSearchQuery(e.target.value);
+                                    setCurrentPage(1);
+                                  }}
+                                  className="bg-slate-100/50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-[10px] font-black uppercase outline-none focus:border-[#FFC000] w-48"
+                                />
+                             </div>
                           </div>
                        </div>
                        <div className="flex flex-wrap gap-3">
@@ -525,7 +549,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
                     {totalPages > 1 && (
                       <div className="flex items-center justify-between px-10 py-6 bg-white border-t border-slate-100 rounded-b-[40px]">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                          Halaman {currentPage} dari {totalPages} ({payrollEmployees.length} Karyawan)
+                          Halaman {currentPage} dari {totalPages} ({filteredEmployees.length} Karyawan)
                         </p>
                         <div className="flex gap-2">
                           <button 
@@ -569,7 +593,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
           attendanceRecords={attendanceRecords}
           userRole="owner"
           onClose={() => setShowSlipModal(null)}
-          onUpdate={() => {}}
+          onUpdate={() => startPayrollProcess()}
           positionRates={positionRates}
         />
       )}
