@@ -239,7 +239,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     if (isSuper) {
       base.push({ id: 'kpi', label: 'KPI Performance', icon: <Icons.Sparkles className="w-5 h-5" />, tab: 'kpi' });
-      base.push({ id: 'live_map', label: 'Live Map', icon: <Icons.MapPin className="w-5 h-5" />, tab: 'live_map' });
+      base.push({ id: 'live_map', label: 'Cabang', icon: <Icons.MapPin className="w-5 h-5" />, tab: 'live_map' });
     }
 
     return base;
@@ -275,14 +275,14 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         {/* LIVE TRACKER TOGGLE (Hanya Mobile) */}
         <div className="px-2">
-          <div className={`rounded-[24px] p-5 border shadow-sm transition-all flex items-center justify-between ${currentUserEmployee?.isTrackingActive ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
+          <div className={`rounded-[24px] p-5 border shadow-sm transition-all flex items-center justify-between ${currentUserEmployee?.isTrackingActive ? 'bg-amber-50 border-amber-100' : 'bg-slate-50 border-slate-100'}`}>
              <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${currentUserEmployee?.isTrackingActive ? 'bg-emerald-500 text-white animate-pulse' : 'bg-slate-200 text-slate-400'}`}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${currentUserEmployee?.isTrackingActive ? 'bg-[#FFC000] text-black animate-pulse' : 'bg-slate-200 text-slate-400'}`}>
                    <Icons.MapPin className="w-5 h-5" />
                 </div>
                 <div>
                    <p className="text-[10px] font-black text-black uppercase">Live Location Tracking</p>
-                   <p className={`text-[8px] font-bold uppercase tracking-widest ${currentUserEmployee?.isTrackingActive ? 'text-emerald-700' : 'text-slate-600'}`}>
+                   <p className={`text-[8px] font-bold uppercase tracking-widest ${currentUserEmployee?.isTrackingActive ? 'text-amber-700' : 'text-slate-600'}`}>
                      {currentUserEmployee?.isTrackingActive ? 'GPS AKTIF & TERPANTAU' : 'GPS TIDAK AKTIF'}
                    </p>
                 </div>
@@ -290,7 +290,7 @@ const Dashboard: React.FC<DashboardProps> = ({
              <button 
               onClick={handleToggleTracking}
               disabled={isUpdatingTracking}
-              className={`w-14 h-8 rounded-full relative transition-all duration-300 ${currentUserEmployee?.isTrackingActive ? 'bg-emerald-600' : 'bg-slate-300'}`}
+              className={`w-14 h-8 rounded-full relative transition-all duration-300 ${currentUserEmployee?.isTrackingActive ? 'bg-[#FFC000]' : 'bg-slate-300'}`}
              >
                 <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all duration-300 ${currentUserEmployee?.isTrackingActive ? 'left-7' : 'left-1'}`}></div>
              </button>

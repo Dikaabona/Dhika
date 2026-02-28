@@ -158,7 +158,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
     // Pastikan video sudah memiliki dimensi (sudah loading)
     if (!context || video.videoWidth === 0 || video.videoHeight === 0) return null;
 
-    const SIZE = 480; 
+    const SIZE = 400; 
     canvas.width = SIZE;
     canvas.height = SIZE;
     
@@ -171,11 +171,11 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
     
     context.drawImage(video, startX, startY, minSize, minSize, 0, 0, SIZE, SIZE);
     
-    let quality = 0.6; // Turunkan sedikit untuk kestabilan mobile
+    let quality = 0.5; // Turunkan kualitas awal
     let dataUrl = canvas.toDataURL('image/jpeg', quality);
     
-    // Safety check size
-    while (dataUrl.length * 0.75 > 80000 && quality > 0.05) {
+    // Safety check size - limit to ~40KB (dataUrl length * 0.75 is approx bytes)
+    while (dataUrl.length * 0.75 > 40000 && quality > 0.05) {
       quality -= 0.05;
       dataUrl = canvas.toDataURL('image/jpeg', quality);
     }
@@ -305,7 +305,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         </h2>
         <div className="h-1.5 w-10 bg-[#FFC000] rounded-full mt-4"></div>
         {locationStatus.settings && (
-          <div className={`mt-3 flex items-center gap-2 px-4 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all ${locationStatus.isInside || employee.isRemoteAllowed ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100 animate-pulse'}`}>
+          <div className={`mt-3 flex items-center gap-2 px-4 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all ${locationStatus.isInside || employee.isRemoteAllowed ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-rose-50 text-rose-600 border-rose-100 animate-pulse'}`}>
             <Icons.Fingerprint className="w-3 h-3" />
             {locationStatus.isInside ? 'Di Area Kantor' : (employee.isRemoteAllowed ? 'Izin Remote Aktif' : 'Di Luar Area Kantor')}
             {locationStatus.distance !== null && <span className="ml-1">({locationStatus.distance}m)</span>}

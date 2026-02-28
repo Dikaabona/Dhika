@@ -48,13 +48,13 @@ const LiveMapModule: React.FC<LiveMapModuleProps> = ({ employees, company, onClo
       <div className="px-6 py-10 bg-white border-b flex flex-col sm:flex-row sm:items-center justify-between gap-6 shrink-0">
         <div className="flex items-center gap-6">
           <button onClick={onClose} className="bg-[#0f172a] p-4 rounded-2xl text-white shadow-xl hover:bg-slate-800 transition-all">
-            <Icons.Home className="w-6 h-6 text-yellow-400" />
+            <Icons.ArrowLeft className="w-6 h-6 text-[#FFC000]" />
           </button>
           <div>
-            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight leading-none">LIVE TRACKING</h2>
+            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight leading-none">MONITORING CABANG</h2>
             <div className="flex items-center gap-2 mt-2">
                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Memantau {activeTrackingList.length} Karyawan Aktif</p>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Terdeteksi {activeTrackingList.length} Personel Aktif di Lokasi</p>
             </div>
           </div>
         </div>

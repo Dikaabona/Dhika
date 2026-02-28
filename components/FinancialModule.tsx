@@ -14,10 +14,56 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'PAYROLL' | 'INVOICE' | 'QUOTATION'>('OVERVIEW');
+  const [isProcessingPayroll, setIsProcessingPayroll] = useState(false);
+  const [payrollEmployees, setPayrollEmployees] = useState<any[]>([]);
+  const [isDisbursing, setIsDisbursing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     loadFinanceData();
-  }, []);
+    if (activeTab === 'PAYROLL') {
+      fetchPayrollDraft();
+    }
+  }, [activeTab]);
+
+  const fetchPayrollDraft = async () => {
+    try {
+      const { data } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', `payroll_draft_${company}`)
+        .single();
+      
+      if (data && data.value) {
+        setPayrollEmployees(data.value.employees || []);
+        setIsProcessingPayroll(true);
+      }
+    } catch (e) {
+      // No draft found
+    }
+  };
+
+  const savePayrollDraft = async (employees: any[]) => {
+    try {
+      await supabase.from('settings').upsert({
+        key: `payroll_draft_${company}`,
+        value: { employees, updatedAt: new Date().toISOString() }
+      });
+    } catch (e) {
+      console.error("Failed to save draft:", e);
+    }
+  };
+
+  const clearPayrollDraft = async () => {
+    try {
+      await supabase.from('settings').delete().eq('key', `payroll_draft_${company}`);
+      setPayrollEmployees([]);
+      setIsProcessingPayroll(false);
+    } catch (e) {
+      console.error("Failed to clear draft:", e);
+    }
+  };
 
   const loadFinanceData = async () => {
     setIsLoading(true);
@@ -42,6 +88,105 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
   };
+
+  const startPayrollProcess = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('company', company)
+        .is('deleted_at', null)
+        .is('resigned_at', null);
+      
+      if (error) throw error;
+
+      // Filter employees who have bank info and salary config
+      const validEmployees = (data || []).map(emp => {
+        const config = emp.salaryConfig || {};
+        const totalSalary = (config.gapok || 0) + 
+                           (config.tunjanganMakan || 0) + 
+                           (config.tunjanganTransport || 0) + 
+                           (config.tunjanganKomunikasi || 0) + 
+                           (config.tunjanganKesehatan || 0) + 
+                           (config.tunjanganJabatan || 0) + 
+                           (config.lembur || 0) + 
+                           (config.bonus || 0) + 
+                           (config.thr || 0) - 
+                           (config.bpjstk || 0) - 
+                           (config.pph21 || 0) - 
+                           (config.potonganHutang || 0) - 
+                           (config.potonganLain || 0);
+        
+        return {
+          ...emp,
+          calculatedTotal: totalSalary,
+          status: 'READY' // READY, PENDING, SUCCESS, FAILED
+        };
+      }).filter(emp => emp.calculatedTotal > 0 && emp.bank && emp.noRekening);
+
+      setPayrollEmployees(validEmployees);
+      setIsProcessingPayroll(true);
+      setCurrentPage(1);
+      await savePayrollDraft(validEmployees);
+    } catch (e: any) {
+      alert("Gagal memuat data karyawan: " + e.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBulkDisburse = async () => {
+    const totalNeeded = payrollEmployees.reduce((acc, curr) => acc + curr.calculatedTotal, 0);
+    if (balance < totalNeeded) {
+      alert(`Saldo Flip tidak mencukupi. Dibutuhkan ${formatCurrency(totalNeeded)}, saldo saat ini ${formatCurrency(balance)}.`);
+      return;
+    }
+
+    if (!confirm(`Konfirmasi pembayaran gaji untuk ${payrollEmployees.length} karyawan dengan total ${formatCurrency(totalNeeded)}?`)) return;
+
+    setIsDisbursing(true);
+    const updatedEmployees = [...payrollEmployees];
+
+    for (let i = 0; i < updatedEmployees.length; i++) {
+      const emp = updatedEmployees[i];
+      try {
+        updatedEmployees[i].status = 'SENDING';
+        setPayrollEmployees([...updatedEmployees]);
+
+        const result = await flipService.disburse({
+          amount: emp.calculatedTotal,
+          bank_code: emp.bank.toLowerCase(),
+          account_number: emp.noRekening,
+          remark: `Payroll ${new Date().toLocaleString('id-ID', { month: 'long', year: 'numeric' })} - ${company}`
+        });
+
+        if (result && (result.status === 'SUCCESS' || result.status === 'PENDING')) {
+          updatedEmployees[i].status = 'SUCCESS';
+        } else {
+          updatedEmployees[i].status = 'FAILED';
+        }
+        await savePayrollDraft(updatedEmployees);
+      } catch (e) {
+        console.error(e);
+        updatedEmployees[i].status = 'FAILED';
+        await savePayrollDraft(updatedEmployees);
+      }
+      setPayrollEmployees([...updatedEmployees]);
+    }
+
+    setIsDisbursing(false);
+    alert("Proses payroll selesai!");
+    await clearPayrollDraft();
+    loadFinanceData();
+  };
+
+  const paginatedEmployees = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return payrollEmployees.slice(startIndex, startIndex + itemsPerPage);
+  }, [payrollEmployees, currentPage]);
+
+  const totalPages = Math.ceil(payrollEmployees.length / itemsPerPage);
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700">
@@ -190,21 +335,127 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
           )}
           
           {activeTab === 'PAYROLL' && (
-            <div className="py-32 text-center animate-in zoom-in-95 duration-500">
-               <div className="max-w-md mx-auto space-y-8">
-                  <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mx-auto text-indigo-500 shadow-inner">
-                     <Icons.Users className="w-10 h-10" />
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Otomasi Gaji (Bulk Disbursement)</h3>
-                    <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
-                      Fitur ini memungkinkan Anda mengirim gaji ke seluruh karyawan sekaligus. Data bank diambil otomatis dari Database Karyawan.
-                    </p>
-                  </div>
-                  <button className="bg-slate-900 text-[#FFC000] px-12 py-5 rounded-[22px] font-black text-[11px] uppercase tracking-[0.3em] shadow-2xl active:scale-95 transition-all border border-white/10">
-                    MULAI PROSES PAYROLL
-                  </button>
-               </div>
+            <div className="animate-in fade-in duration-500">
+               {!isProcessingPayroll ? (
+                 <div className="py-32 text-center">
+                    <div className="max-w-md mx-auto space-y-8">
+                       <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mx-auto text-indigo-500 shadow-inner">
+                          <Icons.Users className="w-10 h-10" />
+                       </div>
+                       <div className="space-y-2">
+                         <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Otomasi Gaji (Bulk Disbursement)</h3>
+                         <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
+                           Fitur ini memungkinkan Anda mengirim gaji ke seluruh karyawan sekaligus. Data bank diambil otomatis dari Database Karyawan.
+                         </p>
+                       </div>
+                       <button 
+                        onClick={startPayrollProcess}
+                        disabled={isLoading}
+                        className="bg-slate-900 text-[#FFC000] px-12 py-5 rounded-[22px] font-black text-[11px] uppercase tracking-[0.3em] shadow-2xl active:scale-95 transition-all border border-white/10 disabled:opacity-50"
+                       >
+                         {isLoading ? 'MEMUAT...' : 'MULAI PROSES PAYROLL'}
+                       </button>
+                    </div>
+                 </div>
+               ) : (
+                 <div className="space-y-10">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                       <div className="space-y-2">
+                          <h3 className="text-2xl font-black text-[#0f172a] uppercase tracking-tight">Review Payroll</h3>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Silakan periksa kembali daftar penerima dan nominal sebelum eksekusi.</p>
+                       </div>
+                       <div className="flex gap-4">
+                          <button 
+                            onClick={clearPayrollDraft}
+                            className="px-8 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+                          >
+                            BATAL
+                          </button>
+                          <button 
+                            onClick={handleBulkDisburse}
+                            disabled={isDisbursing || payrollEmployees.length === 0}
+                            className="px-10 py-4 bg-[#0f172a] text-[#FFC000] rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:shadow-2xl transition-all disabled:opacity-50"
+                          >
+                            {isDisbursing ? 'MEMPROSES...' : `BAYAR ${payrollEmployees.length} KARYAWAN`}
+                          </button>
+                       </div>
+                    </div>
+
+                    <div className="bg-[#f8fafc] rounded-[40px] border border-slate-100 overflow-hidden shadow-inner">
+                       <table className="w-full text-left">
+                          <thead className="bg-[#f1f5f9]/50 text-[9px] font-black uppercase text-slate-400 border-b border-slate-100">
+                             <tr>
+                                <th className="px-10 py-6">KARYAWAN</th>
+                                <th className="px-6 py-6">REKENING</th>
+                                <th className="px-6 py-6">NOMINAL</th>
+                                <th className="px-10 py-6 text-right">STATUS</th>
+                             </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100/50 bg-white">
+                             {paginatedEmployees.map((emp, idx) => (
+                               <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
+                                  <td className="px-10 py-5">
+                                     <p className="text-[11px] font-black text-slate-900 uppercase">{emp.nama}</p>
+                                     <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">{emp.jabatan}</p>
+                                  </td>
+                                  <td className="px-6 py-5">
+                                     <p className="text-[11px] font-black text-slate-700 uppercase">{emp.bank}</p>
+                                     <p className="text-[10px] text-slate-500 font-mono tracking-tighter">{emp.noRekening}</p>
+                                  </td>
+                                  <td className="px-6 py-5">
+                                     <p className="text-[12px] font-black text-slate-900">{formatCurrency(emp.calculatedTotal)}</p>
+                                  </td>
+                                  <td className="px-10 py-5 text-right">
+                                     <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase border ${
+                                       emp.status === 'SUCCESS' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
+                                       emp.status === 'SENDING' ? 'bg-indigo-50 text-indigo-600 border-indigo-100 animate-pulse' : 
+                                       emp.status === 'FAILED' ? 'bg-rose-50 text-rose-600 border-rose-100' : 
+                                       'bg-slate-50 text-slate-400 border-slate-100'
+                                     }`}>
+                                        {emp.status}
+                                     </span>
+                                  </td>
+                               </tr>
+                             ))}
+                             {payrollEmployees.length === 0 && (
+                               <tr>
+                                  <td colSpan={4} className="py-24 text-center">
+                                     <div className="flex flex-col items-center gap-4 opacity-10">
+                                        <Icons.Users className="w-14 h-14" />
+                                        <p className="text-[11px] font-black uppercase tracking-[0.4em]">TIDAK ADA DATA KARYAWAN VALID</p>
+                                     </div>
+                                  </td>
+                               </tr>
+                             )}
+                          </tbody>
+                       </table>
+                    </div>
+
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-between px-10 py-6 bg-white border-t border-slate-100 rounded-b-[40px]">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          Halaman {currentPage} dari {totalPages} ({payrollEmployees.length} Karyawan)
+                        </p>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1}
+                            className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-slate-400 hover:bg-slate-100 disabled:opacity-30 transition-all"
+                          >
+                            <Icons.ArrowLeft className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            disabled={currentPage === totalPages}
+                            className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-slate-400 hover:bg-slate-100 disabled:opacity-30 transition-all rotate-180"
+                          >
+                            <Icons.ArrowLeft className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                 </div>
+               )}
             </div>
           )}
 

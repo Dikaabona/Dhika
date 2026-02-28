@@ -13,11 +13,12 @@ interface ContentModuleProps {
   userRole?: string;
   currentEmployee?: Employee | null;
   company: string;
+  onOpenReport?: () => void;
 }
 
 const DEFAULT_PILLARS = ['Educational', 'Entertainment', 'Sales/Promo', 'Engagement', 'Behind the Scene', 'Inspirational'];
 
-const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlans, searchQuery: globalSearch = '', userRole = 'employee', currentEmployee = null, company }) => {
+const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlans, searchQuery: globalSearch = '', userRole = 'employee', currentEmployee = null, company, onOpenReport }) => {
   const isCreator = useMemo(() => {
     const jabatan = (currentEmployee?.jabatan || '').toLowerCase();
     return jabatan.includes('content creator') || jabatan.includes('creator') || jabatan.includes('lead content');
@@ -330,6 +331,13 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     if (e) e.preventDefault();
     if (!hasFullAccess) return;
 
+    // Validasi Brand Terdaftar
+    const brandExists = brands.some(b => b.name === formData.brand);
+    if (!brandExists) {
+      alert("brand tidak terdaftar");
+      return;
+    }
+
     const finalTitle = `${formData.brand} - ${formData.postingDate || 'No Date'}`;
     const { jamUpload, ...formDataRest } = formData;
     const cleanNotes = (formData.notes || '').replace(/\[Time:\s*\d{2}:\d{2}\]/g, '').trim();
@@ -495,11 +503,20 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           return str;
         };
 
+        const skippedBrands: string[] = [];
         const rawPlans = jsonData.map((row: any) => {
           const brand = String(row['BRAND'] || '').trim().toUpperCase();
           const creatorName = String(row['CREATOR'] || '').trim();
           const creatorId = findCreatorIdByName(creatorName);
+          
           if (!brand) return null;
+
+          // Validasi Brand Terdaftar
+          const brandExists = brands.some(b => b.name === brand);
+          if (!brandExists) {
+            if (!skippedBrands.includes(brand)) skippedBrands.push(brand);
+            return null;
+          }
 
           const jamValue = String(row['JAM UPLOAD'] || '19:00');
           const notesText = String(row['CATATAN'] || '');
@@ -522,6 +539,10 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
             shares: Number(row['SHARES'] || 0)
           };
         }).filter((p): p is any => p !== null);
+
+        if (skippedBrands.length > 0) {
+          alert(`Beberapa data dilewati karena brand tidak terdaftar: ${skippedBrands.join(', ')}`);
+        }
 
         if (rawPlans.length > 0) {
           const { data: inserted, error } = await supabase.from('content_plans').upsert(rawPlans).select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar');
@@ -713,6 +734,11 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                     <button onClick={() => setIsManagingSettings(!isManagingSettings)} className={`flex-1 sm:flex-none px-4 sm:px-8 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-sm border ${isManagingSettings ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
                       SETTINGS
                     </button>
+                    {onOpenReport && (
+                      <button onClick={onOpenReport} className="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 sm:px-8 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95">
+                        <Icons.Briefcase className="w-4 h-4" /> REPORT
+                      </button>
+                    )}
                     <button onClick={() => handleOpenModal()} className="flex-1 sm:flex-none bg-[#FFC000] hover:bg-black text-black hover:text-white px-5 sm:px-10 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-amber-100 active:scale-95">
                       <Icons.Plus className="w-4 h-4 sm:w-5 sm:h-5" /> TAMBAH
                     </button>

@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Icons } from '../constants.tsx';
 import { Quotation, QuotationItem } from '../types.ts';
-import { supabase } from '../App.tsx';
+import { supabase } from '../App';
 
 interface QuotationModuleProps {
   company: string;

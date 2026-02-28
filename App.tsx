@@ -14,6 +14,7 @@ import LiveScheduleModule from './components/LiveScheduleModule.tsx';
 import SubmissionForm from './components/SubmissionForm.tsx';
 import Inbox from './components/Inbox.tsx';
 import ContentModule from './components/ContentModule.tsx';
+import ContentReport from './components/ContentReport.tsx';
 import AbsenModule from './components/AbsenModule.tsx';
 import LegalModal from './components/LegalModal.tsx';
 import SettingsModule from './components/SettingsModule.tsx';
@@ -34,13 +35,14 @@ const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
 const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
 const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
 
-const sanitizeConfig = (val: string | undefined, fallback: string) => {
-  if (!val) return fallback.trim();
-  return val.replace(/[\n\r\s\t]/g, '').trim();
+const sanitizeConfig = (val: any, fallback: string) => {
+  if (!val || typeof val !== 'string' || val === 'undefined' || val === 'null') return fallback.trim();
+  const sanitized = val.replace(/[\n\r\s\t]/g, '').trim();
+  return sanitized || fallback.trim();
 };
 
-const SUPABASE_URL = sanitizeConfig(process.env.SUPABASE_URL, 'https://rcrtknakiwvfkmnwvdvf.supabase.co');
-const SUPABASE_ANON_KEY = sanitizeConfig(process.env.SUPABASE_ANON_KEY, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcnRrbmFraXd2Zmttbnd2ZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2NjEyODYsImV4cCI6MjA4NTIzNzI4Nn0.Ca9m25c9K0_J_kCRphGSaECGs8CGz4-zUpVoA_rIERA');
+const SUPABASE_URL = 'https://rcrtknakiwvfkmnwvdvf.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcnRrbmFraXd2Zmttbnd2ZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2NjEyODYsImV4cCI6MjA4NTIzNzI4Nn0.Ca9m25c9K0_J_kCRphGSaECGs8CGz4-zUpVoA_rIERA';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -55,6 +57,7 @@ export const App: React.FC = () => {
   const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
   const [loginEmailInput, setLoginEmailInput] = useState('');
   const [loginPasswordInput, setLoginPasswordInput] = useState('');
+  const [registerCompanyName, setRegisterCompanyName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState('');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
@@ -212,6 +215,22 @@ export const App: React.FC = () => {
       setUserCompany(detectedCompany);
       setCurrentUserEmployee(myProfile);
 
+      // Cleanup old photos (older than 14 days)
+      if (activeUserRole === 'owner' || activeUserRole === 'super' || activeUserRole === 'admin') {
+        try {
+          const fourteenDaysAgo = new Date();
+          fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+          const dateStr = fourteenDaysAgo.toISOString().split('T')[0];
+          
+          await supabase
+            .from('attendance')
+            .update({ photoIn: null, photoOut: null })
+            .lt('date', dateStr);
+        } catch (e) {
+          console.error("Gagal membersihkan foto lama:", e);
+        }
+      }
+
       // Trial Check Logic
       try {
         const { data: trialData } = await supabase.from('settings').select('value').eq('key', `trial_info_${detectedCompany}`).single();
@@ -280,13 +299,13 @@ export const App: React.FC = () => {
       };
 
       const fetchPromises = [
-        buildQuery('attendance').order('date', { ascending: false }).limit(1000).then(({data, error}: any) => { if(error) throw error; setAttendanceRecords(data || []); }),
-        buildQuery('live_reports').order('tanggal', { ascending: false }).limit(1000).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
-        buildQuery('submissions').order('submittedAt', { ascending: false }).limit(100).then(({data, error}: any) => { if(error) throw error; setSubmissions(data || []); }),
-        buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(50).then(({data, error}: any) => { if(error) throw error; setBroadcasts(data || []); }),
-        buildQuery('schedules').limit(1000).then(({data, error}: any) => { if(error) throw error; setLiveSchedules(data || []); }),
-        buildQuery('content_plans').order('postingDate', { ascending: false }).limit(500).then(({data, error}: any) => { if(error) throw error; setContentPlans(data || []); }),
-        buildQuery('shift_assignments').limit(500).then(({data, error}: any) => { if(error) throw error; setShiftAssignments(data || []); }),
+        buildQuery('attendance').order('date', { ascending: false }).limit(500).then(({data, error}: any) => { if(error) throw error; setAttendanceRecords(data || []); }),
+        buildQuery('live_reports').order('tanggal', { ascending: false }).limit(500).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
+        buildQuery('submissions').order('submittedAt', { ascending: false }).limit(50).then(({data, error}: any) => { if(error) throw error; setSubmissions(data || []); }),
+        buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(30).then(({data, error}: any) => { if(error) throw error; setBroadcasts(data || []); }),
+        buildQuery('schedules').limit(500).then(({data, error}: any) => { if(error) throw error; setLiveSchedules(data || []); }),
+        buildQuery('content_plans').order('postingDate', { ascending: false }).limit(300).then(({data, error}: any) => { if(error) throw error; setContentPlans(data || []); }),
+        buildQuery('shift_assignments').limit(300).then(({data, error}: any) => { if(error) throw error; setShiftAssignments(data || []); }),
         supabase.from('settings').select('value').eq('key', `shifts_config_${companyFilterVal}`).single().then(({data}) => {
           if (data && Array.isArray(data.value)) setShifts(data.value);
           else setShifts(DEFAULT_SHIFTS);
@@ -336,10 +355,40 @@ export const App: React.FC = () => {
         alert('Cek email untuk reset password.');
         setIsForgotPasswordMode(false);
       } else if (isRegister) {
-        const { error } = await supabase.auth.signUp({ email, password: password! });
-        if (error) throw error;
-        alert('Berhasil daftar, silakan cek email.');
+        if (!registerCompanyName.trim()) {
+          throw new Error("Nama Perusahaan wajib diisi untuk pendaftaran trial.");
+        }
+        
+        const { data: authData, error: authError } = await supabase.auth.signUp({ email, password: password! });
+        if (authError) throw authError;
+        
+        if (authData.user) {
+          // Create Super Admin employee record
+          const newSuperAdmin: Partial<Employee> = {
+            email: email.toLowerCase().trim(),
+            nama: 'SUPER ADMIN ' + registerCompanyName.toUpperCase(),
+            company: registerCompanyName.trim().toUpperCase(),
+            role: 'super',
+            jabatan: 'SUPER ADMIN',
+            division: 'MANAGEMENT',
+            idKaryawan: 'SA-' + Math.floor(Math.random() * 9000 + 1000),
+            tanggalMasuk: new Date().toISOString().split('T')[0],
+            hutang: 0
+          };
+          
+          const { error: empError } = await supabase.from('employees').insert(newSuperAdmin);
+          if (empError) console.error("Error creating employee record:", empError);
+
+          // Initialize Trial
+          await supabase.from('settings').upsert({ 
+            key: `trial_info_${registerCompanyName.trim().toUpperCase()}`, 
+            value: { startDate: new Date().toISOString(), isPremium: false } 
+          });
+        }
+
+        alert('Berhasil daftar Trial 7 Hari! Silakan cek email untuk verifikasi.');
         setIsRegisterMode(false);
+        setRegisterCompanyName('');
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password: password! });
         if (error) throw error;
@@ -850,7 +899,23 @@ export const App: React.FC = () => {
               ) : activeTab === 'schedule' ? (
                 <LiveScheduleModule employees={employees} schedules={liveSchedules} setSchedules={setLiveSchedules} reports={liveReports} setReports={setLiveReports} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} attendanceRecords={attendanceRecords} shiftAssignments={shiftAssignments} shifts={shifts} onRefreshData={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'content' ? (
-                <ContentModule employees={employees} plans={contentPlans} setPlans={setContentPlans} searchQuery={searchQuery} userRole={userRole} currentEmployee={currentUserEmployee} company={userCompany} />
+                <ContentModule 
+                  employees={employees} 
+                  plans={contentPlans} 
+                  setPlans={setContentPlans} 
+                  searchQuery={searchQuery} 
+                  userRole={userRole} 
+                  currentEmployee={currentUserEmployee} 
+                  company={userCompany} 
+                  onOpenReport={() => setActiveTab('content_report')}
+                />
+              ) : activeTab === 'content_report' ? (
+                <ContentReport 
+                  plans={contentPlans}
+                  employees={employees}
+                  company={userCompany}
+                  onClose={() => setActiveTab('content')}
+                />
               ) : activeTab === 'submissions' ? (
                 <SubmissionForm employee={currentUserEmployee} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'inbox' ? (
@@ -954,93 +1019,116 @@ export const App: React.FC = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className="w-full overflow-hidden">
-                      <div className="hidden md:grid grid-cols-8 bg-slate-50 text-slate-500 text-[10px] uppercase font-bold tracking-[0.15em] border-b border-slate-100 px-14 py-6 sticky top-0 z-10">
-                        <div className="col-span-1">ID</div>
-                        <div className="col-span-2">NAMA KARYAWAN</div>
-                        <div className="col-span-1">TTL</div>
-                        <div className="col-span-2">ALAMAT</div>
-                        <div className="col-span-1">SALDO CUTI</div>
-                        <div className="col-span-1 text-right">AKSI</div>
-                      </div>
-                      <div className="bg-white">
-                        {paginatedEmployeesList.map((emp, index) => {
-                          const isEven = index % 2 === 1;
-                          return (
-                            <div key={emp.id} className={`hover:bg-slate-100/50 transition-all duration-300 border-b border-slate-50 last:border-0 ${isResigned(emp) ? 'opacity-60 grayscale-[0.5]' : ''} ${isEven ? 'bg-slate-50/50' : 'bg-white'}`}>
-                              <div className="md:hidden p-6 flex items-center justify-between relative group overflow-hidden">
-                                <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-rose-500 rounded-r-full shadow-[2px_0_10px_rgba(244,63,94,0.3)]"></div>
-                                <div className="flex-1 min-w-0" onClick={() => handleViewEmployee(emp)}>
-                                  <div className="flex items-center gap-2">
-                                    <p className="text-[14px] font-black text-slate-900 uppercase tracking-tight truncate pl-2">{emp.nama}</p>
-                                    {isResigned(emp) && <span className="text-[8px] font-black bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full uppercase tracking-widest">RESIGN</span>}
+                    <div className="w-full overflow-x-auto">
+                      <div className="min-w-[1400px]">
+                        <div className="grid grid-cols-11 bg-slate-50 text-slate-500 text-[8px] uppercase font-bold tracking-[0.15em] border-b border-slate-100 px-14 py-4 sticky top-0 z-10">
+                          <div className="col-span-1 flex items-center gap-1">
+                            <Icons.Edit className="w-2.5 h-2.5" />
+                            <span>ID KARYAWAN</span>
+                          </div>
+                          <div className="col-span-2">NAMA KARYAWAN</div>
+                          <div className="col-span-1">LOKASI KERJA</div>
+                          <div className="col-span-1">DIVISI</div>
+                          <div className="col-span-1">JABATAN</div>
+                          <div className="col-span-1">STATUS</div>
+                          <div className="col-span-1">TANGGAL MULAI KERJA</div>
+                          <div className="col-span-1">KONTRAK BERAKHIR</div>
+                          <div className="col-span-1">SALDO CUTI</div>
+                          <div className="col-span-1 text-right">AKSI</div>
+                        </div>
+                        <div className="bg-white">
+                          {paginatedEmployeesList.map((emp, index) => {
+                            const isEven = index % 2 === 1;
+                            return (
+                              <div key={emp.id} className={`hover:bg-slate-100/50 transition-all duration-300 border-b border-slate-50 last:border-0 ${isResigned(emp) ? 'opacity-60 grayscale-[0.5]' : ''} ${isEven ? 'bg-slate-50/50' : 'bg-white'}`}>
+                                <div className="md:hidden p-6 flex items-center justify-between relative group overflow-hidden">
+                                  <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-rose-500 rounded-r-full shadow-[2px_0_10px_rgba(244,63,94,0.3)]"></div>
+                                  <div className="flex-1 min-w-0" onClick={() => handleViewEmployee(emp)}>
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-[12px] font-black text-slate-900 uppercase tracking-tight truncate pl-2">{emp.nama}</p>
+                                      {isResigned(emp) && <span className="text-[7px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded-full uppercase tracking-widest">RESIGN</span>}
+                                    </div>
+                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest pl-2 mt-0.5 truncate">{emp.jabatan}</p>
                                   </div>
-                                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-2 mt-1 truncate">{emp.jabatan}</p>
-                                </div>
-                                <div className="flex items-center gap-4 shrink-0">
-                                  <span className="bg-[#f1f5f9] text-slate-600 font-black text-[11px] uppercase px-5 py-2.5 rounded-full tracking-[0.1em] border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span>
-                                  <div className="flex gap-1.5 ml-2">
-                                     <button onClick={() => setSlipEmployee(emp)} className="p-2 text-emerald-600 bg-emerald-50 rounded-lg"><Icons.Download className="w-4 h-4" /></button>
-                                     {userRole !== 'employee' && (
-                                       <button onClick={() => handleEditEmployee(emp)} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg"><Icons.Edit className="w-4 h-4" /></button>
-                                     )}
+                                  <div className="flex items-center gap-3 shrink-0">
+                                    <span className="bg-[#f1f5f9] text-slate-600 font-black text-[10px] uppercase px-4 py-2 rounded-full tracking-[0.1em] border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span>
+                                    <div className="flex gap-1.5 ml-2">
+                                       <button onClick={() => setSlipEmployee(emp)} className="p-2 text-emerald-600 bg-emerald-50 rounded-lg"><Icons.Download className="w-4 h-4" /></button>
+                                       {userRole !== 'employee' && (
+                                         <button onClick={() => handleEditEmployee(emp)} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg"><Icons.Edit className="w-4 h-4" /></button>
+                                       )}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                              <div className="hidden md:grid grid-cols-8 items-center px-14 py-7 gap-4">
-                                <div className="col-span-1"><span className="inline-block bg-slate-50 text-slate-700 font-black text-[10px] uppercase px-4 py-2 rounded-xl border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span></div>
-                                <div className="col-span-2">
-                                  <div className="flex items-center gap-2">
-                                    <p className="font-semibold text-slate-900 text-[14px] uppercase truncate cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleViewEmployee(emp)}>{emp.nama}</p>
-                                    {isResigned(emp) && <span className="text-[8px] font-black bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full uppercase tracking-widest">RESIGN</span>}
-                                  </div>
-                                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{emp.jabatan}</p>
-                                </div>
-                                <div className="col-span-1">
-                                  <p className="text-[11px] font-black text-slate-800 uppercase">{emp.tempatLahir}</p>
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{emp.tanggalLahir}</p>
-                                </div>
-                                <div className="col-span-2">
-                                  <p className="text-[11px] text-slate-600 line-clamp-2 uppercase font-medium">{emp.alamat}</p>
-                                </div>
-                                <div className="col-span-1">
-                                  <p className="text-[11px] font-black text-slate-800 font-mono">
-                                    {(() => {
-                                      const tenure = getTenureYears(emp.tanggalMasuk);
-                                      if (tenure < 1) return '0 Hari';
-                                      
-                                      const name = emp.nama.toLowerCase();
-                                      let adjustment = 0;
-                                      if (name.includes('fikry aditya rizky')) adjustment = 2;
-                                      else if (name.includes('iskandar juliana')) adjustment = 3;
-                                      else if (name.includes('muhammad ariyansyah')) adjustment = 2;
-                                      else if (name.includes('adinda salsabilla')) adjustment = 3;
-                                      else if (name.includes('pajar sidik')) adjustment = 1;
-
-                                      const used = attendanceRecords.filter(r => 
-                                        r.employeeId === emp.id && 
-                                        r.status === 'Cuti' && 
-                                        new Date(r.date).getFullYear() === new Date().getFullYear()
-                                      ).length;
-                                      
-                                      return `${Math.max(0, 12 - used - adjustment)} Hari`;
-                                    })()}
-                                  </p>
-                                </div>
-                                <div className="col-span-1 text-right">
-                                  <div className="flex justify-end gap-2">
-                                    <button onClick={() => handleViewEmployee(emp)} className="p-2.5 text-slate-400 hover:bg-slate-100 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Info Karyawan"><Icons.Info className="w-4 h-4" /></button>
-                                    <button onClick={() => setSlipEmployee(emp)} className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Download Slip"><Icons.Download className="w-4 h-4" /></button>
+                                <div className="hidden md:grid grid-cols-11 items-center px-14 py-4 gap-4">
+                                  <div className="col-span-1 flex items-center gap-2">
                                     {userRole !== 'employee' && (
-                                      <button onClick={() => handleEditEmployee(emp)} className="p-2.5 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Edit Karyawan"><Icons.Edit className="w-4 h-4" /></button>
+                                      <button onClick={() => handleEditEmployee(emp)} className="text-slate-400 hover:text-indigo-600 transition-colors">
+                                        <Icons.Edit className="w-3.5 h-3.5" />
+                                      </button>
                                     )}
-                                    {isHighAdminAccess && <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2.5 text-rose-500 hover:bg-rose-100 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Hapus Karyawan"><Icons.Trash className="w-4 h-4" /></button>}
+                                    <span className="inline-block bg-slate-50 text-slate-700 font-black text-[9px] uppercase px-3 py-1.5 rounded-lg border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span>
+                                  </div>
+                                  <div className="col-span-2">
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-semibold text-slate-900 text-[11px] uppercase truncate cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleViewEmployee(emp)}>{emp.nama}</p>
+                                      {isResigned(emp) && <span className="text-[7px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded-full uppercase tracking-widest">RESIGN</span>}
+                                    </div>
+                                  </div>
+                                  <div className="col-span-1">
+                                    <p className="text-[9px] font-black text-slate-800 uppercase">{emp.lokasiKerja || 'Head Office'}</p>
+                                  </div>
+                                  <div className="col-span-1">
+                                    <p className="text-[9px] font-black text-slate-800 uppercase">{emp.division || '-'}</p>
+                                  </div>
+                                  <div className="col-span-1">
+                                    <p className="text-[9px] font-black text-slate-800 uppercase">{emp.jabatan || '-'}</p>
+                                  </div>
+                                  <div className="col-span-1">
+                                    <p className="text-[9px] font-black text-slate-800 uppercase">{emp.statusKaryawan || 'Tetap'}</p>
+                                  </div>
+                                  <div className="col-span-1">
+                                    <p className="text-[9px] font-black text-slate-800 uppercase">{emp.tanggalMasuk || '-'}</p>
+                                  </div>
+                                  <div className="col-span-1">
+                                    <p className="text-[9px] font-black text-slate-800 uppercase">{emp.resigned_at || '-'}</p>
+                                  </div>
+                                  <div className="col-span-1">
+                                    <p className="text-[9px] font-black text-slate-800 font-mono">
+                                      {(() => {
+                                        const tenure = getTenureYears(emp.tanggalMasuk);
+                                        if (tenure < 1) return '0 Hari';
+                                        
+                                        const name = emp.nama.toLowerCase();
+                                        let adjustment = 0;
+                                        if (name.includes('fikry aditya rizky')) adjustment = 2;
+                                        else if (name.includes('iskandar juliana')) adjustment = 3;
+                                        else if (name.includes('muhammad ariyansyah')) adjustment = 2;
+                                        else if (name.includes('adinda salsabilla')) adjustment = 3;
+                                        else if (name.includes('pajar sidik')) adjustment = 1;
+
+                                        const used = attendanceRecords.filter(r => 
+                                          r.employeeId === emp.id && 
+                                          r.status === 'Cuti' && 
+                                          new Date(r.date).getFullYear() === new Date().getFullYear()
+                                        ).length;
+                                        
+                                        return `${Math.max(0, 12 - used - adjustment)} Hari`;
+                                      })()}
+                                    </p>
+                                  </div>
+                                  <div className="col-span-1 text-right">
+                                    <div className="flex justify-end gap-2">
+                                      <button onClick={() => handleViewEmployee(emp)} className="p-2.5 text-slate-400 hover:bg-slate-100 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Info Karyawan"><Icons.Info className="w-4 h-4" /></button>
+                                      <button onClick={() => setSlipEmployee(emp)} className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Download Slip"><Icons.Download className="w-4 h-4" /></button>
+                                      {isHighAdminAccess && <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2.5 text-rose-500 hover:bg-rose-100 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Hapus Karyawan"><Icons.Trash className="w-4 h-4" /></button>}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1085,10 +1173,19 @@ export const App: React.FC = () => {
           <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden border border-slate-100">
             <div className="bg-black p-12 text-center"><img src={VISIBEL_LOGO} alt="Logo" className="w-[180px] h-auto mx-auto" /></div>
             <form onSubmit={(e) => { e.preventDefault(); handleAuth(loginEmailInput, loginPasswordInput, isRegisterMode, isForgotPasswordMode); }} className="p-10 space-y-8">
-              <h2 className="text-2xl font-bold text-[#0f172a] text-center uppercase tracking-[0.3em]">{isForgotPasswordMode ? 'RESET' : isRegisterMode ? 'DAFTAR BARU' : 'LOGIN'}</h2>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-[#0f172a] text-center uppercase tracking-[0.3em]">{isForgotPasswordMode ? 'RESET' : isRegisterMode ? 'TRIAL 7 HARI' : 'LOGIN'}</h2>
+                {isRegisterMode && <p className="text-[9px] text-center font-black text-amber-500 uppercase tracking-widest">Daftar sekarang & coba gratis 7 hari!</p>}
+              </div>
               <div className="space-y-6">
+                {isRegisterMode && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">NAMA PERUSAHAAN</label>
+                    <input required type="text" value={registerCompanyName} onChange={(e) => setRegisterCompanyName(e.target.value)} placeholder="PT. VISIBEL DIGITAL INDONESIA" className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#FFC000] text-sm font-medium text-black transition-all" />
+                  </div>
+                )}
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">EMAIL TERDAFTAR</label>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">EMAIL {isRegisterMode ? 'ADMIN' : 'TERDAFTAR'}</label>
                   <input required type="email" value={loginEmailInput} onChange={(e) => setLoginEmailInput(e.target.value)} placeholder="admin@visibel.id" className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#FFC000] text-sm font-medium text-black transition-all" />
                 </div>
                 {!isForgotPasswordMode && (
@@ -1102,9 +1199,11 @@ export const App: React.FC = () => {
                 )}
               </div>
               {authError && <p className="text-xs text-red-600 text-center font-bold">{authError}</p>}
-              <button disabled={isAuthLoading} type="submit" className="w-full bg-[#0f172a] text-white py-5 rounded-3xl font-bold text-xs uppercase tracking-[0.4em] shadow-xl hover:bg-black transition-all">{isAuthLoading ? 'MENGHUBUNGKAN...' : 'MASUK'}</button>
+              <button disabled={isAuthLoading} type="submit" className="w-full bg-[#0f172a] text-white py-5 rounded-3xl font-bold text-xs uppercase tracking-[0.4em] shadow-xl hover:bg-black transition-all">
+                {isAuthLoading ? 'MENGHUBUNGKAN...' : isRegisterMode ? 'DAFTAR TRIAL' : 'MASUK'}
+              </button>
               <div className="text-center flex flex-col gap-4 pt-2">
-                <button type="button" onClick={() => { setIsRegisterMode(!isRegisterMode); setIsForgotPasswordMode(false); }} className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hover:text-slate-900 transition-colors">{isRegisterMode ? 'KEMBALI KE LOGIN' : 'DAFTAR BARU'}</button>
+                <button type="button" onClick={() => { setIsRegisterMode(!isRegisterMode); setIsForgotPasswordMode(false); setRegisterCompanyName(''); }} className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hover:text-slate-900 transition-colors">{isRegisterMode ? 'KEMBALI KE LOGIN' : 'DAFTAR TRIAL 7 HARI'}</button>
                 {!isRegisterMode && <button type="button" onClick={() => setIsForgotPasswordMode(!isForgotPasswordMode)} className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-slate-900 transition-colors">{isForgotPasswordMode ? 'KEMBALI KE LOGIN' : 'LUPA PASSWORD?'}</button>}
               </div>
             </form>
@@ -1133,7 +1232,7 @@ export const App: React.FC = () => {
         fetchData(session?.user?.email, true); 
         setIsFormOpen(false); 
       }} onCancel={() => setIsFormOpen(false)} />}
-      {viewingEmployee && <EmployeeDetailModal employee={viewingEmployee} onClose={() => setViewingEmployee(null)} />}
+      {viewingEmployee && <EmployeeDetailModal employee={viewingEmployee} userRole={userRole} onClose={() => setViewingEmployee(null)} />}
       {slipEmployee && <SalarySlipModal employee={slipEmployee} attendanceRecords={attendanceRecords} userRole={userRole} onClose={() => setSlipEmployee(null)} onUpdate={() => fetchData(session?.user?.email, true)} weeklyHolidays={weeklyHolidays} positionRates={positionRates} />}
       {isBulkSalaryOpen && <BulkSalaryModal employees={filteredEmployees} attendanceRecords={attendanceRecords} userRole={userRole} company={userCompany} weeklyHolidays={weeklyHolidays} onClose={() => setIsBulkSalaryOpen(false)} positionRates={positionRates} />}
       {isAnnouncementOpen && <AnnouncementModal employees={filteredEmployees} company={userCompany} onClose={() => setIsAnnouncementOpen(false)} onSuccess={() => fetchData(session?.user?.email, true)} />}

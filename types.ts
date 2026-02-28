@@ -33,6 +33,29 @@ export interface Employee {
   isTrackingActive?: boolean;
   resigned_at?: string | null;
   resign_reason?: string | null;
+  statusNikah?: string;
+  agama?: string;
+  noTin?: string;
+  noPaspor?: string;
+  noKitas?: string;
+  idTku?: string;
+  noTelepon?: string;
+  golonganDarah?: string;
+  jenjangPendidikan?: string;
+  lembagaPendidikan?: string;
+  tahunLulus?: string;
+  nilaiPendidikan?: string;
+  statusPtkp?: string;
+  tahunPtkp?: string;
+  kelurahan?: string;
+  kecamatan?: string;
+  kota?: string;
+  kodePos?: string;
+  lokasiKerja?: string;
+  statusKaryawan?: string;
+  masaProbation?: string;
+  bpjsKetenagakerjaan?: string;
+  bpjsKesehatan?: string;
 }
 
 export interface FlipTransaction {
@@ -89,12 +112,24 @@ export interface ShiftAssignment {
   company: string;
 }
 
+export interface Branch {
+  id: string;
+  code: string;
+  name: string;
+  address: string;
+  phone: string;
+  latitude: number;
+  longitude: number;
+  radius: number;
+}
+
 export interface AttendanceSettings {
   locationName: string;
   latitude: number;
   longitude: number;
   radius: number;
   allowRemote: boolean;
+  branches?: Branch[];
 }
 
 export interface Submission {
@@ -268,5 +303,5 @@ export interface Client {
   created_at?: string;
 }
 
-export type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'submissions' | 'inbox' | 'settings' | 'shift' | 'minvis' | 'kpi' | 'inventory' | 'calendar' | 'live_map' | 'finance' | 'invoice' | 'mobile_history' | 'profile';
+export type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'content_report' | 'submissions' | 'inbox' | 'settings' | 'shift' | 'minvis' | 'kpi' | 'inventory' | 'calendar' | 'live_map' | 'finance' | 'invoice' | 'mobile_history' | 'profile';
 export type UserRole = 'owner' | 'super' | 'admin' | 'employee';

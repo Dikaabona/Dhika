@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Icons } from '../constants.tsx';
 import { Invoice, InvoiceItem } from '../types.ts';
-import { supabase } from '../App.tsx';
+import { supabase } from '../App';
 import { QuotationModule } from './QuotationModule.tsx';
 
 interface InvoiceModuleProps {
