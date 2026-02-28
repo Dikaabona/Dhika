@@ -408,13 +408,6 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tanggal Masuk</label>
                 <input required name="tanggalMasuk" readOnly={!isSystemAdmin} value={formData.tanggalMasuk} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all disabled:opacity-70" />
               </div>
-              <div className="space-y-2">
-                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total Hutang Karyawan (Rp)</label>
-                <div className="relative">
-                  <input name="hutang" readOnly={!isSystemAdmin} value={formatCurrencyInput(String(formData.hutang || 0))} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-black outline-none focus:bg-white transition-all text-lg disabled:opacity-70 pl-12" />
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">Rp</span>
-                </div>
-              </div>
               <div className="flex items-center gap-3 bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
                 <input 
                   type="checkbox" 

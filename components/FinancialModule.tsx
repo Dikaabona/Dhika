@@ -7,10 +7,11 @@ import SalarySlipModal from './SalarySlipModal';
 
 interface FinancialModuleProps {
   company: string;
+  employees: any[];
   onClose: () => void;
 }
 
-const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) => {
+const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, onClose }) => {
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,6 +34,49 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
   ];
 
   const yearOptions = ['2024', '2025', '2026'];
+
+  const calculateTotalSalary = (config: any, hutang: number = 0) => {
+    const actualPotonganHutang = Math.min(hutang, config.potonganHutang || 0);
+    return (config.gapok || 0) + 
+           (config.tunjanganMakan || 0) + 
+           (config.tunjanganTransport || 0) + 
+           (config.tunjanganKomunikasi || 0) + 
+           (config.tunjanganKesehatan || 0) + 
+           (config.tunjanganJabatan || 0) + 
+           (config.lembur || 0) + 
+           (config.bonus || 0) + 
+           (config.thr || 0) - 
+           (config.bpjstk || 0) - 
+           (config.pph21 || 0) - 
+           actualPotonganHutang - 
+           (config.potonganLain || 0);
+  };
+
+  useEffect(() => {
+    if (isProcessingPayroll && employees.length > 0 && payrollEmployees.length > 0) {
+      const updatedPayroll = payrollEmployees.map(pEmp => {
+        const latest = employees.find(e => e.id === pEmp.id);
+        if (latest) {
+          // Sync debt and salary config
+          const config = latest.salaryConfig || {};
+          return {
+            ...pEmp,
+            hutang: latest.hutang,
+            salaryConfig: config,
+            calculatedTotal: calculateTotalSalary(config, latest.hutang)
+          };
+        }
+        return pEmp;
+      });
+      
+      // Only update if there are actual changes to avoid infinite loops
+      const hasChanges = JSON.stringify(updatedPayroll) !== JSON.stringify(payrollEmployees);
+      if (hasChanges) {
+        setPayrollEmployees(updatedPayroll);
+        savePayrollDraft(updatedPayroll);
+      }
+    }
+  }, [employees, isProcessingPayroll]);
 
   useEffect(() => {
     loadFinanceData();
@@ -118,19 +162,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
       // Filter employees who have bank info and salary config
       const validEmployees = (data || []).map(emp => {
         const config = emp.salaryConfig || {};
-        const totalSalary = (config.gapok || 0) + 
-                           (config.tunjanganMakan || 0) + 
-                           (config.tunjanganTransport || 0) + 
-                           (config.tunjanganKomunikasi || 0) + 
-                           (config.tunjanganKesehatan || 0) + 
-                           (config.tunjanganJabatan || 0) + 
-                           (config.lembur || 0) + 
-                           (config.bonus || 0) + 
-                           (config.thr || 0) - 
-                           (config.bpjstk || 0) - 
-                           (config.pph21 || 0) - 
-                           (config.potonganHutang || 0) - 
-                           (config.potonganLain || 0);
+        const totalSalary = calculateTotalSalary(config, emp.hutang);
         
         return {
           ...emp,

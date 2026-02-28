@@ -38,7 +38,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
 
   const [isBPJSTKActive, setIsBPJSTKActive] = useState(true);
   const [showOvertimeDetails, setShowOvertimeDetails] = useState(false);
-  const [data, setData] = useState<SalaryData & { adjustment: number; pph21: number }>({
+  const [data, setData] = useState<SalaryData & { adjustment: number; pph21: number; totalHutang: number }>({
     month: activePeriod.name,
     year: activePeriod.year,
     gapok: employee.salaryConfig?.gapok ?? 0,
@@ -52,8 +52,9 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     lembur: employee.salaryConfig?.lembur ?? 0,
     bonus: employee.salaryConfig?.bonus ?? 0,
     thr: employee.salaryConfig?.thr ?? 0,
-    potonganHutang: employee.salaryConfig?.potonganHutang ?? 0,
+    potonganHutang: Math.min(employee.hutang || 0, employee.salaryConfig?.potonganHutang ?? 0),
     potonganLain: employee.salaryConfig?.potonganLain ?? 0,
+    totalHutang: employee.hutang || 0,
     adjustment: 0
   });
 
@@ -283,7 +284,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const currentBPJSTK = isBPJSTKActive ? (data.bpjstk || 0) : 0;
   const totalPotongan = currentBPJSTK + potonganAbsensi + (data.pph21 || 0) + (data.potonganHutang || 0) + (data.potonganLain || 0);
   const takeHomePay = totalPendapatan - totalPotongan + (data.adjustment || 0);
-  const sisaHutang = Math.max(0, (employee.hutang || 0) - (data.potonganHutang || 0));
+  const sisaHutang = Math.max(0, (data.totalHutang || 0) - (data.potonganHutang || 0));
 
   const handleAutoCalculateTHR = () => {
     const totalFixed = (data.gapok || 0) + totalTunjanganOps;
@@ -320,8 +321,10 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         potonganHutang: data.potonganHutang,
         potonganLain: data.potonganLain
       };
-      const updates: any = { salaryConfig: configToSave };
-      if (data.potonganHutang > 0) updates.hutang = sisaHutang;
+      const updates: any = { 
+        salaryConfig: configToSave,
+        hutang: sisaHutang 
+      };
       const { error } = await supabase.from('employees').update(updates).eq('id', employee.id);
       if (error) throw error;
       alert("Data Payroll & Saldo Hutang berhasil diperbarui!");
@@ -747,6 +750,24 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                 <p className="text-[9px] font-black text-sky-600 uppercase tracking-[0.2em]">Pinjaman & Lainnya</p>
                 <span className="text-[8px] font-black text-slate-500 bg-white px-3 py-1 rounded-lg border shadow-sm">SISA: Rp {sisaHutang.toLocaleString('id-ID')}</span>
               </div>
+              <div className="grid grid-cols-1 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Total Pinjaman (Hutang)</label>
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      disabled={isReadOnlyRole} 
+                      value={formatCurrencyValue(data.totalHutang)} 
+                      onChange={e => {
+                        const val = parseCurrencyInput(e.target.value);
+                        setData({...data, totalHutang: val});
+                      }} 
+                      className="w-full bg-white border border-slate-200 rounded-xl p-3 text-[10px] font-black text-slate-900 focus:border-sky-400 outline-none shadow-sm pl-10" 
+                    />
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-[9px]">Rp</span>
+                  </div>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Cicilan Hutang</label>
@@ -756,7 +777,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                     value={formatCurrencyValue(data.potonganHutang)} 
                     onChange={e => {
                       const val = parseCurrencyInput(e.target.value);
-                      setData({...data, potonganHutang: Math.min(employee.hutang || 0, val)});
+                      setData({...data, potonganHutang: Math.min(data.totalHutang || 0, val)});
                     }} 
                     className="w-full bg-white border border-rose-100 rounded-xl p-3 text-[10px] font-black text-rose-600 focus:border-rose-400 outline-none shadow-sm" 
                   />
