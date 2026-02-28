@@ -80,17 +80,43 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         allowRemote: false
       };
 
+      // Tentukan lokasi target (Cabang atau Main Office)
+      let targetLat = attSettings.latitude;
+      let targetLon = attSettings.longitude;
+      let targetRadius = attSettings.radius;
+      let targetName = attSettings.locationName;
+
+      if (employee?.lokasiKerja && attSettings.branches) {
+        const branch = attSettings.branches.find(b => b.name === employee.lokasiKerja);
+        if (branch) {
+          targetLat = branch.latitude;
+          targetLon = branch.longitude;
+          targetRadius = branch.radius;
+          targetName = branch.name;
+        }
+      }
+
       navigator.geolocation.getCurrentPosition((pos) => {
         const dist = getDistance(
           pos.coords.latitude, 
           pos.coords.longitude, 
-          attSettings.latitude, 
-          attSettings.longitude
+          targetLat, 
+          targetLon
         );
+        
+        // Jika remote diizinkan secara individu, isInside selalu true
+        const isRemote = employee?.isRemoteAllowed;
+        
         setLocationStatus({
           distance: Math.round(dist),
-          isInside: dist <= attSettings.radius,
-          settings: attSettings
+          isInside: isRemote ? true : dist <= targetRadius,
+          settings: {
+            ...attSettings,
+            locationName: targetName,
+            latitude: targetLat,
+            longitude: targetLon,
+            radius: targetRadius
+          }
         });
       }, (err) => {
         console.warn("GPS Warning:", err.message);

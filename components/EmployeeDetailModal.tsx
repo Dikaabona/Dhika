@@ -18,10 +18,13 @@ interface InfoRowProps {
   isEditing: boolean;
   editedEmployee: Employee;
   setEditedEmployee: (emp: Employee) => void;
+  branches?: string[];
 }
 
-const InfoRow: React.FC<InfoRowProps> = ({ label, value, field, type = 'text', isEditing, editedEmployee, setEditedEmployee }) => {
+const InfoRow: React.FC<InfoRowProps> = ({ label, value, field, type = 'text', isEditing, editedEmployee, setEditedEmployee, branches = [] }) => {
   const statusOptions = ['Tetap', 'Kontrak', 'Probation', 'Freelance'];
+  const maritalOptions = ['Menikah', 'Lajang'];
+  const religionOptions = ['Islam', 'Kristen', 'Protestan', 'Hindu', 'Budha', 'Konghucu'];
 
   return (
     <div className="flex justify-between py-2 border-b border-slate-50 last:border-0 items-center">
@@ -34,6 +37,31 @@ const InfoRow: React.FC<InfoRowProps> = ({ label, value, field, type = 'text', i
             className="text-xs font-semibold text-slate-800 text-right bg-slate-50 px-2 py-1 rounded border border-slate-200 outline-none focus:border-[#FFC000] max-w-[60%]"
           >
             {statusOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
+        ) : field === 'statusNikah' ? (
+          <select
+            value={value || 'Lajang'}
+            onChange={(e) => setEditedEmployee({ ...editedEmployee, [field]: e.target.value })}
+            className="text-xs font-semibold text-slate-800 text-right bg-slate-50 px-2 py-1 rounded border border-slate-200 outline-none focus:border-[#FFC000] max-w-[60%]"
+          >
+            {maritalOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
+        ) : field === 'agama' ? (
+          <select
+            value={value || 'Islam'}
+            onChange={(e) => setEditedEmployee({ ...editedEmployee, [field]: e.target.value })}
+            className="text-xs font-semibold text-slate-800 text-right bg-slate-50 px-2 py-1 rounded border border-slate-200 outline-none focus:border-[#FFC000] max-w-[60%]"
+          >
+            {religionOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
+        ) : field === 'lokasiKerja' && branches.length > 0 ? (
+          <select
+            value={value || ''}
+            onChange={(e) => setEditedEmployee({ ...editedEmployee, [field]: e.target.value })}
+            className="text-xs font-semibold text-slate-800 text-right bg-slate-50 px-2 py-1 rounded border border-slate-200 outline-none focus:border-[#FFC000] max-w-[60%]"
+          >
+            <option value="">Pilih Cabang</option>
+            {branches.map(b => <option key={b} value={b}>{b}</option>)}
           </select>
         ) : (
           <input 
@@ -61,6 +89,24 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, use
   const [activeSubView, setActiveSubView] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedEmployee, setEditedEmployee] = useState<Employee>(employee);
+  const [branches, setBranches] = useState<string[]>([]);
+
+  React.useEffect(() => {
+    const fetchBranches = async () => {
+      try {
+        const { data } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', `attendance_settings_${employee.company}`)
+          .single();
+        
+        if (data?.value?.branches) {
+          setBranches(data.value.branches.map((b: any) => b.name));
+        }
+      } catch (e) {}
+    };
+    fetchBranches();
+  }, [employee.company]);
 
   const handleSave = async () => {
     try {
@@ -76,11 +122,6 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, use
         alamat: editedEmployee.alamat,
         statusNikah: editedEmployee.statusNikah,
         agama: editedEmployee.agama,
-        noTin: editedEmployee.noTin,
-        noPaspor: editedEmployee.noPaspor,
-        noKitas: editedEmployee.noKitas,
-        idTku: editedEmployee.idTku,
-        noTelepon: editedEmployee.noTelepon,
         golonganDarah: editedEmployee.golonganDarah,
         jenjangPendidikan: editedEmployee.jenjangPendidikan,
         lembagaPendidikan: editedEmployee.lembagaPendidikan,
@@ -157,7 +198,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, use
                 <InfoRow label="Tanggal masuk kerja" value={editedEmployee.tanggalMasuk} field="tanggalMasuk" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
                 <InfoRow label="Kontrak berakhir" value={editedEmployee.resigned_at || ''} field="resigned_at" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
                 <InfoRow label="Status karyawan" value={editedEmployee.statusKaryawan} field="statusKaryawan" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
-                <InfoRow label="Lokasi kerja" value={editedEmployee.lokasiKerja} field="lokasiKerja" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
+                <InfoRow label="Lokasi kerja" value={editedEmployee.lokasiKerja} field="lokasiKerja" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} branches={branches} />
                 <InfoRow label="Divisi" value={editedEmployee.division} field="division" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
                 <InfoRow label="Jabatan" value={editedEmployee.jabatan} field="jabatan" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
               </div>
@@ -218,11 +259,6 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, use
                 <InfoRow label="Status nikah" value={editedEmployee.statusNikah} field="statusNikah" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
                 <InfoRow label="Agama" value={editedEmployee.agama} field="agama" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
                 <InfoRow label="Nomor KTP" value={editedEmployee.noKtp} field="noKtp" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
-                <InfoRow label="Nomor TIN" value={editedEmployee.noTin} field="noTin" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
-                <InfoRow label="Nomor Paspor" value={editedEmployee.noPaspor} field="noPaspor" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
-                <InfoRow label="Nomor KITAS" value={editedEmployee.noKitas} field="noKitas" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
-                <InfoRow label="ID TKU penerima penghasilan" value={editedEmployee.idTku} field="idTku" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
-                <InfoRow label="Nomor telepon" value={editedEmployee.noTelepon} field="noTelepon" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
                 <InfoRow label="Nomor handphone" value={editedEmployee.noHandphone} field="noHandphone" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
                 <InfoRow label="Golongan darah" value={editedEmployee.golonganDarah} field="golonganDarah" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
               </div>

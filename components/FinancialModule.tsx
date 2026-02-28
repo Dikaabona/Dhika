@@ -3,6 +3,7 @@ import { Icons } from '../constants';
 import { flipService } from '../services/flipService';
 import { supabase } from '../App';
 import { InvoiceModule } from './InvoiceModule';
+import SalarySlipModal from './SalarySlipModal';
 
 interface FinancialModuleProps {
   company: string;
@@ -19,6 +20,18 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
   const [isDisbursing, setIsDisbursing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleString('id-ID', { month: 'long' }));
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const [showSlipModal, setShowSlipModal] = useState<{ employee: any } | null>(null);
+  const [isSendingEmails, setIsSendingEmails] = useState(false);
+
+  const monthOptions = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+
+  const yearOptions = ['2024', '2025', '2026'];
 
   useEffect(() => {
     loadFinanceData();
@@ -187,6 +200,50 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
   }, [payrollEmployees, currentPage]);
 
   const totalPages = Math.ceil(payrollEmployees.length / itemsPerPage);
+
+  const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
+  const [positionRates, setPositionRates] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (showSlipModal || isSendingEmails) {
+      fetchAttendanceAndRates();
+    }
+  }, [showSlipModal, isSendingEmails]);
+
+  const fetchAttendanceAndRates = async () => {
+    try {
+      const { data: att } = await supabase.from('attendance').select('*').eq('company', company);
+      setAttendanceRecords(att || []);
+      
+      const { data: rates } = await supabase.from('settings').select('value').eq('key', 'position_rates').single();
+      setPositionRates(rates?.value || []);
+    } catch (e) {}
+  };
+
+  const handleSendAllEmails = async () => {
+    if (!confirm(`Kirim slip gaji ke inbox ${payrollEmployees.length} karyawan?`)) return;
+    setIsSendingEmails(true);
+    
+    try {
+      // Simulate bulk sending to Inbox (Broadcasts)
+      // In a real app, this would be more robust
+      for (const emp of payrollEmployees) {
+        const newBroadcast = {
+          title: `SLIP GAJI ${selectedMonth.toUpperCase()} ${selectedYear}`,
+          message: `Halo ${emp.nama}, slip gaji Anda untuk periode ${selectedMonth} ${selectedYear} telah tersedia. Silakan hubungi HR jika ada pertanyaan.`,
+          company: company,
+          targetEmployeeIds: [emp.id],
+          sentAt: new Date().toISOString()
+        };
+        await supabase.from('broadcasts').insert([newBroadcast]);
+      }
+      alert("Slip gaji berhasil dikirim ke inbox semua karyawan!");
+    } catch (e: any) {
+      alert("Gagal mengirim slip: " + e.message);
+    } finally {
+      setIsSendingEmails(false);
+    }
+  };
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700">
@@ -363,8 +420,33 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
                        <div className="space-y-2">
                           <h3 className="text-2xl font-black text-[#0f172a] uppercase tracking-tight">Review Payroll</h3>
                           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Silakan periksa kembali daftar penerima dan nominal sebelum eksekusi.</p>
+                          
+                          <div className="flex gap-2 mt-4">
+                             <select 
+                               value={selectedMonth} 
+                               onChange={(e) => setSelectedMonth(e.target.value)}
+                               className="bg-slate-100/50 border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-black uppercase outline-none focus:border-[#FFC000]"
+                             >
+                               {monthOptions.map(m => <option key={m} value={m}>{m}</option>)}
+                             </select>
+                             <select 
+                               value={selectedYear} 
+                               onChange={(e) => setSelectedYear(e.target.value)}
+                               className="bg-slate-100/50 border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-black uppercase outline-none focus:border-[#FFC000]"
+                             >
+                               {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                             </select>
+                          </div>
                        </div>
-                       <div className="flex gap-4">
+                       <div className="flex flex-wrap gap-3">
+                          <button 
+                            onClick={handleSendAllEmails}
+                            disabled={isSendingEmails || payrollEmployees.length === 0}
+                            className="px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center gap-2"
+                          >
+                            <Icons.Mail className="w-4 h-4" />
+                            {isSendingEmails ? 'MENGIRIM...' : 'KIRIM SEMUA SLIP'}
+                          </button>
                           <button 
                             onClick={clearPayrollDraft}
                             className="px-8 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
@@ -388,6 +470,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
                                 <th className="px-10 py-6">KARYAWAN</th>
                                 <th className="px-6 py-6">REKENING</th>
                                 <th className="px-6 py-6">NOMINAL</th>
+                                <th className="px-6 py-6 text-center">SLIP</th>
                                 <th className="px-10 py-6 text-right">STATUS</th>
                              </tr>
                           </thead>
@@ -405,6 +488,14 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
                                   <td className="px-6 py-5">
                                      <p className="text-[12px] font-black text-slate-900">{formatCurrency(emp.calculatedTotal)}</p>
                                   </td>
+                                  <td className="px-6 py-5 text-center">
+                                     <button 
+                                       onClick={() => setShowSlipModal({ employee: emp })}
+                                       className="p-2 bg-slate-100 hover:bg-[#FFC000] hover:text-black rounded-lg transition-all text-slate-400"
+                                     >
+                                       <Icons.FileText className="w-4 h-4" />
+                                     </button>
+                                  </td>
                                   <td className="px-10 py-5 text-right">
                                      <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase border ${
                                        emp.status === 'SUCCESS' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
@@ -419,7 +510,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
                              ))}
                              {payrollEmployees.length === 0 && (
                                <tr>
-                                  <td colSpan={4} className="py-24 text-center">
+                                  <td colSpan={5} className="py-24 text-center">
                                      <div className="flex flex-col items-center gap-4 opacity-10">
                                         <Icons.Users className="w-14 h-14" />
                                         <p className="text-[11px] font-black uppercase tracking-[0.4em]">TIDAK ADA DATA KARYAWAN VALID</p>
@@ -472,6 +563,16 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, onClose }) =
           )}
         </div>
       </div>
+      {showSlipModal && (
+        <SalarySlipModal 
+          employee={showSlipModal.employee}
+          attendanceRecords={attendanceRecords}
+          userRole="owner"
+          onClose={() => setShowSlipModal(null)}
+          onUpdate={() => {}}
+          positionRates={positionRates}
+        />
+      )}
     </div>
   );
 };

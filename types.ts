@@ -35,11 +35,6 @@ export interface Employee {
   resign_reason?: string | null;
   statusNikah?: string;
   agama?: string;
-  noTin?: string;
-  noPaspor?: string;
-  noKitas?: string;
-  idTku?: string;
-  noTelepon?: string;
   golonganDarah?: string;
   jenjangPendidikan?: string;
   lembagaPendidikan?: string;

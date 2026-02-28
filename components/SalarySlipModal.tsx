@@ -4,7 +4,6 @@ import { Employee, SalaryData, AttendanceRecord, Broadcast } from '../types';
 import { Icons } from '../constants';
 import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
 import { supabase } from '../App';
-import { flipService } from '../services/flipService';
 
 interface SalarySlipModalProps {
   employee: Employee;
@@ -23,7 +22,6 @@ const ALPHA_START_DATE = '2025-01-01';
 
 const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceRecords, userRole, onClose, onUpdate, weeklyHolidays, positionRates = [] }) => {
   const isReadOnlyRole = userRole === 'admin' || userRole === 'employee';
-  const isSuperAdmin = userRole === 'owner' || userRole === 'super';
 
   const getActivePayrollMonthInfo = () => {
     const now = new Date();
@@ -62,7 +60,6 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const [isPreview, setIsPreview] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isFlipLoading, setIsFlipLoading] = useState(false);
   
   const previewSlipRef = useRef<HTMLDivElement>(null);
   const hiddenSlipRef = useRef<HTMLDivElement>(null);
@@ -287,32 +284,6 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const totalPotongan = currentBPJSTK + potonganAbsensi + (data.pph21 || 0) + (data.potonganHutang || 0) + (data.potonganLain || 0);
   const takeHomePay = totalPendapatan - totalPotongan + (data.adjustment || 0);
   const sisaHutang = Math.max(0, (employee.hutang || 0) - (data.potonganHutang || 0));
-
-  const handlePayViaFlip = async () => {
-    if (!isSuperAdmin) return;
-    if (takeHomePay <= 0) return alert("Jumlah pembayaran tidak valid.");
-    if (!confirm(`Kirim gaji Rp ${takeHomePay.toLocaleString('id-ID')} ke ${employee.nama} (${employee.bank} - ${employee.noRekening}) via Flip?`)) return;
-
-    setIsFlipLoading(true);
-    try {
-      const response = await flipService.disburse({
-        amount: takeHomePay,
-        bank_code: employee.bank.toLowerCase(),
-        account_number: employee.noRekening,
-        remark: `Gaji ${data.month} ${data.year} - ${employee.nama}`
-      });
-
-      if (response && response.status === 'PENDING') {
-        alert("Instruksi pembayaran berhasil dikirim ke Flip! Cek status di Financial Hub.");
-      } else {
-        throw new Error("Respon tidak dikenal dari Flip.");
-      }
-    } catch (e: any) {
-      alert("Gagal memproses pembayaran: " + e.message);
-    } finally {
-      setIsFlipLoading(false);
-    }
-  };
 
   const handleAutoCalculateTHR = () => {
     const totalFixed = (data.gapok || 0) + totalTunjanganOps;
@@ -816,17 +787,6 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           </div>
           
           <div className="p-4 sm:p-6 space-y-3 bg-slate-50/50">
-            {isSuperAdmin && (
-              <button 
-                type="button" 
-                disabled={isFlipLoading || takeHomePay <= 0} 
-                onClick={handlePayViaFlip} 
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-2xl font-black transition-all shadow-md text-[11px] tracking-[0.2em] uppercase flex items-center justify-center gap-3 active:scale-[0.98] border-b-4 border-emerald-800"
-              >
-                {isFlipLoading ? 'CONNECTING...' : <><Icons.Send className="w-4 h-4" /> BAYAR VIA FLIP</>}
-              </button>
-            )}
-
             {!isReadOnlyRole && (
               <button 
                 type="button" 
