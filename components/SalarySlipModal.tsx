@@ -342,16 +342,32 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     if (!target) return;
     if (!silent) setIsProcessing(true);
     try {
-      const worker = (window as any).html2pdf().from(target).set({ 
-        html2canvas: { scale: 2, useCORS: true, scrollY: 0, scrollX: 0, width: 794, windowWidth: 1024 } 
+      if (!(window as any).html2canvas) {
+        throw new Error("Library html2canvas tidak ditemukan.");
+      }
+
+      const canvas = await (window as any).html2canvas(target, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        width: 794,
+        height: 1122,
+        windowWidth: 794,
+        windowHeight: 1122,
+        x: 0,
+        y: 0,
+        scrollX: 0,
+        scrollY: 0
       });
-      const canvas = await worker.toCanvas().get('canvas');
+      
       const link = document.createElement('a');
       link.download = `Slip_Gaji_${employee.nama}_${data.month}_${data.year}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     } catch (err) {
-      if (!silent) alert("Gagal mengunduh gambar.");
+      console.error("PNG Download Error:", err);
+      if (!silent) alert("Gagal mengunduh gambar. Pastikan koneksi internet stabil.");
     } finally {
       if (!silent) setIsProcessing(false);
     }
@@ -361,16 +377,35 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     const target = isPreview ? previewSlipRef.current : hiddenSlipRef.current;
     if (!target) return null;
     
+    if (!(window as any).html2pdf) {
+      throw new Error("Library html2pdf tidak ditemukan.");
+    }
+
     const fileName = `Slip_Gaji_${employee.nama.replace(/\s/g, '_')}_${data.month}_${data.year}.pdf`;
     const opt = {
       margin: 0,
       filename: fileName,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, letterRendering: true, scrollY: 0, scrollX: 0, width: 794, windowWidth: 1024 },
+      html2canvas: { 
+        scale: 2, 
+        useCORS: true, 
+        letterRendering: true, 
+        scrollY: 0, 
+        scrollX: 0, 
+        width: 794, 
+        windowWidth: 794,
+        x: 0,
+        y: 0
+      },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    return await (window as any).html2pdf().from(target).set(opt).output('blob');
+    try {
+      return await (window as any).html2pdf().from(target).set(opt).output('blob');
+    } catch (err) {
+      console.error("PDF Generation Error:", err);
+      throw err;
+    }
   };
 
   const handleSendEmail = async () => {
@@ -444,10 +479,24 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     
     setIsProcessing(true);
     try {
-      const worker = (window as any).html2pdf().from(target).set({ 
-        html2canvas: { scale: 2, useCORS: true, scrollY: 0, scrollX: 0, width: 794, windowWidth: 1024 } 
+      if (!(window as any).html2canvas) {
+        throw new Error("Library html2canvas tidak ditemukan.");
+      }
+
+      const canvas = await (window as any).html2canvas(target, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        width: 794,
+        height: 1122,
+        windowWidth: 794,
+        windowHeight: 1122,
+        x: 0,
+        y: 0,
+        scrollX: 0,
+        scrollY: 0
       });
-      const canvas = await worker.toCanvas().get('canvas');
       const pngBase64 = canvas.toDataURL('image/png');
 
       const newBroadcast: Broadcast = {
@@ -567,8 +616,8 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         </div>
         
         <div className="p-4 sm:p-6 overflow-y-auto space-y-4 sm:space-y-6 bg-white flex-grow custom-scrollbar">
-          <div style={{ position: 'fixed', top: 0, left: 0, width: '794px', height: '1122px', zIndex: -1, opacity: 0, pointerEvents: 'none' }}>
-            <div ref={hiddenSlipRef}><SalarySlipContent /></div>
+          <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', width: '794px', height: '1122px', zIndex: -1, pointerEvents: 'none' }}>
+            <div ref={hiddenSlipRef}>{SalarySlipContent()}</div>
           </div>
           
           <div className="space-y-4 sm:space-y-6">
@@ -876,7 +925,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       {isPreview && (
         <div className="fixed inset-0 bg-slate-100 z-[210] p-3 sm:p-10 overflow-y-auto">
           <div className="max-w-[800px] mx-auto shadow-2xl bg-white mb-32 rounded-xl overflow-hidden scale-[0.9] sm:scale-100 origin-top">
-            <div ref={previewSlipRef} className="p-0 sm:p-0"><SalarySlipContent /></div>
+            <div ref={previewSlipRef} className="p-0 sm:p-0">{SalarySlipContent()}</div>
           </div>
           <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex gap-3 sm:gap-4 bg-white/95 backdrop-blur-xl px-6 sm:px-10 py-4 sm:py-5 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-white/50 z-[220] flex-wrap justify-center items-center w-max">
             <button type="button" onClick={() => setIsPreview(false)} className="px-5 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 transition-colors">TUTUP</button>
