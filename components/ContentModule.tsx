@@ -241,12 +241,47 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         return p.postingDate >= startDate && p.postingDate <= endDate;
       });
       const done = filteredPlansByRange.length;
+      
+      // Count unique creators for this brand
+      const uniqueCreators = new Set(filteredPlansByRange.map(p => p.creatorId).filter(Boolean));
+      const creatorsCount = uniqueCreators.size;
+
       const target = brand.target || 30;
       const remaining = Math.max(0, target - done);
       const progress = target > 0 ? (done / target) * 100 : 0;
-      return { ...brand, done, remaining, progress: Math.min(100, progress) };
+      return { ...brand, done, remaining, progress: Math.min(100, progress), creatorsCount };
     });
   }, [brands, plans, startDate, endDate]);
+
+  const aggregateStats = useMemo(() => {
+    const filteredPlansByRange = plans.filter(p => {
+      if (!p.postingDate) return false;
+      return p.postingDate >= startDate && p.postingDate <= endDate;
+    });
+
+    const totalPostings = filteredPlansByRange.length;
+    
+    // Count postings per creator
+    const creatorCounts: Record<string, number> = {};
+    filteredPlansByRange.forEach(p => {
+      if (p.creatorId) {
+        creatorCounts[p.creatorId] = (creatorCounts[p.creatorId] || 0) + 1;
+      }
+    });
+
+    const creatorBreakdown = Object.entries(creatorCounts).map(([id, count]) => ({
+      name: getCreatorName(id),
+      count
+    })).sort((a, b) => b.count - a.count);
+
+    const totalTarget = brands.reduce((acc, b) => acc + (b.target || 0), 0);
+
+    return {
+      totalPostings,
+      creatorBreakdown,
+      totalTarget
+    };
+  }, [plans, startDate, endDate, brands, employees]);
 
   const filteredPlans = useMemo(() => {
     const finalSearch = (localSearch || globalSearch).toLowerCase();
@@ -872,6 +907,45 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         </div>
       )}
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-white p-6 sm:p-8 rounded-[32px] border border-slate-100 shadow-sm flex flex-col gap-6 group hover:shadow-md transition-all">
+          <div className="flex items-center gap-6">
+            <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+              <Icons.Users className="w-7 h-7" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Creator Performance</p>
+              <p className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{aggregateStats.creatorBreakdown.length} <span className="text-xs text-slate-300 font-bold tracking-normal ml-1">ACTIVE CREATORS</span></p>
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap gap-3">
+            {aggregateStats.creatorBreakdown.map(c => (
+              <div key={c.name} className="bg-slate-50 px-4 py-2.5 rounded-2xl border border-slate-100 flex items-center gap-3 shadow-sm hover:bg-indigo-50 hover:border-indigo-100 transition-all">
+                <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">{c.name}</span>
+                <span className="h-4 w-px bg-slate-200"></span>
+                <span className="text-[11px] font-black text-indigo-600">{c.count} <span className="text-[8px] text-slate-400">POSTS</span></span>
+              </div>
+            ))}
+            {aggregateStats.creatorBreakdown.length === 0 && (
+              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest italic">No creator activity in this period</p>
+            )}
+          </div>
+        </div>
+        <div className="bg-white p-6 sm:p-8 rounded-[32px] border border-slate-100 shadow-sm flex items-center gap-6 group hover:shadow-md transition-all">
+          <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
+            <Icons.Database className="w-7 h-7" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Total Content Posted</p>
+            <p className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              {aggregateStats.totalPostings} 
+              <span className="text-xs text-slate-300 font-bold tracking-normal ml-2">/ {aggregateStats.totalTarget} POSTS</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 no-scrollbar scroll-smooth snap-x">
         {brandStats.map(bs => (
           <div key={bs.name} className="min-w-[280px] sm:min-w-[320px] bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[36px] border border-slate-100 shadow-sm space-y-5 sm:space-y-6 transition-all hover:shadow-xl hover:-translate-y-1 relative group overflow-hidden snap-start shrink-0">
@@ -888,9 +962,14 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
             <div className="flex justify-between items-end relative z-10">
               <div>
                 <p className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tighter">{bs.done}<span className="text-xs sm:text-sm text-slate-300 ml-2 font-bold tracking-normal">/ {bs.target}</span></p>
-                <p className={`text-[8px] sm:text-[9px] font-black px-2.5 sm:px-3 py-1 sm:py-1.5 mt-2 rounded-lg inline-block shadow-sm ${bs.remaining === 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}>
-                  {bs.remaining === 0 ? 'GOAL ACHIEVED' : `${bs.remaining} REMAINING`}
-                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <p className={`text-[8px] sm:text-[9px] font-black px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg inline-block shadow-sm ${bs.remaining === 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}>
+                    {bs.remaining === 0 ? 'GOAL ACHIEVED' : `${bs.remaining} REMAINING`}
+                  </p>
+                  <span className="text-[8px] sm:text-[9px] font-black text-indigo-500 bg-indigo-50 px-2.5 py-1 sm:py-1.5 rounded-lg shadow-sm">
+                    {bs.creatorsCount} CREATORS
+                  </span>
+                </div>
               </div>
               <p className="text-[10px] sm:text-xs font-black text-slate-900 bg-slate-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-slate-100">{Math.round(bs.progress)}%</p>
             </div>
