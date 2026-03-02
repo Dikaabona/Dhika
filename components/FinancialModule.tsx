@@ -17,6 +17,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'PAYROLL' | 'INVOICE' | 'QUOTATION'>('OVERVIEW');
   const [isProcessingPayroll, setIsProcessingPayroll] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [payrollEmployees, setPayrollEmployees] = useState<any[]>([]);
   const [isDisbursing, setIsDisbursing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -182,19 +183,28 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
   };
 
   const handleBulkDisburse = async () => {
-    const totalNeeded = payrollEmployees.reduce((acc, curr) => acc + curr.calculatedTotal, 0);
+    const targetEmployees = payrollEmployees.filter(emp => selectedIds.includes(emp.id));
+    
+    if (targetEmployees.length === 0) {
+      alert("Silakan pilih minimal satu karyawan untuk diproses pembayarannya.");
+      return;
+    }
+
+    const totalNeeded = targetEmployees.reduce((acc, curr) => acc + curr.calculatedTotal, 0);
     if (balance < totalNeeded) {
       alert(`Saldo Flip tidak mencukupi. Dibutuhkan ${formatCurrency(totalNeeded)}, saldo saat ini ${formatCurrency(balance)}.`);
       return;
     }
 
-    if (!confirm(`Konfirmasi pembayaran gaji untuk ${payrollEmployees.length} karyawan dengan total ${formatCurrency(totalNeeded)}?`)) return;
+    if (!confirm(`Konfirmasi pembayaran gaji untuk ${targetEmployees.length} karyawan terpilih dengan total ${formatCurrency(totalNeeded)}?`)) return;
 
     setIsDisbursing(true);
     const updatedEmployees = [...payrollEmployees];
 
     for (let i = 0; i < updatedEmployees.length; i++) {
       const emp = updatedEmployees[i];
+      if (!selectedIds.includes(emp.id)) continue;
+
       try {
         updatedEmployees[i].status = 'SENDING';
         setPayrollEmployees([...updatedEmployees]);
@@ -224,6 +234,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
     alert("Proses payroll selesai!");
     await clearPayrollDraft();
     loadFinanceData();
+    setSelectedIds([]);
   };
 
   const filteredEmployees = useMemo(() => {
@@ -263,13 +274,19 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
   };
 
   const handleSendAllEmails = async () => {
-    if (!confirm(`Kirim slip gaji ke inbox ${payrollEmployees.length} karyawan?`)) return;
+    const targetEmployees = payrollEmployees.filter(emp => selectedIds.includes(emp.id));
+    
+    if (targetEmployees.length === 0) {
+      alert("Silakan pilih minimal satu karyawan untuk dikirim slip gajinya.");
+      return;
+    }
+
+    if (!confirm(`Kirim slip gaji ke inbox ${targetEmployees.length} karyawan terpilih?`)) return;
     setIsSendingEmails(true);
     
     try {
       // Simulate bulk sending to Inbox (Broadcasts)
-      // In a real app, this would be more robust
-      for (const emp of payrollEmployees) {
+      for (const emp of targetEmployees) {
         const newBroadcast = {
           title: `SLIP GAJI ${selectedMonth.toUpperCase()} ${selectedYear}`,
           message: `Halo ${emp.nama}, slip gaji Anda untuk periode ${selectedMonth} ${selectedYear} telah tersedia. Silakan hubungi HR jika ada pertanyaan.`,
@@ -279,12 +296,27 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
         };
         await supabase.from('broadcasts').insert([newBroadcast]);
       }
-      alert("Slip gaji berhasil dikirim ke inbox semua karyawan!");
+      alert(`Slip gaji berhasil dikirim ke inbox ${targetEmployees.length} karyawan!`);
+      setSelectedIds([]); // Clear selection after sending
     } catch (e: any) {
       alert("Gagal mengirim slip: " + e.message);
     } finally {
       setIsSendingEmails(false);
     }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === payrollEmployees.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(payrollEmployees.map(emp => emp.id));
+    }
+  };
+
+  const toggleSelectEmployee = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
   };
 
   return (
@@ -500,7 +532,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
                             className="px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center gap-2"
                           >
                             <Icons.Mail className="w-4 h-4" />
-                            {isSendingEmails ? 'MENGIRIM...' : 'KIRIM SEMUA SLIP'}
+                            {isSendingEmails ? 'MENGIRIM...' : selectedIds.length > 0 ? `KIRIM (${selectedIds.length}) SLIP` : 'KIRIM SLIP'}
                           </button>
                           <button 
                             onClick={clearPayrollDraft}
@@ -513,7 +545,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
                             disabled={isDisbursing || payrollEmployees.length === 0}
                             className="px-10 py-4 bg-[#0f172a] text-[#FFC000] rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:shadow-2xl transition-all disabled:opacity-50"
                           >
-                            {isDisbursing ? 'MEMPROSES...' : `BAYAR ${payrollEmployees.length} KARYAWAN`}
+                            {isDisbursing ? 'MEMPROSES...' : selectedIds.length > 0 ? `BAYAR ${selectedIds.length} KARYAWAN` : `BAYAR ${payrollEmployees.length} KARYAWAN`}
                           </button>
                        </div>
                     </div>
@@ -522,7 +554,15 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
                        <table className="w-full text-left">
                           <thead className="bg-[#f1f5f9]/50 text-[9px] font-black uppercase text-slate-400 border-b border-slate-100">
                              <tr>
-                                <th className="px-10 py-6">KARYAWAN</th>
+                                 <th className="px-6 py-6 text-center">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={selectedIds.length === payrollEmployees.length && payrollEmployees.length > 0}
+                                      onChange={toggleSelectAll}
+                                      className="w-4 h-4 rounded border-slate-200 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                    />
+                                 </th>
+                                 <th className="px-6 py-6">KARYAWAN</th>
                                 <th className="px-6 py-6">REKENING</th>
                                 <th className="px-6 py-6">NOMINAL</th>
                                 <th className="px-6 py-6 text-center">SLIP</th>
@@ -531,7 +571,15 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
                           </thead>
                           <tbody className="divide-y divide-slate-100/50 bg-white">
                              {paginatedEmployees.map((emp, idx) => (
-                               <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
+                               <tr key={emp.id} className={`hover:bg-slate-50 transition-colors ${selectedIds.includes(emp.id) ? 'bg-indigo-50/30' : ''}`}>
+                                   <td className="px-6 py-5 text-center">
+                                      <input 
+                                        type="checkbox" 
+                                        checked={selectedIds.includes(emp.id)}
+                                        onChange={() => toggleSelectEmployee(emp.id)}
+                                        className="w-4 h-4 rounded border-slate-200 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                      />
+                                   </td>
                                   <td className="px-10 py-5">
                                      <p className="text-[11px] font-black text-slate-900 uppercase">{emp.nama}</p>
                                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">{emp.jabatan}</p>
@@ -568,7 +616,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
                              ))}
                              {payrollEmployees.length === 0 && (
                                <tr>
-                                  <td colSpan={5} className="py-24 text-center">
+                                  <td colSpan={6} className="py-24 text-center">
                                      <div className="flex flex-col items-center gap-4 opacity-10">
                                         <Icons.Users className="w-14 h-14" />
                                         <p className="text-[11px] font-black uppercase tracking-[0.4em]">TIDAK ADA DATA KARYAWAN VALID</p>

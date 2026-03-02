@@ -215,19 +215,34 @@ export const App: React.FC = () => {
       setUserCompany(detectedCompany);
       setCurrentUserEmployee(myProfile);
 
-      // Cleanup old photos (older than 14 days)
+      // Cleanup old data (Retention Policy)
       if (activeUserRole === 'owner' || activeUserRole === 'super' || activeUserRole === 'admin') {
         try {
-          const fourteenDaysAgo = new Date();
+          const now = new Date();
+          
+          // 1. Cleanup old photos (older than 14 days)
+          const fourteenDaysAgo = new Date(now);
           fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-          const dateStr = fourteenDaysAgo.toISOString().split('T')[0];
+          const photoDateStr = fourteenDaysAgo.toISOString().split('T')[0];
           
           await supabase
             .from('attendance')
             .update({ photoIn: null, photoOut: null })
-            .lt('date', dateStr);
+            .lt('date', photoDateStr);
+
+          // 2. Cleanup old shifts (older than 21 days / 3 weeks)
+          const twentyOneDaysAgo = new Date(now);
+          twentyOneDaysAgo.setDate(twentyOneDaysAgo.getDate() - 21);
+          const shiftDateStr = twentyOneDaysAgo.toISOString().split('T')[0];
+
+          await supabase
+            .from('shift_assignments')
+            .delete()
+            .lt('date', shiftDateStr)
+            .eq('company', detectedCompany);
+
         } catch (e) {
-          console.error("Gagal membersihkan foto lama:", e);
+          console.error("Gagal membersihkan data lama:", e);
         }
       }
 
@@ -304,8 +319,8 @@ export const App: React.FC = () => {
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(50).then(({data, error}: any) => { if(error) throw error; setSubmissions(data || []); }),
         buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(30).then(({data, error}: any) => { if(error) throw error; setBroadcasts(data || []); }),
         buildQuery('schedules').limit(500).then(({data, error}: any) => { if(error) throw error; setLiveSchedules(data || []); }),
-        buildQuery('content_plans').order('postingDate', { ascending: false }).limit(300).then(({data, error}: any) => { if(error) throw error; setContentPlans(data || []); }),
-        buildQuery('shift_assignments').limit(300).then(({data, error}: any) => { if(error) throw error; setShiftAssignments(data || []); }),
+        buildQuery('content_plans').order('postingDate', { ascending: false }).limit(1000).then(({data, error}: any) => { if(error) throw error; setContentPlans(data || []); }),
+        buildQuery('shift_assignments').order('date', { ascending: false }).limit(3000).then(({data, error}: any) => { if(error) throw error; setShiftAssignments(data || []); }),
         supabase.from('settings').select('value').eq('key', `shifts_config_${companyFilterVal}`).single().then(({data}) => {
           if (data && Array.isArray(data.value)) setShifts(data.value);
           else setShifts(DEFAULT_SHIFTS);

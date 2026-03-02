@@ -395,8 +395,19 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         onclone: (clonedDoc: Document) => {
           const styles = clonedDoc.getElementsByTagName('style');
           for (let i = styles.length - 1; i >= 0; i--) {
-            if (styles[i].innerHTML.includes('oklch')) {
-              styles[i].remove();
+            styles[i].remove();
+          }
+          const links = clonedDoc.getElementsByTagName('link');
+          for (let i = links.length - 1; i >= 0; i--) {
+            if (links[i].rel === 'stylesheet') {
+              links[i].remove();
+            }
+          }
+          const all = clonedDoc.getElementsByTagName('*');
+          for (let i = 0; i < all.length; i++) {
+            const el = all[i] as HTMLElement;
+            if (el.style && el.style.cssText && el.style.cssText.includes('oklch')) {
+              el.style.cssText = el.style.cssText.replace(/oklch\([^)]+\)/g, '#000000');
             }
           }
         }
@@ -440,8 +451,19 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         onclone: (clonedDoc: Document) => {
           const styles = clonedDoc.getElementsByTagName('style');
           for (let i = styles.length - 1; i >= 0; i--) {
-            if (styles[i].innerHTML.includes('oklch')) {
-              styles[i].remove();
+            styles[i].remove();
+          }
+          const links = clonedDoc.getElementsByTagName('link');
+          for (let i = links.length - 1; i >= 0; i--) {
+            if (links[i].rel === 'stylesheet') {
+              links[i].remove();
+            }
+          }
+          const all = clonedDoc.getElementsByTagName('*');
+          for (let i = 0; i < all.length; i++) {
+            const el = all[i] as HTMLElement;
+            if (el.style && el.style.cssText && el.style.cssText.includes('oklch')) {
+              el.style.cssText = el.style.cssText.replace(/oklch\([^)]+\)/g, '#000000');
             }
           }
         }
@@ -555,8 +577,19 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         onclone: (clonedDoc: Document) => {
           const styles = clonedDoc.getElementsByTagName('style');
           for (let i = styles.length - 1; i >= 0; i--) {
-            if (styles[i].innerHTML.includes('oklch')) {
-              styles[i].remove();
+            styles[i].remove();
+          }
+          const links = clonedDoc.getElementsByTagName('link');
+          for (let i = links.length - 1; i >= 0; i--) {
+            if (links[i].rel === 'stylesheet') {
+              links[i].remove();
+            }
+          }
+          const all = clonedDoc.getElementsByTagName('*');
+          for (let i = 0; i < all.length; i++) {
+            const el = all[i] as HTMLElement;
+            if (el.style && el.style.cssText && el.style.cssText.includes('oklch')) {
+              el.style.cssText = el.style.cssText.replace(/oklch\([^)]+\)/g, '#000000');
             }
           }
         }
