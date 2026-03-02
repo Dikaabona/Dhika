@@ -57,12 +57,11 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
       const updatedPayroll = payrollEmployees.map(pEmp => {
         const latest = employees.find(e => e.id === pEmp.id);
         if (latest) {
-          // Sync debt and salary config
+          // Sync all fields from latest employee data, but preserve status from draft
           const config = latest.salaryConfig || {};
           return {
-            ...pEmp,
-            hutang: latest.hutang,
-            salaryConfig: config,
+            ...latest,
+            status: pEmp.status || 'READY',
             calculatedTotal: calculateTotalSalary(config, latest.hutang)
           };
         }
@@ -76,7 +75,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
         savePayrollDraft(updatedPayroll);
       }
     }
-  }, [employees, isProcessingPayroll]);
+  }, [employees, isProcessingPayroll, payrollEmployees]);
 
   useEffect(() => {
     loadFinanceData();
@@ -546,7 +545,10 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
                                   </td>
                                   <td className="px-6 py-5 text-center">
                                      <button 
-                                       onClick={() => setShowSlipModal({ employee: emp })}
+                                       onClick={() => {
+                                         const latestEmp = employees.find(e => e.id === emp.id) || emp;
+                                         setShowSlipModal({ employee: latestEmp });
+                                       }}
                                        className="p-2 bg-slate-100 hover:bg-[#FFC000] hover:text-black rounded-lg transition-all text-slate-400"
                                      >
                                        <Icons.FileText className="w-4 h-4" />

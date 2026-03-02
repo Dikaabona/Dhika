@@ -22,6 +22,39 @@ const ALPHA_START_DATE = '2025-01-01';
 
 const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceRecords, userRole, onClose, onUpdate, weeklyHolidays, positionRates = [] }) => {
   const isReadOnlyRole = userRole === 'admin' || userRole === 'employee';
+  const [currentEmployee, setCurrentEmployee] = useState(employee);
+
+  const handleRefreshEmployee = async () => {
+    try {
+      const { data: latest, error } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('id', employee.id)
+        .single();
+      
+      if (latest) {
+        setCurrentEmployee(latest);
+        setData(prev => ({
+          ...prev,
+          gapok: latest.salaryConfig?.gapok ?? prev.gapok,
+          tunjanganMakan: latest.salaryConfig?.tunjanganMakan ?? prev.tunjanganMakan,
+          tunjanganTransport: latest.salaryConfig?.tunjanganTransport ?? prev.tunjanganTransport,
+          tunjanganKomunikasi: latest.salaryConfig?.tunjanganKomunikasi ?? prev.tunjanganKomunikasi,
+          tunjanganKesehatan: latest.salaryConfig?.tunjanganKesehatan ?? prev.tunjanganKesehatan,
+          tunjanganJabatan: latest.salaryConfig?.tunjanganJabatan ?? prev.tunjanganJabatan,
+          bpjstk: latest.salaryConfig?.bpjstk ?? prev.bpjstk,
+          pph21: latest.salaryConfig?.pph21 ?? prev.pph21,
+          lembur: latest.salaryConfig?.lembur ?? prev.lembur,
+          bonus: latest.salaryConfig?.bonus ?? prev.bonus,
+          thr: latest.salaryConfig?.thr ?? prev.thr,
+          potonganHutang: Math.min(latest.hutang || 0, latest.salaryConfig?.potonganHutang ?? prev.potonganHutang),
+          potonganLain: latest.salaryConfig?.potonganLain ?? prev.potonganLain,
+          totalHutang: latest.hutang || 0
+        }));
+        if (onUpdate) onUpdate();
+      }
+    } catch (e) {}
+  };
 
   const getActivePayrollMonthInfo = () => {
     const now = new Date();
@@ -358,7 +391,15 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         x: 0,
         y: 0,
         scrollX: 0,
-        scrollY: 0
+        scrollY: 0,
+        onclone: (clonedDoc: Document) => {
+          const styles = clonedDoc.getElementsByTagName('style');
+          for (let i = styles.length - 1; i >= 0; i--) {
+            if (styles[i].innerHTML.includes('oklch')) {
+              styles[i].remove();
+            }
+          }
+        }
       });
       
       const link = document.createElement('a');
@@ -395,7 +436,15 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         width: 794, 
         windowWidth: 794,
         x: 0,
-        y: 0
+        y: 0,
+        onclone: (clonedDoc: Document) => {
+          const styles = clonedDoc.getElementsByTagName('style');
+          for (let i = styles.length - 1; i >= 0; i--) {
+            if (styles[i].innerHTML.includes('oklch')) {
+              styles[i].remove();
+            }
+          }
+        }
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
@@ -430,7 +479,14 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
 
         const subject = `Slip Gaji ${employee.nama} - ${data.month} ${data.year}`;
         const body = `Halo ${employee.nama},\n\nSlip gaji Anda untuk periode ${data.month} ${data.year} telah berhasil di-generate sebagai PDF (terunduh otomatis).\n\nSilakan lampirkan file tersebut pada email ini.\n\nTotal Gaji Bersih: Rp ${takeHomePay.toLocaleString('id-ID')}\n\nSalam,\nHR Visibel ID`;
-        window.location.href = `mailto:${employee.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        
+        const recipientEmail = (currentEmployee.email || '').trim();
+        
+        if (!recipientEmail) {
+          alert("Email karyawan belum diatur. Silakan lengkapi di Database Karyawan agar email penerima dapat terisi otomatis.");
+        } else {
+          window.location.href = `mailto:${recipientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        }
         
         alert("Slip Gaji PDF berhasil di-generate and diunduh. Silakan lampirkan secara manual ke draf email yang terbuka.");
       }
@@ -495,7 +551,15 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         x: 0,
         y: 0,
         scrollX: 0,
-        scrollY: 0
+        scrollY: 0,
+        onclone: (clonedDoc: Document) => {
+          const styles = clonedDoc.getElementsByTagName('style');
+          for (let i = styles.length - 1; i >= 0; i--) {
+            if (styles[i].innerHTML.includes('oklch')) {
+              styles[i].remove();
+            }
+          }
+        }
       });
       const pngBase64 = canvas.toDataURL('image/png');
 
@@ -523,7 +587,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const SalarySlipContent = () => {
     const slipLogo = companyDetails?.logo || ((employee.company || '').toLowerCase() === 'seller space' ? SELLER_SPACE_LOGO : VISIBEL_LOGO);
     return (
-      <div className="bg-white" style={{ width: '794px', height: '1122px', position: 'relative', overflow: 'hidden', color: '#0f172a', boxSizing: 'border-box' }}>
+      <div style={{ width: '794px', height: '1122px', position: 'relative', overflow: 'hidden', color: '#0f172a', boxSizing: 'border-box', backgroundColor: '#ffffff' }}>
         <div style={{ padding: '20px 60px 30px 60px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '2px solid #000', paddingBottom: '10px', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -606,9 +670,24 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     <div className="fixed inset-0 bg-[#0f172a]/90 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-[200]">
       <div className="bg-white rounded-[32px] sm:rounded-[40px] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[94vh] animate-in zoom-in-95 duration-300 border border-white/10">
         <div className="p-4 sm:p-6 border-b bg-[#0f172a] text-white flex justify-between items-center shrink-0">
-          <div>
-            <h2 className="text-lg sm:text-xl font-black tracking-tight uppercase leading-none text-white">KALKULASI PAYROLL</h2>
-            <p className="text-[#FFC000] text-[8px] sm:text-[9px] mt-1.5 uppercase font-black tracking-widest opacity-90">{employee.nama} • {data.month} {data.year}</p>
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center overflow-hidden border border-white/20 shrink-0">
+              {currentEmployee.photoBase64 || currentEmployee.avatarUrl ? (
+                <img src={currentEmployee.photoBase64 || currentEmployee.avatarUrl} className="w-full h-full object-cover" alt={currentEmployee.nama} />
+              ) : (
+                <Icons.Users className="w-5 h-5 text-white/40" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm sm:text-base font-black tracking-tight uppercase leading-none text-white">{currentEmployee.nama}</h2>
+                <button onClick={handleRefreshEmployee} className="p-1 hover:bg-white/10 rounded-full transition-colors" title="Refresh Data">
+                  <Icons.RefreshCw className="w-3 h-3 text-[#FFC000]" />
+                </button>
+              </div>
+              <p className="text-[#FFC000] text-[8px] sm:text-[9px] mt-1 uppercase font-black tracking-widest opacity-90">{currentEmployee.idKaryawan} • {currentEmployee.jabatan}</p>
+              {currentEmployee.email && <p className="text-[7px] text-slate-400 font-bold lowercase leading-none mt-0.5">{currentEmployee.email}</p>}
+            </div>
           </div>
           <button onClick={onClose} className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-all text-white/40 hover:text-white">
             <span className="text-2xl leading-none font-light">&times;</span>
@@ -924,8 +1003,8 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
 
       {isPreview && (
         <div className="fixed inset-0 bg-slate-100 z-[210] p-3 sm:p-10 overflow-y-auto">
-          <div className="max-w-[800px] mx-auto shadow-2xl bg-white mb-32 rounded-xl overflow-hidden scale-[0.9] sm:scale-100 origin-top">
-            <div ref={previewSlipRef} className="p-0 sm:p-0">{SalarySlipContent()}</div>
+          <div className="max-w-[800px] mx-auto shadow-2xl bg-white mb-32 rounded-xl overflow-hidden scale-[0.9] sm:scale-100 origin-top" style={{ backgroundColor: '#ffffff' }}>
+            <div ref={previewSlipRef}>{SalarySlipContent()}</div>
           </div>
           <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex gap-3 sm:gap-4 bg-white/95 backdrop-blur-xl px-6 sm:px-10 py-4 sm:py-5 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-white/50 z-[220] flex-wrap justify-center items-center w-max">
             <button type="button" onClick={() => setIsPreview(false)} className="px-5 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 transition-colors">TUTUP</button>

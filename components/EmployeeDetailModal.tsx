@@ -8,6 +8,7 @@ interface EmployeeDetailModalProps {
   employee: Employee;
   userRole: string;
   onClose: () => void;
+  onUpdate?: () => void;
 }
 
 interface InfoRowProps {
@@ -85,7 +86,7 @@ const SectionHeader = ({ title, icon: Icon }: { title: string; icon: any }) => (
   </div>
 );
 
-const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, userRole, onClose }) => {
+const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, userRole, onClose, onUpdate }) => {
   const [activeSubView, setActiveSubView] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedEmployee, setEditedEmployee] = useState<Employee>(employee);
@@ -138,11 +139,13 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, use
         masaProbation: editedEmployee.masaProbation,
         bpjsKetenagakerjaan: editedEmployee.bpjsKetenagakerjaan,
         bpjsKesehatan: editedEmployee.bpjsKesehatan,
+        email: editedEmployee.email,
         resigned_at: editedEmployee.resigned_at
       }).eq('id', employee.id);
 
       if (error) throw error;
       setIsEditing(false);
+      if (onUpdate) onUpdate();
       alert('Data berhasil diperbarui');
     } catch (err: any) {
       alert('Gagal menyimpan: ' + err.message);
@@ -195,6 +198,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, use
               <SectionHeader title="Informasi kepegawaian" icon={Icons.Briefcase} />
               <div className="p-5 space-y-1">
                 <InfoRow label="NIK" value={editedEmployee.idKaryawan} field="idKaryawan" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
+                <InfoRow label="Email" value={editedEmployee.email} field="email" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
                 <InfoRow label="Tanggal masuk kerja" value={editedEmployee.tanggalMasuk} field="tanggalMasuk" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
                 <InfoRow label="Kontrak berakhir" value={editedEmployee.resigned_at || ''} field="resigned_at" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
                 <InfoRow label="Status karyawan" value={editedEmployee.statusKaryawan} field="statusKaryawan" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
