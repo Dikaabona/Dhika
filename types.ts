@@ -298,5 +298,64 @@ export interface Client {
   created_at?: string;
 }
 
-export type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'content_report' | 'submissions' | 'inbox' | 'settings' | 'shift' | 'minvis' | 'kpi' | 'inventory' | 'calendar' | 'live_map' | 'finance' | 'invoice' | 'mobile_history' | 'profile';
+export interface Account {
+  id: string;
+  code: string;
+  name: string;
+  category: 'Asset' | 'Liability' | 'Equity' | 'Revenue' | 'Expense';
+  normalBalance: 'Debit' | 'Credit';
+  company: string;
+}
+
+export interface JournalItem {
+  id: string;
+  accountId: string;
+  accountName: string;
+  debit: number;
+  credit: number;
+}
+
+export interface JournalEntry {
+  id: string;
+  date: string;
+  description: string;
+  reference?: string;
+  items: JournalItem[];
+  company: string;
+  type: 'General' | 'Purchase' | 'Sale' | 'Adjustment' | 'Closing';
+}
+
+export interface FixedAsset {
+  id: string;
+  name: string;
+  purchaseDate: string;
+  purchasePrice: number;
+  salvageValue: number;
+  usefulLifeYears: number;
+  depreciationMethod: 'Straight Line';
+  company: string;
+  category: string;
+}
+
+export interface PurchaseRecord {
+  id: string;
+  date: string;
+  supplierName: string;
+  items: { description: string; qty: number; unitPrice: number; total: number }[];
+  totalAmount: number;
+  status: 'Paid' | 'Unpaid';
+  company: string;
+}
+
+export interface SaleRecord {
+  id: string;
+  date: string;
+  customerName: string;
+  items: { description: string; qty: number; unitPrice: number; total: number }[];
+  totalAmount: number;
+  status: 'Paid' | 'Unpaid';
+  company: string;
+}
+
+export type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'content_report' | 'submissions' | 'inbox' | 'settings' | 'shift' | 'minvis' | 'kpi' | 'inventory' | 'calendar' | 'live_map' | 'finance' | 'invoice' | 'mobile_history' | 'profile' | 'accounting';
 export type UserRole = 'owner' | 'super' | 'admin' | 'employee';

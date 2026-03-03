@@ -27,6 +27,7 @@ import EmployeeDetailModal from './components/EmployeeDetailModal.tsx';
 import MobileAttendanceHistory from './components/MobileAttendanceHistory.tsx';
 import LiveMapModule from './components/LiveMapModule.tsx';
 import FinancialModule from './components/FinancialModule.tsx';
+import AccountingModule from './components/AccountingModule.tsx';
 import { InvoiceModule } from './components/InvoiceModule.tsx';
 import { getTenureYears, calculateTenure, formatDateToYYYYMMDD, getMondayISO } from './utils/dateUtils.ts';
 
@@ -748,6 +749,9 @@ export const App: React.FC = () => {
         {(isHighAdminAccess || session?.user?.email === 'wida.oktapiani99@gmail.com') && (
           <button onClick={() => setActiveTab('finance')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'finance' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>FINANCE</button>
         )}
+        {isHighAdminAccess && (
+          <button onClick={() => setActiveTab('accounting')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'accounting' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>AKUNTANSI</button>
+        )}
         {isAdminAccess && (
           <button onClick={() => setActiveTab('inventory')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'inventory' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>ASET</button>
         )}
@@ -901,6 +905,8 @@ export const App: React.FC = () => {
                 <LiveMapModule employees={employees} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'finance' ? (
                 <FinancialModule company={userCompany} employees={employees} onClose={() => setActiveTab('home')} />
+              ) : activeTab === 'accounting' ? (
+                <AccountingModule company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'inventory' ? (
                 <InventoryModule company={userCompany} userRole={userRole} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'calendar' ? (
