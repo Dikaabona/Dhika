@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { Employee, SalaryData, AttendanceRecord, Broadcast } from '../types';
+import { Employee, SalaryData, AttendanceRecord, Broadcast, AttendanceSettings } from '../types';
 import { Icons } from '../constants';
 import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
 import { supabase } from '../App';
@@ -47,6 +47,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           lembur: latest.salaryConfig?.lembur ?? prev.lembur,
           bonus: latest.salaryConfig?.bonus ?? prev.bonus,
           thr: latest.salaryConfig?.thr ?? prev.thr,
+          workingDays: latest.salaryConfig?.workingDays ?? prev.workingDays,
           potonganHutang: Math.min(latest.hutang || 0, latest.salaryConfig?.potonganHutang ?? prev.potonganHutang),
           potonganLain: latest.salaryConfig?.potonganLain ?? prev.potonganLain,
           totalHutang: latest.hutang || 0
@@ -85,6 +86,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     lembur: employee.salaryConfig?.lembur ?? 0,
     bonus: employee.salaryConfig?.bonus ?? 0,
     thr: employee.salaryConfig?.thr ?? 0,
+    workingDays: employee.salaryConfig?.workingDays ?? 26,
     potonganHutang: Math.min(employee.hutang || 0, employee.salaryConfig?.potonganHutang ?? 0),
     potonganLain: employee.salaryConfig?.potonganLain ?? 0,
     totalHutang: employee.hutang || 0,
@@ -99,6 +101,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const hiddenSlipRef = useRef<HTMLDivElement>(null);
 
   const [companyDetails, setCompanyDetails] = useState<any>(null);
+  const [settings, setSettings] = useState<AttendanceSettings | null>(null);
 
   useEffect(() => {
     const fetchCompany = async () => {
@@ -109,7 +112,16 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         }
       } catch (e) {}
     };
+    const fetchSettings = async () => {
+      try {
+        const { data } = await supabase.from('settings').select('value').eq('key', `attendance_settings_${employee.company}`).maybeSingle();
+        if (data && data.value) {
+          setSettings(data.value);
+        }
+      } catch (e) {}
+    };
     fetchCompany();
+    fetchSettings();
   }, [employee.company]);
 
   const formatCurrencyValue = (num: number) => {
@@ -159,8 +171,12 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const attendanceResults = useMemo(() => {
     const targetMonthIdx = monthMap[data.month] ?? 0;
     const targetYear = parseInt(data.year);
-    const rangeStart = new Date(targetYear, targetMonthIdx - 1, 29);
-    const rangeEnd = new Date(targetYear, targetMonthIdx, 28);
+    
+    const cutoffStart = employee.salaryConfig?.cutoffStart || settings?.payrollCutoffStart || 26;
+    const cutoffEnd = employee.salaryConfig?.cutoffEnd || settings?.payrollCutoffEnd || 25;
+
+    const rangeStart = new Date(targetYear, targetMonthIdx - 1, cutoffStart);
+    const rangeEnd = new Date(targetYear, targetMonthIdx, cutoffEnd);
     rangeStart.setHours(0, 0, 0, 0);
     rangeEnd.setHours(23, 59, 59, 999);
 
@@ -299,12 +315,22 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
 
   const totalTunjanganOps = (data.tunjanganMakan || 0) + (data.tunjanganTransport || 0) + (data.tunjanganKomunikasi || 0) + (data.tunjanganKesehatan || 0) + (data.tunjanganJabatan || 0);
   
+  const isDaily = currentEmployee.salaryConfig?.type === 'daily';
+  const effectiveGapok = isDaily ? (data.gapok || 0) * (data.workingDays || 0) : (data.gapok || 0);
+
   const potonganAbsensi = useMemo(() => {
+    if (isDaily) return 0;
     const dailyRate = (data.gapok || 0) / 26;
     return Math.round((attendanceResults.alpha || 0) * dailyRate);
-  }, [data.gapok, attendanceResults.alpha]);
+  }, [data.gapok, attendanceResults.alpha, isDaily]);
 
-  const totalPendapatan = (data.gapok || 0) + totalTunjanganOps + (data.lembur || 0) + (data.bonus || 0) + (data.thr || 0);
+  useEffect(() => {
+    if (isDaily && attendanceResults.hadir > 0) {
+      setData(prev => ({ ...prev, workingDays: attendanceResults.hadir }));
+    }
+  }, [isDaily, attendanceResults.hadir]);
+
+  const totalPendapatan = effectiveGapok + totalTunjanganOps + (data.lembur || 0) + (data.bonus || 0) + (data.thr || 0);
 
   const autoBPJS = useMemo(() => Math.round(totalPendapatan * 0.02), [totalPendapatan]);
 
@@ -320,7 +346,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const sisaHutang = Math.max(0, (data.totalHutang || 0) - (data.potonganHutang || 0));
 
   const handleAutoCalculateTHR = () => {
-    const totalFixed = (data.gapok || 0) + totalTunjanganOps;
+    const totalFixed = effectiveGapok + totalTunjanganOps;
     const { totalMonths } = tenureInfo;
     let thr = 0;
     if (totalMonths >= 12) {
@@ -341,6 +367,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     try {
       const configToSave = {
         gapok: data.gapok,
+        workingDays: data.workingDays,
         tunjanganMakan: data.tunjanganMakan,
         tunjanganTransport: data.tunjanganTransport,
         tunjanganKomunikasi: data.tunjanganKomunikasi,
@@ -749,7 +776,9 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
             </div>
 
             <div className="space-y-2">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Gaji Pokok</label>
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">
+                {isDaily ? 'Gaji Per Hari' : 'Gaji Pokok'}
+              </label>
               <div className="relative group p-0.5 border border-dashed border-rose-200 rounded-[24px]">
                 <input 
                   type="text" 
@@ -761,6 +790,27 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                 <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 font-black text-sm pointer-events-none block">Rp</span>
               </div>
             </div>
+
+            {isDaily && (
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Jumlah Hari Kerja</label>
+                <div className="relative group p-0.5 border border-dashed border-indigo-200 rounded-[24px]">
+                  <input 
+                    type="number" 
+                    disabled={isReadOnlyRole} 
+                    value={data.workingDays} 
+                    onChange={e => setData({...data, workingDays: parseInt(e.target.value) || 0})} 
+                    className="w-full bg-[#f8fafc] border border-slate-100 rounded-[22px] py-4 pl-12 sm:py-5 sm:pl-20 text-xl sm:text-2xl font-black text-indigo-600 outline-none shadow-inner focus:border-[#FFC000] focus:bg-white transition-all disabled:opacity-60" 
+                  />
+                  <Icons.Calendar className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 w-6 h-6 pointer-events-none block" />
+                  <span className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-300 font-black text-xs pointer-events-none">HARI</span>
+                </div>
+                <div className="flex justify-between px-2">
+                   <p className="text-[9px] font-bold text-slate-400 uppercase">Total Gaji Pokok: </p>
+                   <p className="text-[10px] font-black text-indigo-600">Rp {effectiveGapok.toLocaleString('id-ID')}</p>
+                </div>
+              </div>
+            )}
 
             <div className="bg-sky-50/40 p-4 sm:p-6 rounded-[32px] border border-sky-100 space-y-4">
               <div className="flex items-center gap-2">

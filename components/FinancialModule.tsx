@@ -8,10 +8,11 @@ import SalarySlipModal from './SalarySlipModal';
 interface FinancialModuleProps {
   company: string;
   employees: any[];
+  attendanceRecords: any[];
   onClose: () => void;
 }
 
-const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, onClose }) => {
+const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, attendanceRecords, onClose }) => {
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -28,6 +29,15 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
   const [showSlipModal, setShowSlipModal] = useState<{ employee: any } | null>(null);
   const [isSendingEmails, setIsSendingEmails] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [settings, setSettings] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      const { data } = await supabase.from('settings').select('value').eq('key', `attendance_settings_${company}`).maybeSingle();
+      if (data && data.value) setSettings(data.value);
+    };
+    fetchSettings();
+  }, [company]);
 
   const monthOptions = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -36,9 +46,37 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
 
   const yearOptions = ['2024', '2025', '2026'];
 
-  const calculateTotalSalary = (config: any, hutang: number = 0) => {
+  const calculateTotalSalary = (config: any, hutang: number = 0, empId?: string) => {
     const actualPotonganHutang = Math.min(hutang, config.potonganHutang || 0);
-    return (config.gapok || 0) + 
+    const isDaily = config.type === 'daily';
+    
+    let workingDays = config.workingDays || 26;
+    if (isDaily && empId && settings) {
+      const monthIdx = monthOptions.indexOf(selectedMonth);
+      if (monthIdx !== -1) {
+        const cutoffStart = config.cutoffStart || settings.payrollCutoffStart || 26;
+        const cutoffEnd = config.cutoffEnd || settings.payrollCutoffEnd || 25;
+        const yearNum = parseInt(selectedYear);
+        
+        const rangeStart = new Date(yearNum, monthIdx - 1, cutoffStart);
+        const rangeEnd = new Date(yearNum, monthIdx, cutoffEnd);
+        const startStr = rangeStart.toISOString().split('T')[0];
+        const endStr = rangeEnd.toISOString().split('T')[0];
+
+        const hadirCount = attendanceRecords.filter(r => 
+          r.employeeId === empId && 
+          r.date >= startStr && 
+          r.date <= endStr && 
+          (r.status === 'Hadir' || (r.notes && r.notes.toUpperCase().includes('JAM:')))
+        ).length;
+        
+        workingDays = hadirCount;
+      }
+    }
+
+    const effectiveGapok = isDaily ? (config.gapok || 0) * workingDays : (config.gapok || 0);
+
+    return effectiveGapok + 
            (config.tunjanganMakan || 0) + 
            (config.tunjanganTransport || 0) + 
            (config.tunjanganKomunikasi || 0) + 
@@ -63,7 +101,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
           return {
             ...latest,
             status: pEmp.status || 'READY',
-            calculatedTotal: calculateTotalSalary(config, latest.hutang)
+            calculatedTotal: calculateTotalSalary(config, latest.hutang, latest.id)
           };
         }
         return pEmp;
@@ -254,7 +292,6 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
 
   const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
 
-  const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
   const [positionRates, setPositionRates] = useState<any[]>([]);
 
   useEffect(() => {
@@ -265,9 +302,6 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, o
 
   const fetchAttendanceAndRates = async () => {
     try {
-      const { data: att } = await supabase.from('attendance').select('*').eq('company', company);
-      setAttendanceRecords(att || []);
-      
       const { data: rates } = await supabase.from('settings').select('value').eq('key', 'position_rates').single();
       setPositionRates(rates?.value || []);
     } catch (e) {}

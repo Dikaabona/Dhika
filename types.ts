@@ -125,6 +125,8 @@ export interface AttendanceSettings {
   radius: number;
   allowRemote: boolean;
   branches?: Branch[];
+  payrollCutoffStart?: number;
+  payrollCutoffEnd?: number;
 }
 
 export interface Submission {
@@ -222,7 +224,11 @@ export type SortOrder = 'asc' | 'desc';
 export interface SalaryData {
   month: string;
   year: string;
+  type?: 'daily' | 'monthly';
   gapok: number;
+  workingDays?: number;
+  cutoffStart?: number;
+  cutoffEnd?: number;
   tunjanganMakan: number;
   tunjanganTransport: number;
   tunjanganKomunikasi: number;

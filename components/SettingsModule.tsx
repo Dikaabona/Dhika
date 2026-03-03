@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icons } from '../constants';
 import { supabase } from '../App';
-import { AttendanceSettings, Employee, Branch } from '../types';
+import { AttendanceSettings, Employee, Branch, SalaryData } from '../types';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
@@ -22,7 +22,7 @@ interface SettingsModuleProps {
   onRefresh: () => void;
 }
 
-type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT' | 'COMPANY';
+type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT' | 'COMPANY' | 'GAJI';
 
 interface CustomCriteria {
   id: string;
@@ -99,6 +99,9 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isEditingCompany, setIsEditingCompany] = useState(false);
+  const [isEditingOvertime, setIsEditingOvertime] = useState(false);
+  const [isEditingSalary, setIsEditingSalary] = useState(false);
   const [searchEmp, setSearchEmp] = useState('');
   const [searchRemote, setSearchRemote] = useState('');
 
@@ -407,6 +410,29 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     }
   };
 
+  const handleUpdateSalaryConfig = async (empId: string, updates: Partial<SalaryData>) => {
+    const emp = employees.find(e => e.id === empId);
+    if (!emp) return;
+    
+    const updatedSalaryConfig = {
+      ...(emp.salaryConfig || {}),
+      ...updates
+    };
+
+    try {
+      const { error } = await supabase
+        .from('employees')
+        .update({ salaryConfig: updatedSalaryConfig })
+        .eq('id', empId);
+
+      if (error) throw error;
+      setEmployees(prev => prev.map(e => e.id === empId ? { ...e, salaryConfig: updatedSalaryConfig as any } : e));
+      onRefresh();
+    } catch (err: any) {
+      alert("Gagal memperbarui konfigurasi gaji: " + err.message);
+    }
+  };
+
   const handleAddClient = async () => {
     if (!newClient.namaPic || !newClient.namaBrand) {
       alert("Nama PIC dan Nama Brand wajib diisi!");
@@ -656,6 +682,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                   LEMBUR
                 </button>
                 <button 
+                  onClick={() => setActiveSubTab('GAJI')} 
+                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'GAJI' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  GAJI
+                </button>
+                <button 
                   onClick={() => setActiveSubTab('MAPS')} 
                   className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'MAPS' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                 >
@@ -679,11 +711,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
             </div>
           </div>
           
-          {(activeSubTab !== 'DIVISI' && activeSubTab !== 'LEMBUR' && activeSubTab !== 'CLIENT') && (
+          {(activeSubTab !== 'DIVISI' && activeSubTab !== 'LEMBUR' && activeSubTab !== 'CLIENT' && activeSubTab !== 'GAJI') && (
             <button 
               onClick={
                 activeSubTab === 'KPI' ? () => handleSaveKPISystem(kpiSystem) : 
-                activeSubTab === 'COMPANY' ? () => saveSettingsToCloud(`company_details_${isOwner ? selectedCompany : userCompany}`, companyData).then(() => alert("Data Perusahaan berhasil disimpan!")) :
+                activeSubTab === 'COMPANY' ? () => saveSettingsToCloud(`company_details_${isOwner ? selectedCompany : userCompany}`, companyData).then(() => { alert("Data Perusahaan berhasil disimpan!"); setIsEditingCompany(false); }) :
                 handleSaveSettings
               }
               disabled={isSaving}
@@ -694,7 +726,175 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
           )}
         </div>
 
-        {activeSubTab === 'MAPS' ? (
+        {activeSubTab === 'GAJI' ? (
+          <div className="animate-in fade-in duration-300 space-y-12">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div className="space-y-2">
+                 <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Konfigurasi Tipe Gaji Karyawan</h3>
+                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tentukan apakah karyawan dibayar per bulan atau per hari.</p>
+              </div>
+              {!isEditingSalary ? (
+                <button 
+                  onClick={() => setIsEditingSalary(true)}
+                  className="bg-white border-2 border-slate-100 text-slate-900 px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-50 transition-all flex items-center gap-2"
+                >
+                  <Icons.Edit className="w-4 h-4" /> EDIT DATA
+                </button>
+              ) : (
+                <button 
+                  onClick={() => {
+                    setIsEditingSalary(false);
+                    alert("Konfigurasi Gaji berhasil disimpan!");
+                  }}
+                  className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl active:scale-95 transition-all flex items-center gap-3"
+                >
+                  <Icons.Check className="w-4 h-4" /> SELESAI
+                </button>
+              )}
+            </div>
+
+            <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100">
+               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                  <div className="relative flex-grow max-w-md">
+                    <Icons.Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                    <input 
+                      type="text" 
+                      placeholder="CARI NAMA KARYAWAN..." 
+                      value={searchEmp}
+                      onChange={e => { setSearchEmp(e.target.value); setCurrentPage(1); }}
+                      className="w-full bg-white border border-slate-200 pl-11 pr-4 py-3 rounded-2xl text-[11px] font-black uppercase text-black outline-none focus:ring-4 focus:ring-[#FFC000]/10"
+                    />
+                  </div>
+               </div>
+
+               <div className="overflow-x-auto">
+                 <table className="w-full">
+                   <thead>
+                     <tr className="border-b border-slate-200">
+                       <th className="text-left py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Karyawan</th>
+                       <th className="text-left py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Jabatan</th>
+                       <th className="text-center py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Gaji</th>
+                       <th className="text-center py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nominal</th>
+                       <th className="text-center py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cut Off</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-100">
+                     {paginatedEmployees.map(emp => (
+                       <tr key={emp.id} className="hover:bg-white/50 transition-colors">
+                         <td className="py-4 px-4">
+                           <div className="flex items-center gap-3">
+                             <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                               {emp.photoBase64 || emp.avatarUrl ? (
+                                 <img src={emp.photoBase64 || emp.avatarUrl} className="w-full h-full object-cover" alt={emp.nama} />
+                               ) : (
+                                 <Icons.User className="w-4 h-4 text-slate-400" />
+                               )}
+                             </div>
+                             <div>
+                               <p className="text-[11px] font-black text-slate-900 uppercase leading-none mb-1">{emp.nama}</p>
+                               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{emp.idKaryawan}</p>
+                             </div>
+                           </div>
+                         </td>
+                         <td className="py-4 px-4">
+                           <span className="text-[10px] font-bold text-slate-600 uppercase">{emp.jabatan}</span>
+                         </td>
+                         <td className="py-4 px-4">
+                           <div className="flex items-center justify-center gap-2">
+                             <button
+                               disabled={!isEditingSalary}
+                               onClick={() => handleUpdateSalaryConfig(emp.id, { type: 'monthly' })}
+                               className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                                 emp.salaryConfig?.type === 'monthly' || !emp.salaryConfig?.type
+                                   ? 'bg-[#0f172a] text-white shadow-lg'
+                                   : 'bg-white text-slate-400 border border-slate-200 hover:text-slate-600'
+                               } disabled:opacity-50`}
+                             >
+                               BULANAN
+                             </button>
+                             <button
+                               disabled={!isEditingSalary}
+                               onClick={() => handleUpdateSalaryConfig(emp.id, { type: 'daily' })}
+                               className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                                 emp.salaryConfig?.type === 'daily'
+                                   ? 'bg-emerald-600 text-white shadow-lg'
+                                   : 'bg-white text-slate-400 border border-slate-200 hover:text-slate-600'
+                               } disabled:opacity-50`}
+                             >
+                               HARIAN
+                             </button>
+                           </div>
+                         </td>
+                         <td className="py-4 px-4">
+                            <div className="relative max-w-[160px] mx-auto">
+                               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 font-black text-[10px]">Rp</span>
+                               <input 
+                                  type="text"
+                                  disabled={!isEditingSalary}
+                                  value={new Intl.NumberFormat('id-ID').format(emp.salaryConfig?.gapok || 0)}
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(/\D/g, '');
+                                    handleUpdateSalaryConfig(emp.id, { gapok: parseInt(val) || 0 });
+                                  }}
+                                  className="w-full bg-white border border-slate-200 pl-8 pr-3 py-2 rounded-xl text-[11px] font-black text-black outline-none focus:border-[#FFC000] transition-all disabled:opacity-50"
+                               />
+                            </div>
+                         </td>
+                         <td className="py-4 px-4">
+                            <div className="flex items-center justify-center gap-2">
+                               <input 
+                                  type="number"
+                                  min="1"
+                                  max="31"
+                                  disabled={!isEditingSalary}
+                                  value={emp.salaryConfig?.cutoffStart || 26}
+                                  onChange={(e) => handleUpdateSalaryConfig(emp.id, { cutoffStart: parseInt(e.target.value) || 26 })}
+                                  className="w-12 bg-white border border-slate-200 px-1 py-1 rounded-lg text-[10px] font-black text-black text-center outline-none focus:border-[#FFC000] disabled:opacity-50"
+                                  title="Mulai"
+                               />
+                               <span className="text-slate-300">-</span>
+                               <input 
+                                  type="number"
+                                  min="1"
+                                  max="31"
+                                  disabled={!isEditingSalary}
+                                  value={emp.salaryConfig?.cutoffEnd || 25}
+                                  onChange={(e) => handleUpdateSalaryConfig(emp.id, { cutoffEnd: parseInt(e.target.value) || 25 })}
+                                  className="w-12 bg-white border border-slate-200 px-1 py-1 rounded-lg text-[10px] font-black text-black text-center outline-none focus:border-[#FFC000] disabled:opacity-50"
+                                  title="Selesai"
+                               />
+                            </div>
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+
+               {totalPages > 1 && (
+                 <div className="flex items-center justify-between mt-8 pt-6 border-t border-slate-200">
+                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Halaman {currentPage} dari {totalPages}</span>
+                   <div className="flex gap-2">
+                     <button 
+                       disabled={currentPage === 1}
+                       onClick={() => setCurrentPage(p => p - 1)}
+                       className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 flex items-center justify-center transition-all shadow-sm"
+                     >
+                       <Icons.ChevronDown className="w-5 h-5 rotate-90" />
+                     </button>
+                     <button 
+                       disabled={currentPage === totalPages}
+                       onClick={() => setCurrentPage(p => p + 1)}
+                       className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 flex items-center justify-center transition-all shadow-sm"
+                     >
+                       <Icons.ChevronDown className="w-5 h-5 -rotate-90" />
+                     </button>
+                   </div>
+                 </div>
+               )}
+            </div>
+          </div>
+        ) : activeSubTab === 'MAPS' ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in fade-in duration-300">
             {/* Left Column: Branch List & Remote Permissions */}
             <div className="lg:col-span-4 space-y-6">
@@ -957,6 +1157,14 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                   <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Data Profil Perusahaan</h3>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Informasi resmi yang akan tampil pada invoice dan dokumen perusahaan.</p>
                </div>
+               {!isEditingCompany && (
+                 <button 
+                   onClick={() => setIsEditingCompany(true)}
+                   className="bg-white border-2 border-slate-100 text-slate-900 px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-50 transition-all flex items-center gap-2"
+                 >
+                   <Icons.Edit className="w-4 h-4" /> EDIT PROFIL
+                 </button>
+               )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
@@ -966,45 +1174,50 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Perusahaan</label>
                     <input 
                       type="text" 
+                      disabled={!isEditingCompany}
                       value={companyData.name} 
                       onChange={e => setCompanyData({...companyData, name: e.target.value})}
-                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all"
+                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all disabled:opacity-50 disabled:bg-slate-50/50"
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">No Telepon</label>
                     <input 
                       type="text" 
+                      disabled={!isEditingCompany}
                       value={companyData.phone} 
                       onChange={e => setCompanyData({...companyData, phone: e.target.value})}
-                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all"
+                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all disabled:opacity-50 disabled:bg-slate-50/50"
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Perusahaan</label>
                     <input 
                       type="email" 
+                      disabled={!isEditingCompany}
                       value={companyData.email} 
                       onChange={e => setCompanyData({...companyData, email: e.target.value})}
-                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all"
+                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all disabled:opacity-50 disabled:bg-slate-50/50"
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">NPWP (Opsional)</label>
                     <input 
                       type="text" 
+                      disabled={!isEditingCompany}
                       value={companyData.npwp} 
                       onChange={e => setCompanyData({...companyData, npwp: e.target.value})}
-                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all"
+                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all disabled:opacity-50 disabled:bg-slate-50/50"
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Logo URL</label>
                     <input 
                       type="text" 
+                      disabled={!isEditingCompany}
                       value={companyData.logo} 
                       onChange={e => setCompanyData({...companyData, logo: e.target.value})}
-                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all"
+                      className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all disabled:opacity-50 disabled:bg-slate-50/50"
                       placeholder="https://..."
                     />
                   </div>
@@ -1015,9 +1228,10 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Alamat Lengkap Perusahaan</label>
                   <textarea 
+                    disabled={!isEditingCompany}
                     value={companyData.address} 
                     onChange={e => setCompanyData({...companyData, address: e.target.value})}
-                    className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all min-h-[200px]"
+                    className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all min-h-[200px] disabled:opacity-50 disabled:bg-slate-50/50"
                     placeholder="Masukkan alamat lengkap..."
                   />
                 </div>
@@ -1076,15 +1290,23 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
               </div>
             </div>
 
-            <div className="flex justify-end pt-6">
-              <button 
-                onClick={() => saveSettingsToCloud(`company_details_${isOwner ? selectedCompany : userCompany}`, companyData).then(() => alert("Data Perusahaan berhasil disimpan!"))}
-                disabled={isSaving}
-                className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-12 py-5 rounded-3xl font-black text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50 flex items-center gap-4"
-              >
-                {isSaving ? 'Menyimpan...' : <><Icons.Database className="w-5 h-5"/> Simpan Data Perusahaan</>}
-              </button>
-            </div>
+            {isEditingCompany && (
+              <div className="flex justify-end pt-6">
+                <button 
+                  onClick={() => {
+                    saveSettingsToCloud(`company_details_${isOwner ? selectedCompany : userCompany}`, companyData)
+                      .then(() => {
+                        alert("Data Perusahaan berhasil disimpan!");
+                        setIsEditingCompany(false);
+                      });
+                  }}
+                  disabled={isSaving}
+                  className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-12 py-5 rounded-3xl font-black text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50 flex items-center gap-4"
+                >
+                  {isSaving ? 'Menyimpan...' : <><Icons.Database className="w-5 h-5"/> Simpan Data Perusahaan</>}
+                </button>
+              </div>
+            )}
           </div>
         ) : activeSubTab === 'CLIENT' ? (
           canAccessClientData ? (
@@ -1391,7 +1613,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[8px] font-black text-slate-300 uppercase tracking-widest ml-1">Konten (Creator)</label>
+                        <label className="text-[8px] font-black text-slate-300 uppercase tracking-widest ml-1">Konten</label>
                         <input 
                           type="number" 
                           value={kpiSystem.contentWeight} 
@@ -1457,6 +1679,29 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                  <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Perhitungan Lembur Jabatan</h3>
                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Atur nominal lembur per jam untuk setiap kategori jabatan karyawan.</p>
               </div>
+              {!isEditingOvertime ? (
+                <button 
+                  onClick={() => setIsEditingOvertime(true)}
+                  className="bg-white border-2 border-slate-100 text-slate-900 px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-50 transition-all flex items-center gap-2"
+                >
+                  <Icons.Edit className="w-4 h-4" /> EDIT DATA
+                </button>
+              ) : (
+                <button 
+                  onClick={() => {
+                    saveSettingsToCloud(`positions_${isOwner ? selectedCompany : userCompany}`, positions)
+                      .then(() => {
+                        alert("Data Lembur berhasil disimpan!");
+                        setIsEditingOvertime(false);
+                        onRefresh();
+                      });
+                  }}
+                  disabled={isSaving}
+                  className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50 flex items-center gap-3"
+                >
+                  <Icons.Database className="w-4 h-4" /> SIMPAN DATA
+                </button>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1474,9 +1719,10 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                        <div className="relative">
                           <input 
                             type="number"
+                            disabled={!isEditingOvertime}
                             value={p.bonus}
                             onChange={(e) => handleUpdatePositionBonus(p.name, parseInt(e.target.value) || 0)}
-                            className="w-full bg-white border-2 border-slate-100 py-5 pr-5 pl-14 rounded-3xl text-xl font-black text-indigo-600 outline-none focus:border-[#FFC000] transition-all shadow-inner"
+                            className="w-full bg-white border-2 border-slate-100 py-5 pr-5 pl-14 rounded-3xl text-xl font-black text-indigo-600 outline-none focus:border-[#FFC000] transition-all shadow-inner disabled:opacity-50 disabled:bg-slate-50/50"
                           />
                           <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 font-black text-xs pointer-events-none">Rp</span>
                        </div>
