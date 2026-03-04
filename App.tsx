@@ -241,6 +241,28 @@ export const App: React.FC = () => {
             .lt('date', shiftDateStr)
             .eq('company', detectedCompany);
 
+          // 3. Cleanup old schedules (Retention Policy: Max 2000 records)
+          const { count: scheduleCount } = await supabase
+            .from('schedules')
+            .select('*', { count: 'exact', head: true })
+            .eq('company', detectedCompany);
+
+          if (scheduleCount && scheduleCount > 2000) {
+            const overflow = scheduleCount - 1800; // Leave 1800 records to have some buffer
+            const { data: oldSchedules } = await supabase
+              .from('schedules')
+              .select('id, date')
+              .eq('company', detectedCompany)
+              .order('date', { ascending: true })
+              .limit(overflow);
+
+            if (oldSchedules && oldSchedules.length > 0) {
+              const idsToDelete = oldSchedules.map(s => s.id);
+              await supabase.from('schedules').delete().in('id', idsToDelete);
+              console.log(`Auto-Cleanup: Berhasil menghapus ${idsToDelete.length} jadwal lama untuk menjaga performa.`);
+            }
+          }
+
         } catch (e) {
           console.error("Gagal membersihkan data lama:", e);
         }
