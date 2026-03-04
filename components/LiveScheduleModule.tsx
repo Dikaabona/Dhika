@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { Employee, LiveSchedule, LiveReport, AttendanceRecord, ShiftAssignment, Shift } from '../types';
 import { Icons, LIVE_BRANDS as INITIAL_BRANDS, TIME_SLOTS } from '../constants';
 import { supabase } from '../App';
-import { generateGoogleCalendarUrl, getMondayISO, getSundayISO, formatDateToYYYYMMDD } from '../utils/dateUtils';
+import { generateGoogleCalendarUrl, getMondayISO, getSundayISO, formatDateToYYYYMMDD, parseFlexibleDate } from '../utils/dateUtils';
 import LiveReportModule from './LiveReportModule';
 import LiveCharts from './LiveCharts';
 
@@ -163,7 +163,12 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
              const date = new Date((rawDate - 25569) * 86400 * 1000);
              formattedDate = formatDateToYYYYMMDD(date);
           } else {
-             formattedDate = String(rawDate || '').trim();
+             const parsed = parseFlexibleDate(String(rawDate || ''));
+             if (!isNaN(parsed.getTime())) {
+               formattedDate = formatDateToYYYYMMDD(parsed);
+             } else {
+               formattedDate = String(rawDate || '').trim();
+             }
           }
 
           if (formattedDate) {
@@ -171,7 +176,12 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
             if (!latestDateInExcel || formattedDate > latestDateInExcel) latestDateInExcel = formattedDate;
           }
 
-          const hourSlot = String(row['SLOT WAKTU'] || '').trim();
+          let hourSlot = String(row['SLOT WAKTU'] || '').trim().replace(/:/g, '.');
+          
+          // Try to match with existing TIME_SLOTS if possible
+          const matchedSlot = TIME_SLOTS.find(ts => ts.replace(/\s/g, '') === hourSlot.replace(/\s/g, ''));
+          if (matchedSlot) hourSlot = matchedSlot;
+
           const cleanName = (n: any) => String(n || '').replace(/[\s\t\n\r]+/g, ' ').trim().toUpperCase();
           
           const hostName = cleanName(row['NAMA HOST']);
@@ -196,6 +206,10 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         }).filter(s => s !== null);
 
         if (rawParsedSchedules.length > 0) {
+          if (notFoundNames.length > 0) {
+            const uniqueNotFound = Array.from(new Set(notFoundNames));
+            alert(`Peringatan: ${uniqueNotFound.length} nama karyawan tidak ditemukan di database: ${uniqueNotFound.join(', ')}. Jadwal tetap diimpor namun nama mungkin kosong.`);
+          }
           const importedBrands = Array.from(new Set(rawParsedSchedules.map((s: any) => s.brand)));
           const missingBrands = importedBrands.filter(b => !brands.some((ex: any) => ex.name === b));
           
@@ -236,6 +250,13 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   const handleExportExcel = () => {
     const exportedData = schedules.filter(s => isDateInRange(s.date, startDate, endDate));
     if (exportedData.length === 0) return alert("Data tidak ditemukan untuk rentang tanggal ini.");
+    
+    if (exportedData.length > 1000) {
+      if (!confirm(`PERINGATAN EGRESS: Anda mengekspor ${exportedData.length} baris data. Proses ini akan memakan lebih banyak kuota data Supabase. Lanjutkan?`)) {
+        return;
+      }
+    }
+
     const dataToExport = exportedData.sort((a, b) => a.date.localeCompare(b.date)).map(s => ({
       'TANGGAL': s.date,
       'BRAND': s.brand.toUpperCase(),
@@ -424,6 +445,17 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                 <input type="text" placeholder="CARI..." value={localSearch} onChange={e => setLocalSearch(e.target.value)} className="w-full bg-transparent text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-slate-900 outline-none placeholder:text-[#cbd5e1]" />
               </div>
 
+              <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
+                <input 
+                  type="checkbox" 
+                  id="showEmptySlots" 
+                  checked={showEmptySlots} 
+                  onChange={e => setShowEmptySlots(e.target.checked)} 
+                  className="w-4 h-4 accent-[#FFC000]"
+                />
+                <label htmlFor="showEmptySlots" className="text-[9px] font-black uppercase tracking-widest text-slate-500 cursor-pointer">Tampilkan Slot Kosong</label>
+              </div>
+
               {!readOnly && (
                 <div className="hidden sm:flex flex-wrap items-center gap-3">
                   <button 
@@ -473,7 +505,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                     const o = sched ? (employeeMap[sched.opId] || '').toLowerCase() : '';
                     return h.includes(localSearch.toLowerCase()) || o.includes(localSearch.toLowerCase()) || brandNameNorm.includes(localSearch.toUpperCase());
                   }
-                  return (sched && (sched.hostId || sched.opId));
+                  return !!sched;
                 });
               });
 
@@ -499,7 +531,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                           const o = sched ? (employeeMap[sched.opId] || '').toLowerCase() : '';
                           return h.includes(localSearch.toLowerCase()) || o.includes(localSearch.toLowerCase()) || brandNameNorm.includes(localSearch.toUpperCase());
                         }
-                        return (sched && (sched.hostId || sched.opId)) || showEmptySlots;
+                        return !!sched || showEmptySlots;
                       });
                       if (brandsForSlot.length === 0) return null;
                       return (

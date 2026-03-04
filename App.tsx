@@ -318,7 +318,13 @@ export const App: React.FC = () => {
         buildQuery('live_reports').order('tanggal', { ascending: false }).limit(500).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(50).then(({data, error}: any) => { if(error) throw error; setSubmissions(data || []); }),
         buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(30).then(({data, error}: any) => { if(error) throw error; setBroadcasts(data || []); }),
-        buildQuery('schedules').limit(500).then(({data, error}: any) => { if(error) throw error; setLiveSchedules(data || []); }),
+        buildQuery('schedules').order('date', { ascending: false }).limit(2000).then(({data, error}: any) => { 
+          if(error) throw error; 
+          if (data && data.length > 1500) {
+            console.warn("PERINGATAN EGRESS: Data jadwal mendekati 2.000 record. Pertimbangkan untuk membersihkan data lama.");
+          }
+          setLiveSchedules(data || []); 
+        }),
         buildQuery('content_plans').order('postingDate', { ascending: false }).limit(1000).then(({data, error}: any) => { if(error) throw error; setContentPlans(data || []); }),
         buildQuery('shift_assignments').order('date', { ascending: false }).limit(3000).then(({data, error}: any) => { if(error) throw error; setShiftAssignments(data || []); }),
         supabase.from('settings').select('value').eq('key', `shifts_config_${companyFilterVal}`).single().then(({data}) => {
