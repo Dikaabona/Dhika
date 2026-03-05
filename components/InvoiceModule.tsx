@@ -567,8 +567,11 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
       <div className="w-full lg:w-2/3 bg-slate-200 p-4 sm:p-10 rounded-[48px] overflow-auto flex justify-center items-start">
         <div 
           ref={invoiceRef}
-          className="bg-white w-[210mm] shadow-2xl min-h-[297mm] p-12 flex flex-col relative text-slate-900 mx-auto shrink-0"
-          style={{ fontFamily: "'Inter', sans-serif" }}
+          className="bg-[#ffffff] w-[210mm] min-h-[297mm] p-12 flex flex-col relative text-[#0f172a] mx-auto shrink-0"
+          style={{ 
+            fontFamily: "'Inter', sans-serif",
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+          }}
         >
           {/* Header */}
           <div className="flex justify-between items-start mb-12">
@@ -580,7 +583,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
             />
             <div className="text-right max-w-[300px]">
               <h1 className="text-2xl font-black mb-2 tracking-tight">{currentCompanyData.name}</h1>
-              <p className="text-[10px] leading-relaxed font-medium text-slate-600">
+              <p className="text-[10px] leading-relaxed font-medium text-[#475569]">
                 Alamat : {currentCompanyData.address}<br />
                 Email : {currentCompanyData.email}<br />
                 NPWP : {currentCompanyData.npwp}
@@ -591,14 +594,14 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
           {/* Recipient & Invoice Info */}
           <div className="flex justify-between items-end mb-12">
             <div className="space-y-1 max-w-[300px]">
-              <h3 className="text-sm font-black uppercase tracking-widest text-black">KEPADA</h3>
+              <h3 className="text-sm font-black uppercase tracking-widest text-[#000000]">KEPADA</h3>
               <p className="text-sm font-bold uppercase">{invoice.recipientName}</p>
-              <p className="text-[10px] font-bold uppercase text-slate-500 leading-relaxed">{invoice.recipientAddress}</p>
+              <p className="text-sm font-bold uppercase text-[#64748b] leading-relaxed">{invoice.recipientAddress}</p>
             </div>
             <div className="bg-[#FFF3E0] p-6 rounded-none min-w-[250px] text-right">
               <h2 className="text-4xl font-black uppercase tracking-tighter mb-1">INVOICE</h2>
               <p className="text-lg font-black tracking-tight mb-1">{invoice.invoiceNumber}</p>
-              <p className="text-xs font-bold text-slate-600">{invoice.date}</p>
+              <p className="text-xs font-bold text-[#475569]">{invoice.date}</p>
             </div>
           </div>
 
@@ -607,18 +610,18 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-[#FFFF00]">
-                  <th className="text-left py-3 px-4 text-sm font-black uppercase tracking-widest border-r border-white/20">KETERANGAN</th>
-                  <th className="text-center py-3 px-4 text-sm font-black uppercase tracking-widest border-r border-white/20">QTY</th>
-                  <th className="text-right py-3 px-4 text-sm font-black uppercase tracking-widest border-r border-white/20">HARGA (Rp)</th>
+                  <th className="text-left py-3 px-4 text-sm font-black uppercase tracking-widest border-r border-[rgba(255,255,255,0.2)]">KETERANGAN</th>
+                  <th className="text-center py-3 px-4 text-sm font-black uppercase tracking-widest border-r border-[rgba(255,255,255,0.2)]">QTY</th>
+                  <th className="text-right py-3 px-4 text-sm font-black uppercase tracking-widest border-r border-[rgba(255,255,255,0.2)]">HARGA (Rp)</th>
                   <th className="text-right py-3 px-4 text-sm font-black uppercase tracking-widest">JUMLAH (Rp)</th>
                 </tr>
               </thead>
               <tbody>
                 {invoice.items.map((item, idx) => (
-                  <tr key={item.id} className={idx % 2 === 0 ? 'bg-slate-50' : 'bg-white'}>
-                    <td className="py-4 px-4 text-[11px] font-bold uppercase leading-relaxed max-w-[300px] border-r border-slate-100">{item.description}</td>
-                    <td className="py-4 px-4 text-center text-sm font-black border-r border-slate-100">{item.qty}</td>
-                    <td className="py-4 px-4 text-right text-sm font-bold border-r border-slate-100">{formatCurrency(item.price).replace('Rp', '')}</td>
+                  <tr key={item.id} className={idx % 2 === 0 ? 'bg-[#f8fafc]' : 'bg-[#ffffff]'}>
+                    <td className="py-4 px-4 text-[11px] font-bold uppercase leading-relaxed max-w-[300px] border-r border-[#f1f5f9]">{item.description}</td>
+                    <td className="py-4 px-4 text-center text-sm font-black border-r border-[#f1f5f9]">{item.qty}</td>
+                    <td className="py-4 px-4 text-right text-sm font-bold border-r border-[#f1f5f9]">{formatCurrency(item.price).replace('Rp', '')}</td>
                     <td className="py-4 px-4 text-right text-sm font-black">{formatCurrency(item.qty * item.price).replace('Rp', '')}</td>
                   </tr>
                 ))}
@@ -628,14 +631,14 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
             {/* Totals */}
             <div className="mt-4 flex justify-end">
               <div className="w-full max-w-[400px]">
-                <div className="flex justify-between items-center bg-slate-100 py-2 px-4 mb-1">
+                <div className="flex justify-between items-center bg-[#f1f5f9] py-2 px-4 mb-1">
                   <span className="text-[10px] font-black uppercase tracking-widest">SUB TOTAL</span>
                   <span className="text-sm font-black">{formatCurrency(invoice.subTotal)}</span>
                 </div>
                 {invoice.taxRate > 0 && (
-                  <div className="flex justify-between items-center bg-slate-50 py-2 px-4 mb-1 border-b border-slate-100">
+                  <div className="flex justify-between items-center bg-[#f8fafc] py-2 px-4 mb-1 border-b border-[#f1f5f9]">
                     <span className="text-[10px] font-black uppercase tracking-widest">PAJAK ({invoice.taxRate}%)</span>
-                    <span className="text-sm font-black text-rose-600">-{formatCurrency(invoice.subTotal * (invoice.taxRate / 100))}</span>
+                    <span className="text-sm font-black text-[#e11d48]">-{formatCurrency(invoice.subTotal * (invoice.taxRate / 100))}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center bg-[#FFFF00] py-3 px-4">
@@ -649,7 +652,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
           {/* Footer Section */}
           <div className="mt-12 flex justify-between items-end">
             <div className="bg-[#FFF3E0] p-6 rounded-none min-w-[350px]">
-              <h4 className="text-sm font-black uppercase tracking-widest mb-4 border-b border-slate-200 pb-2">Detail Pembayaran</h4>
+              <h4 className="text-sm font-black uppercase tracking-widest mb-4 border-b border-[#e2e8f0] pb-2">Detail Pembayaran</h4>
               <div className="space-y-2 text-[11px] font-bold">
                 <div className="flex">
                   <span className="w-32">Nama Bank</span>
@@ -694,7 +697,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
                   referrerPolicy="no-referrer"
                   crossOrigin="anonymous"
                 />
-                <div className="w-48 h-px bg-black mx-auto"></div>
+                <div className="w-48 h-px bg-[#000000] mx-auto"></div>
                 <p className="text-sm font-black uppercase mt-2 underline">Muhammad Mahardhika D</p>
               </div>
             </div>

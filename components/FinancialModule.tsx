@@ -367,6 +367,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
               </div>
               <div>
                 <h2 className="text-3xl font-black text-[#0f172a] uppercase tracking-tight leading-none">FINANCE HUB</h2>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.4em] mt-3">Flip for Business Integrated</p>
               </div>
             </div>
             

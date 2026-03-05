@@ -361,14 +361,23 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
       <div className="w-full lg:w-2/3 bg-slate-100 p-4 sm:p-10 rounded-[48px] overflow-auto flex justify-center items-start">
         <div 
           ref={quotationRef}
-          className="bg-white w-[210mm] shadow-2xl min-h-[297mm] flex flex-col relative text-slate-900 mx-auto shrink-0 overflow-hidden"
-          style={{ fontFamily: "'Inter', sans-serif" }}
+          className="bg-[#ffffff] w-[210mm] min-h-[297mm] flex flex-col relative text-[#0f172a] mx-auto shrink-0 overflow-hidden"
+          style={{ 
+            fontFamily: "'Inter', sans-serif",
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+          }}
         >
           {/* Header with Gradient */}
-          <div className="relative h-[180px] w-full bg-black flex items-center px-12 overflow-hidden">
+          <div className="relative h-[180px] w-full bg-[#000000] flex items-center px-12 overflow-hidden">
             {/* Gradient Overlay */}
-            <div className="absolute right-0 top-0 bottom-0 w-1/2 bg-gradient-to-l from-[#6d28d9] to-transparent opacity-40"></div>
-            <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-[#db2777] to-transparent opacity-30"></div>
+            <div 
+              className="absolute right-0 top-0 bottom-0 w-1/2 opacity-40"
+              style={{ background: 'linear-gradient(to left, rgba(109, 40, 217, 1), rgba(109, 40, 217, 0))' }}
+            ></div>
+            <div 
+              className="absolute right-0 top-0 bottom-0 w-1/3 opacity-30"
+              style={{ background: 'linear-gradient(to left, rgba(219, 39, 119, 1), rgba(219, 39, 119, 0))' }}
+            ></div>
             
             <div className="relative z-10 flex justify-between w-full items-center">
               <div className="space-y-4">
@@ -380,7 +389,7 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
                      crossOrigin="anonymous"
                    />
                 </div>
-                <div className="text-white/80 text-[11px] font-medium leading-relaxed max-w-[400px]">
+                <div className="text-[rgba(255,255,255,0.8)] text-[11px] font-medium leading-relaxed max-w-[400px]">
                   <p>{currentCompanyData.address}</p>
                   <p>{currentCompanyData.phone}</p>
                   <p>{currentCompanyData.email}</p>
@@ -396,17 +405,17 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
           <div className="p-16 flex-grow flex flex-col">
             <div className="flex justify-between items-start mb-16">
               <div className="space-y-1">
-                <p className="text-sm font-medium text-slate-500">Kepada,</p>
+                <p className="text-sm font-medium text-[#64748b]">Kepada,</p>
                 <p className="text-xl font-black uppercase tracking-tight">{quotation.recipientName}</p>
-                <p className="text-sm font-bold text-slate-600">{quotation.recipientAddress}</p>
+                <p className="text-sm font-bold text-[#475569]">{quotation.recipientAddress}</p>
               </div>
               <div className="text-right space-y-2">
                 <div>
-                  <p className="text-sm font-medium text-slate-500 inline-block mr-2">Tanggal:</p>
+                  <p className="text-sm font-medium text-[#64748b] inline-block mr-2">Tanggal:</p>
                   <p className="text-sm font-bold inline-block">{quotation.date}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-slate-500 inline-block mr-2">Berlaku Sampai:</p>
+                  <p className="text-sm font-medium text-[#64748b] inline-block mr-2">Berlaku Sampai:</p>
                   <p className="text-sm font-bold inline-block">{quotation.validUntil}</p>
                 </div>
               </div>
@@ -414,9 +423,12 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
 
             {/* Table */}
             <div className="mb-12">
-              <table className="w-full border-collapse rounded-2xl overflow-hidden shadow-sm border border-slate-100">
+              <table 
+                className="w-full border-collapse rounded-2xl overflow-hidden border border-[#f1f5f9]"
+                style={{ boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' }}
+              >
                 <thead>
-                  <tr className="bg-black text-white">
+                  <tr className="bg-[#000000] text-[#ffffff]">
                     <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-center w-12">No</th>
                     <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-left w-48">Service</th>
                     <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-left whitespace-nowrap">Service Facilities</th>
@@ -425,10 +437,10 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
                 </thead>
                 <tbody>
                   {quotation.items.map((item, idx) => (
-                    <tr key={item.id} className="border-b border-slate-100 last:border-0">
+                    <tr key={item.id} className="border-b border-[#f1f5f9] last:border-0">
                       <td className="py-8 px-4 text-center text-xs font-black align-top">{idx + 1}</td>
                       <td className="py-8 px-4 text-xs font-black uppercase tracking-tight align-top w-48">{item.service}</td>
-                      <td className="py-8 px-4 text-[10px] font-medium text-slate-600 leading-relaxed align-top">
+                      <td className="py-8 px-4 text-[10px] font-medium text-[#475569] leading-relaxed align-top">
                         {item.facilities.split('\n').map((line, i) => (
                           <p key={i} className="mb-1">{line}</p>
                         ))}
@@ -445,7 +457,7 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
             {/* Additional Section */}
             <div className="mb-16">
               <h4 className="text-sm font-black uppercase tracking-widest mb-4">Additional</h4>
-              <div className="text-[10px] font-bold text-slate-600 space-y-2 leading-relaxed">
+              <div className="text-[10px] font-bold text-[#475569] space-y-2 leading-relaxed">
                 {quotation.additionalNotes.split('\n').map((line, i) => (
                   <p key={i}>{line}</p>
                 ))}
@@ -456,7 +468,7 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
             <div className="mt-auto flex justify-between items-end">
               <div className="max-w-[400px]">
                 <h4 className="text-[10px] font-black uppercase tracking-widest mb-4">Syarat & Ketentuan Pembayaran</h4>
-                <p className="text-[10px] font-bold text-slate-500 leading-relaxed">
+                <p className="text-[10px] font-bold text-[#64748b] leading-relaxed">
                   {quotation.paymentTerms}
                 </p>
               </div>
@@ -471,7 +483,7 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
                     referrerPolicy="no-referrer"
                     crossOrigin="anonymous"
                   />
-                  <div className="w-48 h-[2px] bg-black mx-auto"></div>
+                  <div className="w-48 h-[2px] bg-[#000000] mx-auto"></div>
                   <p className="text-xs font-black uppercase mt-4 tracking-tight">{quotation.signatureName}</p>
                 </div>
               </div>
