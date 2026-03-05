@@ -298,8 +298,9 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
       try {
         // @ts-ignore
         const canvas = await html2canvas(element, {
-          scale: 3,
+          scale: 2,
           useCORS: true,
+          allowTaint: true,
           letterRendering: true,
           scrollY: 0,
           windowWidth: element.clientWidth,
@@ -572,7 +573,12 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
         >
           {/* Header */}
           <div className="flex justify-between items-start mb-12">
-            <img src={currentCompanyData.logo} alt="Company Logo" className="h-16 w-auto" />
+            <img 
+              src={currentCompanyData.logo} 
+              alt="Company Logo" 
+              className="h-16 w-auto" 
+              crossOrigin="anonymous"
+            />
             <div className="text-right max-w-[300px]">
               <h1 className="text-2xl font-black mb-2 tracking-tight">{currentCompanyData.name}</h1>
               <p className="text-[10px] leading-relaxed font-medium text-slate-600">
@@ -687,6 +693,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
                   alt="Signature" 
                   className="h-24 w-auto mb-[-20px] relative z-10"
                   referrerPolicy="no-referrer"
+                  crossOrigin="anonymous"
                 />
                 <div className="w-48 h-px bg-black mx-auto"></div>
                 <p className="text-sm font-black uppercase mt-2 underline">Muhammad Mahardhika D</p>

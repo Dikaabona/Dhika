@@ -126,8 +126,9 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
       
       // @ts-ignore
       const canvas = await html2canvas(element, {
-        scale: 3,
+        scale: 2,
         useCORS: true,
+        allowTaint: true,
         letterRendering: true,
         scrollY: 0,
         windowWidth: element.clientWidth,
@@ -373,7 +374,12 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
             <div className="relative z-10 flex justify-between w-full items-center">
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
-                   <img src={currentCompanyData.logo} alt="Logo" className="h-10 w-auto" />
+                   <img 
+                     src={currentCompanyData.logo} 
+                     alt="Logo" 
+                     className="h-10 w-auto" 
+                     crossOrigin="anonymous"
+                   />
                 </div>
                 <div className="text-white/80 text-[11px] font-medium leading-relaxed max-w-[400px]">
                   <p>{currentCompanyData.address}</p>
@@ -464,6 +470,7 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
                     alt="Signature" 
                     className="h-24 w-auto mb-[-20px] relative z-10"
                     referrerPolicy="no-referrer"
+                    crossOrigin="anonymous"
                   />
                   <div className="w-48 h-[2px] bg-black mx-auto"></div>
                   <p className="text-xs font-black uppercase mt-4 tracking-tight">{quotation.signatureName}</p>
