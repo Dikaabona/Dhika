@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import html2canvas from 'html2canvas';
 import { Icons } from '../constants.tsx';
 import { Quotation, QuotationItem } from '../types.ts';
 import { supabase } from '../App';
@@ -124,12 +125,10 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
     try {
       const element = quotationRef.current;
       
-      // @ts-ignore
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
-        letterRendering: true,
         scrollY: 0,
         windowWidth: element.clientWidth,
         backgroundColor: '#ffffff'

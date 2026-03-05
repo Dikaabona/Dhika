@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
+import html2canvas from 'html2canvas';
 import { Icons } from '../constants.tsx';
 import { Invoice, InvoiceItem } from '../types.ts';
 import { supabase } from '../App';
@@ -296,12 +297,10 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
       if (!element) return;
 
       try {
-        // @ts-ignore
         const canvas = await html2canvas(element, {
           scale: 2,
           useCORS: true,
           allowTaint: true,
-          letterRendering: true,
           scrollY: 0,
           windowWidth: element.clientWidth,
           backgroundColor: '#ffffff'
