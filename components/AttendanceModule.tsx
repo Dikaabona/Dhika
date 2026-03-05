@@ -114,6 +114,24 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
     return 0;
   };
 
+  const isWorkDay = (dateStr: string, emp: Employee) => {
+    const date = new Date(dateStr);
+    const day = date.getDay();
+    const isHost = (emp.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
+    if (day === 0) return isHost;
+    if (day === 6) return false;
+    const dayNameMap = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
+    const currentDayName = dayNameMap[day];
+    if (weeklyHolidays) {
+      const empNameUpper = emp.nama.toUpperCase();
+      const employeeInHolidays = Object.values(weeklyHolidays).some(names => (names as string[]).map(n => n.toUpperCase()).includes(empNameUpper));
+      if (employeeInHolidays) {
+        return !(weeklyHolidays[currentDayName] || []).map(n => n.toUpperCase()).includes(empNameUpper);
+      }
+    }
+    return true;
+  };
+
   const searchedEmployees = useMemo(() => {
     let base = employees;
     if (!isAdmin && currentEmployee) {
@@ -152,6 +170,25 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
   const paginatedRows = useMemo(() => {
     return tableRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
   }, [tableRows, currentPage]);
+
+  const summary = useMemo(() => {
+    const counts = { hadir: 0, alpha: 0, sakit: 0, izin: 0, cuti: 0, libur: 0, lembur: 0 };
+    tableRows.forEach(row => {
+      const existingRec = records.find(r => r.employeeId === row.employee.id && r.date === row.date);
+      const isPast = row.date < formatDateToYYYYMMDD(new Date());
+      const isWork = isWorkDay(row.date, row.employee);
+      const status = existingRec?.status || (isWork ? (isPast ? 'Alpha' : 'Hadir') : 'Libur');
+      
+      if (status === 'Hadir') counts.hadir++;
+      else if (status === 'Alpha') counts.alpha++;
+      else if (status === 'Sakit') counts.sakit++;
+      else if (status === 'Izin') counts.izin++;
+      else if (status === 'Cuti') counts.cuti++;
+      else if (status === 'Libur') counts.libur++;
+      else if (status === 'Lembur') counts.lembur++;
+    });
+    return counts;
+  }, [tableRows, records]);
 
   const handleSaveEdit = async () => {
     try {
@@ -273,24 +310,6 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
     }
   };
 
-  const isWorkDay = (dateStr: string, emp: Employee) => {
-    const date = new Date(dateStr);
-    const day = date.getDay();
-    const isHost = (emp.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
-    if (day === 0) return isHost;
-    if (day === 6) return false;
-    const dayNameMap = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
-    const currentDayName = dayNameMap[day];
-    if (weeklyHolidays) {
-      const empNameUpper = emp.nama.toUpperCase();
-      const employeeInHolidays = Object.values(weeklyHolidays).some(names => (names as string[]).map(n => n.toUpperCase()).includes(empNameUpper));
-      if (employeeInHolidays) {
-        return !(weeklyHolidays[currentDayName] || []).map(n => n.toUpperCase()).includes(empNameUpper);
-      }
-    }
-    return true;
-  };
-
   return (
     <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-700">
       {zoomedImage && (
@@ -369,6 +388,38 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
               </button>
             </div>
           )}
+        </div>
+
+        {/* SUMMARY SECTION */}
+        <div className="w-full max-w-4xl grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mt-4 animate-in slide-in-from-bottom-2 duration-500">
+          <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-2xl text-center shadow-sm">
+            <p className="text-[7px] font-black text-emerald-400 uppercase tracking-widest mb-1">Hadir</p>
+            <p className="text-xl font-black text-emerald-600">{summary.hadir}</p>
+          </div>
+          <div className="bg-rose-50 border border-rose-100 p-3 rounded-2xl text-center shadow-sm">
+            <p className="text-[7px] font-black text-rose-400 uppercase tracking-widest mb-1">Alpha</p>
+            <p className="text-xl font-black text-rose-600">{summary.alpha}</p>
+          </div>
+          <div className="bg-amber-50 border border-amber-100 p-3 rounded-2xl text-center shadow-sm">
+            <p className="text-[7px] font-black text-amber-400 uppercase tracking-widest mb-1">Sakit</p>
+            <p className="text-xl font-black text-amber-600">{summary.sakit}</p>
+          </div>
+          <div className="bg-sky-50 border border-sky-100 p-3 rounded-2xl text-center shadow-sm">
+            <p className="text-[7px] font-black text-sky-400 uppercase tracking-widest mb-1">Izin</p>
+            <p className="text-xl font-black text-sky-600">{summary.izin}</p>
+          </div>
+          <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-2xl text-center shadow-sm">
+            <p className="text-[7px] font-black text-indigo-400 uppercase tracking-widest mb-1">Cuti</p>
+            <p className="text-xl font-black text-indigo-600">{summary.cuti}</p>
+          </div>
+          <div className="bg-slate-50 border border-slate-100 p-3 rounded-2xl text-center shadow-sm">
+            <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-1">Libur</p>
+            <p className="text-xl font-black text-slate-600">{summary.libur}</p>
+          </div>
+          <div className="bg-[#0f172a] border border-[#0f172a] p-3 rounded-2xl text-center shadow-lg">
+            <p className="text-[7px] font-black text-[#FFC000]/60 uppercase tracking-widest mb-1">Lembur</p>
+            <p className="text-xl font-black text-[#FFC000]">{summary.lembur}</p>
+          </div>
         </div>
       </div>
 

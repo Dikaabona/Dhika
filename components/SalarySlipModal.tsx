@@ -137,6 +137,9 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     'Juli': 6, 'Agustus': 7, 'September': 8, 'Oktober': 9, 'November': 10, 'Desember': 11
   };
 
+  const cutoffStart = employee.salaryConfig?.cutoffStart || settings?.payrollCutoffStart || 26;
+  const cutoffEnd = employee.salaryConfig?.cutoffEnd || settings?.payrollCutoffEnd || 25;
+
   const isWorkDay = (date: Date, emp: Employee) => {
     const day = date.getDay();
     const isHost = (emp.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
@@ -172,9 +175,6 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     const targetMonthIdx = monthMap[data.month] ?? 0;
     const targetYear = parseInt(data.year);
     
-    const cutoffStart = employee.salaryConfig?.cutoffStart || settings?.payrollCutoffStart || 26;
-    const cutoffEnd = employee.salaryConfig?.cutoffEnd || settings?.payrollCutoffEnd || 25;
-
     const rangeStart = new Date(targetYear, targetMonthIdx - 1, cutoffStart);
     const rangeEnd = new Date(targetYear, targetMonthIdx, cutoffEnd);
     rangeStart.setHours(0, 0, 0, 0);
@@ -256,14 +256,15 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         else if (mainRecord.status === 'Alpha') summary.alpha++;
         else summary.libur++;
       } else if (overtimeRecords.length > 0) {
+        // Jika ada lembur tapi tidak ada absen utama, tetap hitung hadir jika statusnya lembur
         summary.hadir++;
       } else {
-        if (dStr < todayStr && dStr >= ALPHA_START_DATE) {
+        if (dStr < todayStr) {
           if (isWork) summary.alpha++;
           else summary.libur++;
         } else {
           if (!isWork) summary.libur++;
-          else summary.hadir++;
+          // Jangan otomatis tambah hadir untuk tanggal mendatang
         }
       }
 
@@ -656,7 +657,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
             <div style={{ textAlign: 'right' }}>
               <h2 style={{ fontSize: '30px', fontWeight: '900', margin: '0', letterSpacing: '-1px' }}>SLIP GAJI</h2>
               <p style={{ fontSize: '14px', fontWeight: '800', color: '#806000', margin: '2px 0' }}>{(data.month || '').toUpperCase()} {data.year}</p>
-              <p style={{ fontSize: '9px', color: '#94a3b8', margin: '2px 0 0 0' }}>Cutoff: 29 - 28</p>
+              <p style={{ fontSize: '9px', color: '#94a3b8', margin: '2px 0 0 0' }}>Cutoff: {cutoffStart} - {cutoffEnd}</p>
             </div>
           </div>
 

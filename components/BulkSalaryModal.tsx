@@ -106,13 +106,6 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
 
     const targetMonthIdx = monthMap[selectedMonth];
     const targetYearNum = parseInt(selectedYear);
-    const rangeStart = new Date(targetYearNum, targetMonthIdx - 1, 29);
-    const rangeEnd = new Date(targetYearNum, targetMonthIdx, 28);
-    rangeStart.setHours(0, 0, 0, 0);
-    rangeEnd.setHours(23, 59, 59, 999);
-
-    const rangeStartStr = formatDateToYYYYMMDD(rangeStart);
-    const rangeEndStr = formatDateToYYYYMMDD(rangeEnd);
 
     const totalToProcess = manualEmails.length;
     let processedCount = 0;
@@ -123,9 +116,21 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
 
       try {
         if (emp) {
+          const cutoffStart = emp.salaryConfig?.cutoffStart || 26;
+          const cutoffEnd = emp.salaryConfig?.cutoffEnd || 25;
+
+          const rangeStart = new Date(targetYearNum, targetMonthIdx - 1, cutoffStart);
+          const rangeEnd = new Date(targetYearNum, targetMonthIdx, cutoffEnd);
+          rangeStart.setHours(0, 0, 0, 0);
+          rangeEnd.setHours(23, 59, 59, 999);
+
+          const rangeStartStr = formatDateToYYYYMMDD(rangeStart);
+          const rangeEndStr = formatDateToYYYYMMDD(rangeEnd);
+
           const empRecords = (attendanceRecords || []).filter(r => r.employeeId === emp.id && r.date >= rangeStartStr && r.date <= rangeEndStr);
           let alphaCount = 0;
           let overtimePayTotal = 0;
+          let hadirCount = 0;
 
           const jabInput = (emp.jabatan || '').trim().toUpperCase();
           const rateConfig = positionRates.find(p => p.name.toUpperCase() === jabInput);
@@ -147,7 +152,12 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
             const mainRec = dayRecs.find(r => (r.status || '').toLowerCase() !== 'lembur');
             const ovRecs = dayRecs.filter(r => (r.status || '').toLowerCase() === 'lembur' || (r.notes && r.notes.toLowerCase().includes('lembur')));
 
-            if (!mainRec && dStr < todayStr && dStr >= ALPHA_START_DATE && isWorkDay(temp, emp)) {
+            if (mainRec) {
+              if (mainRec.status === 'Alpha') alphaCount++;
+              if (mainRec.status === 'Hadir') hadirCount++;
+            } else if (ovRecs.length > 0) {
+              hadirCount++;
+            } else if (dStr < todayStr && dStr >= ALPHA_START_DATE && isWorkDay(temp, emp)) {
               alphaCount++;
             }
 
@@ -177,9 +187,12 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
             tunjanganKesehatan: 0, tunjanganJabatan: 0, bpjstk: 0, pph21: 0, 
             lembur: 0, bonus: 0, thr: 0, potonganHutang: 0, potonganLain: 0
           };
+
+          const isDaily = config.type === 'daily';
+          const gapok = isDaily ? (config.gapok || 0) * hadirCount : (config.gapok || 0);
           
-          const potonganAbsen = Math.round((alphaCount * (config.gapok || 0)) / 26);
-          const totalFixed = (config.gapok || 0) + (config.tunjanganMakan || 0) + (config.tunjanganTransport || 0) + (config.tunjanganKomunikasi || 0) + (config.tunjanganKesehatan || 0) + (config.tunjanganJabatan || 0);
+          const potonganAbsen = isDaily ? 0 : Math.round((alphaCount * (config.gapok || 0)) / 26);
+          const totalFixed = gapok + (config.tunjanganMakan || 0) + (config.tunjanganTransport || 0) + (config.tunjanganKomunikasi || 0) + (config.tunjanganKesehatan || 0) + (config.tunjanganJabatan || 0);
           
           const finalLembur = overtimePayTotal > 0 ? overtimePayTotal : (config.lembur || 0);
 
