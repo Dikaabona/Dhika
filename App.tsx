@@ -27,6 +27,7 @@ import EmployeeDetailModal from './components/EmployeeDetailModal.tsx';
 import MobileAttendanceHistory from './components/MobileAttendanceHistory.tsx';
 import LiveMapModule from './components/LiveMapModule.tsx';
 import FinancialModule from './components/FinancialModule.tsx';
+import RecruitmentModule from './components/RecruitmentModule.tsx';
 import { InvoiceModule } from './components/InvoiceModule.tsx';
 import { getTenureYears, calculateTenure, formatDateToYYYYMMDD, getMondayISO } from './utils/dateUtils.ts';
 
@@ -780,6 +781,9 @@ export const App: React.FC = () => {
           <button onClick={() => setActiveTab('inventory')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'inventory' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>ASET</button>
         )}
         {isAdminAccess && (
+          <button onClick={() => setActiveTab('recruitment')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'recruitment' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>REKRUTMEN</button>
+        )}
+        {isAdminAccess && (
           <button onClick={() => setActiveTab('kpi')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'kpi' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>KPI</button>
         )}
         {isHighAdminAccess && (
@@ -935,6 +939,8 @@ export const App: React.FC = () => {
                 <CalendarModule employees={employees} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'kpi' ? (
                 <KPIModule employees={employees} attendanceRecords={attendanceRecords} contentPlans={contentPlans} liveReports={liveReports} shiftAssignments={shiftAssignments} userRole={userRole} currentEmployee={currentUserEmployee} company={userCompany} onClose={() => setActiveTab('home')} />
+              ) : activeTab === 'recruitment' ? (
+                <RecruitmentModule company={userCompany} userRole={userRole} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'shift' ? (
                 <ShiftModule employees={employees} assignments={shiftAssignments} setAssignments={setShiftAssignments} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} globalShifts={shifts} onRefreshShifts={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'attendance' ? (
@@ -1145,7 +1151,6 @@ export const App: React.FC = () => {
                                         let adjustment = 0;
                                         if (name.includes('fikry aditya rizky')) adjustment = 2;
                                         else if (name.includes('iskandar juliana')) adjustment = 3;
-                                        else if (name.includes('muhammad ariyansyah')) adjustment = 2;
                                         else if (name.includes('adinda salsabilla')) adjustment = 3;
                                         else if (name.includes('pajar sidik')) adjustment = 1;
 

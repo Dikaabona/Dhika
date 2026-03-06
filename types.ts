@@ -304,5 +304,23 @@ export interface Client {
   created_at?: string;
 }
 
-export type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'content_report' | 'submissions' | 'inbox' | 'settings' | 'shift' | 'minvis' | 'kpi' | 'inventory' | 'calendar' | 'live_map' | 'finance' | 'invoice' | 'mobile_history' | 'profile';
+export interface Candidate {
+  id?: string;
+  timestamp: string;
+  email: string;
+  nama: string;
+  ttl: string;
+  alamat: string;
+  noHp: string;
+  gajiHarapan: string;
+  posisi: string;
+  videoUrl?: string;
+  portfolioUrl?: string;
+  status: 'Applied' | 'Screening' | 'Interview' | 'Rejected' | 'Hired';
+  company: string;
+  notes?: string;
+  created_at?: string;
+}
+
+export type ActiveTab = 'home' | 'database' | 'absen' | 'attendance' | 'schedule' | 'content' | 'content_report' | 'submissions' | 'inbox' | 'settings' | 'shift' | 'minvis' | 'kpi' | 'inventory' | 'calendar' | 'live_map' | 'finance' | 'invoice' | 'mobile_history' | 'profile' | 'recruitment';
 export type UserRole = 'owner' | 'super' | 'admin' | 'employee';
