@@ -1,6 +1,6 @@
 {
   "name": "HR.Visibel: Sistem Manajemen Karyawan",
-  "description": "A comprehensive employee data management system featuring AI-powered search, data validation, and visual dashboards for human resource professionals.",
+  "description": "A comprehensive employee data management system with PWA support, featuring AI-powered search, data validation, and visual dashboards for human resource professionals.",
   "requestFramePermissions": [
     "camera",
     "geolocation"
