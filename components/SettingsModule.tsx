@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icons } from '../constants';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 import { AttendanceSettings, Employee, Branch, SalaryData } from '../types';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';

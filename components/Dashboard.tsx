@@ -3,7 +3,7 @@ import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { Employee, Submission, Broadcast, ContentPlan, AttendanceRecord, ShiftAssignment, Shift } from '../types';
 import { Icons, DEFAULT_SHIFTS } from '../constants';
 import { getDaysUntilBirthday, formatDateToYYYYMMDD } from '../utils/dateUtils';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, 
@@ -546,7 +546,7 @@ const Dashboard: React.FC<DashboardProps> = ({
            )}
         </div>
 
-        <div className={`grid grid-cols-1 md:grid-cols-${showDrive ? (isAdmin ? '4' : '3') : (isAdmin ? '3' : '2')} gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500`}>
+        <div className={`grid grid-cols-1 md:grid-cols-${showDrive ? '3' : '2'} gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500`}>
            {showDrive && (
              <button 
                onClick={onOpenDrive}
@@ -559,17 +559,6 @@ const Dashboard: React.FC<DashboardProps> = ({
              </button>
            )}
 
-           {isAdmin && (
-             <button 
-               onClick={() => onNavigate('recruitment')}
-               className="bg-[#111827] text-white py-6 px-8 rounded-[42px] border border-white/5 shadow-2xl flex items-center gap-6 group hover:bg-black transition-all active:scale-95"
-             >
-                <div className="w-14 h-14 bg-white/5 rounded-[22px] flex items-center justify-center shrink-0 shadow-inner">
-                   <Icons.Briefcase className="w-7 h-7 text-blue-400" />
-                </div>
-                <p className="text-xl font-black uppercase tracking-tight">REKRUTMEN</p>
-             </button>
-           )}
 
            <button 
              onClick={() => onNavigate('calendar')}

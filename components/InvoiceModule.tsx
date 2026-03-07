@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import { Icons } from '../constants.tsx';
 import { Invoice, InvoiceItem } from '../types.ts';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 import { QuotationModule } from './QuotationModule.tsx';
 
 interface InvoiceModuleProps {

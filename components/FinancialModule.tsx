@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icons } from '../constants';
 import { flipService } from '../services/flipService';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 import { InvoiceModule } from './InvoiceModule';
 import SalarySlipModal from './SalarySlipModal';
 
@@ -315,23 +315,59 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
       return;
     }
 
-    if (!confirm(`Kirim slip gaji ke inbox ${targetEmployees.length} karyawan terpilih?`)) return;
+    if (!confirm(`Kirim slip gaji ke inbox & email ${targetEmployees.length} karyawan terpilih?`)) return;
     setIsSendingEmails(true);
     
     try {
-      // Simulate bulk sending to Inbox (Broadcasts)
       for (const emp of targetEmployees) {
+        const subject = `SLIP GAJI ${selectedMonth.toUpperCase()} ${selectedYear}`;
+        const message = `Halo ${emp.nama}, slip gaji Anda untuk periode ${selectedMonth} ${selectedYear} telah tersedia. Total Gaji Bersih: ${formatCurrency(emp.calculatedTotal)}. Silakan hubungi HR jika ada pertanyaan.`;
+
+        // 1. Send to Inbox (Broadcasts)
         const newBroadcast = {
-          title: `SLIP GAJI ${selectedMonth.toUpperCase()} ${selectedYear}`,
-          message: `Halo ${emp.nama}, slip gaji Anda untuk periode ${selectedMonth} ${selectedYear} telah tersedia. Silakan hubungi HR jika ada pertanyaan.`,
+          title: subject,
+          message: message,
           company: company,
           targetEmployeeIds: [emp.id],
           sentAt: new Date().toISOString()
         };
         await supabase.from('broadcasts').insert([newBroadcast]);
+
+        // 2. Send via Email (Resend)
+        if (emp.email && emp.email.includes('@')) {
+          try {
+            const emailHtml = `
+              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; rounded: 12px;">
+                <h2 style="color: #0f172a; text-transform: uppercase;">Slip Gaji ${selectedMonth} ${selectedYear}</h2>
+                <p>Halo <strong>${emp.nama}</strong>,</p>
+                <p>Slip gaji Anda untuk periode ${selectedMonth} ${selectedYear} telah diterbitkan.</p>
+                <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                  <p style="margin: 5px 0;"><strong>Nama:</strong> ${emp.nama}</p>
+                  <p style="margin: 5px 0;"><strong>Jabatan:</strong> ${emp.jabatan}</p>
+                  <p style="margin: 5px 0;"><strong>Total Gaji Bersih:</strong> <span style="color: #059669; font-weight: bold;">${formatCurrency(emp.calculatedTotal)}</span></p>
+                </div>
+                <p>Anda dapat melihat rincian lengkap slip gaji melalui aplikasi HR Visibel di menu Inbox.</p>
+                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+                <p style="font-size: 12px; color: #64748b;">Ini adalah email otomatis, mohon tidak membalas email ini.</p>
+              </div>
+            `;
+
+            await fetch('/api/send-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: emp.email,
+                subject: subject,
+                html: emailHtml
+              })
+            });
+          } catch (emailErr) {
+            console.error(`Failed to send email to ${emp.email}:`, emailErr);
+          }
+        }
       }
-      alert(`Slip gaji berhasil dikirim ke inbox ${targetEmployees.length} karyawan!`);
-      setSelectedIds([]); // Clear selection after sending
+      alert(`Slip gaji berhasil dikirim ke inbox & email ${targetEmployees.length} karyawan!`);
+      setSelectedIds([]); 
     } catch (e: any) {
       alert("Gagal mengirim slip: " + e.message);
     } finally {

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, Shift, ShiftAssignment } from '../types';
 import { Icons, DEFAULT_SHIFTS } from '../constants';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 import { formatDateToYYYYMMDD } from '../utils/dateUtils';
 
 interface ShiftModuleProps {

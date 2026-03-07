@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Employee, Broadcast } from '../types';
 import { Icons } from '../constants';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 
 interface AnnouncementModalProps {
   employees: Employee[];

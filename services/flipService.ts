@@ -1,5 +1,5 @@
 
-import { supabase } from '../App';
+import { supabase } from './supabaseClient';
 
 // Catatan Keamanan: API Key Flip harus diletakkan di Supabase Secrets/Edge Functions.
 // Kode ini adalah jembatan (client helper) untuk memanggil fungsi backend tersebut.

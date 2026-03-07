@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Employee } from '../types';
 import { BANK_OPTIONS, Icons } from '../constants';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 
 interface EmployeeFormProps {
   initialData: Employee | null;

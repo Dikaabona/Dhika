@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { InventoryItem } from '../types';
 import { Icons } from '../constants';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 import * as XLSX from 'xlsx';
 
 interface InventoryModuleProps {

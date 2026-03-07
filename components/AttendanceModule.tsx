@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, AttendanceRecord } from '../types';
 import { Icons } from '../constants';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 import { formatDateToYYYYMMDD } from '../utils/dateUtils';
 
 interface AttendanceModuleProps {

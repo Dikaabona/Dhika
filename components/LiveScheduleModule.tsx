@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, LiveSchedule, LiveReport, AttendanceRecord, ShiftAssignment, Shift } from '../types';
 import { Icons, LIVE_BRANDS as INITIAL_BRANDS, TIME_SLOTS } from '../constants';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 import { generateGoogleCalendarUrl, getMondayISO, getSundayISO, formatDateToYYYYMMDD, parseFlexibleDate } from '../utils/dateUtils';
 import LiveReportModule from './LiveReportModule';
 import LiveCharts from './LiveCharts';

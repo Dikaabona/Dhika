@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Employee } from '../types';
 import { Icons } from '../constants';
 import { calculateTenure } from '../utils/dateUtils';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 
 interface EmployeeDetailModalProps {
   employee: Employee;

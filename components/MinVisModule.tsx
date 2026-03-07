@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { Icons } from '../constants';
 import * as XLSX from 'xlsx';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 
 interface Message {
   role: 'user' | 'assistant';

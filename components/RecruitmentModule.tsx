@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icons } from '../constants.tsx';
-import { supabase } from '../App.tsx';
+import { supabase } from '../services/supabaseClient';
 import { Candidate, UserRole } from '../types';
 import Papa from 'papaparse';
 
@@ -20,6 +20,10 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
   const [candidateNote, setCandidateNote] = useState('');
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name_asc' | 'name_desc'>('newest');
   const itemsPerPage = 10;
@@ -37,7 +41,7 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
       const { data, error } = await supabase
         .from('candidates')
         .select('*')
-        .ilike('company', company)
+        .ilike('company', company.trim())
         .order('timestamp', { ascending: false });
 
       if (error) {
@@ -66,15 +70,15 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
   const syncFromSheet = async () => {
     setIsSyncing(true);
     try {
-      // Cleanup old candidates (older than 14 days) ONLY during sync
-      const fourteenDaysAgoCleanup = new Date();
-      fourteenDaysAgoCleanup.setDate(fourteenDaysAgoCleanup.getDate() - 14);
+      // Cleanup old candidates (older than 60 days) ONLY during sync
+      const sixtyDaysAgoCleanup = new Date();
+      sixtyDaysAgoCleanup.setDate(sixtyDaysAgoCleanup.getDate() - 60);
       
       const { error: deleteError } = await supabase
         .from('candidates')
         .delete()
-        .lt('created_at', fourteenDaysAgoCleanup.toISOString())
-        .ilike('company', company);
+        .lt('created_at', sixtyDaysAgoCleanup.toISOString())
+        .ilike('company', company.trim());
 
       if (deleteError) console.error("Cleanup error during sync:", deleteError);
 
@@ -96,41 +100,50 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
             return;
           }
 
-          const fourteenDaysAgo = new Date();
-          fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+          const sixtyDaysAgo = new Date();
+          sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
           const newCandidates: Candidate[] = sheetData
             .map((row: any) => {
-              const ts = row['Timestamp'] || '';
+              const ts = (row['Timestamp'] || row['timestamp'] || row['Waktu'] || row['waktu'] || '').toString().trim();
               let dateObj = new Date(ts);
               
               if (isNaN(dateObj.getTime()) && ts.includes('/')) {
                 const [datePart] = ts.split(' ');
-                const [m, d, y] = datePart.split('/');
-                dateObj = new Date(`${y}-${m}-${d}`);
+                const parts = datePart.split('/');
+                if (parts.length === 3) {
+                  const [p1, p2, p3] = parts;
+                  // Try YYYY-MM-DD (assuming p1 is month)
+                  let d = new Date(`${p3}-${p1}-${p2}`);
+                  if (isNaN(d.getTime())) {
+                    // Try YYYY-MM-DD (assuming p2 is month)
+                    d = new Date(`${p3}-${p2}-${p1}`);
+                  }
+                  dateObj = d;
+                }
               }
 
               return {
                 timestamp: ts,
-                email: row['Email Address'] || '',
-                nama: row['Nama'] || '',
-                ttl: row['Tempat Tanggal Lahir'] || '',
-                alamat: row['Alamat Lengkap'] || '',
-                noHp: row['No HP'] || '',
-                gajiHarapan: row['Gaji yang diharapkan'] || '',
-                posisi: row['Posisi yang dilamar'] || '',
-                videoUrl: row['Silahkan lampirkan video live streaming (min 1 menit)'] || '',
-                portfolioUrl: row['Silahkan lampirkan portfolio'] || '',
+                email: (row['Email Address'] || row['Email'] || row['email'] || row['Alamat Email'] || '').toString().trim(),
+                nama: (row['Nama'] || row['nama'] || row['Name'] || row['Nama Lengkap'] || '').toString().trim(),
+                ttl: (row['Tempat Tanggal Lahir'] || row['TTL'] || row['Tempat, Tanggal Lahir'] || '').toString().trim(),
+                alamat: (row['Alamat Lengkap'] || row['Alamat'] || row['Domisili'] || '').toString().trim(),
+                noHp: (row['No HP'] || row['No. HP'] || row['Phone'] || row['Nomor WhatsApp'] || '').toString().trim(),
+                gajiHarapan: (row['Gaji yang diharapkan'] || row['Gaji'] || row['Ekspektasi Gaji'] || '').toString().trim(),
+                posisi: (row['Posisi yang dilamar'] || row['Posisi'] || row['Jabatan'] || '').toString().trim(),
+                videoUrl: (row['Silahkan lampirkan video live streaming (min 1 menit)'] || row['Video'] || row['Link Video'] || '').toString().trim(),
+                portfolioUrl: (row['Silahkan lampirkan portfolio'] || row['Portfolio'] || row['Link Portfolio'] || '').toString().trim(),
                 status: 'Applied' as const,
-                company: company,
+                company: company.trim(),
                 _dateObj: dateObj
               };
             })
-            .filter(cand => cand._dateObj >= fourteenDaysAgo)
+            .filter(cand => cand.email && cand.nama && (isNaN(cand._dateObj.getTime()) || cand._dateObj >= sixtyDaysAgo))
             .map(({ _dateObj, ...rest }) => rest);
 
           if (newCandidates.length === 0) {
-            alert('Tidak ada pelamar baru dalam 14 hari terakhir di Spreadsheet.');
+            alert('Tidak ada pelamar baru yang valid dalam 60 hari terakhir di Spreadsheet.');
             setIsSyncing(false);
             return;
           }
@@ -138,6 +151,7 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
           // Try to save to DB
           let successCount = 0;
           let failCount = 0;
+          let lastErrorMessage = "";
 
           for (const cand of newCandidates) {
             try {
@@ -147,7 +161,7 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
                 .select('id')
                 .eq('email', cand.email)
                 .eq('timestamp', cand.timestamp)
-                .ilike('company', company)
+                .ilike('company', company.trim())
                 .maybeSingle();
 
               if (checkError) throw checkError;
@@ -157,8 +171,9 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
                 if (insertError) throw insertError;
                 successCount++;
               }
-            } catch (err) {
+            } catch (err: any) {
               console.error("Error processing candidate:", cand.email, err);
+              if (!lastErrorMessage) lastErrorMessage = err.message || JSON.stringify(err);
               failCount++;
             }
           }
@@ -168,7 +183,9 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
           await fetchCandidates();
           
           if (failCount > 0) {
-            alert(`Sinkronisasi selesai dengan beberapa kendala. Berhasil: ${successCount}, Gagal: ${failCount}. Pastikan tabel database sudah sesuai.`);
+            const sqlFix = `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS "gajiHarapan" text; ALTER TABLE candidates ADD COLUMN IF NOT EXISTS "noHp" text; ALTER TABLE candidates ADD COLUMN IF NOT EXISTS "videoUrl" text; ALTER TABLE candidates ADD COLUMN IF NOT EXISTS "portfolioUrl" text;`;
+            console.error("SQL Fix Suggestion:", sqlFix);
+            alert(`Sinkronisasi selesai dengan kendala. Berhasil: ${successCount}, Gagal: ${failCount}.\n\nKEMUNGKINAN PENYEBAB: Kolom di database Supabase tidak lengkap.\n\nSOLUSI: Jalankan perintah SQL berikut di Supabase SQL Editor:\n\n${sqlFix}`);
           } else {
             alert(`Sinkronisasi Berhasil! ${successCount} data baru ditambahkan.`);
           }
@@ -216,6 +233,46 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
     } catch (err) {
       console.error("Save note error:", err);
     }
+  };
+
+  const handleSendEmail = async () => {
+    if (!selectedCandidate?.email || !emailSubject || !emailBody) return;
+    
+    setIsSendingEmail(true);
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: selectedCandidate.email,
+          subject: emailSubject,
+          html: `<div style="font-family: sans-serif; padding: 20px;">${emailBody.replace(/\n/g, '<br>')}</div>`,
+        }),
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        alert(`Email berhasil dikirim ke ${selectedCandidate.nama}`);
+        setIsEmailModalOpen(false);
+        setSelectedCandidate(null);
+      } else {
+        throw new Error(result.error?.message || result.error || 'Gagal mengirim email');
+      }
+    } catch (err: any) {
+      console.error("Send email error:", err);
+      alert(`Gagal mengirim email: ${err.message}`);
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
+  const openEmailModal = (cand: Candidate) => {
+    setSelectedCandidate(cand);
+    setEmailSubject(`Update Rekrutmen: ${cand.posisi} - ${company}`);
+    setEmailBody(`Halo ${cand.nama},\n\nTerima kasih telah melamar untuk posisi ${cand.posisi} di ${company}.\n\nKami ingin menginformasikan bahwa...`);
+    setIsEmailModalOpen(true);
   };
 
   const filteredCandidates = useMemo(() => {
@@ -403,6 +460,13 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
                           </a>
                         )}
                         <button 
+                          onClick={() => openEmailModal(cand)}
+                          className="p-2.5 bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm"
+                          title="Kirim Email"
+                        >
+                          <Icons.Mail className="w-4 h-4" />
+                        </button>
+                        <button 
                           onClick={() => {
                             setSelectedCandidate(cand);
                             setCandidateNote(cand.notes || '');
@@ -509,6 +573,48 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
                 className="w-full bg-[#0f172a] text-white py-5 rounded-3xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all active:scale-95"
               >
                 SIMPAN CATATAN
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isEmailModalOpen && selectedCandidate && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6 animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in duration-300">
+            <div className="px-10 py-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Kirim Email</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{selectedCandidate.nama} ({selectedCandidate.email})</p>
+              </div>
+              <button onClick={() => setIsEmailModalOpen(false)} className="p-2 hover:bg-white rounded-xl transition-colors">
+                <Icons.X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+            <div className="p-10 space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Subjek Email</label>
+                <input 
+                  type="text"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#1E6BFF] outline-none font-bold text-[10px] uppercase tracking-widest"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Isi Email</label>
+                <textarea 
+                  value={emailBody}
+                  onChange={(e) => setEmailBody(e.target.value)}
+                  className="w-full h-40 p-6 bg-slate-50 rounded-3xl border-none focus:ring-2 focus:ring-[#1E6BFF] outline-none font-medium text-sm resize-none"
+                />
+              </div>
+              <button 
+                onClick={handleSendEmail}
+                disabled={isSendingEmail}
+                className="w-full bg-[#0f172a] text-[#FFC000] py-5 rounded-3xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all active:scale-95 disabled:opacity-50"
+              >
+                {isSendingEmail ? 'MENGIRIM...' : 'KIRIM EMAIL SEKARANG'}
               </button>
             </div>
           </div>

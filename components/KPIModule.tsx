@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Employee, AttendanceRecord, ContentPlan, LiveReport, ShiftAssignment } from '../types';
 import { Icons, DEFAULT_SHIFTS } from '../constants';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 
 interface KPIModuleProps {
   employees: Employee[];

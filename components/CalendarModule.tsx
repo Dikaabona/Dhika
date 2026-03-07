@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Employee, CalendarEvent } from '../types';
 import { Icons } from '../constants';
 import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 
 interface CalendarModuleProps {
   employees: Employee[];

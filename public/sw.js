@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hr-visibel-v1';
+const CACHE_NAME = 'hr-visibel-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

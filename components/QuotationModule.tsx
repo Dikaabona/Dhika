@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
 import { Icons } from '../constants.tsx';
 import { Quotation, QuotationItem } from '../types.ts';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 
 interface QuotationModuleProps {
   company: string;

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Employee, AttendanceRecord, AttendanceSettings } from '../types';
 import { Icons } from '../constants';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 
 interface AbsenModuleProps {
   employee: Employee | null;

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, LiveReport } from '../types';
 import { Icons, LIVE_BRANDS } from '../constants';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 
 interface LiveReportModuleProps {
   employees: Employee[];

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Employee, AttendanceStatus, Submission } from '../types';
 import { Icons } from '../constants';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 
 interface SubmissionFormProps {
   employee: Employee | null;

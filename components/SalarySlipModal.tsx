@@ -3,7 +3,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Employee, SalaryData, AttendanceRecord, Broadcast, AttendanceSettings } from '../types';
 import { Icons } from '../constants';
 import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 
 interface SalarySlipModalProps {
   employee: Employee;
@@ -514,35 +514,68 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       if (!pdfBlob) return;
       const fileName = `Slip_Gaji_${employee.nama.replace(/\s/g, '_')}_${data.month}_${data.year}.pdf`;
       
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File([pdfBlob], fileName, { type: 'application/pdf' })] })) {
-        const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-        await navigator.share({
-          files: [file],
-          title: `Slip Gaji ${employee.nama}`,
-          text: `Halo ${employee.nama}, berikut slip gaji periode ${data.month} ${data.year}.`
-        });
-      } else {
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(pdfBlob);
-        link.download = fileName;
-        link.click();
+      const recipientEmail = (currentEmployee.email || '').trim();
+      if (!recipientEmail || !recipientEmail.includes('@')) {
+        alert("Email karyawan belum valid. Silakan lengkapi di Database Karyawan.");
+        setIsProcessing(false);
+        return;
+      }
+
+      // Convert blob to base64 for Resend attachment
+      const reader = new FileReader();
+      reader.readAsDataURL(pdfBlob);
+      reader.onloadend = async () => {
+        const base64data = reader.result as string;
+        const base64Content = base64data.split(',')[1];
 
         const subject = `Slip Gaji ${employee.nama} - ${data.month} ${data.year}`;
-        const body = `Halo ${employee.nama},\n\nSlip gaji Anda untuk periode ${data.month} ${data.year} telah berhasil di-generate sebagai PDF (terunduh otomatis).\n\nSilakan lampirkan file tersebut pada email ini.\n\nTotal Gaji Bersih: Rp ${takeHomePay.toLocaleString('id-ID')}\n\nSalam,\nHR Visibel ID`;
-        
-        const recipientEmail = (currentEmployee.email || '').trim();
-        
-        if (!recipientEmail) {
-          alert("Email karyawan belum diatur. Silakan lengkapi di Database Karyawan agar email penerima dapat terisi otomatis.");
-        } else {
-          window.location.href = `mailto:${recipientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        const emailHtml = `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+            <h2 style="color: #0f172a; text-transform: uppercase;">Slip Gaji ${data.month} ${data.year}</h2>
+            <p>Halo <strong>${employee.nama}</strong>,</p>
+            <p>Slip gaji Anda untuk periode ${data.month} ${data.year} telah diterbitkan. Terlampir adalah rincian dalam format PDF.</p>
+            <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 5px 0;"><strong>Nama:</strong> ${employee.nama}</p>
+              <p style="margin: 5px 0;"><strong>Jabatan:</strong> ${employee.jabatan}</p>
+              <p style="margin: 5px 0;"><strong>Total Gaji Bersih:</strong> <span style="color: #059669; font-weight: bold;">Rp ${takeHomePay.toLocaleString('id-ID')}</span></p>
+            </div>
+            <p>Anda juga dapat melihat rincian lengkap slip gaji melalui aplikasi HR Visibel di menu Inbox.</p>
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+            <p style="font-size: 12px; color: #64748b;">Ini adalah email otomatis, mohon tidak membalas email ini.</p>
+          </div>
+        `;
+
+        try {
+          const res = await fetch('/api/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: recipientEmail,
+              subject: subject,
+              html: emailHtml,
+              attachments: [
+                {
+                  filename: fileName,
+                  content: base64Content,
+                }
+              ]
+            })
+          });
+
+          if (res.ok) {
+            alert(`Slip gaji berhasil dikirim ke email ${recipientEmail}!`);
+          } else {
+            const errData = await res.json();
+            throw new Error(errData.error || 'Gagal mengirim email');
+          }
+        } catch (err: any) {
+          alert("Gagal mengirim email: " + err.message);
+        } finally {
+          setIsProcessing(false);
         }
-        
-        alert("Slip Gaji PDF berhasil di-generate and diunduh. Silakan lampirkan secara manual ke draf email yang terbuka.");
-      }
+      };
     } catch (err: any) {
       alert("Gagal memproses pengiriman: " + err.message);
-    } finally {
       setIsProcessing(false);
     }
   };
