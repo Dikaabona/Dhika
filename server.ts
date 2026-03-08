@@ -5,11 +5,17 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+// Force development mode if not explicitly set to production
+if (process.env.NODE_ENV !== "production") {
+  process.env.NODE_ENV = "development";
+}
+
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
+  console.log("NODE_ENV:", process.env.NODE_ENV);
 
   app.use(express.json());
 
@@ -42,11 +48,13 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    console.log("Starting Vite in middleware mode...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
+    console.log("Vite middleware attached.");
   } else {
     // Serve static files in production
     app.use(express.static("dist"));

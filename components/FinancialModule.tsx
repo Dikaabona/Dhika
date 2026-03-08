@@ -318,26 +318,34 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
     if (!confirm(`Kirim slip gaji ke inbox & email ${targetEmployees.length} karyawan terpilih?`)) return;
     setIsSendingEmails(true);
     
+    let successCount = 0;
+    let failCount = 0;
+
     try {
       for (const emp of targetEmployees) {
         const subject = `SLIP GAJI ${selectedMonth.toUpperCase()} ${selectedYear}`;
         const message = `Halo ${emp.nama}, slip gaji Anda untuk periode ${selectedMonth} ${selectedYear} telah tersedia. Total Gaji Bersih: ${formatCurrency(emp.calculatedTotal)}. Silakan hubungi HR jika ada pertanyaan.`;
 
         // 1. Send to Inbox (Broadcasts)
-        const newBroadcast = {
-          title: subject,
-          message: message,
-          company: company,
-          targetEmployeeIds: [emp.id],
-          sentAt: new Date().toISOString()
-        };
-        await supabase.from('broadcasts').insert([newBroadcast]);
+        try {
+          const newBroadcast = {
+            title: subject,
+            message: message,
+            company: company,
+            targetEmployeeIds: [emp.id],
+            sentAt: new Date().toISOString()
+          };
+          await supabase.from('broadcasts').insert([newBroadcast]);
+        } catch (inboxErr) {
+          console.error("Failed to send to inbox:", inboxErr);
+        }
 
         // 2. Send via Email (Resend)
-        if (emp.email && emp.email.includes('@')) {
+        const recipientEmail = (emp.email || '').trim().toLowerCase();
+        if (recipientEmail && recipientEmail.includes('@')) {
           try {
             const emailHtml = `
-              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; rounded: 12px;">
+              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
                 <h2 style="color: #0f172a; text-transform: uppercase;">Slip Gaji ${selectedMonth} ${selectedYear}</h2>
                 <p>Halo <strong>${emp.nama}</strong>,</p>
                 <p>Slip gaji Anda untuk periode ${selectedMonth} ${selectedYear} telah diterbitkan.</p>
@@ -352,24 +360,34 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
               </div>
             `;
 
-            await fetch('/api/send-email', {
+            const res = await fetch('/api/send-email', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                to: emp.email,
+                to: recipientEmail,
                 subject: subject,
                 html: emailHtml
               })
             });
+
+            if (res.ok) {
+              successCount++;
+            } else {
+              failCount++;
+              console.error(`Failed to send email to ${recipientEmail}`);
+            }
           } catch (emailErr) {
-            console.error(`Failed to send email to ${emp.email}:`, emailErr);
+            failCount++;
+            console.error(`Error sending email to ${recipientEmail}:`, emailErr);
           }
+        } else {
+          console.warn(`Employee ${emp.nama} has no valid email.`);
         }
       }
-      alert(`Slip gaji berhasil dikirim ke inbox & email ${targetEmployees.length} karyawan!`);
+      alert(`Proses selesai! ${successCount} email berhasil dikirim, ${failCount} gagal. Semua slip juga telah dikirim ke Inbox.`);
       setSelectedIds([]); 
     } catch (e: any) {
-      alert("Gagal mengirim slip: " + e.message);
+      alert("Gagal memproses pengiriman slip: " + e.message);
     } finally {
       setIsSendingEmails(false);
     }

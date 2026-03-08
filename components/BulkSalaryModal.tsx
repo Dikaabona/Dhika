@@ -201,7 +201,8 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
 
           // 1. Send via Email (Resend)
           let emailSent = false;
-          if (email && email.includes('@')) {
+          const recipientEmail = (email || '').trim().toLowerCase();
+          if (recipientEmail && recipientEmail.includes('@')) {
             try {
               const subject = `SLIP GAJI ${selectedMonth.toUpperCase()} ${selectedYear}`;
               const emailHtml = `
@@ -224,7 +225,7 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  to: email,
+                  to: recipientEmail,
                   subject: subject,
                   html: emailHtml
                 })
@@ -237,7 +238,7 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
                 throw new Error(errData.error || 'Failed to send email');
               }
             } catch (emailErr: any) {
-              console.error(`Failed to send email to ${email}:`, emailErr);
+              console.error(`Failed to send email to ${recipientEmail}:`, emailErr);
               throw new Error(`Gagal kirim email: ${emailErr.message}`);
             }
           }

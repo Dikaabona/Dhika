@@ -1,7 +1,9 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+console.log("App.tsx loading...");
 import * as XLSX from 'xlsx';
 import { createClient, Session } from '@supabase/supabase-js';
+import { supabase } from './services/supabaseClient.ts';
 import { Employee, AttendanceRecord, LiveSchedule, Submission, Broadcast, ContentPlan, LiveReport, ShiftAssignment, ActiveTab, UserRole, Shift } from './types.ts';
 import { Icons, BANK_OPTIONS, DEFAULT_SHIFTS } from './constants.tsx';
 import EmployeeForm from './components/EmployeeForm.tsx';
@@ -42,11 +44,6 @@ const sanitizeConfig = (val: any, fallback: string) => {
   return sanitized || fallback.trim();
 };
 
-const SUPABASE_URL = 'https://rcrtknakiwvfkmnwvdvf.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcnRrbmFraXd2Zmttbnd2ZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2NjEyODYsImV4cCI6MjA4NTIzNzI4Nn0.Ca9m25c9K0_J_kCRphGSaECGs8CGz4-zUpVoA_rIERA';
-
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
 export const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<UserRole>('employee');
@@ -68,15 +65,23 @@ export const App: React.FC = () => {
   const getTodayStr = () => formatDateToYYYYMMDD(new Date());
   
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
-    const savedTab = localStorage.getItem('visibel_active_tab');
-    return (savedTab as ActiveTab) || 'home';
+    try {
+      const savedTab = localStorage.getItem('visibel_active_tab');
+      return (savedTab as ActiveTab) || 'home';
+    } catch (e) {
+      return 'home';
+    }
   });
 
   const [attendanceStartDate, setAttendanceStartDate] = useState(getTodayStr());
   const [attendanceEndDate, setAttendanceEndDate] = useState(getTodayStr());
 
   useEffect(() => {
-    localStorage.setItem('visibel_active_tab', activeTab);
+    try {
+      localStorage.setItem('visibel_active_tab', activeTab);
+    } catch (e) {
+      console.warn("Failed to save active tab to localStorage", e);
+    }
   }, [activeTab]);
 
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -180,6 +185,10 @@ export const App: React.FC = () => {
       if (intervalId) clearInterval(intervalId);
     };
   }, [session, currentUserEmployee]);
+
+  const DEFAULT_HOLIDAYS = {
+    'SENIN': [], 'SELASA': [], 'RABU': [], 'KAMIS': [], 'JUMAT': [], 'SABTU': [], 'MINGGU': []
+  };
 
   const fetchData = async (userEmail?: string, isSilent: boolean = false) => {
     if (!navigator.onLine) {
@@ -383,10 +392,6 @@ export const App: React.FC = () => {
     } finally {
       setIsLoadingData(false);
     }
-  };
-
-  const DEFAULT_HOLIDAYS = {
-    'SENIN': [], 'SELASA': [], 'RABU': [], 'KAMIS': [], 'JUMAT': [], 'SABTU': [], 'MINGGU': []
   };
 
   const handleAuth = async (email: string, password?: string, isRegister = false, isReset = false) => {
