@@ -3,7 +3,9 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Employee, SalaryData, AttendanceRecord, Broadcast, AttendanceSettings } from '../types';
 import { Icons } from '../constants';
 import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '../App';
+
+import SalarySlipContent from './SalarySlipContent';
 
 interface SalarySlipModalProps {
   employee: Employee;
@@ -43,6 +45,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           tunjanganKesehatan: latest.salaryConfig?.tunjanganKesehatan ?? prev.tunjanganKesehatan,
           tunjanganJabatan: latest.salaryConfig?.tunjanganJabatan ?? prev.tunjanganJabatan,
           bpjstk: latest.salaryConfig?.bpjstk ?? prev.bpjstk,
+          isBPJSTKActive: latest.salaryConfig?.isBPJSTKActive ?? true,
           pph21: latest.salaryConfig?.pph21 ?? prev.pph21,
           lembur: latest.salaryConfig?.lembur ?? prev.lembur,
           bonus: latest.salaryConfig?.bonus ?? prev.bonus,
@@ -70,7 +73,6 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
 
   const activePeriod = getActivePayrollMonthInfo();
 
-  const [isBPJSTKActive, setIsBPJSTKActive] = useState(true);
   const [showOvertimeDetails, setShowOvertimeDetails] = useState(false);
   const [data, setData] = useState<SalaryData & { adjustment: number; pph21: number; totalHutang: number }>({
     month: activePeriod.name,
@@ -82,6 +84,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     tunjanganKesehatan: employee.salaryConfig?.tunjanganKesehatan ?? 0,
     tunjanganJabatan: employee.salaryConfig?.tunjanganJabatan ?? 0,
     bpjstk: employee.salaryConfig?.bpjstk ?? 0,
+    isBPJSTKActive: employee.salaryConfig?.isBPJSTKActive ?? true,
     pph21: employee.salaryConfig?.pph21 ?? 0,
     lembur: employee.salaryConfig?.lembur ?? 0,
     bonus: employee.salaryConfig?.bonus ?? 0,
@@ -336,12 +339,14 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const autoBPJS = useMemo(() => Math.round(totalPendapatan * 0.02), [totalPendapatan]);
 
   useEffect(() => {
-    if (isBPJSTKActive) {
+    if (data.isBPJSTKActive) {
       setData(prev => ({ ...prev, bpjstk: autoBPJS }));
+    } else {
+      setData(prev => ({ ...prev, bpjstk: 0 }));
     }
-  }, [autoBPJS, isBPJSTKActive]);
+  }, [autoBPJS, data.isBPJSTKActive]);
 
-  const currentBPJSTK = isBPJSTKActive ? (data.bpjstk || 0) : 0;
+  const currentBPJSTK = data.isBPJSTKActive ? (data.bpjstk || 0) : 0;
   const totalPotongan = currentBPJSTK + potonganAbsensi + (data.pph21 || 0) + (data.potonganHutang || 0) + (data.potonganLain || 0);
   const takeHomePay = totalPendapatan - totalPotongan + (data.adjustment || 0);
   const sisaHutang = Math.max(0, (data.totalHutang || 0) - (data.potonganHutang || 0));
@@ -375,6 +380,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         tunjanganKesehatan: data.tunjanganKesehatan,
         tunjanganJabatan: data.tunjanganJabatan,
         bpjstk: data.bpjstk,
+        isBPJSTKActive: data.isBPJSTKActive,
         pph21: data.pph21,
         lembur: data.lembur,
         bonus: data.bonus,
@@ -421,14 +427,11 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         scrollX: 0,
         scrollY: 0,
         onclone: (clonedDoc: Document) => {
-          const styles = clonedDoc.getElementsByTagName('style');
-          for (let i = styles.length - 1; i >= 0; i--) {
-            styles[i].remove();
-          }
-          const links = clonedDoc.getElementsByTagName('link');
-          for (let i = links.length - 1; i >= 0; i--) {
-            if (links[i].rel === 'stylesheet') {
-              links[i].remove();
+          // Fix for html2canvas not supporting oklch colors (Tailwind v4 default)
+          const styleTags = clonedDoc.getElementsByTagName('style');
+          for (let i = 0; i < styleTags.length; i++) {
+            if (styleTags[i].innerHTML.includes('oklch')) {
+              styleTags[i].innerHTML = styleTags[i].innerHTML.replace(/oklch\([^)]+\)/g, '#000000');
             }
           }
           const all = clonedDoc.getElementsByTagName('*');
@@ -477,14 +480,11 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         x: 0,
         y: 0,
         onclone: (clonedDoc: Document) => {
-          const styles = clonedDoc.getElementsByTagName('style');
-          for (let i = styles.length - 1; i >= 0; i--) {
-            styles[i].remove();
-          }
-          const links = clonedDoc.getElementsByTagName('link');
-          for (let i = links.length - 1; i >= 0; i--) {
-            if (links[i].rel === 'stylesheet') {
-              links[i].remove();
+          // Fix for html2canvas not supporting oklch colors (Tailwind v4 default)
+          const styleTags = clonedDoc.getElementsByTagName('style');
+          for (let i = 0; i < styleTags.length; i++) {
+            if (styleTags[i].innerHTML.includes('oklch')) {
+              styleTags[i].innerHTML = styleTags[i].innerHTML.replace(/oklch\([^)]+\)/g, '#000000');
             }
           }
           const all = clonedDoc.getElementsByTagName('*');
@@ -510,72 +510,107 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const handleSendEmail = async () => {
     setIsProcessing(true);
     try {
-      const pdfBlob = await generatePDFBlob();
-      if (!pdfBlob) return;
-      const fileName = `Slip_Gaji_${employee.nama.replace(/\s/g, '_')}_${data.month}_${data.year}.pdf`;
-      
+      const target = isPreview ? previewSlipRef.current : hiddenSlipRef.current;
+      if (!target) return;
+
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(target, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        width: 794,
+        height: 1122,
+        onclone: (clonedDoc: Document) => {
+          // Fix for html2canvas not supporting oklch colors (Tailwind v4 default)
+          const styleTags = clonedDoc.getElementsByTagName('style');
+          for (let i = 0; i < styleTags.length; i++) {
+            if (styleTags[i].innerHTML.includes('oklch')) {
+              styleTags[i].innerHTML = styleTags[i].innerHTML.replace(/oklch\([^)]+\)/g, '#000000');
+            }
+          }
+          const all = clonedDoc.getElementsByTagName('*');
+          for (let i = 0; i < all.length; i++) {
+            const el = all[i] as HTMLElement;
+            if (el.style && el.style.cssText && el.style.cssText.includes('oklch')) {
+              el.style.cssText = el.style.cssText.replace(/oklch\([^)]+\)/g, '#000000');
+            }
+          }
+        }
+      });
+      const pngBase64 = canvas.toDataURL('image/png');
+
       const recipientEmail = (currentEmployee.email || '').trim();
-      if (!recipientEmail || !recipientEmail.includes('@')) {
-        alert("Email karyawan belum valid. Silakan lengkapi di Database Karyawan.");
-        setIsProcessing(false);
+      if (!recipientEmail) {
+        alert("Email karyawan belum diatur. Silakan lengkapi di Database Karyawan.");
         return;
       }
 
-      // Convert blob to base64 for Resend attachment
-      const reader = new FileReader();
-      reader.readAsDataURL(pdfBlob);
-      reader.onloadend = async () => {
-        const base64data = reader.result as string;
-        const base64Content = base64data.split(',')[1];
-
-        const subject = `Slip Gaji ${employee.nama} - ${data.month} ${data.year}`;
-        const emailHtml = `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-            <h2 style="color: #0f172a; text-transform: uppercase;">Slip Gaji ${data.month} ${data.year}</h2>
-            <p>Halo <strong>${employee.nama}</strong>,</p>
-            <p>Slip gaji Anda untuk periode ${data.month} ${data.year} telah diterbitkan. Terlampir adalah rincian dalam format PDF.</p>
-            <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
-              <p style="margin: 5px 0;"><strong>Nama:</strong> ${employee.nama}</p>
-              <p style="margin: 5px 0;"><strong>Jabatan:</strong> ${employee.jabatan}</p>
-              <p style="margin: 5px 0;"><strong>Total Gaji Bersih:</strong> <span style="color: #059669; font-weight: bold;">Rp ${takeHomePay.toLocaleString('id-ID')}</span></p>
-            </div>
-            <p>Anda juga dapat melihat rincian lengkap slip gaji melalui aplikasi HR Visibel di menu Inbox.</p>
-            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-            <p style="font-size: 12px; color: #64748b;">Ini adalah email otomatis, mohon tidak membalas email ini.</p>
+      const emailHtml = `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden;">
+          <div style="background-color: #0f172a; padding: 30px; text-align: center;">
+            <h1 style="color: #FFC000; margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 2px;">SLIP GAJI</h1>
+            <p style="color: #94a3b8; margin: 5px 0 0 0; font-size: 12px; font-weight: bold;">PERIODE ${data.month.toUpperCase()} ${data.year}</p>
           </div>
-        `;
+          <div style="padding: 40px; color: #1e293b;">
+            <p style="margin-top: 0;">Halo <strong>${employee.nama}</strong>,</p>
+            <p>Berikut adalah slip gaji Anda untuk periode ${data.month} ${data.year}.</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <img src="${pngBase64}" alt="Slip Gaji" style="max-width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" />
+            </div>
 
+            <div style="background-color: #f8fafc; padding: 20px; border-radius: 12px; margin: 25px 0;">
+              <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; color: #64748b;">Total Gaji Bersih</td>
+                  <td style="padding: 8px 0; text-align: right; font-weight: 900; font-size: 18px; color: #0f172a;">Rp ${takeHomePay.toLocaleString('id-ID')}</td>
+                </tr>
+              </table>
+            </div>
+            
+            <p style="font-size: 13px; color: #64748b; line-height: 1.6;">
+              Detail rincian lengkap dapat Anda lihat langsung melalui aplikasi <strong>Visibel HR</strong>.
+            </p>
+            
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #f1f5f9; text-align: center;">
+              <p style="font-size: 11px; color: #94a3b8; margin: 0;">Email ini dikirim secara otomatis oleh sistem Finance ${employee.company}.</p>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: recipientEmail,
+          subject: `SLIP GAJI ${data.month.toUpperCase()} ${data.year} - ${employee.nama}`,
+          html: emailHtml,
+          from: "admin@visibel.agency"
+        })
+      });
+
+      if (response.ok) {
+        alert("Slip gaji berhasil dikirim ke email karyawan!");
+      } else {
+        let errorMsg = "Gagal mengirim email";
         try {
-          const res = await fetch('/api/send-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: recipientEmail,
-              subject: subject,
-              html: emailHtml,
-              attachments: [
-                {
-                  filename: fileName,
-                  content: base64Content,
-                }
-              ]
-            })
-          });
-
-          if (res.ok) {
-            alert(`Slip gaji berhasil dikirim ke email ${recipientEmail}!`);
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const errData = await response.json();
+            errorMsg = errData.message || JSON.stringify(errData);
           } else {
-            const errData = await res.json();
-            throw new Error(errData.error || 'Gagal mengirim email');
+            const text = await response.text();
+            errorMsg = text.substring(0, 100);
           }
-        } catch (err: any) {
-          alert("Gagal mengirim email: " + err.message);
-        } finally {
-          setIsProcessing(false);
+        } catch (e) {
+          errorMsg = `HTTP Error ${response.status}`;
         }
-      };
+        throw new Error(errorMsg);
+      }
     } catch (err: any) {
       alert("Gagal memproses pengiriman: " + err.message);
+    } finally {
       setIsProcessing(false);
     }
   };
@@ -636,14 +671,11 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         scrollX: 0,
         scrollY: 0,
         onclone: (clonedDoc: Document) => {
-          const styles = clonedDoc.getElementsByTagName('style');
-          for (let i = styles.length - 1; i >= 0; i--) {
-            styles[i].remove();
-          }
-          const links = clonedDoc.getElementsByTagName('link');
-          for (let i = links.length - 1; i >= 0; i--) {
-            if (links[i].rel === 'stylesheet') {
-              links[i].remove();
+          // Fix for html2canvas not supporting oklch colors (Tailwind v4 default)
+          const styleTags = clonedDoc.getElementsByTagName('style');
+          for (let i = 0; i < styleTags.length; i++) {
+            if (styleTags[i].innerHTML.includes('oklch')) {
+              styleTags[i].innerHTML = styleTags[i].innerHTML.replace(/oklch\([^)]+\)/g, '#000000');
             }
           }
           const all = clonedDoc.getElementsByTagName('*');
@@ -678,85 +710,24 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     }
   };
 
-  const SalarySlipContent = () => {
+  const SalarySlipContentWrapper = () => {
     const slipLogo = companyDetails?.logo || ((employee.company || '').toLowerCase() === 'seller space' ? SELLER_SPACE_LOGO : VISIBEL_LOGO);
     return (
-      <div style={{ width: '794px', height: '1122px', position: 'relative', overflow: 'hidden', color: '#0f172a', boxSizing: 'border-box', backgroundColor: '#ffffff' }}>
-        <div style={{ padding: '20px 60px 30px 60px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '2px solid #000', paddingBottom: '10px', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <img src={slipLogo} alt="Logo" style={{ height: '65px', width: 'auto' }} />
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <h2 style={{ fontSize: '30px', fontWeight: '900', margin: '0', letterSpacing: '-1px' }}>SLIP GAJI</h2>
-              <p style={{ fontSize: '14px', fontWeight: '800', color: '#806000', margin: '2px 0' }}>{(data.month || '').toUpperCase()} {data.year}</p>
-              <p style={{ fontSize: '9px', color: '#94a3b8', margin: '2px 0 0 0' }}>Cutoff: {cutoffStart} - {cutoffEnd}</p>
-            </div>
-          </div>
-
-          <div style={{ backgroundColor: '#FFFBEB', border: '1.2px solid #FFC000', borderRadius: '24px', padding: '20px 35px', display: 'grid', gridTemplateColumns: '1fr 1fr', marginBottom: '20px', flexShrink: 0 }}>
-            <div>
-              <p style={{ fontSize: '8px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', margin: '0' }}>Nama Karyawan</p>
-              <p style={{ fontSize: '18px', fontWeight: '900', margin: '2px 0 8px 0' }}>{employee.nama}</p>
-              <p style={{ fontSize: '8px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', margin: '0' }}>ID KARYAWAN</p>
-              <p style={{ fontSize: '12px', fontWeight: '900', color: '#806000', margin: '2px 0 0 0' }}>{employee.idKaryawan}</p>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: '18px', fontWeight: '900', margin: '2px 0 8px 0' }}>{employee.jabatan}</p>
-              <p style={{ fontSize: '8px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', margin: '0' }}>NO. REKENING</p>
-              <p style={{ fontSize: '12px', fontWeight: '700', color: '#334155', margin: '2px 0 0 0' }}>{employee.noRekening} ({employee.bank})</p>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginBottom: '20px', flexShrink: 0 }}>
-            <div>
-              <h3 style={{ fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', borderBottom: '1.5px solid #e2e8f0', paddingBottom: '6px', marginBottom: '12px' }}>Penerimaan (+)</h3>
-              <div style={{ fontSize: '12px', lineHeight: '2.0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Gaji Pokok</span><span style={{ fontWeight: '800' }}>Rp {(data.gapok || 0).toLocaleString('id-ID')}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tunjangan Ops..</span><span style={{ fontWeight: '800' }}>Rp {(totalTunjanganOps || 0).toLocaleString('id-ID')}</span></div>
-                {(data.lembur || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Lembur</span><span style={{ fontWeight: '800' }}>Rp {data.lembur.toLocaleString('id-ID')}</span></div>}
-                {data.bonus > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Bonus</span><span style={{ fontWeight: '800' }}>Rp {data.bonus.toLocaleString('id-ID')}</span></div>}
-                {(data.thr || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#806000', fontWeight: '800' }}>THR</span><span style={{ color: '#806000', fontWeight: '900' }}>Rp {(data.thr || 0).toLocaleString('id-ID')}</span></div>}
-                <div style={{ borderTop: '1px solid #e2e8f0', marginTop: '6px', paddingTop: '6px', display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '13px' }}><span>Total Bruto</span><span>Rp {(totalPendapatan || 0).toLocaleString('id-ID')}</span></div>
-              </div>
-            </div>
-            <div>
-              <h3 style={{ fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', borderBottom: '1.5px solid #e2e8f0', paddingBottom: '6px', marginBottom: '12px' }}>Potongan (-)</h3>
-              <div style={{ fontSize: '12px', lineHeight: '2.0' }}>
-                {isBPJSTKActive && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>BPJS TK (2%)</span><span style={{ fontWeight: '800', color: '#ef4444' }}>Rp {(data.bpjstk || 0).toLocaleString('id-ID')}</span></div>}
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Absensi ({attendanceResults.alpha || 0} Alpha)</span><span style={{ fontWeight: '800', color: '#ef4444' }}>Rp {(potonganAbsensi || 0).toLocaleString('id-ID')}</span></div>
-                {(data.pph21 || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>PPh 21</span><span style={{ fontWeight: '800', color: '#ef4444' }}>Rp {(data.pph21 || 0).toLocaleString('id-ID')}</span></div>}
-                {(data.potonganHutang || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Cicilan Hutang</span><span style={{ fontWeight: '800', color: '#ef4444' }}>Rp {(data.potonganHutang || 0).toLocaleString('id-ID')}</span></div>}
-                {(data.potonganLain || 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Potongan Lain</span><span style={{ fontWeight: '800', color: '#ef4444' }}>Rp {(data.potonganLain || 0).toLocaleString('id-ID')}</span></div>}
-                <div style={{ borderTop: '1px solid #e2e8f0', marginTop: '6px', paddingTop: '6px', display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '13px' }}><span>Total Potongan</span><span style={{ color: '#ef4444' }}>Rp {(totalPotongan || 0).toLocaleString('id-ID')}</span></div>
-              </div>
-            </div>
-          </div>
-
-          {(employee.hutang || 0) > 0 && (
-            <div style={{ backgroundColor: '#f8fafc', borderRadius: '16px', padding: '15px 25px', marginBottom: '20px', border: '1px solid #e2e8f0', flexShrink: 0 }}>
-              <h3 style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', color: '#64748b', marginBottom: '8px', letterSpacing: '0.5px' }}>Informasi Hutang Karyawan</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
-                <div><p style={{ fontSize: '7px', color: '#94a3b8', textTransform: 'uppercase', margin: '0' }}>Saldo Awal</p><p style={{ fontSize: '12px', fontWeight: '800', margin: '2px 0 0 0' }}>Rp {(employee.hutang || 0).toLocaleString('id-ID')}</p></div>
-                <div><p style={{ fontSize: '7px', color: '#94a3b8', textTransform: 'uppercase', margin: '0' }}>Potongan</p><p style={{ fontSize: '12px', fontWeight: '800', color: '#ef4444', margin: '2px 0 0 0' }}>- Rp {(data.potonganHutang || 0).toLocaleString('id-ID')}</p></div>
-                <div><p style={{ fontSize: '7px', color: '#94a3b8', textTransform: 'uppercase', margin: '0' }}>Sisa Hutang</p><p style={{ fontSize: '12px', fontWeight: '800', color: '#0f172a', margin: '2px 0 0 0' }}>Rp {(sisaHutang || 0).toLocaleString('id-ID')}</p></div>
-              </div>
-            </div>
-          )}
-
-          <div style={{ backgroundColor: '#0f172a', color: '#fff', borderRadius: '32px', padding: '25px', textAlign: 'center', border: '3px solid rgba(255, 192, 0, 0.2)', flexShrink: 0, marginTop: 'auto' }}>
-            <span style={{ fontSize: '8px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '4px', color: '#94a3b8', display: 'block', marginBottom: '8px' }}>Total Gaji Bersih</span>
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '14px', fontWeight: '900', color: '#FFC000' }}>IDR</span>
-              <span style={{ fontSize: '42px', fontWeight: '900' }}>Rp {(takeHomePay || 0).toLocaleString('id-ID')}</span>
-            </div>
-          </div>
-
-          <div style={{ textAlign: 'center', marginTop: '20px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-            <p style={{ fontSize: '8px', color: '#cbd5e1', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '2px' }}>- DOKUMEN ELEKTRONIK SAH -</p>
-          </div>
-        </div>
-      </div>
+      <SalarySlipContent 
+        employee={employee}
+        data={data}
+        totalTunjanganOps={totalTunjanganOps}
+        totalPendapatan={totalPendapatan}
+        totalPotongan={totalPotongan}
+        takeHomePay={takeHomePay}
+        sisaHutang={sisaHutang}
+        attendanceResults={attendanceResults}
+        cutoffStart={cutoffStart}
+        cutoffEnd={cutoffEnd}
+        slipLogo={slipLogo}
+        isBPJSTKActive={data.isBPJSTKActive ?? true}
+        potonganAbsensi={potonganAbsensi}
+      />
     );
   };
 
@@ -790,7 +761,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         
         <div className="p-4 sm:p-6 overflow-y-auto space-y-4 sm:space-y-6 bg-white flex-grow custom-scrollbar">
           <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', width: '794px', height: '1122px', zIndex: -1, pointerEvents: 'none' }}>
-            <div ref={hiddenSlipRef}>{SalarySlipContent()}</div>
+            <div ref={hiddenSlipRef}><SalarySlipContentWrapper /></div>
           </div>
           
           <div className="space-y-4 sm:space-y-6">
@@ -974,15 +945,15 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                       type="checkbox" 
                       id="toggle-bpjstk" 
                       disabled={isReadOnlyRole} 
-                      checked={isBPJSTKActive} 
-                      onChange={(e) => setIsBPJSTKActive(e.target.checked)} 
+                      checked={data.isBPJSTKActive} 
+                      onChange={(e) => setData({...data, isBPJSTKActive: e.target.checked})} 
                       className="w-4 h-4 rounded border-slate-200 text-[#FFC000] focus:ring-[#FFC000]" 
                     />
                     <label htmlFor="toggle-bpjstk" className="text-[8px] font-black text-slate-400 uppercase tracking-widest">BPJSTK</label>
                   </div>
                   <input 
                     type="text" 
-                    disabled={!isBPJSTKActive || isReadOnlyRole} 
+                    disabled={!data.isBPJSTKActive || isReadOnlyRole} 
                     value={formatCurrencyValue(data.bpjstk)} 
                     onChange={e => setData({...data, bpjstk: parseCurrencyInput(e.target.value)})} 
                     className="w-full bg-white border border-amber-100 rounded-xl p-2 text-[10px] font-black text-slate-900 outline-none shadow-sm" 
@@ -1121,15 +1092,10 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       {isPreview && (
         <div className="fixed inset-0 bg-slate-100 z-[210] p-3 sm:p-10 overflow-y-auto">
           <div className="max-w-[800px] mx-auto shadow-2xl bg-white mb-32 rounded-xl overflow-hidden scale-[0.9] sm:scale-100 origin-top" style={{ backgroundColor: '#ffffff' }}>
-            <div ref={previewSlipRef}>{SalarySlipContent()}</div>
+            <div ref={previewSlipRef}><SalarySlipContentWrapper /></div>
           </div>
           <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex gap-3 sm:gap-4 bg-white/95 backdrop-blur-xl px-6 sm:px-10 py-4 sm:py-5 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-white/50 z-[220] flex-wrap justify-center items-center w-max">
             <button type="button" onClick={() => setIsPreview(false)} className="px-5 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 transition-colors">TUTUP</button>
-            <div className="h-6 w-px bg-slate-200"></div>
-            <button type="button" onClick={() => handleDownloadImage()} className="bg-slate-900 text-white px-6 sm:px-8 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg">PNG</button>
-            <button type="button" onClick={handleSendEmail} className="bg-indigo-600 text-white px-6 sm:px-8 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg">EMAIL</button>
-            <button type="button" onClick={handleSendWhatsApp} className="bg-emerald-600 text-white px-6 sm:px-8 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg">KIRIM WA</button>
-            <button type="button" onClick={handleSendToInbox} className="bg-[#0f172a] text-[#FFC000] px-6 sm:px-8 py-2.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg border border-white/10">INBOX</button>
           </div>
         </div>
       )}

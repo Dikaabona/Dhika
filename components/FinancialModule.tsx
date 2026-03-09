@@ -1,18 +1,23 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Icons } from '../constants';
 import { flipService } from '../services/flipService';
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '../App';
 import { InvoiceModule } from './InvoiceModule';
 import SalarySlipModal from './SalarySlipModal';
+import SalarySlipContent from './SalarySlipContent';
+import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface FinancialModuleProps {
   company: string;
   employees: any[];
   attendanceRecords: any[];
   onClose: () => void;
+  onUpdate?: () => void;
 }
 
-const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, attendanceRecords, onClose }) => {
+const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, attendanceRecords, onClose, onUpdate }) => {
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,13 +35,21 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
   const [isSendingEmails, setIsSendingEmails] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [settings, setSettings] = useState<any>(null);
+  const [processingEmployeeData, setProcessingEmployeeData] = useState<any>(null);
+  const hiddenSlipRef = useRef<HTMLDivElement>(null);
+  const [companyDetails, setCompanyDetails] = useState<any>(null);
 
   useEffect(() => {
     const fetchSettings = async () => {
       const { data } = await supabase.from('settings').select('value').eq('key', `attendance_settings_${company}`).maybeSingle();
       if (data && data.value) setSettings(data.value);
     };
+    const fetchCompany = async () => {
+      const { data } = await supabase.from('settings').select('value').eq('key', `company_details_${company}`).maybeSingle();
+      if (data && data.value) setCompanyDetails(data.value);
+    };
     fetchSettings();
+    fetchCompany();
   }, [company]);
 
   const monthOptions = [
@@ -85,7 +98,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
            (config.lembur || 0) + 
            (config.bonus || 0) + 
            (config.thr || 0) - 
-           (config.bpjstk || 0) - 
+           (config.isBPJSTKActive !== false ? (config.bpjstk || 0) : 0) - 
            (config.pph21 || 0) - 
            actualPotonganHutang - 
            (config.potonganLain || 0);
@@ -308,88 +321,252 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
   };
 
   const handleSendAllEmails = async () => {
+    console.log("DEBUG: Starting handleSendAllEmails");
+    console.log("DEBUG: Company prop:", company);
+    console.log("DEBUG: Selected Month/Year:", selectedMonth, selectedYear);
+    console.log("DEBUG: Total payrollEmployees available:", payrollEmployees.length);
+    console.log("DEBUG: Selected IDs:", selectedIds);
     const targetEmployees = payrollEmployees.filter(emp => selectedIds.includes(emp.id));
+    console.log("DEBUG: Target employees count:", targetEmployees.length);
+    console.log("DEBUG: Supabase client exists:", !!supabase);
     
     if (targetEmployees.length === 0) {
       alert("Silakan pilih minimal satu karyawan untuk dikirim slip gajinya.");
       return;
     }
 
-    if (!confirm(`Kirim slip gaji ke inbox & email ${targetEmployees.length} karyawan terpilih?`)) return;
+    console.log("DEBUG: Proceeding without confirm (to avoid iframe issues)");
     setIsSendingEmails(true);
     
     let successCount = 0;
-    let failCount = 0;
+    let errorCount = 0;
+
+    const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
+    const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
+    const slipLogo = companyDetails?.logo || ((company || '').toLowerCase() === 'seller space' ? SELLER_SPACE_LOGO : VISIBEL_LOGO);
 
     try {
       for (const emp of targetEmployees) {
-        const subject = `SLIP GAJI ${selectedMonth.toUpperCase()} ${selectedYear}`;
-        const message = `Halo ${emp.nama}, slip gaji Anda untuk periode ${selectedMonth} ${selectedYear} telah tersedia. Total Gaji Bersih: ${formatCurrency(emp.calculatedTotal)}. Silakan hubungi HR jika ada pertanyaan.`;
-
-        // 1. Send to Inbox (Broadcasts)
+        console.log(`DEBUG: Processing employee: ${emp.nama} (${emp.id})`);
         try {
+          // Calculate salary details for slip
+          const config = emp.salaryConfig || {};
+          const monthIdx = monthOptions.indexOf(selectedMonth);
+          const yearNum = parseInt(selectedYear);
+          const cStart = config.cutoffStart || settings?.payrollCutoffStart || 26;
+          const cEnd = config.cutoffEnd || settings?.payrollCutoffEnd || 25;
+
+          const rangeStart = new Date(yearNum, monthIdx - 1, cStart);
+          const rangeEnd = new Date(yearNum, monthIdx, cEnd);
+          const startStr = formatDateToYYYYMMDD(rangeStart);
+          const endStr = formatDateToYYYYMMDD(rangeEnd);
+
+          const cutoffRecords = attendanceRecords.filter(r => r.employeeId === emp.id && r.date >= startStr && r.date <= endStr);
+          
+          // Basic attendance summary
+          const summary = { alpha: 0, hadir: 0, sakit: 0, izin: 0, libur: 0, cuti: 0, totalOvertimePay: 0 };
+          cutoffRecords.forEach(r => {
+            if (r.status === 'Hadir') summary.hadir++;
+            else if (r.status === 'Sakit') summary.sakit++;
+            else if (r.status === 'Izin') summary.izin++;
+            else if (r.status === 'Cuti') summary.cuti++;
+            else if (r.status === 'Alpha') summary.alpha++;
+            else summary.libur++;
+          });
+
+          const isDaily = config.type === 'daily';
+          const workingDays = isDaily ? summary.hadir : (config.workingDays || 26);
+          const gapok = config.gapok || 0;
+          const effectiveGapok = isDaily ? gapok * workingDays : gapok;
+          const tunjanganOps = (config.tunjanganMakan || 0) + (config.tunjanganTransport || 0) + (config.tunjanganKomunikasi || 0) + (config.tunjanganKesehatan || 0) + (config.tunjanganJabatan || 0);
+          const lembur = config.lembur || 0;
+          const bonus = config.bonus || 0;
+          const thr = config.thr || 0;
+          const totalPendapatan = effectiveGapok + tunjanganOps + lembur + bonus + thr;
+          
+          const bpjstk = config.isBPJSTKActive !== false ? (config.bpjstk || 0) : 0;
+          const pph21 = config.pph21 || 0;
+          const dailyRate = gapok / 26;
+          const potonganAbsensi = isDaily ? 0 : Math.round(summary.alpha * dailyRate);
+          const potonganHutang = Math.min(emp.hutang || 0, config.potonganHutang || 0);
+          const potonganLain = config.potonganLain || 0;
+          const totalPotongan = bpjstk + pph21 + potonganAbsensi + potonganHutang + potonganLain;
+          const takeHomePay = totalPendapatan - totalPotongan;
+          const sisaHutang = Math.max(0, (emp.hutang || 0) - potonganHutang);
+
+          const slipData = {
+            employee: emp,
+            data: { month: selectedMonth, year: selectedYear, gapok, lembur, bonus, thr, workingDays, bpjstk, pph21, potonganHutang, potonganLain },
+            totalTunjanganOps: tunjanganOps,
+            totalPendapatan,
+            totalPotongan,
+            takeHomePay,
+            sisaHutang,
+            attendanceResults: summary,
+            cutoffStart: cStart,
+            cutoffEnd: cEnd,
+            slipLogo,
+            isBPJSTKActive: config.isBPJSTKActive !== false,
+            potonganAbsensi
+          };
+
+          // Set data for hidden rendering
+          setProcessingEmployeeData(slipData);
+          
+          // Wait for render and assets to load
+          await new Promise(resolve => setTimeout(resolve, 800)); 
+
+          // Capture image and PDF
+          let pngBase64 = '';
+          let pdfBase64 = '';
+          try {
+            if (hiddenSlipRef.current) {
+              console.log("DEBUG: hiddenSlipRef.current exists, capturing...");
+              
+              const canvas = await html2canvas(hiddenSlipRef.current, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false,
+                width: 794,
+                height: 1122,
+                windowWidth: 794,
+                windowHeight: 1122,
+                x: 0,
+                y: 0,
+                scrollX: 0,
+                scrollY: 0,
+                onclone: (clonedDoc: Document) => {
+                  // Fix for html2canvas not supporting oklch colors (Tailwind v4 default)
+                  const styleTags = clonedDoc.getElementsByTagName('style');
+                  for (let i = 0; i < styleTags.length; i++) {
+                    if (styleTags[i].innerHTML.includes('oklch')) {
+                      styleTags[i].innerHTML = styleTags[i].innerHTML.replace(/oklch\([^)]+\)/g, '#000000');
+                    }
+                  }
+                  const all = clonedDoc.getElementsByTagName('*');
+                  for (let i = 0; i < all.length; i++) {
+                    const el = all[i] as HTMLElement;
+                    if (el.style && el.style.cssText && el.style.cssText.includes('oklch')) {
+                      el.style.cssText = el.style.cssText.replace(/oklch\([^)]+\)/g, '#000000');
+                    }
+                  }
+                }
+              });
+              
+              pngBase64 = canvas.toDataURL('image/png');
+              
+              // Generate PDF
+              const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'px',
+                format: [794, 1122]
+              });
+              
+              pdf.addImage(pngBase64, 'PNG', 0, 0, 794, 1122);
+              const pdfOutput = pdf.output('datauristring');
+              pdfBase64 = pdfOutput.includes(',') ? pdfOutput.split(',')[1] : pdfOutput;
+              
+              console.log("DEBUG: Canvas captured and PDF generated for", emp.nama);
+            } else {
+              console.warn("DEBUG: hiddenSlipRef.current is null!");
+            }
+          } catch (canvasError: any) {
+            console.error("DEBUG: Canvas/PDF capture failed:", canvasError);
+          }
+
+          // 1. Send to Inbox (Broadcasts)
+          console.log("DEBUG: Inserting into broadcasts...");
           const newBroadcast = {
-            title: subject,
-            message: message,
+            title: `SLIP GAJI ${selectedMonth.toUpperCase()} ${selectedYear}`,
+            message: `Halo ${emp.nama}, slip gaji Anda untuk periode ${selectedMonth} ${selectedYear} telah tersedia. Silakan download gambar di bawah sebagai arsip.`,
             company: company,
             targetEmployeeIds: [emp.id],
-            sentAt: new Date().toISOString()
+            sentAt: new Date().toISOString(),
+            imageBase64: pngBase64
           };
-          await supabase.from('broadcasts').insert([newBroadcast]);
-        } catch (inboxErr) {
-          console.error("Failed to send to inbox:", inboxErr);
-        }
+          const { error: bcError } = await supabase.from('broadcasts').insert([newBroadcast]);
+          if (bcError) {
+            console.error("DEBUG: Broadcast insert error:", bcError);
+            throw bcError;
+          }
 
-        // 2. Send via Email (Resend)
-        const recipientEmail = (emp.email || '').trim().toLowerCase();
-        if (recipientEmail && recipientEmail.includes('@')) {
-          try {
+          // 2. Send to Email (via Resend API)
+          if (emp.email && emp.email.includes('@')) {
+            console.log(`DEBUG: Sending email to ${emp.email}...`);
+            
             const emailHtml = `
-              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-                <h2 style="color: #0f172a; text-transform: uppercase;">Slip Gaji ${selectedMonth} ${selectedYear}</h2>
-                <p>Halo <strong>${emp.nama}</strong>,</p>
-                <p>Slip gaji Anda untuk periode ${selectedMonth} ${selectedYear} telah diterbitkan.</p>
-                <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                  <p style="margin: 5px 0;"><strong>Nama:</strong> ${emp.nama}</p>
-                  <p style="margin: 5px 0;"><strong>Jabatan:</strong> ${emp.jabatan}</p>
-                  <p style="margin: 5px 0;"><strong>Total Gaji Bersih:</strong> <span style="color: #059669; font-weight: bold;">${formatCurrency(emp.calculatedTotal)}</span></p>
+              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1e293b; line-height: 1.6;">
+                <p style="margin-bottom: 20px;">Halo ${emp.nama}</p>
+                <p style="margin-bottom: 20px;">Berikut kita lampirkan gaji bulan ${selectedMonth} ${selectedYear} dengan nominal take home pay senilai <strong>Rp ${takeHomePay.toLocaleString('id-ID')}</strong></p>
+                
+                <p style="margin-bottom: 20px;">Terimakasih atas kerjasamanya dalam membantu Visibel. Kita berharap kerjasama kita selalu berjalan terus.</p>
+                
+                <p style="margin-top: 40px; font-weight: bold;">HR Visibel</p>
+                
+                <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #f1f5f9; text-align: center;">
+                  <p style="font-size: 11px; color: #94a3b8; margin: 0;">Email ini dikirim secara otomatis oleh sistem Finance ${company}.</p>
                 </div>
-                <p>Anda dapat melihat rincian lengkap slip gaji melalui aplikasi HR Visibel di menu Inbox.</p>
-                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-                <p style="font-size: 12px; color: #64748b;">Ini adalah email otomatis, mohon tidak membalas email ini.</p>
               </div>
             `;
 
-            const res = await fetch('/api/send-email', {
+            const emailRes = await fetch('/api/send-email', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                to: recipientEmail,
-                subject: subject,
-                html: emailHtml
+                to: emp.email,
+                subject: `SLIP GAJI ${selectedMonth.toUpperCase()} ${selectedYear} - ${emp.nama}`,
+                html: emailHtml,
+                from: "admin@visibel.agency",
+                attachments: [
+                  {
+                    filename: `slip-gaji-${emp.nama.toLowerCase().replace(/\s+/g, '-')}.pdf`,
+                    content: pdfBase64,
+                    contentType: 'application/pdf'
+                  }
+                ]
               })
             });
 
-            if (res.ok) {
+            if (emailRes.ok) {
+              console.log(`DEBUG: Email sent successfully to ${emp.email}`);
               successCount++;
             } else {
-              failCount++;
-              console.error(`Failed to send email to ${recipientEmail}`);
+              let errorMsg = "Gagal mengirim email";
+              try {
+                const contentType = emailRes.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                  const err = await emailRes.json();
+                  errorMsg = err.message || JSON.stringify(err);
+                } else {
+                  const text = await emailRes.text();
+                  errorMsg = text.substring(0, 100);
+                }
+              } catch (e) {
+                errorMsg = `HTTP Error ${emailRes.status}`;
+              }
+              console.error(`DEBUG: Email API error for ${emp.email}:`, errorMsg);
+              errorCount++;
             }
-          } catch (emailErr) {
-            failCount++;
-            console.error(`Error sending email to ${recipientEmail}:`, emailErr);
+          } else {
+            console.warn(`DEBUG: Employee ${emp.nama} has no valid email: ${emp.email}`);
+            errorCount++;
           }
-        } else {
-          console.warn(`Employee ${emp.nama} has no valid email.`);
+        } catch (innerError: any) {
+          console.error(`DEBUG: Error processing employee ${emp.nama}:`, innerError);
+          alert(`Error processing ${emp.nama}: ${innerError.message || JSON.stringify(innerError)}`);
+          errorCount++;
         }
       }
-      alert(`Proses selesai! ${successCount} email berhasil dikirim, ${failCount} gagal. Semua slip juga telah dikirim ke Inbox.`);
+      
+      alert(`Proses selesai. Berhasil: ${successCount}, Gagal/Lewati: ${errorCount}. Slip juga telah dikirim ke Inbox aplikasi.`);
       setSelectedIds([]); 
     } catch (e: any) {
+      console.error("DEBUG: Global error in handleSendAllEmails:", e);
       alert("Gagal memproses pengiriman slip: " + e.message);
     } finally {
       setIsSendingEmails(false);
+      setProcessingEmployeeData(null);
     }
   };
 
@@ -763,10 +940,22 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
           attendanceRecords={attendanceRecords}
           userRole="owner"
           onClose={() => setShowSlipModal(null)}
-          onUpdate={() => startPayrollProcess()}
+          onUpdate={() => {
+            startPayrollProcess();
+            if (onUpdate) onUpdate();
+          }}
           positionRates={positionRates}
         />
       )}
+
+      {/* Hidden slip for bulk processing */}
+      <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', width: '794px', height: '1122px', pointerEvents: 'none', zIndex: -1 }}>
+        <div ref={hiddenSlipRef}>
+          {processingEmployeeData && (
+            <SalarySlipContent {...processingEmployeeData} />
+          )}
+        </div>
+      </div>
     </div>
   );
 };

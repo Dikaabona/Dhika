@@ -2,70 +2,99 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import { Resend } from "resend";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
 dotenv.config();
 
-// Force development mode if not explicitly set to production
-if (process.env.NODE_ENV !== "production") {
-  process.env.NODE_ENV = "development";
-}
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY || 'no-key');
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
-  console.log("NODE_ENV:", process.env.NODE_ENV);
 
-  app.use(express.json());
+  console.log("Starting server with NODE_ENV:", process.env.NODE_ENV);
 
-  // API Route: Send Email
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+  // API Route to send email
   app.post("/api/send-email", async (req, res) => {
-    const { to, subject, html, attachments } = req.body;
+    const { to, subject, html, from, attachments } = req.body;
+    console.log(`API Request: Send email to ${to}`);
 
     if (!process.env.RESEND_API_KEY) {
+      console.error("Missing RESEND_API_KEY");
       return res.status(500).json({ error: "RESEND_API_KEY is not configured" });
     }
 
     try {
+      console.log("DEBUG: Processing attachments for Resend...");
+      
+      let processedAttachments = [];
+      if (attachments && Array.isArray(attachments)) {
+        processedAttachments = attachments.map((att: any) => {
+          // Resend SDK expects content as Buffer, string, or Uint8Array
+          // We'll provide a Buffer from the base64 string
+          const contentBuffer = typeof att.content === 'string' 
+            ? Buffer.from(att.content, 'base64') 
+            : att.content;
+
+          return {
+            filename: att.filename || 'attachment.png',
+            content: contentBuffer,
+            contentType: att.contentType,
+            contentId: att.cid || att.contentId // Essential for inline images
+          };
+        });
+      }
+
+      console.log(`DEBUG: Sending email to ${to} with ${processedAttachments.length} attachments`);
+      
       const { data, error } = await resend.emails.send({
-        from: "HR Visibel <onboarding@resend.dev>", // Default Resend test domain
-        to,
-        subject,
-        html,
-        attachments: attachments || [],
+        from: from || "admin@visibel.agency",
+        to: [to],
+        subject: subject,
+        html: html,
+        attachments: processedAttachments.length > 0 ? processedAttachments : undefined,
       });
 
       if (error) {
-        return res.status(400).json({ error });
+        console.error("Resend Error:", error);
+        return res.status(400).json(error);
       }
 
-      res.status(200).json({ data });
+      res.status(200).json(data);
     } catch (err: any) {
+      console.error("Server Error:", err);
       res.status(500).json({ error: err.message });
     }
   });
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
-    console.log("Starting Vite in middleware mode...");
+    console.log("Initializing Vite in middleware mode...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
-    console.log("Vite middleware attached.");
   } else {
-    // Serve static files in production
-    app.use(express.static("dist"));
+    console.log("Serving static files from dist...");
+    app.use(express.static(path.join(__dirname, "dist")));
     app.get("*", (req, res) => {
-      res.sendFile("dist/index.html", { root: "." });
+      res.sendFile(path.join(__dirname, "dist", "index.html"));
     });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
 }
 
-startServer();
+startServer().catch(err => {
+  console.error("Failed to start server:", err);
+});

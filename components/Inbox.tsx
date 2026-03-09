@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Submission, Employee, Broadcast, AttendanceRecord } from '../types.ts';
 import { Icons } from '../constants.tsx';
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '../App';
 import { formatDateToYYYYMMDD } from '../utils/dateUtils.ts';
 
 interface InboxProps {
@@ -193,8 +193,28 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
   return (
     <div className="space-y-10 animate-in fade-in duration-500 max-w-7xl mx-auto">
       {zoomedImage && (
-        <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setZoomedImage(null)}>
-          <img src={zoomedImage} className="max-w-full max-h-[80vh] rounded-[32px] shadow-2xl border-4 border-white/10 scale-95 animate-in zoom-in-95 duration-300" alt="Verifikasi" />
+        <div className="fixed inset-0 bg-black/95 z-[200] flex flex-col items-center justify-center p-4">
+          <div className="absolute top-6 right-6 flex gap-4">
+            <button 
+              onClick={() => {
+                const link = document.createElement('a');
+                link.href = zoomedImage;
+                link.download = `Slip_Gaji_${employee?.nama || 'Karyawan'}.png`;
+                link.click();
+              }}
+              className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2"
+            >
+              <Icons.Download className="w-4 h-4" />
+              Download
+            </button>
+            <button 
+              onClick={() => setZoomedImage(null)}
+              className="bg-white/10 hover:bg-white/20 text-white w-12 h-12 rounded-full flex items-center justify-center transition-all"
+            >
+              <span className="text-2xl font-light">&times;</span>
+            </button>
+          </div>
+          <img src={zoomedImage} className="max-w-full max-h-[85vh] rounded-[32px] shadow-2xl border-4 border-white/10 animate-in zoom-in-95 duration-300 object-contain" alt="Preview" />
         </div>
       )}
 

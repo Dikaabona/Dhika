@@ -24,10 +24,10 @@ export const TIME_SLOTS = [
 ];
 
 export const DEFAULT_SHIFTS: Shift[] = [
-  { id: '1', name: 'Shift Pagi', startTime: '08:00', endTime: '16:00', color: 'bg-emerald-500' },
-  { id: '2', name: 'Shift Siang', startTime: '12:00', endTime: '20:00', color: 'bg-amber-500' },
-  { id: '3', name: 'Shift Malam', startTime: '16:00', endTime: '00:00', color: 'bg-indigo-500' },
-  { id: '4', name: 'Full Day', startTime: '09:00', endTime: '18:00', color: 'bg-rose-500' },
+  { id: '1', name: 'Shift Pagi', startTime: '08:00', endTime: '16:00', color: 'bg-emerald-500', company: '' },
+  { id: '2', name: 'Shift Siang', startTime: '12:00', endTime: '20:00', color: 'bg-amber-500', company: '' },
+  { id: '3', name: 'Shift Malam', startTime: '16:00', endTime: '00:00', color: 'bg-indigo-500', company: '' },
+  { id: '4', name: 'Full Day', startTime: '09:00', endTime: '18:00', color: 'bg-rose-500', company: '' },
 ];
 
 export const Icons = {

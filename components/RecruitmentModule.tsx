@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icons } from '../constants.tsx';
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '../App.tsx';
 import { Candidate, UserRole } from '../types';
 import Papa from 'papaparse';
 
@@ -15,15 +15,21 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [autoEmailEnabled, setAutoEmailEnabled] = useState(false);
+  const [senderEmail, setSenderEmail] = useState('');
+  const [emailTemplates, setEmailTemplates] = useState<Record<string, string>>({
+    'Screening': 'Halo {nama}, terima kasih telah melamar untuk posisi {posisi}. Saat ini lamaran Anda sedang dalam tahap screening.',
+    'Interview': 'Halo {nama}, kami ingin mengundang Anda untuk sesi interview posisi {posisi}. Mohon konfirmasi ketersediaan Anda.',
+    'Rejected': 'Halo {nama}, mohon maaf saat ini kami belum bisa melanjutkan lamaran Anda untuk posisi {posisi}. Tetap semangat!',
+    'Hired': 'Selamat {nama}! Anda dinyatakan lolos untuk posisi {posisi}. Kami akan segera menghubungi Anda untuk proses onboarding.'
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [candidateNote, setCandidateNote] = useState('');
-  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
-  const [emailSubject, setEmailSubject] = useState('');
-  const [emailBody, setEmailBody] = useState('');
-  const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name_asc' | 'name_desc'>('newest');
   const itemsPerPage = 10;
@@ -32,7 +38,98 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
 
   useEffect(() => {
     fetchCandidates();
+    fetchRecruitmentSettings();
   }, [company]);
+
+  const fetchRecruitmentSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', `recruitment_settings_${company.trim()}`)
+        .single();
+      
+      if (data && data.value) {
+        setAutoEmailEnabled(data.value.autoEmailEnabled || false);
+        setSenderEmail(data.value.senderEmail || '');
+        if (data.value.emailTemplates) {
+          setEmailTemplates(data.value.emailTemplates);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching recruitment settings:", err);
+    }
+  };
+
+  const saveRecruitmentSettings = async (enabled: boolean, templates: Record<string, string>, sender: string) => {
+    try {
+      const { error } = await supabase
+        .from('settings')
+        .upsert({
+          key: `recruitment_settings_${company.trim()}`,
+          value: { autoEmailEnabled: enabled, emailTemplates: templates, senderEmail: sender }
+        });
+      if (error) throw error;
+    } catch (err) {
+      console.error("Error saving recruitment settings:", err);
+      alert("Gagal menyimpan pengaturan.");
+    }
+  };
+
+  const sendAutoEmail = async (candidate: Candidate, status: string) => {
+    if (!autoEmailEnabled || !emailTemplates[status]) return;
+
+    const template = emailTemplates[status];
+    const message = template
+      .replace(/{nama}/g, candidate.nama)
+      .replace(/{posisi}/g, candidate.posisi);
+
+    const fromEmail = senderEmail || "admin@visibel.agency";
+    console.log(`Sending auto email FROM ${fromEmail} TO ${candidate.email} for status ${status}:`, message);
+    
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: candidate.email,
+          subject: `Update Lamaran: ${status} - ${candidate.posisi}`,
+          html: `<div style="font-family: sans-serif; line-height: 1.6; color: #334155;">
+                  ${message.replace(/\n/g, '<br/>')}
+                  <br/><br/>
+                  <hr style="border: none; border-top: 1px solid #e2e8f0;"/>
+                  <p style="font-size: 12px; color: #94a3b8;">Email ini dikirim secara otomatis oleh sistem rekrutmen ${company}.</p>
+                </div>`,
+          from: fromEmail,
+        }),
+      });
+
+      if (!response.ok) {
+        let errorMsg = "Gagal mengirim email";
+        try {
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const errorData = await response.json();
+            errorMsg = errorData.error || errorData.message || JSON.stringify(errorData);
+          } else {
+            const text = await response.text();
+            errorMsg = text.substring(0, 100);
+          }
+        } catch (e) {
+          errorMsg = `HTTP Error ${response.status}`;
+        }
+        throw new Error(errorMsg);
+      }
+
+      const result = await response.json();
+      console.log("Email sent successfully via Resend!", result);
+    } catch (err: any) {
+      console.error("Failed to send email:", err);
+      // We don't alert here to not interrupt the UI flow, but we log it.
+    }
+  };
 
   const fetchCandidates = async () => {
     setIsLoading(true);
@@ -212,7 +309,14 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
         .eq('id', id);
 
       if (error) throw error;
-      setCandidates(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c));
+      
+      const candidate = candidates.find(c => c.id === id);
+      if (candidate) {
+        setCandidates(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c));
+        if (newStatus !== 'Applied') {
+          sendAutoEmail(candidate, newStatus);
+        }
+      }
     } catch (err) {
       console.error("Update status error:", err);
     }
@@ -233,46 +337,6 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
     } catch (err) {
       console.error("Save note error:", err);
     }
-  };
-
-  const handleSendEmail = async () => {
-    if (!selectedCandidate?.email || !emailSubject || !emailBody) return;
-    
-    setIsSendingEmail(true);
-    try {
-      const response = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: selectedCandidate.email,
-          subject: emailSubject,
-          html: `<div style="font-family: sans-serif; padding: 20px;">${emailBody.replace(/\n/g, '<br>')}</div>`,
-        }),
-      });
-
-      const result = await response.json();
-      if (response.ok) {
-        alert(`Email berhasil dikirim ke ${selectedCandidate.nama}`);
-        setIsEmailModalOpen(false);
-        setSelectedCandidate(null);
-      } else {
-        throw new Error(result.error?.message || result.error || 'Gagal mengirim email');
-      }
-    } catch (err: any) {
-      console.error("Send email error:", err);
-      alert(`Gagal mengirim email: ${err.message}`);
-    } finally {
-      setIsSendingEmail(false);
-    }
-  };
-
-  const openEmailModal = (cand: Candidate) => {
-    setSelectedCandidate(cand);
-    setEmailSubject(`Update Rekrutmen: ${cand.posisi} - ${company}`);
-    setEmailBody(`Halo ${cand.nama},\n\nTerima kasih telah melamar untuk posisi ${cand.posisi} di ${company}.\n\nKami ingin menginformasikan bahwa...`);
-    setIsEmailModalOpen(true);
   };
 
   const filteredCandidates = useMemo(() => {
@@ -339,6 +403,13 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
           title="Refresh Data"
         >
           <Icons.RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+        </button>
+        <button 
+          onClick={() => setIsSettingsOpen(true)}
+          className="p-4 bg-white rounded-3xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-all active:scale-95 text-slate-400 hover:text-slate-900"
+          title="Pengaturan Email"
+        >
+          <Icons.Settings className="w-5 h-5" />
         </button>
         <button 
           onClick={syncFromSheet}
@@ -460,13 +531,6 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
                           </a>
                         )}
                         <button 
-                          onClick={() => openEmailModal(cand)}
-                          className="p-2.5 bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm"
-                          title="Kirim Email"
-                        >
-                          <Icons.Mail className="w-4 h-4" />
-                        </button>
-                        <button 
                           onClick={() => {
                             setSelectedCandidate(cand);
                             setCandidateNote(cand.notes || '');
@@ -477,21 +541,39 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
                         >
                           <Icons.MessageSquare className="w-4 h-4" />
                         </button>
-                        <div className="relative group/status">
-                          <button className="p-2.5 bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-slate-900 hover:border-slate-200 transition-all shadow-sm">
+                        <div className="relative">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId(openMenuId === cand.id ? null : cand.id || null);
+                            }}
+                            className={`p-2.5 bg-white border rounded-xl transition-all shadow-sm ${openMenuId === cand.id ? 'text-slate-900 border-slate-300 ring-2 ring-slate-100' : 'text-slate-400 border-slate-100 hover:text-slate-900 hover:border-slate-200'}`}
+                          >
                             <Icons.MoreVertical className="w-4 h-4" />
                           </button>
-                          <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 hidden group-hover/status:block z-50 overflow-hidden">
-                            {(['Applied', 'Screening', 'Interview', 'Rejected', 'Hired'] as Candidate['status'][]).map(s => (
-                              <button 
-                                key={s}
-                                onClick={() => updateStatus(cand.id!, s)}
-                                className="w-full px-6 py-3 text-left text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors"
-                              >
-                                SET {s}
-                              </button>
-                            ))}
-                          </div>
+                          {openMenuId === cand.id && (
+                            <>
+                              <div 
+                                className="fixed inset-0 z-40" 
+                                onClick={() => setOpenMenuId(null)}
+                              />
+                              <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-in fade-in zoom-in duration-200 origin-top-right">
+                                {(['Applied', 'Screening', 'Interview', 'Rejected', 'Hired'] as Candidate['status'][]).map(s => (
+                                  <button 
+                                    key={s}
+                                    onClick={() => {
+                                      updateStatus(cand.id!, s);
+                                      setOpenMenuId(null);
+                                    }}
+                                    className="w-full px-6 py-3 text-left text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors flex items-center justify-between"
+                                  >
+                                    <span>SET {s}</span>
+                                    {cand.status === s && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -579,42 +661,74 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
         </div>
       )}
 
-      {isEmailModalOpen && selectedCandidate && (
+      {isSettingsOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6 animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in duration-300">
             <div className="px-10 py-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
               <div>
-                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Kirim Email</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{selectedCandidate.nama} ({selectedCandidate.email})</p>
+                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Pengaturan Rekrutmen</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Otomatisasi Email Kandidat</p>
               </div>
-              <button onClick={() => setIsEmailModalOpen(false)} className="p-2 hover:bg-white rounded-xl transition-colors">
+              <button onClick={() => setIsSettingsOpen(false)} className="p-2 hover:bg-white rounded-xl transition-colors">
                 <Icons.X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
-            <div className="p-10 space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Subjek Email</label>
-                <input 
-                  type="text"
-                  value={emailSubject}
-                  onChange={(e) => setEmailSubject(e.target.value)}
-                  className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#1E6BFF] outline-none font-bold text-[10px] uppercase tracking-widest"
-                />
+            <div className="p-10 space-y-6 max-h-[70vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-6 bg-slate-50 rounded-3xl">
+                <div>
+                  <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">Kirim Email Otomatis</h4>
+                  <p className="text-[10px] font-medium text-slate-500 mt-1">Kirim email ke kandidat saat status diubah.</p>
+                </div>
+                <button 
+                  onClick={() => setAutoEmailEnabled(!autoEmailEnabled)}
+                  className={`w-14 h-8 rounded-full transition-all relative ${autoEmailEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                >
+                  <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${autoEmailEnabled ? 'left-7' : 'left-1'}`} />
+                </button>
               </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Isi Email</label>
-                <textarea 
-                  value={emailBody}
-                  onChange={(e) => setEmailBody(e.target.value)}
-                  className="w-full h-40 p-6 bg-slate-50 rounded-3xl border-none focus:ring-2 focus:ring-[#1E6BFF] outline-none font-medium text-sm resize-none"
-                />
-              </div>
+
+              {autoEmailEnabled && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-700 uppercase tracking-widest ml-2">Email Pengirim (Display Only)</label>
+                    <input 
+                      type="email"
+                      value={senderEmail}
+                      onChange={(e) => setSenderEmail(e.target.value)}
+                      placeholder="contoh: hrd@perusahaan.com"
+                      className="w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#1E6BFF] outline-none font-medium text-xs"
+                    />
+                    <p className="text-[9px] text-slate-400 ml-2 italic">* Saat ini masih dalam mode simulasi. Integrasi API diperlukan untuk pengiriman asli.</p>
+                  </div>
+
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Template Email</h4>
+                  {Object.entries(emailTemplates).map(([status, template]) => (
+                    <div key={status} className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-700 uppercase tracking-widest ml-2">{status}</label>
+                      <textarea 
+                        value={template}
+                        onChange={(e) => setEmailTemplates(prev => ({ ...prev, [status]: e.target.value }))}
+                        className="w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#1E6BFF] outline-none font-medium text-xs resize-none h-24"
+                        placeholder={`Template untuk status ${status}...`}
+                      />
+                    </div>
+                  ))}
+                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                    <p className="text-[9px] font-bold text-amber-700 uppercase tracking-widest leading-relaxed">
+                      Gunakan tag <span className="text-amber-900 font-black">{"{nama}"}</span> untuk nama kandidat dan <span className="text-amber-900 font-black">{"{posisi}"}</span> untuk posisi yang dilamar.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <button 
-                onClick={handleSendEmail}
-                disabled={isSendingEmail}
-                className="w-full bg-[#0f172a] text-[#FFC000] py-5 rounded-3xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all active:scale-95 disabled:opacity-50"
+                onClick={() => {
+                  saveRecruitmentSettings(autoEmailEnabled, emailTemplates, senderEmail);
+                  setIsSettingsOpen(false);
+                }}
+                className="w-full bg-[#0f172a] text-white py-5 rounded-3xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all active:scale-95"
               >
-                {isSendingEmail ? 'MENGIRIM...' : 'KIRIM EMAIL SEKARANG'}
+                SIMPAN PENGATURAN
               </button>
             </div>
           </div>

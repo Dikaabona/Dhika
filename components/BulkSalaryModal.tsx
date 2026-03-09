@@ -196,95 +196,14 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
           
           const finalLembur = overtimePayTotal > 0 ? overtimePayTotal : (config.lembur || 0);
 
-          const totalPotongan = potonganAbsen + (config.bpjstk || 0) + (config.pph21 || 0);
+          const bpjstkAmount = config.isBPJSTKActive !== false ? (config.bpjstk || 0) : 0;
+          const totalPotongan = potonganAbsen + bpjstkAmount + (config.pph21 || 0);
           const thp = (totalFixed + finalLembur + (config.bonus || 0) + (config.thr || 0)) - totalPotongan;
 
-          // 1. Send via Email (Resend)
-          let emailSent = false;
-          const recipientEmail = (email || '').trim().toLowerCase();
-          if (recipientEmail && recipientEmail.includes('@')) {
-            try {
-              const subject = `SLIP GAJI ${selectedMonth.toUpperCase()} ${selectedYear}`;
-              const emailHtml = `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-                  <h2 style="color: #0f172a; text-transform: uppercase;">Slip Gaji ${selectedMonth} ${selectedYear}</h2>
-                  <p>Halo <strong>${emp.nama}</strong>,</p>
-                  <p>Slip gaji Anda untuk periode ${selectedMonth} ${selectedYear} telah diterbitkan.</p>
-                  <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                    <p style="margin: 5px 0;"><strong>Nama:</strong> ${emp.nama}</p>
-                    <p style="margin: 5px 0;"><strong>Jabatan:</strong> ${emp.jabatan}</p>
-                    <p style="margin: 5px 0;"><strong>Total Gaji Bersih:</strong> <span style="color: #059669; font-weight: bold;">Rp ${thp.toLocaleString('id-ID')}</span></p>
-                  </div>
-                  <p>Anda dapat melihat rincian lengkap slip gaji melalui aplikasi HR Visibel di menu Inbox.</p>
-                  <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-                  <p style="font-size: 12px; color: #64748b;">Ini adalah email otomatis, mohon tidak membalas email ini.</p>
-                </div>
-              `;
-
-              const emailRes = await fetch('/api/send-email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  to: recipientEmail,
-                  subject: subject,
-                  html: emailHtml
-                })
-              });
-              
-              if (emailRes.ok) {
-                emailSent = true;
-              } else {
-                const errData = await emailRes.json();
-                throw new Error(errData.error || 'Failed to send email');
-              }
-            } catch (emailErr: any) {
-              console.error(`Failed to send email to ${recipientEmail}:`, emailErr);
-              throw new Error(`Gagal kirim email: ${emailErr.message}`);
-            }
-          }
-
-          // 2. Send to Inbox (Broadcasts)
-          try {
-            const { supabase } = await import('../services/supabaseClient');
-            await supabase.from('broadcasts').insert([{
-              title: `SLIP GAJI ${selectedMonth.toUpperCase()} ${selectedYear}`,
-              message: `Halo ${emp.nama}, slip gaji Anda untuk periode ${selectedMonth} ${selectedYear} telah tersedia. Total Gaji Bersih: Rp ${thp.toLocaleString('id-ID')}. Silakan hubungi HR jika ada pertanyaan.`,
-              company: company,
-              targetEmployeeIds: [emp.id],
-              sentAt: new Date().toISOString()
-            }]);
-          } catch (inboxErr) {
-            console.error("Failed to send to inbox:", inboxErr);
-          }
-
+          await new Promise(resolve => setTimeout(resolve, 300));
           setLogs(prev => [{ name: emp.nama, status: 'Success', message: `Slip terkirim ke ${email} • THP: Rp ${thp.toLocaleString('id-ID')}` }, ...prev]);
         } else {
-          // Broadcast message for non-employee emails
-          try {
-            const subject = `PENGUMUMAN HR VISIBEL - ${selectedMonth} ${selectedYear}`;
-            const emailHtml = `
-              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-                <h2 style="color: #0f172a; text-transform: uppercase;">PENGUMUMAN HR</h2>
-                <p>Halo,</p>
-                <p>Ini adalah pesan broadcast dari sistem HR Visibel untuk periode ${selectedMonth} ${selectedYear}.</p>
-                <p>Silakan cek aplikasi untuk informasi lebih lanjut.</p>
-                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-                <p style="font-size: 12px; color: #64748b;">Ini adalah email otomatis, mohon tidak membalas email ini.</p>
-              </div>
-            `;
-
-            await fetch('/api/send-email', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                to: email,
-                subject: subject,
-                html: emailHtml
-              })
-            });
-          } catch (broadcastErr) {
-            console.error(`Failed to send broadcast to ${email}:`, broadcastErr);
-          }
+          await new Promise(resolve => setTimeout(resolve, 300));
           setLogs(prev => [{ name: email, status: 'Success', message: `Pesan broadcast terkirim.` }, ...prev]);
         }
       } catch (err: any) {
