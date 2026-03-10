@@ -29,7 +29,7 @@ app.post("/api/send-email", async (req, res) => {
   try {
     console.log("DEBUG: Processing attachments for Resend...");
     
-    let processedAttachments = [];
+    let processedAttachments: any[] = [];
     if (attachments && Array.isArray(attachments)) {
       processedAttachments = attachments.map((att: any) => {
         const contentBuffer = typeof att.content === 'string' 

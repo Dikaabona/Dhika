@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Icons } from '../constants';
 import { flipService } from '../services/flipService';
-import { supabase } from '../App';
+import { supabase } from '../App.tsx';
 import { InvoiceModule } from './InvoiceModule';
 import SalarySlipModal from './SalarySlipModal';
 import SalarySlipContent from './SalarySlipContent';

@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-console.log("App.tsx loading...");
 import * as XLSX from 'xlsx';
-import { createClient, Session } from '@supabase/supabase-js';
-import { supabase } from './services/supabaseClient.ts';
+import { Session } from '@supabase/supabase-js';
+import { supabase as supabaseInstance } from './services/supabaseClient.ts';
+export const supabase = supabaseInstance;
 import { Employee, AttendanceRecord, LiveSchedule, Submission, Broadcast, ContentPlan, LiveReport, ShiftAssignment, ActiveTab, UserRole, Shift } from './types.ts';
 import { Icons, BANK_OPTIONS, DEFAULT_SHIFTS } from './constants.tsx';
 import EmployeeForm from './components/EmployeeForm.tsx';
@@ -185,10 +185,6 @@ export const App: React.FC = () => {
       if (intervalId) clearInterval(intervalId);
     };
   }, [session, currentUserEmployee]);
-
-  const DEFAULT_HOLIDAYS = {
-    'SENIN': [], 'SELASA': [], 'RABU': [], 'KAMIS': [], 'JUMAT': [], 'SABTU': [], 'MINGGU': []
-  };
 
   const fetchData = async (userEmail?: string, isSilent: boolean = false) => {
     if (!navigator.onLine) {
@@ -392,6 +388,10 @@ export const App: React.FC = () => {
     } finally {
       setIsLoadingData(false);
     }
+  };
+
+  const DEFAULT_HOLIDAYS = {
+    'SENIN': [], 'SELASA': [], 'RABU': [], 'KAMIS': [], 'JUMAT': [], 'SABTU': [], 'MINGGU': []
   };
 
   const handleAuth = async (email: string, password?: string, isRegister = false, isReset = false) => {
@@ -937,7 +937,13 @@ export const App: React.FC = () => {
               ) : activeTab === 'live_map' ? (
                 <LiveMapModule employees={employees} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'finance' ? (
-                <FinancialModule company={userCompany} employees={employees} attendanceRecords={attendanceRecords} onClose={() => setActiveTab('home')} />
+                <FinancialModule
+                  company={userCompany}
+                  employees={employees}
+                  attendanceRecords={attendanceRecords}
+                  onClose={() => setActiveTab('home')}
+                  onUpdate={() => fetchData(undefined, true)}
+                />
               ) : activeTab === 'inventory' ? (
                 <InventoryModule company={userCompany} userRole={userRole} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'calendar' ? (

@@ -140,7 +140,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
     const finalQuery = (localSearch || searchQuery).toLowerCase();
     return base.filter(emp => 
       emp.nama.toLowerCase().includes(finalQuery) ||
-      (emp.idKaryawan || '').toLowerCase().includes(finalQuery)
+      emp.idKaryawan.toLowerCase().includes(finalQuery)
     );
   }, [employees, searchQuery, localSearch, isAdmin, currentEmployee]);
 

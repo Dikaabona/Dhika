@@ -22,7 +22,7 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({ employees, compan
   const filteredList = useMemo(() => {
     return employees.filter(e => 
       e.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (e.jabatan || '').toLowerCase().includes(searchQuery.toLowerCase())
+      e.jabatan.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [employees, searchQuery]);
 
