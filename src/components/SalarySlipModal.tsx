@@ -3,7 +3,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Employee, SalaryData, AttendanceRecord, Broadcast, AttendanceSettings } from '../types';
 import { Icons } from '../constants';
 import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
-import { supabase } from '../App';
+import { supabase } from '../App.tsx';
 
 import SalarySlipContent from './SalarySlipContent';
 

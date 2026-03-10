@@ -270,7 +270,8 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
       name: 'Shift Baru',
       startTime: '09:00',
       endTime: '17:00',
-      color: colors[localShifts.length % colors.length]
+      color: colors[localShifts.length % colors.length],
+      company: company
     };
     setLocalShifts([...localShifts, newShift]);
   };
