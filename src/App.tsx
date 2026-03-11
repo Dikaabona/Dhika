@@ -330,7 +330,7 @@ export const App: React.FC = () => {
       const buildQuery = (table: string): any => {
         let q: any = supabase.from(table);
         if (table === 'attendance') {
-           q = q.select('id, employeeId, company, date, status, clockIn, clockOut, notes, submittedAt');
+           q = q.select('id, employeeId, company, date, status, clockIn, clockOut, photoIn, photoOut, notes, submittedAt');
         } else if (table === 'content_plans') {
            q = q.select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar');
         } else if (table === 'broadcasts') {

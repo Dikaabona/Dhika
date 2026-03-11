@@ -41,7 +41,24 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
   const isAdmin = userRole === 'owner' || userRole === 'super' || userRole === 'admin';
   const [selectedPhoto, setSelectedPhoto] = useState<{ url: string; title: string } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [editingStatus, setEditingStatus] = useState<{ id: string; status: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUpdateStatus = async (id: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('attendance')
+        .update({ status: newStatus })
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      setRecords(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
+      setEditingStatus(null);
+    } catch (err: any) {
+      alert("Gagal memperbarui status: " + err.message);
+    }
+  };
 
   const filteredRecords = useMemo(() => {
     return records.filter(record => {
@@ -225,6 +242,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                 <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Masuk</th>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Pulang</th>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -244,53 +262,80 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                       <td className="px-8 py-5 text-sm font-bold text-slate-500">{record.date}</td>
                       <td className="px-8 py-5">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">
+                          <span className="font-mono text-xs font-black text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
                             {record.clockIn || '--:--'}
                           </span>
                           {record.photoIn && (
                             <button 
                               onClick={() => setSelectedPhoto({ url: record.photoIn!, title: `Foto Masuk - ${employee?.nama}` })}
-                              className="flex items-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-600 rounded-lg hover:bg-emerald-200 transition-all active:scale-90"
+                              className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-all active:scale-90 shadow-sm border border-emerald-100"
                               title="Lihat Foto Masuk"
                             >
-                              <Icons.Camera className="w-3 h-3" />
-                              <span className="text-[8px] font-black">FOTO</span>
+                              <Icons.Camera className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
                       </td>
                       <td className="px-8 py-5">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-black text-rose-600 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-100">
+                          <span className="font-mono text-xs font-black text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
                             {record.clockOut || '--:--'}
                           </span>
                           {record.photoOut && (
                             <button 
                               onClick={() => setSelectedPhoto({ url: record.photoOut!, title: `Foto Pulang - ${employee?.nama}` })}
-                              className="flex items-center gap-1 px-2 py-1 bg-rose-100 text-rose-600 rounded-lg hover:bg-rose-200 transition-all active:scale-90"
+                              className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition-all active:scale-90 shadow-sm border border-rose-100"
                               title="Lihat Foto Pulang"
                             >
-                              <Icons.Camera className="w-3 h-3" />
-                              <span className="text-[8px] font-black">FOTO</span>
+                              <Icons.Camera className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
                       </td>
                       <td className="px-8 py-5">
-                        <span className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-full border ${
-                          record.status === 'Hadir' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                          record.status === 'Terlambat' ? 'bg-amber-50 text-amber-700 border-amber-100' :
-                          'bg-slate-50 text-slate-700 border-slate-100'
-                        }`}>
-                          {record.status}
-                        </span>
+                        {editingStatus?.id === record.id ? (
+                          <select 
+                            value={editingStatus.status}
+                            onChange={(e) => handleUpdateStatus(record.id!, e.target.value)}
+                            onBlur={() => setEditingStatus(null)}
+                            autoFocus
+                            className="text-[10px] font-black uppercase px-2 py-1 rounded-lg border border-slate-200 outline-none bg-white shadow-sm"
+                          >
+                            <option value="Hadir">Hadir</option>
+                            <option value="Terlambat">Terlambat</option>
+                            <option value="Izin">Izin</option>
+                            <option value="Sakit">Sakit</option>
+                            <option value="Alpa">Alpa</option>
+                            <option value="Libur">Libur</option>
+                          </select>
+                        ) : (
+                          <span className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-full border ${
+                            record.status === 'Hadir' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                            record.status === 'Terlambat' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                            record.status === 'Izin' || record.status === 'Sakit' ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                            'bg-slate-50 text-slate-700 border-slate-100'
+                          }`}>
+                            {record.status}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-8 py-5 text-right">
+                        {isAdmin && (
+                          <button 
+                            onClick={() => setEditingStatus({ id: record.id!, status: record.status })}
+                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90"
+                            title="Edit Status"
+                          >
+                            <Icons.Edit className="w-4 h-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-8 py-20 text-center">
+                  <td colSpan={6} className="px-8 py-20 text-center">
                     <div className="flex flex-col items-center gap-4">
                       <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-200">
                         <Icons.Clock className="w-8 h-8" />
