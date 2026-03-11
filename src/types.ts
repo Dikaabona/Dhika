@@ -17,6 +17,9 @@ export interface Employee {
   company?: string;
   photo?: string;
   photoBase64?: string;
+  ktpDocBase64?: string;
+  ktpDocType?: string;
+  contractDocBase64?: string;
   avatarUrl?: string;
   status?: string;
   statusKaryawan?: string;
@@ -93,6 +96,10 @@ export interface Employee {
     lembur?: number;
     bonus?: number;
     thr?: number;
+    workingDays?: number;
+    potonganHutang?: number;
+    potonganLain?: number;
+    isBPJSTKActive?: boolean;
   };
 }
 
@@ -143,10 +150,10 @@ export interface LiveSchedule {
 
 export interface LiveReport {
   id?: string;
-  date: string;
+  date?: string;
   tanggal?: string; // Alias for date
   brand: string;
-  hourSlot: string;
+  hourSlot?: string;
   hostId: string;
   opId: string;
   views?: number;
@@ -173,7 +180,7 @@ export interface Shift {
   name: string;
   startTime: string;
   endTime: string;
-  company: string;
+  company?: string;
   color?: string;
 }
 
@@ -204,7 +211,7 @@ export interface InventoryItem {
   name: string;
   sku?: string;
   category: string;
-  quantity: number;
+  quantity?: number;
   stock?: number; // Alias for quantity
   minStock?: number;
   unit: string;
@@ -218,30 +225,30 @@ export interface InventoryItem {
 export interface InvoiceItem {
   id?: string;
   description: string;
-  quantity: number;
+  quantity?: number;
   qty?: number; // Alias for quantity
   price: number;
   total?: number;
 }
 
 export interface Invoice {
-  id: string;
-  number: string;
+  id?: string;
+  number?: string;
   invoiceNumber?: string; // Alias for number
   date: string;
-  dueDate: string;
-  customerName: string;
+  dueDate?: string;
+  customerName?: string;
   recipientName?: string; // Alias for customerName
   customerAddress?: string;
   recipientAddress?: string; // Alias for customerAddress
   items: Array<InvoiceItem>;
-  subtotal: number;
+  subtotal?: number;
   subTotal?: number; // Alias for subtotal
   tax?: number;
   taxRate?: number;
   discount?: number;
   total: number;
-  status: 'Draft' | 'Sent' | 'Paid' | 'Overdue' | 'Cancelled';
+  status?: 'Draft' | 'Sent' | 'Paid' | 'Overdue' | 'Cancelled';
   company: string;
   bankName?: string;
   bankBranch?: string;
@@ -254,9 +261,9 @@ export interface Invoice {
 export interface QuotationItem {
   id?: string;
   description?: string;
-  quantity: number;
+  quantity?: number;
   qty?: number; // Alias for quantity
-  price: number;
+  price?: number;
   rate?: number; // Alias for price
   total?: number;
   service?: string;
@@ -265,21 +272,23 @@ export interface QuotationItem {
 }
 
 export interface Quotation {
-  id: string;
-  number: string;
+  id?: string;
+  number?: string;
+  quotationNumber?: string; // Alias for number
   date: string;
-  expiryDate: string;
+  expiryDate?: string;
   validUntil?: string; // Alias for expiryDate
-  customerName: string;
+  customerName?: string;
   recipientName?: string; // Alias for customerName
   customerAddress?: string;
   recipientAddress?: string; // Alias for customerAddress
   items: Array<QuotationItem>;
-  subtotal: number;
+  subtotal?: number;
+  subTotal?: number; // Alias for subtotal
   tax?: number;
   discount?: number;
   total: number;
-  status: 'Draft' | 'Sent' | 'Accepted' | 'Rejected' | 'Expired';
+  status?: 'Draft' | 'Sent' | 'Accepted' | 'Rejected' | 'Expired';
   company: string;
   additionalNotes?: string;
   paymentTerms?: string;
@@ -306,9 +315,9 @@ export interface Announcement extends Broadcast {}
 export interface ContentPlan {
   id: string;
   title: string;
-  type: 'Live' | 'Video';
+  type?: 'Live' | 'Video';
   platform: string;
-  date: string;
+  date?: string;
   postingDate?: string; // Alias for date
   deadline?: string;
   status: 'Planned' | 'In Progress' | 'Completed' | 'Selesai';
@@ -372,17 +381,17 @@ export interface Candidate {
 export interface Recruitment extends Candidate {}
 
 export interface SalaryData {
-  id: string;
-  employeeId: string;
-  month: string;
-  year: number;
-  basicSalary: number;
+  id?: string;
+  employeeId?: string;
+  month?: string;
+  year?: number | string;
+  basicSalary?: number;
   gapok?: number; // Alias for basicSalary
-  allowances: number;
-  deductions: number;
-  netSalary: number;
-  status: 'Draft' | 'Paid';
-  company: string;
+  allowances?: number;
+  deductions?: number;
+  netSalary?: number;
+  status?: 'Draft' | 'Paid';
+  company?: string;
   tunjanganMakan?: number;
   tunjanganTransport?: number;
   tunjanganKomunikasi?: number;
@@ -398,6 +407,7 @@ export interface SalaryData {
   cutoffStart?: number;
   cutoffEnd?: number;
   type?: string;
+  isBPJSTKActive?: boolean;
 }
 
 export interface SalarySlip extends SalaryData {}

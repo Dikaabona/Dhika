@@ -3,35 +3,35 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 console.log("App.tsx loading...");
 import * as XLSX from 'xlsx';
 import { createClient, Session } from '@supabase/supabase-js';
-import { supabase } from './services/supabaseClient.ts';
-import { Employee, AttendanceRecord, LiveSchedule, Submission, Broadcast, ContentPlan, LiveReport, ShiftAssignment, ActiveTab, UserRole, Shift } from './types.ts';
-import { Icons, BANK_OPTIONS, DEFAULT_SHIFTS } from './constants.tsx';
-import EmployeeForm from './components/EmployeeForm.tsx';
-import Dashboard from './components/Dashboard.tsx';
-import SalarySlipModal from './components/SalarySlipModal.tsx';
-import BulkSalaryModal from './components/BulkSalaryModal.tsx';
-import AttendanceModule from './components/AttendanceModule.tsx';
-import AnnouncementModal from './components/AnnouncementModal.tsx';
-import LiveScheduleModule from './components/LiveScheduleModule.tsx';
-import SubmissionForm from './components/SubmissionForm.tsx';
-import Inbox from './components/Inbox.tsx';
-import ContentModule from './components/ContentModule.tsx';
-import ContentReport from './components/ContentReport.tsx';
-import AbsenModule from './components/AbsenModule.tsx';
-import LegalModal from './components/LegalModal.tsx';
-import SettingsModule from './components/SettingsModule.tsx';
-import ShiftModule from './components/ShiftModule.tsx';
-import MinVisModule from './components/MinVisModule.tsx';
-import KPIModule from './components/KPIModule.tsx';
-import CalendarModule from './components/CalendarModule.tsx';
-import InventoryModule from './components/InventoryModule.tsx';
-import EmployeeDetailModal from './components/EmployeeDetailModal.tsx';
-import MobileAttendanceHistory from './components/MobileAttendanceHistory.tsx';
-import LiveMapModule from './components/LiveMapModule.tsx';
-import FinancialModule from './components/FinancialModule.tsx';
-import RecruitmentModule from './components/RecruitmentModule.tsx';
-import { InvoiceModule } from './components/InvoiceModule.tsx';
-import { getTenureYears, calculateTenure, formatDateToYYYYMMDD, getMondayISO } from './utils/dateUtils.ts';
+import { supabase } from './services/supabaseClient';
+import { Employee, AttendanceRecord, LiveSchedule, Submission, Broadcast, ContentPlan, LiveReport, ShiftAssignment, ActiveTab, UserRole, Shift } from './types';
+import { Icons, BANK_OPTIONS, DEFAULT_SHIFTS } from './constants';
+import EmployeeForm from './components/EmployeeForm';
+import Dashboard from './components/Dashboard';
+import SalarySlipModal from './components/SalarySlipModal';
+import BulkSalaryModal from './components/BulkSalaryModal';
+import AttendanceModule from './components/AttendanceModule';
+import AnnouncementModal from './components/AnnouncementModal';
+import LiveScheduleModule from './components/LiveScheduleModule';
+import SubmissionForm from './components/SubmissionForm';
+import Inbox from './components/Inbox';
+import ContentModule from './components/ContentModule';
+import ContentReport from './components/ContentReport';
+import AbsenModule from './components/AbsenModule';
+import LegalModal from './components/LegalModal';
+import SettingsModule from './components/SettingsModule';
+import ShiftModule from './components/ShiftModule';
+import MinVisModule from './components/MinVisModule';
+import KPIModule from './components/KPIModule';
+import CalendarModule from './components/CalendarModule';
+import InventoryModule from './components/InventoryModule';
+import EmployeeDetailModal from './components/EmployeeDetailModal';
+import MobileAttendanceHistory from './components/MobileAttendanceHistory';
+import LiveMapModule from './components/LiveMapModule';
+import FinancialModule from './components/FinancialModule';
+import RecruitmentModule from './components/RecruitmentModule';
+import { InvoiceModule } from './components/InvoiceModule';
+import { getTenureYears, calculateTenure, formatDateToYYYYMMDD, getMondayISO } from './utils/dateUtils';
 
 const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
 
@@ -186,7 +186,7 @@ export const App: React.FC = () => {
     };
   }, [session, currentUserEmployee]);
 
-  const DEFAULT_HOLIDAYS = {
+  const DEFAULT_HOLIDAYS: Record<string, string[]> = {
     'SENIN': [], 'SELASA': [], 'RABU': [], 'KAMIS': [], 'JUMAT': [], 'SABTU': [], 'MINGGU': []
   };
 
@@ -672,7 +672,7 @@ export const App: React.FC = () => {
             bank: String(row['BANK'] || 'BCA'),
             noRekening: String(row['REKENING'] || ''),
             hutang: cleanHutang,
-            deleted_at: null,
+            deleted_at: null as any,
             salaryConfig: {
               gapok: parseNum(row['GAPOK'] || 0),
               tunjanganMakan: parseNum(row['TUNJANGAN MAKAN'] || 0),

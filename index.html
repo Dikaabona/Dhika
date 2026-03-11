@@ -58,15 +58,24 @@
     </style>
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root">
+        <div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; color: #64748b;">
+            <div style="text-align: center;">
+                <h1 style="margin-bottom: 10px;">HR.Visibel</h1>
+                <p>Memuat aplikasi...</p>
+            </div>
+        </div>
+    </div>
     <!-- Penting: Script ini yang menjalankan aplikasi Anda -->
-    <script type="module" src="/src/index.tsx"></script>
+    <script type="module" src="/src/main.tsx?v=3"></script>
     <script>
+      // Unregister service worker to fix caching issues during development
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('Service Worker registered', reg))
-            .catch(err => console.log('Service Worker registration failed', err));
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(let registration of registrations) {
+            registration.unregister();
+            console.log('Service Worker unregistered');
+          }
         });
       }
     </script>

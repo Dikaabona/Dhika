@@ -47,7 +47,7 @@ const getMonthEndString = () => {
   return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 };
 
-const DEFAULT_HOLIDAYS = {
+const DEFAULT_HOLIDAYS: Record<string, string[]> = {
   'SENIN': [], 'SELASA': [], 'RABU': [], 'KAMIS': [], 'JUMAT': [], 'SABTU': [], 'MINGGU': []
 };
 

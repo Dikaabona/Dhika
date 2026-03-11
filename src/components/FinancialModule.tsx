@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Icons } from '../constants';
 import { flipService } from '../services/flipService';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 import { InvoiceModule } from './InvoiceModule';
 import SalarySlipModal from './SalarySlipModal';
 import SalarySlipContent from './SalarySlipContent';
@@ -14,10 +14,9 @@ interface FinancialModuleProps {
   employees: any[];
   attendanceRecords: any[];
   onClose: () => void;
-  onUpdate?: () => void;
 }
 
-const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, attendanceRecords, onClose, onUpdate }) => {
+const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, attendanceRecords, onClose }) => {
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -406,7 +405,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
             cutoffStart: cStart,
             cutoffEnd: cEnd,
             slipLogo,
-            isBPJSTKActive: config.isBPJSTKActive !== false,
+            isBPJSTKActive: bpjstk > 0,
             potonganAbsensi
           };
 
@@ -517,7 +516,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
                 to: emp.email,
                 subject: `SLIP GAJI ${selectedMonth.toUpperCase()} ${selectedYear} - ${emp.nama}`,
                 html: emailHtml,
-                from: "admin@visibel.agency",
+                from: "onboarding@resend.dev",
                 attachments: [
                   {
                     filename: `slip-gaji-${emp.nama.toLowerCase().replace(/\s+/g, '-')}.pdf`,
@@ -940,10 +939,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
           attendanceRecords={attendanceRecords}
           userRole="owner"
           onClose={() => setShowSlipModal(null)}
-          onUpdate={() => {
-            startPayrollProcess();
-            if (onUpdate) onUpdate();
-          }}
+          onUpdate={() => startPayrollProcess()}
           positionRates={positionRates}
         />
       )}

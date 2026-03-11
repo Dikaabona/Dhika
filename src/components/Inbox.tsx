@@ -1,8 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Submission, Employee, Broadcast, AttendanceRecord } from '../types.ts';
-import { Icons } from '../constants.tsx';
-import { supabase } from '../App';
-import { formatDateToYYYYMMDD } from '../utils/dateUtils.ts';
+import { Submission, Employee, Broadcast, AttendanceRecord } from '../types';
+import { Icons } from '../constants';
+import { supabase } from '../services/supabaseClient';
+import { formatDateToYYYYMMDD } from '../utils/dateUtils';
 
 interface InboxProps {
   submissions: Submission[];

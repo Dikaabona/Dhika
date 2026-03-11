@@ -3,7 +3,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Employee, SalaryData, AttendanceRecord, Broadcast, AttendanceSettings } from '../types';
 import { Icons } from '../constants';
 import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
-import { supabase } from '../App';
+import { supabase } from '../services/supabaseClient';
 
 import SalarySlipContent from './SalarySlipContent';
 
@@ -36,6 +36,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       
       if (latest) {
         setCurrentEmployee(latest);
+        setIsBPJSTKActive(latest.salaryConfig?.isBPJSTKActive ?? true);
         setData(prev => ({
           ...prev,
           gapok: latest.salaryConfig?.gapok ?? prev.gapok,
@@ -45,7 +46,6 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           tunjanganKesehatan: latest.salaryConfig?.tunjanganKesehatan ?? prev.tunjanganKesehatan,
           tunjanganJabatan: latest.salaryConfig?.tunjanganJabatan ?? prev.tunjanganJabatan,
           bpjstk: latest.salaryConfig?.bpjstk ?? prev.bpjstk,
-          isBPJSTKActive: latest.salaryConfig?.isBPJSTKActive ?? true,
           pph21: latest.salaryConfig?.pph21 ?? prev.pph21,
           lembur: latest.salaryConfig?.lembur ?? prev.lembur,
           bonus: latest.salaryConfig?.bonus ?? prev.bonus,
@@ -73,6 +73,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
 
   const activePeriod = getActivePayrollMonthInfo();
 
+  const [isBPJSTKActive, setIsBPJSTKActive] = useState(employee.salaryConfig?.isBPJSTKActive ?? true);
   const [showOvertimeDetails, setShowOvertimeDetails] = useState(false);
   const [data, setData] = useState<SalaryData & { adjustment: number; pph21: number; totalHutang: number }>({
     month: activePeriod.name,
@@ -84,7 +85,6 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     tunjanganKesehatan: employee.salaryConfig?.tunjanganKesehatan ?? 0,
     tunjanganJabatan: employee.salaryConfig?.tunjanganJabatan ?? 0,
     bpjstk: employee.salaryConfig?.bpjstk ?? 0,
-    isBPJSTKActive: employee.salaryConfig?.isBPJSTKActive ?? true,
     pph21: employee.salaryConfig?.pph21 ?? 0,
     lembur: employee.salaryConfig?.lembur ?? 0,
     bonus: employee.salaryConfig?.bonus ?? 0,
@@ -176,7 +176,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
 
   const attendanceResults = useMemo(() => {
     const targetMonthIdx = monthMap[data.month] ?? 0;
-    const targetYear = parseInt(data.year);
+    const targetYear = parseInt(String(data.year));
     
     const rangeStart = new Date(targetYear, targetMonthIdx - 1, cutoffStart);
     const rangeEnd = new Date(targetYear, targetMonthIdx, cutoffEnd);
@@ -339,14 +339,14 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const autoBPJS = useMemo(() => Math.round(totalPendapatan * 0.02), [totalPendapatan]);
 
   useEffect(() => {
-    if (data.isBPJSTKActive) {
+    if (isBPJSTKActive) {
       setData(prev => ({ ...prev, bpjstk: autoBPJS }));
     } else {
       setData(prev => ({ ...prev, bpjstk: 0 }));
     }
-  }, [autoBPJS, data.isBPJSTKActive]);
+  }, [autoBPJS, isBPJSTKActive]);
 
-  const currentBPJSTK = data.isBPJSTKActive ? (data.bpjstk || 0) : 0;
+  const currentBPJSTK = isBPJSTKActive ? (data.bpjstk || 0) : 0;
   const totalPotongan = currentBPJSTK + potonganAbsensi + (data.pph21 || 0) + (data.potonganHutang || 0) + (data.potonganLain || 0);
   const takeHomePay = totalPendapatan - totalPotongan + (data.adjustment || 0);
   const sisaHutang = Math.max(0, (data.totalHutang || 0) - (data.potonganHutang || 0));
@@ -380,7 +380,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         tunjanganKesehatan: data.tunjanganKesehatan,
         tunjanganJabatan: data.tunjanganJabatan,
         bpjstk: data.bpjstk,
-        isBPJSTKActive: data.isBPJSTKActive,
+        isBPJSTKActive: isBPJSTKActive,
         pph21: data.pph21,
         lembur: data.lembur,
         bonus: data.bonus,
@@ -586,7 +586,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           to: recipientEmail,
           subject: `SLIP GAJI ${data.month.toUpperCase()} ${data.year} - ${employee.nama}`,
           html: emailHtml,
-          from: "admin@visibel.agency"
+          from: "onboarding@resend.dev"
         })
       });
 
@@ -725,7 +725,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
         cutoffStart={cutoffStart}
         cutoffEnd={cutoffEnd}
         slipLogo={slipLogo}
-        isBPJSTKActive={data.isBPJSTKActive ?? true}
+        isBPJSTKActive={isBPJSTKActive}
         potonganAbsensi={potonganAbsensi}
       />
     );
@@ -945,15 +945,15 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
                       type="checkbox" 
                       id="toggle-bpjstk" 
                       disabled={isReadOnlyRole} 
-                      checked={data.isBPJSTKActive} 
-                      onChange={(e) => setData({...data, isBPJSTKActive: e.target.checked})} 
+                      checked={isBPJSTKActive} 
+                      onChange={(e) => setIsBPJSTKActive(e.target.checked)} 
                       className="w-4 h-4 rounded border-slate-200 text-[#FFC000] focus:ring-[#FFC000]" 
                     />
                     <label htmlFor="toggle-bpjstk" className="text-[8px] font-black text-slate-400 uppercase tracking-widest">BPJSTK</label>
                   </div>
                   <input 
                     type="text" 
-                    disabled={!data.isBPJSTKActive || isReadOnlyRole} 
+                    disabled={!isBPJSTKActive || isReadOnlyRole} 
                     value={formatCurrencyValue(data.bpjstk)} 
                     onChange={e => setData({...data, bpjstk: parseCurrencyInput(e.target.value)})} 
                     className="w-full bg-white border border-amber-100 rounded-xl p-2 text-[10px] font-black text-slate-900 outline-none shadow-sm" 

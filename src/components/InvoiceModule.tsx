@@ -2,10 +2,10 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
-import { Icons } from '../constants.tsx';
-import { Invoice, InvoiceItem } from '../types.ts';
+import { Icons } from '../constants';
+import { Invoice, InvoiceItem } from '../types';
 import { supabase } from '../services/supabaseClient';
-import { QuotationModule } from './QuotationModule.tsx';
+import { QuotationModule } from './QuotationModule';
 
 interface InvoiceModuleProps {
   company: string;

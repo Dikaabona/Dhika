@@ -1,618 +1,165 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, AttendanceRecord } from '../types';
 import { Icons } from '../constants';
 import { supabase } from '../services/supabaseClient';
-import { formatDateToYYYYMMDD } from '../utils/dateUtils';
 
 interface AttendanceModuleProps {
   employees: Employee[];
   records: AttendanceRecord[];
   setRecords: React.Dispatch<React.SetStateAction<AttendanceRecord[]>>;
-  searchQuery?: string;
-  userRole?: string;
-  currentEmployee?: Employee | null;
+  searchQuery: string;
+  userRole: string;
+  currentEmployee: Employee | null;
   startDate: string;
   endDate: string;
   onStartDateChange: (date: string) => void;
   onEndDateChange: (date: string) => void;
-  weeklyHolidays?: Record<string, string[]>;
+  weeklyHolidays: Record<string, string[]>;
   company: string;
-  positionRates?: any[];
+  positionRates: any[];
 }
 
-const ALPHA_START_DATE = '2026-02-02';
-
-const AttendanceModule: React.FC<AttendanceModuleProps> = ({ 
-  employees, 
-  records, 
-  setRecords, 
-  searchQuery = '', 
-  userRole = 'employee',
-  currentEmployee = null,
+const AttendanceModule: React.FC<AttendanceModuleProps> = ({
+  employees,
+  records,
+  setRecords,
+  searchQuery,
+  userRole,
+  currentEmployee,
   startDate,
   endDate,
   onStartDateChange,
   onEndDateChange,
   weeklyHolidays,
   company,
-  positionRates = []
+  positionRates
 }) => {
-  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  const [isPhotoLoading, setIsPhotoLoading] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<any>(null);
-  const [localSearch, setLocalSearch] = useState('');
-  const [isImporting, setIsImporting] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const rowsPerPage = 10;
-  
-  const importFileInputRef = useRef<HTMLInputElement>(null);
+  const isAdmin = userRole === 'owner' || userRole === 'super' || userRole === 'admin';
 
-  const isAdmin = userRole === 'super' || userRole === 'admin' || userRole === 'owner';
-
-  const calculateRowOvertime = (rec: AttendanceRecord, emp: Employee) => {
-    const isLemburStatus = (rec.status || '').toLowerCase() === 'lembur';
-    const hasLemburNotes = (rec.notes || '').toLowerCase().includes('lembur');
-    
-    if (!isLemburStatus && !hasLemburNotes) return 0;
-    
-    let cIn = rec.clockIn;
-    let cOut = rec.clockOut;
-
-    if (!cIn || !cOut || cOut === '--:--' || cIn === '--:--') {
-      const timeMatch = (rec.notes || '').match(/(\d{1,2}[:.]\d{2})\s*-\s*(\d{1,2}[:.]\d{2})/);
-      if (timeMatch) {
-        cIn = timeMatch[1].replace('.', ':');
-        cOut = timeMatch[2].replace('.', ':');
-      }
-    }
-
-    if (cIn && cOut && cOut !== '--:--') {
-      const startArr = cIn.split(':').map(Number);
-      const endArr = cOut.split(':').map(Number);
-      if (startArr.length === 2 && endArr.length === 2) {
-        const startMinutes = startArr[0] * 60 + startArr[1];
-        const endMinutes = endArr[0] * 60 + endArr[1];
-        let diffMinutes = endMinutes - startMinutes;
-        if (diffMinutes < 0) diffMinutes += 1440; 
-        const hours = diffMinutes / 60;
-        
-        // Pencocokan jabatan yang sinkron dengan settings
-        const currentJabatan = (emp.jabatan || '').trim().toUpperCase();
-        const rateConfig = positionRates.find(p => p.name.toUpperCase() === currentJabatan || currentJabatan.includes(p.name.toUpperCase()));
-        
-        let hourlyRate = rateConfig ? rateConfig.bonus : 10000;
-
-        // Legacy Fallback jika config tidak ada
-        if (!rateConfig) {
-          const jabLower = (emp.jabatan || '').toLowerCase();
-          const divLower = (emp.division || '').toLowerCase();
-          const nameLower = (emp.nama || '').toLowerCase();
-          
-          if (jabLower.includes('content creator')) {
-            hourlyRate = 50000;
-          } else if (
-            jabLower.includes('host') || 
-            jabLower.includes('operator') || 
-            jabLower.includes('business development') ||
-            jabLower.includes('owner') ||
-            jabLower.includes('admin') ||
-            jabLower.includes('ceo') ||
-            divLower.includes('host') || 
-            divLower.includes('operator') || 
-            nameLower.includes('mahardhika')
-          ) {
-            hourlyRate = 20000;
-          }
-        }
-        
-        return Math.round(hours * hourlyRate);
-      }
-    }
-    return 0;
-  };
-
-  const isWorkDay = (dateStr: string, emp: Employee) => {
-    const date = new Date(dateStr);
-    const day = date.getDay();
-    const isHost = (emp.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
-    if (day === 0) return isHost;
-    if (day === 6) return false;
-    const dayNameMap = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
-    const currentDayName = dayNameMap[day];
-    if (weeklyHolidays) {
-      const empNameUpper = emp.nama.toUpperCase();
-      const employeeInHolidays = Object.values(weeklyHolidays).some(names => (names as string[]).map(n => n.toUpperCase()).includes(empNameUpper));
-      if (employeeInHolidays) {
-        return !(weeklyHolidays[currentDayName] || []).map(n => n.toUpperCase()).includes(empNameUpper);
-      }
-    }
-    return true;
-  };
-
-  const searchedEmployees = useMemo(() => {
-    let base = employees;
-    if (!isAdmin && currentEmployee) {
-      base = [currentEmployee];
-    }
-    const finalQuery = (localSearch || searchQuery).toLowerCase();
-    return base.filter(emp => 
-      emp.nama.toLowerCase().includes(finalQuery) ||
-      (emp.idKaryawan || '').toLowerCase().includes(finalQuery)
-    );
-  }, [employees, searchQuery, localSearch, isAdmin, currentEmployee]);
-
-  const datesInRange = useMemo(() => {
-    const dates = [];
-    let cur = new Date(startDate);
-    let end = new Date(endDate);
-    if (isNaN(cur.getTime()) || isNaN(end.getTime())) return [];
-    
-    cur.setHours(0,0,0,0);
-    end.setHours(0,0,0,0);
-
-    while (cur <= end) {
-      dates.push(formatDateToYYYYMMDD(cur));
-      cur.setDate(cur.getDate() + 1);
-    }
-    return dates.reverse();
-  }, [startDate, endDate]);
-
-  const tableRows = useMemo(() => {
-    const rows: { employee: Employee; date: string }[] = [];
-    datesInRange.forEach(date => searchedEmployees.forEach(employee => rows.push({ employee, date })));
-    return rows;
-  }, [searchedEmployees, datesInRange]);
-
-  const totalPages = Math.ceil(tableRows.length / rowsPerPage);
-  const paginatedRows = useMemo(() => {
-    return tableRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
-  }, [tableRows, currentPage]);
-
-  const summary = useMemo(() => {
-    const counts = { hadir: 0, alpha: 0, sakit: 0, izin: 0, cuti: 0, libur: 0, lembur: 0 };
-    tableRows.forEach(row => {
-      const existingRec = records.find(r => r.employeeId === row.employee.id && r.date === row.date);
-      const isPast = row.date < formatDateToYYYYMMDD(new Date());
-      const isWork = isWorkDay(row.date, row.employee);
-      const status = existingRec?.status || (isWork ? (isPast ? 'Alpha' : 'Hadir') : 'Libur');
-      
-      if (status === 'Hadir') counts.hadir++;
-      else if (status === 'Alpha') counts.alpha++;
-      else if (status === 'Sakit') counts.sakit++;
-      else if (status === 'Izin') counts.izin++;
-      else if (status === 'Cuti') counts.cuti++;
-      else if (status === 'Libur') counts.libur++;
-      else if (status === 'Lembur') counts.lembur++;
+  const filteredRecords = useMemo(() => {
+    return records.filter(record => {
+      const employee = employees.find(e => e.id === record.employeeId);
+      const nameMatch = employee?.nama.toLowerCase().includes(searchQuery.toLowerCase());
+      const dateMatch = record.date >= startDate && record.date <= endDate;
+      return nameMatch && dateMatch;
     });
-    return counts;
-  }, [tableRows, records]);
+  }, [records, employees, searchQuery, startDate, endDate]);
 
-  const handleSaveEdit = async () => {
-    try {
-      const { error } = await supabase.from('attendance').upsert(editingRecord);
-      if (error) throw error;
-      setRecords(prev => {
-        const idx = prev.findIndex(r => r.employeeId === editingRecord.employeeId && r.date === editingRecord.date);
-        const updated = [...prev];
-        if (idx !== -1) updated[idx] = { ...updated[idx], ...editingRecord };
-        else updated.push(editingRecord);
-        return updated;
-      });
-      setIsEditModalOpen(false);
-    } catch (err: any) { alert(err.message); }
-  };
-
-  const handleDownloadTemplate = () => {
-    const template = [{ 'TANGGAL': '2026-02-06', 'ID KARYAWAN': 'VID-7251', 'NAMA': 'NAMA CONTOH', 'STATUS': 'Hadir', 'MASUK': '09:00', 'PULANG': '18:00', 'CATATAN': '' }];
-    const ws = XLSX.utils.json_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Template Absensi");
-    XLSX.writeFile(wb, `Template_Absensi_${company}.xlsx`);
-  };
-
-  const handleExportExcel = () => {
-    const dataToExport = tableRows.map(row => {
-      const existingRec = records.find(r => r.employeeId === row.employee.id && r.date === row.date);
+  const exportToExcel = () => {
+    const data = filteredRecords.map(r => {
+      const emp = employees.find(e => e.id === r.employeeId);
       return {
-        'TANGGAL': row.date,
-        'ID KARYAWAN': row.employee.idKaryawan,
-        'NAMA': row.employee.nama,
-        'STATUS': existingRec?.status || (isWorkDay(row.date, row.employee) ? 'Hadir' : 'Libur'),
-        'MASUK': existingRec?.clockIn || '',
-        'PULANG': existingRec?.clockOut || '',
-        'CATATAN': existingRec?.notes || ''
+        'Nama': emp?.nama || 'Unknown',
+        'Tanggal': r.date,
+        'Jam Masuk': r.clockIn || '-',
+        'Jam Pulang': r.clockOut || '-',
+        'Status': r.status
       };
     });
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
+
+    const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Log Kehadiran");
-    XLSX.writeFile(wb, `Log_Kehadiran_${company}_${startDate}.xlsx`);
-  };
-
-  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsImporting(true);
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const data = new Uint8Array(event.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-        
-        const rawRecords = jsonData.map((row: any) => {
-          const emp = employees.find(e => e.idKaryawan === String(row['ID KARYAWAN']));
-          if (!emp) return null;
-          return {
-            employeeId: emp.id,
-            company: company,
-            date: String(row['TANGGAL']),
-            status: String(row['STATUS'] || 'Hadir') as any,
-            clockIn: row['MASUK'] ? String(row['MASUK']) : undefined,
-            clockOut: row['PULANG'] ? String(row['PULANG']) : undefined,
-            notes: row['CATATAN'] ? String(row['CATATAN']) : 'Imported'
-          };
-        }).filter(r => r !== null);
-
-        if (rawRecords.length > 0) {
-          const uniqueRecordsMap = new Map();
-          rawRecords.forEach((r: any) => {
-            const key = `${r.employeeId}_${r.date}`;
-            uniqueRecordsMap.set(key, r);
-          });
-          const dedupedRecords = Array.from(uniqueRecordsMap.values());
-          const { error } = await supabase.from('attendance').upsert(dedupedRecords, { onConflict: 'employeeId,date' });
-          if (error) throw error;
-          alert(`Berhasil mengimpor ${dedupedRecords.length} data absensi!`);
-          location.reload();
-        }
-      } catch (err: any) { alert("Gagal impor: " + err.message); } finally { setIsImporting(false); }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  const fetchRecordPhoto = async (id: string, field: string) => {
-    setIsPhotoLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('attendance')
-        .select(field)
-        .eq('id', id)
-        .single();
-      
-      if (error) throw error;
-      if (data && (data as any)[field]) {
-        setZoomedImage((data as any)[field]);
-      } else {
-        alert("Foto tidak ditemukan.");
-      }
-    } catch (err: any) {
-      alert("Gagal memuat foto: " + err.message);
-    } finally {
-      setIsPhotoLoading(false);
-    }
-  };
-
-  const getStatusStyle = (status: string) => {
-    switch (status) {
-      case 'Hadir': return 'bg-emerald-50 text-emerald-600 border-emerald-100';
-      case 'Libur': return 'bg-slate-50 text-slate-400 border-slate-200';
-      case 'Sakit': return 'bg-amber-50 text-amber-600 border-amber-100';
-      case 'Izin': return 'bg-sky-50 text-sky-600 border-sky-100';
-      case 'Alpha': return 'bg-rose-50 text-rose-600 border-rose-100 font-bold';
-      case 'Cuti': return 'bg-indigo-50 text-indigo-600 border-indigo-100';
-      case 'Lembur': return 'bg-[#0f172a] text-[#FFC000] border-[#0f172a] shadow-sm';
-      case 'Reimburse': return 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100';
-      default: return 'bg-slate-50 text-slate-400 border-slate-100';
-    }
+    XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+    XLSX.writeFile(wb, `Attendance_${startDate}_to_${endDate}.xlsx`);
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-700">
-      {zoomedImage && (
-        <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setZoomedImage(null)}>
-          <img src={zoomedImage} className="max-w-full max-h-[80vh] rounded-[32px] shadow-2xl border-4 border-white/10 scale-95 animate-in zoom-in-95 duration-300" alt="Verifikasi" />
-        </div>
-      )}
-
-      {isPhotoLoading && (
-        <div className="fixed inset-0 bg-white/40 backdrop-blur-[2px] z-[250] flex items-center justify-center">
-           <div className="bg-slate-900 text-[#FFC000] px-8 py-4 rounded-3xl shadow-2xl flex items-center gap-4 animate-in zoom-in duration-300">
-              <div className="w-5 h-5 border-2 border-[#FFC000]/20 border-t-[#FFC000] rounded-full animate-spin"></div>
-              <p className="text-[10px] font-black uppercase tracking-[0.3em]">Memproses Foto...</p>
-           </div>
-        </div>
-      )}
-
-      <div className="bg-white rounded-[40px] p-6 sm:p-8 shadow-sm border border-slate-100 flex flex-col items-center text-center gap-6">
-        <div className="space-y-1">
-          <h2 className="font-black text-slate-900 text-3xl sm:text-4xl tracking-tighter uppercase leading-tight">Log Kehadiran</h2>
-          <div className="h-1 w-12 bg-[#FFC000] mx-auto rounded-full"></div>
-          <p className="text-[8px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-[0.5em] pt-1">Monitoring & History</p>
+    <div className="p-4 lg:p-8">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
+        <div>
+          <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Data Absensi</h2>
+          <p className="text-slate-500 text-sm font-medium">Kelola dan pantau kehadiran karyawan</p>
         </div>
         
-        <div className="w-full max-w-4xl space-y-4">
-          <div className="flex flex-col lg:flex-row items-center gap-3 bg-slate-50 p-1.5 rounded-[28px] border border-slate-100 shadow-inner w-full overflow-hidden">
-            <div className="flex items-center gap-3 px-6 py-3 bg-white rounded-[22px] shadow-sm border border-slate-100 shrink-0">
-              <div className="flex flex-col items-start min-w-[100px]">
-                <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Mulai</span>
-                <input 
-                  type="date" 
-                  value={startDate} 
-                  onChange={(e) => { onStartDateChange(e.target.value); setCurrentPage(1); }} 
-                  className="bg-transparent text-xs sm:text-sm font-black outline-none text-slate-900 cursor-pointer" 
-                />
-              </div>
-              <div className="h-8 w-px bg-slate-100"></div>
-              <div className="flex flex-col items-start min-w-[100px]">
-                <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Sampai</span>
-                <input 
-                  type="date" 
-                  value={endDate} 
-                  onChange={(e) => { onEndDateChange(e.target.value); setCurrentPage(1); }} 
-                  className="bg-transparent text-xs sm:text-sm font-black outline-none text-slate-900 cursor-pointer" 
-                />
-              </div>
-            </div>
-
-            <div className="relative flex-grow w-full lg:w-auto px-4 py-3 bg-white rounded-[22px] shadow-sm border border-slate-100 flex items-center gap-3 h-[52px]">
-               <Icons.Search className="w-4 h-4 text-slate-300" />
-               <input 
-                type="text" 
-                placeholder="CARI NAMA ATAU ID..." 
-                value={localSearch}
-                onChange={(e) => {
-                  setLocalSearch(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full bg-transparent text-[10px] font-black outline-none text-slate-800 placeholder:text-slate-300 uppercase tracking-widest"
-               />
-            </div>
-            <button onClick={() => { setLocalSearch(''); onStartDateChange(formatDateToYYYYMMDD(new Date())); onEndDateChange(formatDateToYYYYMMDD(new Date())); setCurrentPage(1); }} className="hidden lg:flex bg-slate-900 text-[#FFC000] px-6 h-[52px] rounded-[20px] items-center justify-center text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shrink-0">Refresh</button>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-2">
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={(e) => onStartDateChange(e.target.value)}
+              className="text-xs font-bold text-slate-600 outline-none"
+            />
+            <span className="mx-2 text-slate-300">-</span>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={(e) => onEndDateChange(e.target.value)}
+              className="text-xs font-bold text-slate-600 outline-none"
+            />
           </div>
-
-          {isAdmin && (
-            <div className="grid grid-cols-2 md:flex md:flex-row gap-2 sm:gap-4 justify-center w-full animate-in slide-in-from-top-2 duration-500">
-              <button onClick={handleDownloadTemplate} className="bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-500 px-4 py-3 rounded-[20px] text-[8px] sm:text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center justify-center gap-2">
-                <Icons.Download className="w-4 h-4" /> TEMPLATE
-              </button>
-              <input type="file" ref={importFileInputRef} onChange={handleImportExcel} className="hidden" accept=".xlsx,.xls" />
-              <button onClick={() => importFileInputRef.current?.click()} className="bg-[#059669] hover:bg-[#047857] text-white px-4 py-3 rounded-[20px] text-[8px] sm:text-[10px] font-black uppercase tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-2">
-                <Icons.Upload className="w-4 h-4" /> UNGGAH
-              </button>
-              <button onClick={handleExportExcel} className="col-span-2 md:col-auto bg-[#0f172a] hover:bg-black text-white px-4 py-3 rounded-[20px] text-[8px] sm:text-[10px] font-black uppercase tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-2">
-                <Icons.Database className="w-4 h-4" /> EKSPOR
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* SUMMARY SECTION */}
-        <div className="w-full max-w-4xl grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mt-4 animate-in slide-in-from-bottom-2 duration-500">
-          <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-2xl text-center shadow-sm">
-            <p className="text-[7px] font-black text-emerald-400 uppercase tracking-widest mb-1">Hadir</p>
-            <p className="text-xl font-black text-emerald-600">{summary.hadir}</p>
-          </div>
-          <div className="bg-rose-50 border border-rose-100 p-3 rounded-2xl text-center shadow-sm">
-            <p className="text-[7px] font-black text-rose-400 uppercase tracking-widest mb-1">Alpha</p>
-            <p className="text-xl font-black text-rose-600">{summary.alpha}</p>
-          </div>
-          <div className="bg-amber-50 border border-amber-100 p-3 rounded-2xl text-center shadow-sm">
-            <p className="text-[7px] font-black text-amber-400 uppercase tracking-widest mb-1">Sakit</p>
-            <p className="text-xl font-black text-amber-600">{summary.sakit}</p>
-          </div>
-          <div className="bg-sky-50 border border-sky-100 p-3 rounded-2xl text-center shadow-sm">
-            <p className="text-[7px] font-black text-sky-400 uppercase tracking-widest mb-1">Izin</p>
-            <p className="text-xl font-black text-sky-600">{summary.izin}</p>
-          </div>
-          <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-2xl text-center shadow-sm">
-            <p className="text-[7px] font-black text-indigo-400 uppercase tracking-widest mb-1">Cuti</p>
-            <p className="text-xl font-black text-indigo-600">{summary.cuti}</p>
-          </div>
-          <div className="bg-slate-50 border border-slate-100 p-3 rounded-2xl text-center shadow-sm">
-            <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-1">Libur</p>
-            <p className="text-xl font-black text-slate-600">{summary.libur}</p>
-          </div>
-          <div className="bg-[#0f172a] border border-[#0f172a] p-3 rounded-2xl text-center shadow-lg">
-            <p className="text-[7px] font-black text-[#FFC000]/60 uppercase tracking-widest mb-1">Lembur</p>
-            <p className="text-xl font-black text-[#FFC000]">{summary.lembur}</p>
-          </div>
+          
+          <button 
+            onClick={exportToExcel}
+            className="flex items-center gap-2 bg-emerald-500 text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/20"
+          >
+            <Icons.Plus className="w-4 h-4" />
+            Export Excel
+          </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden mb-6 flex flex-col">
-        {/* DESKTOP TABLE VIEW */}
-        <div className="hidden md:block overflow-x-auto custom-scrollbar touch-pan-x">
-          <table className="w-full text-left min-w-[1000px]">
-            <thead className="bg-slate-50/50 text-[10px] uppercase font-black tracking-[0.1em] border-b border-slate-100">
-              <tr>
-                <th className="px-6 sm:px-10 py-5">Tanggal</th>
-                <th className="px-5 py-5">Karyawan</th>
-                <th className="px-3 py-5 text-center">Status</th>
-                <th className="px-3 py-5">Masuk</th>
-                <th className="px-3 py-5">Pulang</th>
-                <th className="px-3 py-5 text-center">Lembur</th>
-                <th className="px-6 sm:px-10 py-5 text-right">Aksi</th>
+      <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/50 border-bottom border-slate-100">
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Karyawan</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Masuk</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Pulang</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {paginatedRows.map((row, index) => {
-                const existingRec = records.find(r => r.employeeId === row.employee.id && r.date === row.date);
-                const isToday = row.date === formatDateToYYYYMMDD(new Date());
-                const isPast = row.date < formatDateToYYYYMMDD(new Date());
-                const isWork = isWorkDay(row.date, row.employee);
-                const rec = (existingRec || { 
-                  status: isWork ? (isPast ? 'Alpha' : 'Hadir') : 'Libur', 
-                  employeeId: row.employee.id, 
-                  date: row.date 
-                }) as AttendanceRecord;
-
-                const overtimePay = calculateRowOvertime(rec, row.employee);
-                const isEven = index % 2 === 1;
-                
-                return (
-                  <tr key={`${row.employee.id}-${row.date}`} className={`hover:bg-slate-100/50 transition-all duration-300 group ${isToday ? 'bg-amber-50/30' : (isEven ? 'bg-slate-50/80' : 'bg-white')}`}>
-                    <td className="px-6 sm:px-10 py-4">
-                      <div className="flex flex-col">
-                        <p className="text-[10px] font-black text-slate-900 whitespace-nowrap">{row.date}</p>
-                        <p className="text-[7px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{new Date(row.date).toLocaleDateString('id-ID', { weekday: 'short' })}</p>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                         <div className="min-w-0">
-                            <p className="text-[10px] sm:text-[11px] font-black uppercase text-slate-900 truncate max-w-[150px]">{row.employee.nama}</p>
-                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate">{row.employee.jabatan}</p>
-                         </div>
-                      </div>
-                    </td>
-                    <td className="px-3 py-4 text-center">
-                       <span className={`inline-block text-[8px] font-black uppercase px-3 py-1 rounded-lg border transition-all ${getStatusStyle(rec.status)}`}>{rec.status}</span>
-                    </td>
-                    <td className="px-3 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-black ${rec.clockIn ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockIn || '--:--'}</span>
-                        {rec.id && (rec.clockIn || rec.photoIn) && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoIn')} className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"><Icons.Camera className="w-3.5 h-3.5" /></button>}
-                        {rec.id && <button onClick={() => fetchRecordPhoto(rec.id!, 'docBase64')} className="p-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-all"><Icons.Image className="w-3.5 h-3.5" /></button>}
-                      </div>
-                    </td>
-                    <td className="px-3 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-black ${rec.clockOut ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockOut || '--:--'}</span>
-                        {rec.id && (rec.clockOut || rec.photoOut) && <button onClick={() => fetchRecordPhoto(rec.id!, 'photoOut')} className="p-1 bg-slate-100 hover:bg-[#FFC000] hover:text-white rounded-lg transition-all"><Icons.Camera className="w-3.5 h-3.5" /></button>}
-                        {rec.id && <button onClick={() => fetchRecordPhoto(rec.id!, 'docBase64')} className="p-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-all"><Icons.Image className="w-3.5 h-3.5" /></button>}
-                      </div>
-                    </td>
-                    <td className="px-3 py-4 text-center">
-                       {overtimePay > 0 ? (
-                         <span className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg text-[9px] font-black tracking-tight border border-indigo-100">Rp {overtimePay.toLocaleString('id-ID')}</span>
-                       ) : (
-                         <span className="text-[10px] text-slate-200 font-bold">-</span>
-                       )}
-                    </td>
-                    <td className="px-6 sm:px-10 py-4 text-right">
-                      {isAdmin && <button onClick={() => { setEditingRecord(rec); setIsEditModalOpen(true); }} className="p-2 text-slate-300 hover:text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all"><Icons.Edit className="w-4 h-4" /></button>}
-                    </td>
-                  </tr>
-                );
-              })}
+              {filteredRecords.length > 0 ? (
+                filteredRecords.map((record) => {
+                  const employee = employees.find(e => e.id === record.employeeId);
+                  return (
+                    <tr key={record.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs border border-slate-200">
+                            {employee?.nama.charAt(0)}
+                          </div>
+                          <span className="font-bold text-slate-700 text-sm">{employee?.nama}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-slate-500">{record.date}</td>
+                      <td className="px-6 py-4">
+                        <span className="font-mono text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
+                          {record.clockIn || '--:--'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="font-mono text-xs font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded-lg">
+                          {record.clockOut || '--:--'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full ${
+                          record.status === 'Hadir' ? 'bg-emerald-100 text-emerald-700' :
+                          record.status === 'Terlambat' ? 'bg-amber-100 text-amber-700' :
+                          'bg-slate-100 text-slate-700'
+                        }`}>
+                          {record.status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-medium italic">
+                    Tidak ada data absensi ditemukan
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
-
-        {/* MOBILE LIST VIEW */}
-        <div className="md:hidden divide-y divide-slate-100">
-          {paginatedRows.map((row, index) => {
-            const existingRec = records.find(r => r.employeeId === row.employee.id && r.date === row.date);
-            const isToday = row.date === formatDateToYYYYMMDD(new Date());
-            const isPast = row.date < formatDateToYYYYMMDD(new Date());
-            const isWork = isWorkDay(row.date, row.employee);
-            const rec = (existingRec || { 
-              status: isWork ? (isPast ? 'Alpha' : 'Hadir') : 'Libur', 
-              employeeId: row.employee.id, 
-              date: row.date 
-            }) as AttendanceRecord;
-
-            const overtimePay = calculateRowOvertime(rec, row.employee);
-            const isEven = index % 2 === 1;
-
-            return (
-              <div key={`${row.employee.id}-${row.date}`} className={`p-6 flex flex-col gap-5 transition-all ${isToday ? 'bg-amber-50/20' : (isEven ? 'bg-slate-50/50' : 'bg-white')}`}>
-                 <div className="flex items-center justify-between gap-4">
-                   <div className="shrink-0 border-l-4 border-[#FFC000] pl-4 py-1.5 min-w-[90px]">
-                      <p className="text-[11px] font-black text-slate-900 leading-none">{row.date}</p>
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">{new Date(row.date).toLocaleDateString('id-ID', { weekday: 'short' }).toUpperCase()}</p>
-                   </div>
-                   <div className="flex items-center gap-2">
-                     {overtimePay > 0 && <span className="bg-indigo-600 text-white px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-tight shadow-sm">Rp {overtimePay.toLocaleString('id-ID')}</span>}
-                     <span className={`inline-block text-[8px] font-black uppercase px-3 py-1.5 rounded-lg border shadow-sm transition-all ${getStatusStyle(rec.status)}`}>{rec.status}</span>
-                   </div>
-                 </div>
-
-                 <div className="flex items-center gap-5">
-                    <div className="flex-grow min-w-0">
-                       <div className="flex flex-col mb-3">
-                          <p className="text-[14px] font-black uppercase text-slate-900 truncate tracking-tight leading-tight">{row.employee.nama}</p>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter truncate mt-0.5">{row.employee.jabatan}</p>
-                       </div>
-                       <div className="flex items-center gap-8">
-                          <div className="flex flex-col">
-                             <span className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Masuk</span>
-                             <span className={`text-[12px] font-black ${rec.clockIn ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockIn || '--:--'}</span>
-                          </div>
-                          <div className="flex flex-col">
-                             <span className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Pulang</span>
-                             <span className={`text-[12px] font-black ${rec.clockOut ? 'text-slate-900' : 'text-slate-200'}`}>{rec.clockOut || '--:--'}</span>
-                          </div>
-                       </div>
-                    </div>
-                    <div className="flex flex-col items-end justify-end self-end gap-2.5">
-                       {rec.id && (
-                          <button onClick={() => fetchRecordPhoto(rec.id!, 'docBase64')} className="p-2.5 bg-indigo-50 text-indigo-500 rounded-xl border border-indigo-100 transition-colors active:scale-90"><Icons.Image className="w-4 h-4"/></button>
-                       )}
-                       {rec.id && (rec.clockIn || rec.clockOut || rec.photoIn || rec.photoOut) && (
-                          <button onClick={() => fetchRecordPhoto(rec.id!, rec.photoIn ? 'photoIn' : (rec.photoOut ? 'photoOut' : (rec.clockIn ? 'photoIn' : 'photoOut')))} className="p-2.5 bg-slate-50 text-slate-300 rounded-xl hover:text-[#FFC000] border border-slate-100 transition-colors active:scale-90"><Icons.Camera className="w-4 h-4"/></button>
-                       )}
-                       {isAdmin && (
-                          <button onClick={() => { setEditingRecord(rec); setIsEditModalOpen(true); }} className="p-2.5 bg-indigo-50 text-indigo-500 rounded-xl active:scale-90 border border-indigo-100 transition-transform"><Icons.Edit className="w-4 h-4"/></button>
-                       )}
-                    </div>
-                 </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {paginatedRows.length === 0 && (
-          <div className="py-20 text-center">
-            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Tidak ada data kehadiran</p>
-          </div>
-        )}
-        
-        {totalPages > 1 && (
-          <div className="bg-slate-50/50 px-6 sm:px-10 py-5 flex items-center justify-between border-t border-slate-100">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Halaman</span>
-              <span className="text-xs font-black text-slate-900 px-4 py-2 bg-white rounded-lg shadow-sm border border-slate-200">{currentPage} / {totalPages}</span>
-            </div>
-            <div className="flex gap-2">
-              <button 
-                disabled={currentPage === 1}
-                onClick={() => { setCurrentPage(prev => prev - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
-              >
-                <Icons.ChevronDown className="w-5 h-5 rotate-90" />
-              </button>
-              <button 
-                disabled={currentPage === totalPages}
-                onClick={() => { setCurrentPage(prev => prev + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-all shadow-sm active:scale-95 flex items-center justify-center"
-              >
-                <Icons.ChevronDown className="w-5 h-5 -rotate-90" />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
-
-      {isEditModalOpen && (
-        <div className="fixed inset-0 bg-[#0f172a]/80 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[48px] p-10 w-full max-w-md space-y-10 shadow-2xl animate-in zoom-in-95 duration-500">
-            <div className="text-center"><h3 className="text-2xl font-black uppercase text-slate-900 tracking-tight">Koreksi Absensi</h3></div>
-            <div className="space-y-8">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">CLOCK IN</label><input type="time" value={editingRecord.clockIn || ''} onChange={e => setEditingRecord({...editingRecord, clockIn: e.target.value})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none focus:border-[#FFC000] text-black shadow-inner" /></div>
-                <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">CLOCK OUT</label><input type="time" value={editingRecord.clockOut || ''} onChange={e => setEditingRecord({...editingRecord, clockOut: e.target.value})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none focus:border-[#FFC000] text-black shadow-inner" /></div>
-              </div>
-              <div className="space-y-3"><label className="text-[9px] font-black text-slate-300 uppercase ml-2">STATUS</label><select value={editingRecord.status} onChange={e => setEditingRecord({...editingRecord, status: e.target.value as any})} className="w-full border-2 border-slate-50 bg-slate-50 p-5 rounded-3xl text-sm font-black outline-none appearance-none text-black shadow-inner"><option value="Hadir">Hadir</option><option value="Sakit">Sakit</option><option value="Izin">Izin</option><option value="Alpha">Alpha</option><option value="Cuti">Cuti</option><option value="Libur">Libur</option><option value="Lembur">Lembur</option></select></div>
-            </div>
-            <div className="flex gap-4"><button onClick={handleSaveEdit} className="flex-1 bg-slate-900 text-[#FFC000] py-6 rounded-[28px] font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Simpan</button><button onClick={() => setIsEditModalOpen(false)} className="px-8 bg-slate-100 text-slate-400 py-6 rounded-[28px] font-black uppercase text-xs active:scale-95 transition-all">Batal</button></div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

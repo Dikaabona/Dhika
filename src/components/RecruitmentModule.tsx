@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Icons } from '../constants.tsx';
-import { supabase } from '../App.tsx';
+import { Icons } from '../constants';
+import { supabase } from '../services/supabaseClient';
 import { Candidate, UserRole } from '../types';
 import Papa from 'papaparse';
 
@@ -84,7 +84,7 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
       .replace(/{nama}/g, candidate.nama)
       .replace(/{posisi}/g, candidate.posisi);
 
-    const fromEmail = senderEmail || "admin@visibel.agency";
+    const fromEmail = senderEmail || "onboarding@resend.dev";
     console.log(`Sending auto email FROM ${fromEmail} TO ${candidate.email} for status ${status}:`, message);
     
     try {
@@ -107,20 +107,8 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
       });
 
       if (!response.ok) {
-        let errorMsg = "Gagal mengirim email";
-        try {
-          const contentType = response.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            const errorData = await response.json();
-            errorMsg = errorData.error || errorData.message || JSON.stringify(errorData);
-          } else {
-            const text = await response.text();
-            errorMsg = text.substring(0, 100);
-          }
-        } catch (e) {
-          errorMsg = `HTTP Error ${response.status}`;
-        }
-        throw new Error(errorMsg);
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send email');
       }
 
       const result = await response.json();

@@ -543,7 +543,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     }
   };
 
-  const LocationPicker = () => {
+  const LocationPicker = (): null => {
     useMapEvents({
       click(e) {
         setNewBranch(prev => ({ ...prev, latitude: e.latlng.lat, longitude: e.latlng.lng }));
@@ -552,7 +552,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     return null;
   };
 
-  const MapUpdater = ({ center }: { center: [number, number] }) => {
+  const MapUpdater = ({ center }: { center: [number, number] }): null => {
     const map = useMap();
     useEffect(() => {
       map.setView(center);
