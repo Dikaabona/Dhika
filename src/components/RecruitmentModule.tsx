@@ -84,7 +84,7 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
       .replace(/{nama}/g, candidate.nama)
       .replace(/{posisi}/g, candidate.posisi);
 
-    const fromEmail = senderEmail || "onboarding@resend.dev";
+    const fromEmail = senderEmail || "admin@visibel.agency";
     console.log(`Sending auto email FROM ${fromEmail} TO ${candidate.email} for status ${status}:`, message);
     
     try {

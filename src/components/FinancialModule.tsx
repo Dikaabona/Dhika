@@ -516,7 +516,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
                 to: emp.email,
                 subject: `SLIP GAJI ${selectedMonth.toUpperCase()} ${selectedYear} - ${emp.nama}`,
                 html: emailHtml,
-                from: "onboarding@resend.dev",
+                from: "admin@visibel.agency",
                 attachments: [
                   {
                     filename: `slip-gaji-${emp.nama.toLowerCase().replace(/\s+/g, '-')}.pdf`,

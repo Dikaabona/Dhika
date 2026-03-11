@@ -15,9 +15,7 @@ try {
   console.log("HR.Visibel: Root element found, creating root...");
   const root = ReactDOM.createRoot(rootElement);
   root.render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
+    <App />
   );
   console.log("HR.Visibel: React render called.");
 } catch (err) {

@@ -40,7 +40,7 @@ app.post("/api/send-email", async (req, res) => {
   }
 
   try {
-    let processedAttachments = [];
+    let processedAttachments: any[] = [];
     if (attachments && Array.isArray(attachments)) {
       processedAttachments = attachments.map((att: any) => {
         const contentBuffer = typeof att.content === 'string' 
@@ -87,46 +87,18 @@ async function startServer() {
       server: { middlewareMode: true },
       appType: "spa",
     });
-
-    // Log requests to help debug
-    app.use((req, res, next) => {
-      if (!req.url.includes('node_modules')) {
-        console.log(`[Dev] ${req.method} ${req.url}`);
-      }
-      next();
-    });
-
     app.use(vite.middlewares);
     
-    // SPA Fallback: Only handle GET requests that accept HTML and are not API/assets
-    app.use(async (req, res, next) => {
-      if (req.method !== 'GET' || req.originalUrl.startsWith('/api')) {
-        return next();
-      }
-
-      // If the request is for a file with an extension, let it fall through
-      if (req.path.includes('.') && !req.path.endsWith('.html')) {
-        return next();
-      }
-
-      // If it's a Vite internal path, let Vite handle it
-      if (req.originalUrl.startsWith('/@vite') || req.originalUrl.startsWith('/@react-refresh')) {
-        return next();
-      }
-
-      // Only serve index.html if the client explicitly accepts HTML
-      const acceptsHtml = req.headers.accept && req.headers.accept.includes('text/html');
-      if (!acceptsHtml && req.path !== '/') {
-        return next();
-      }
-
+    app.use('*', async (req, res, next) => {
+      const url = req.originalUrl;
+      if (url.startsWith('/api') || url.includes('.')) return next();
+      
       try {
-        const templatePath = path.resolve(__dirname, "index.html");
-        let template = fs.readFileSync(templatePath, "utf-8");
-        template = await vite.transformIndexHtml(req.originalUrl, template);
+        let template = fs.readFileSync(path.resolve(__dirname, "index.html"), "utf-8");
+        template = await vite.transformIndexHtml(url, template);
         res.status(200).set({ "Content-Type": "text/html" }).end(template);
       } catch (e) {
-        console.error("Vite transform error:", e);
+        vite.ssrFixStacktrace(e as Error);
         next(e);
       }
     });
@@ -142,8 +114,11 @@ async function startServer() {
   });
 }
 
-startServer().catch(err => {
-  console.error("CRITICAL: Failed to start server:", err);
-});
+// Only start the server if not running on Vercel
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  startServer().catch(err => {
+    console.error("CRITICAL: Failed to start server:", err);
+  });
+}
 
 export default app;

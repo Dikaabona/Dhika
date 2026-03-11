@@ -19,7 +19,6 @@
     <link rel="apple-touch-icon" href="https://lh3.googleusercontent.com/d/13enH1ZFO2eucK1retpymOp_qis9F8CY9">
     
     <!-- Polyfills for Safari compatibility -->
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=ResizeObserver%2CIntersectionObserver%2CArray.prototype.at%2CObject.fromEntries"></script>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
     <!-- Leaflet CSS -->
@@ -67,7 +66,7 @@
         </div>
     </div>
     <!-- Penting: Script ini yang menjalankan aplikasi Anda -->
-    <script type="module" src="/src/main.tsx?v=3"></script>
+    <script type="module" src="/src/main.tsx"></script>
     <script>
       // Unregister service worker to fix caching issues during development
       if ('serviceWorker' in navigator) {
