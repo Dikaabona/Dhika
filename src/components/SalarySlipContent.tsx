@@ -70,7 +70,7 @@ const SalarySlipContent: React.FC<SalarySlipContentProps> = ({
           </div>
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">ID Karyawan</p>
-            <p className="text-lg font-black text-[#FFC000]">{employee.id}</p>
+            <p className="text-lg font-black text-[#FFC000]">{employee.idKaryawan || employee.id}</p>
           </div>
         </div>
         <div className="text-right space-y-6">
