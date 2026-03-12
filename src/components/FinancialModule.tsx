@@ -516,7 +516,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
                 to: emp.email,
                 subject: `SLIP GAJI ${selectedMonth.toUpperCase()} ${selectedYear} - ${emp.nama}`,
                 html: emailHtml,
-                from: "admin@visibel.agency",
+                from: companyDetails?.email || "admin@visibel.agency",
                 attachments: [
                   {
                     filename: `slip-gaji-${emp.nama.toLowerCase().replace(/\s+/g, '-')}.pdf`,
@@ -536,7 +536,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
                 const contentType = emailRes.headers.get("content-type");
                 if (contentType && contentType.includes("application/json")) {
                   const err = await emailRes.json();
-                  errorMsg = err.message || JSON.stringify(err);
+                  errorMsg = err.error || err.message || JSON.stringify(err);
                 } else {
                   const text = await emailRes.text();
                   errorMsg = text.substring(0, 100);
@@ -545,6 +545,8 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
                 errorMsg = `HTTP Error ${emailRes.status}`;
               }
               console.error(`DEBUG: Email API error for ${emp.email}:`, errorMsg);
+              // Store the first error to show in the final alert
+              if (!(window as any).lastEmailError) (window as any).lastEmailError = errorMsg;
               errorCount++;
             }
           } else {
@@ -558,7 +560,12 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
         }
       }
       
-      alert(`Proses selesai. Berhasil: ${successCount}, Gagal/Lewati: ${errorCount}. Slip juga telah dikirim ke Inbox aplikasi.`);
+      let finalMsg = `Proses selesai. Berhasil: ${successCount}, Gagal/Lewati: ${errorCount}. Slip juga telah dikirim ke Inbox aplikasi.`;
+      if (errorCount > 0 && (window as any).lastEmailError) {
+        finalMsg += `\n\nError Terakhir: ${(window as any).lastEmailError}`;
+        delete (window as any).lastEmailError;
+      }
+      alert(finalMsg);
       setSelectedIds([]); 
     } catch (e: any) {
       console.error("DEBUG: Global error in handleSendAllEmails:", e);

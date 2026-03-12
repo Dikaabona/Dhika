@@ -129,7 +129,8 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
         .from('candidates')
         .select('*')
         .ilike('company', company.trim())
-        .order('timestamp', { ascending: false });
+        .order('timestamp', { ascending: false })
+        .limit(20);
 
       if (error) {
         console.error("Supabase Fetch Error:", error);
@@ -581,7 +582,7 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
             Halaman {currentPage} dari {totalPages || 1}
           </span>
           <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-            ({filteredCandidates.length} Total Kandidat)
+            ({filteredCandidates.length} Kandidat Terbaru)
           </span>
         </div>
         <div className="flex items-center gap-2">

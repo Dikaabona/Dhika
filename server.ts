@@ -25,6 +25,10 @@ app.get("/api/health", (req, res) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+app.get("/api/test", (req, res) => {
+  res.send("🚀 API Server HR Visibel is ONLINE!");
+});
+
 // Initialize Supabase safely
 let supabase: any;
 try {
@@ -136,20 +140,18 @@ async function sendWahaMessage(to: string, message: string, company: string = 'V
 
 // WAHA Webhook Endpoint
 app.all("/api/webhook/waha", async (req, res) => {
-  const { event, payload } = req.body;
-  
   // Log every request that hits this endpoint
   addWahaLog('WEBHOOK_HIT', { 
     method: req.method,
-    headers: req.headers,
-    body: req.body,
-    query: req.query
+    url: req.originalUrl,
+    body: req.body
   });
 
   if (req.method === 'GET') {
     return res.send("✅ Webhook endpoint is ACTIVE and reachable. Please use POST for actual WAHA data.");
   }
 
+  const { event, payload } = req.body;
   console.log(`[WAHA Webhook] Event: ${event}`);
 
   if (event === 'message.upsert' || event === 'message') {
@@ -190,7 +192,7 @@ app.all("/api/webhook/waha", async (req, res) => {
         return res.status(200).json({ status: "error" });
       }
 
-      const emp = emps?.find(e => (e.noHandphone || '').replace(/\D/g, '').endsWith(last10));
+      const emp = emps?.find((e: any) => (e.noHandphone || '').replace(/\D/g, '').endsWith(last10));
 
       if (!emp) {
         addWahaLog('EMPLOYEE_NOT_FOUND', { from, last10 });
@@ -452,8 +454,9 @@ app.post("/api/send-email", async (req, res) => {
   console.log(`API Request: Send email to ${to}`);
 
   if (!resend) {
-    console.error("Resend client not initialized (missing API key)");
-    return res.status(500).json({ error: "Email service not configured (RESEND_API_KEY missing)" });
+    const msg = "Email service not configured. Please ensure RESEND_API_KEY is set in environment variables.";
+    console.error(msg);
+    return res.status(500).json({ error: msg });
   }
 
   try {
@@ -536,9 +539,11 @@ async function startServer() {
   }
 }
 
-// Start the server
-startServer().catch(err => {
-  console.error("CRITICAL: Failed to start server:", err);
-});
+// Start the server only if not in a serverless environment like Vercel
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  startServer().catch(err => {
+    console.error("CRITICAL: Failed to start server:", err);
+  });
+}
 
 export default app;
