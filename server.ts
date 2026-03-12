@@ -125,7 +125,7 @@ async function sendWahaMessage(to: string, message: string, company: string = 'V
 }
 
 // WAHA Webhook Endpoint
-app.all("/api/webhook/waha", async (req, res) => {
+app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
   // Log every request that hits this endpoint
   addWahaLog('WEBHOOK_HIT', { 
     method: req.method,
@@ -450,13 +450,18 @@ app.get("/api/waha/setup-webhook", async (req, res) => {
   const webhookUrl = `${process.env.APP_URL || 'https://' + req.get('host')}/api/webhook/waha`;
 
   try {
-    // WAHA API to create/update webhook
-    // Documentation: https://waha.dev/docs/how-to/webhooks/
-    const response = await axios.post(`${settings.apiUrl}/api/webhooks`, {
-      url: webhookUrl,
-      events: ["message", "message.upsert"],
-      enabled: true,
-      session: settings.sessionName || "default"
+    // WAHA API to update session config (including webhooks)
+    const sessionName = settings.sessionName || "default";
+    const response = await axios.put(`${settings.apiUrl}/api/sessions/${sessionName}`, {
+      config: {
+        webhooks: [
+          {
+            url: webhookUrl,
+            events: ["message", "session.status"],
+            enabled: true
+          }
+        ]
+      }
     }, {
       headers: { 'X-Api-Key': settings.apiKey }
     });
