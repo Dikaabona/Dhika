@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { InventoryItem } from '../types';
 import { Icons } from '../constants';
 import { supabase } from '../services/supabaseClient';
+import { useConfirmation } from '../contexts/ConfirmationContext';
 import * as XLSX from 'xlsx';
 
 interface InventoryModuleProps {
@@ -11,6 +12,7 @@ interface InventoryModuleProps {
 }
 
 const InventoryModule: React.FC<InventoryModuleProps> = ({ company, userRole, onClose }) => {
+  const { confirm } = useConfirmation();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -133,7 +135,13 @@ const InventoryModule: React.FC<InventoryModuleProps> = ({ company, userRole, on
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Hapus aset ini dari inventaris?')) return;
+    const isConfirmed = await confirm({
+      title: 'Hapus Aset?',
+      message: 'Hapus aset ini dari inventaris?',
+      type: 'danger',
+      confirmText: 'HAPUS'
+    });
+    if (!isConfirmed) return;
     try {
       const { error } = await supabase.from('inventory').delete().eq('id', id);
       if (error) throw error;

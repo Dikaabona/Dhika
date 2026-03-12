@@ -4,6 +4,7 @@ import html2canvas from 'html2canvas';
 import { Icons } from '../constants';
 import { Quotation, QuotationItem } from '../types';
 import { supabase } from '../services/supabaseClient';
+import { useConfirmation } from '../contexts/ConfirmationContext';
 
 interface QuotationModuleProps {
   company: string;
@@ -32,6 +33,7 @@ const COMPANY_DATA: Record<string, any> = {
 const VISIBEL_YELLOW_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA"; // Using same for now, but I'll try to find a yellow one or use a filter
 
 export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClose }) => {
+  const { confirm } = useConfirmation();
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [clients, setClients] = useState<any[]>([]);

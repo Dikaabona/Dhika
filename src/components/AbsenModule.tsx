@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Employee, AttendanceRecord, AttendanceSettings } from '../types';
 import { Icons } from '../constants';
 import { supabase } from '../services/supabaseClient';
+import { useConfirmation } from '../contexts/ConfirmationContext';
 
 interface AbsenModuleProps {
   employee: Employee | null;
@@ -30,6 +31,7 @@ const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => 
 };
 
 const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, company, onSuccess, onClose }) => {
+  const { confirm } = useConfirmation();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -211,7 +213,15 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
 
   const handleAbsenUlang = async () => {
     if (!employee || !localTodayRecord) return;
-    if (!window.confirm("Yakin ingin menghapus data absensi hari ini dan mulai ulang?")) return;
+    
+    const isConfirmed = await confirm({
+      title: 'Hapus & Mulai Ulang?',
+      message: 'Yakin ingin menghapus data absensi hari ini dan mulai ulang?',
+      type: 'danger',
+      confirmText: 'HAPUS DATA'
+    });
+    
+    if (!isConfirmed) return;
 
     setIsLoading(true);
     try {

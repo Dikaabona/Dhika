@@ -4,6 +4,7 @@ import { Employee, ContentPlan } from '../types';
 import { Icons } from '../constants';
 import { supabase } from '../services/supabaseClient';
 import { generateGoogleCalendarUrl } from '../utils/dateUtils';
+import { useConfirmation } from '../contexts/ConfirmationContext';
 
 interface ContentModuleProps {
   employees: Employee[];
@@ -19,6 +20,7 @@ interface ContentModuleProps {
 const DEFAULT_PILLARS = ['Educational', 'Entertainment', 'Sales/Promo', 'Engagement', 'Behind the Scene', 'Inspirational'];
 
 const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlans, searchQuery: globalSearch = '', userRole = 'employee', currentEmployee = null, company, onOpenReport }) => {
+  const { confirm } = useConfirmation();
   const isCreator = useMemo(() => {
     const jabatan = (currentEmployee?.jabatan || '').toLowerCase();
     return jabatan.includes('content creator') || jabatan.includes('creator') || jabatan.includes('lead content');
@@ -153,7 +155,13 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   };
 
   const removeBrand = async (name: string) => {
-    if (!confirm(`Hapus brand "${name}" secara permanen?`)) return;
+    const isConfirmed = await confirm({
+      title: 'Hapus Brand?',
+      message: `Hapus brand "${name}" secara permanen?`,
+      type: 'danger',
+      confirmText: 'HAPUS'
+    });
+    if (!isConfirmed) return;
     const updatedBrands = brands.filter((b: any) => b.name !== name);
     await persistBrandsUpdate(updatedBrands);
   };
@@ -171,7 +179,13 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   };
 
   const removePillar = async (name: string) => {
-    if (!confirm(`Hapus content pillar "${name}"?`)) return;
+    const isConfirmed = await confirm({
+      title: 'Hapus Pillar?',
+      message: `Hapus content pillar "${name}"?`,
+      type: 'danger',
+      confirmText: 'HAPUS'
+    });
+    if (!isConfirmed) return;
     const updated = pillars.filter(p => p !== name);
     await persistPillarsUpdate(updated);
   };
@@ -416,7 +430,13 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
 
   const handleDelete = async (planId?: string) => {
     if (!planId || !hasFullAccess) return;
-    if (!confirm('Hapus laporan konten ini secara permanen?')) return;
+    const isConfirmed = await confirm({
+      title: 'Hapus Laporan?',
+      message: 'Hapus laporan konten ini secara permanen?',
+      type: 'danger',
+      confirmText: 'HAPUS'
+    });
+    if (!isConfirmed) return;
     try {
       const { error } = await supabase.from('content_plans').delete().eq('id', planId);
       if (error) throw error;

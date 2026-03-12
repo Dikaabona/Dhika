@@ -4,6 +4,7 @@ import { Icons } from '../constants';
 import { supabase } from '../services/supabaseClient';
 import { Candidate, UserRole } from '../types';
 import Papa from 'papaparse';
+import { useConfirmation } from '../contexts/ConfirmationContext';
 
 interface RecruitmentModuleProps {
   company: string;
@@ -12,6 +13,7 @@ interface RecruitmentModuleProps {
 }
 
 const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole, onClose }) => {
+  const { confirm } = useConfirmation();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);

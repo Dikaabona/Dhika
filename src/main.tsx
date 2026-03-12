@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 
+import { ConfirmationProvider } from './contexts/ConfirmationContext';
+
 console.log("HR.Visibel: React mounting started...");
 
 const rootElement = document.getElementById('root');
@@ -15,7 +17,9 @@ try {
   console.log("HR.Visibel: Root element found, creating root...");
   const root = ReactDOM.createRoot(rootElement);
   root.render(
-    <App />
+    <ConfirmationProvider>
+      <App />
+    </ConfirmationProvider>
   );
   console.log("HR.Visibel: React render called.");
 } catch (err) {

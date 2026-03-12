@@ -5,6 +5,7 @@ import { supabase } from '../services/supabaseClient';
 import { AttendanceSettings, Employee, Branch, SalaryData } from '../types';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { useConfirmation } from '../contexts/ConfirmationContext';
 
 // Fix for default marker icon
 const DefaultIcon = L.icon({
@@ -45,6 +46,7 @@ interface KPISystemData {
 }
 
 const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, userEmail, onRefresh }) => {
+  const { confirm } = useConfirmation();
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('ROLE');
   const [selectedCompany, setSelectedCompany] = useState<string>(userCompany);
   const [allCompanies, setAllCompanies] = useState<string[]>([]);
@@ -139,13 +141,19 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   };
 
   const handleActivatePremium = async () => {
-    if (!confirm("Aktifkan layanan Premium untuk perusahaan ini?")) return;
+    const isConfirmed = await confirm({
+      title: 'Aktifkan Premium?',
+      message: 'Aktifkan layanan Premium untuk perusahaan ini?',
+      type: 'warning',
+      confirmText: 'AKTIFKAN'
+    });
+    if (!isConfirmed) return;
     try {
       const targetCompany = isOwner ? selectedCompany : userCompany;
       const { error } = await supabase.from('settings').upsert({
         key: `trial_info_${targetCompany}`,
         value: { ...(trialInfo || { startDate: new Date().toISOString() }), isPremium: true }
-      });
+      }, { onConflict: 'key' });
       if (error) throw error;
       alert("Layanan Premium Aktif!");
       fetchTrialInfo();
@@ -319,8 +327,14 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     setNewCriteriaWeight(10);
   };
 
-  const handleDeleteCriteria = (id: string) => {
-    if (!confirm('Hapus kriteria ini? Nilai yang sudah ada juga akan terhapus.')) return;
+  const handleDeleteCriteria = async (id: string) => {
+    const isConfirmed = await confirm({
+      title: 'Hapus Kriteria?',
+      message: 'Hapus kriteria ini? Nilai yang sudah ada juga akan terhapus.',
+      type: 'danger',
+      confirmText: 'HAPUS'
+    });
+    if (!isConfirmed) return;
     const updated = { ...kpiSystem, criteria: kpiSystem.criteria.filter(c => c.id !== id) };
     handleSaveKPISystem(updated);
   };
@@ -340,7 +354,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   };
 
   const handleRemoveDivision = async (name: string) => {
-    if (!confirm(`Hapus divisi "${name}"?`)) return;
+    const isConfirmed = await confirm({
+      title: 'Hapus Divisi?',
+      message: `Hapus divisi "${name}"?`,
+      type: 'danger',
+      confirmText: 'HAPUS'
+    });
+    if (!isConfirmed) return;
     const updated = divisions.filter(d => d !== name);
     await saveSettingsToCloud(`divisions_${isOwner ? selectedCompany : userCompany}`, updated);
     setDivisions(updated);
@@ -362,7 +382,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   };
 
   const handleRemovePosition = async (name: string) => {
-    if (!confirm(`Hapus jabatan "${name}"?`)) return;
+    const isConfirmed = await confirm({
+      title: 'Hapus Jabatan?',
+      message: `Hapus jabatan "${name}"?`,
+      type: 'danger',
+      confirmText: 'HAPUS'
+    });
+    if (!isConfirmed) return;
     const updated = positions.filter(p => p.name !== name);
     await saveSettingsToCloud(`positions_${isOwner ? selectedCompany : userCompany}`, updated);
     setPositions(updated);
@@ -394,7 +420,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   };
 
   const handleUpdateRole = async (empId: string, newRole: string) => {
-    if (!confirm(`Ubah role karyawan ini menjadi ${newRole.toUpperCase()}?`)) return;
+    const isConfirmed = await confirm({
+      title: 'Ubah Role?',
+      message: `Ubah role karyawan ini menjadi ${newRole.toUpperCase()}?`,
+      type: 'warning',
+      confirmText: 'UBAH ROLE'
+    });
+    if (!isConfirmed) return;
     try {
       const { error } = await supabase
         .from('employees')
@@ -446,7 +478,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   };
 
   const handleRemoveClient = async (id: string) => {
-    if (!confirm("Hapus data client ini?")) return;
+    const isConfirmed = await confirm({
+      title: 'Hapus Client?',
+      message: 'Hapus data client ini?',
+      type: 'danger',
+      confirmText: 'HAPUS'
+    });
+    if (!isConfirmed) return;
     const updated = clients.filter(c => c.id !== id);
     await saveSettingsToCloud(`clients_${isOwner ? selectedCompany : userCompany}`, updated);
     setClients(updated);
@@ -592,7 +630,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   };
 
   const handleRemoveBranch = async (id: string) => {
-    if (!confirm("Hapus cabang ini?")) return;
+    const isConfirmed = await confirm({
+      title: 'Hapus Cabang?',
+      message: 'Hapus cabang ini?',
+      type: 'danger',
+      confirmText: 'HAPUS'
+    });
+    if (!isConfirmed) return;
     const updatedBranches = (settings.branches || []).filter(b => b.id !== id);
     const newSettings = { ...settings, branches: updatedBranches };
     setSettings(newSettings);

@@ -4,6 +4,7 @@ import { Employee, SalaryData, AttendanceRecord, Broadcast, AttendanceSettings }
 import { Icons } from '../constants';
 import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
 import { supabase } from '../services/supabaseClient';
+import { useConfirmation } from '../contexts/ConfirmationContext';
 
 import SalarySlipContent from './SalarySlipContent';
 
@@ -23,6 +24,7 @@ const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9
 const ALPHA_START_DATE = '2025-01-01';
 
 const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceRecords, userRole, onClose, onUpdate, weeklyHolidays, positionRates = [] }) => {
+  const { confirm } = useConfirmation();
   const isReadOnlyRole = userRole === 'admin' || userRole === 'employee';
   const [currentEmployee, setCurrentEmployee] = useState(employee);
 
@@ -366,8 +368,13 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   const handleSaveConfig = async () => {
     if (isSaving || isReadOnlyRole) return;
     if (data.potonganHutang > 0) {
-      const confirmUpdate = window.confirm(`Perhatian! Saldo hutang karyawan akan berkurang sebesar Rp ${data.potonganHutang.toLocaleString('id-ID')}. Saldo akhir akan menjadi Rp ${sisaHutang.toLocaleString('id-ID')}. Lanjutkan?`);
-      if (!confirmUpdate) return;
+      const isConfirmed = await confirm({
+        title: 'Potong Hutang?',
+        message: `Perhatian! Saldo hutang karyawan akan berkurang sebesar Rp ${data.potonganHutang.toLocaleString('id-ID')}. Saldo akhir akan menjadi Rp ${sisaHutang.toLocaleString('id-ID')}. Lanjutkan?`,
+        type: 'warning',
+        confirmText: 'LANJUTKAN'
+      });
+      if (!isConfirmed) return;
     }
     setIsSaving(true);
     try {

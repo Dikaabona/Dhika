@@ -32,6 +32,7 @@ import FinancialModule from './components/FinancialModule';
 import RecruitmentModule from './components/RecruitmentModule';
 import { InvoiceModule } from './components/InvoiceModule';
 import { getTenureYears, calculateTenure, formatDateToYYYYMMDD, getMondayISO } from './utils/dateUtils';
+import { useConfirmation } from './contexts/ConfirmationContext';
 
 const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
 
@@ -45,11 +46,12 @@ const sanitizeConfig = (val: any, fallback: string) => {
 };
 
 export const App: React.FC = () => {
+  const { confirm } = useConfirmation();
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<UserRole>('employee');
   const [currentUserEmployee, setCurrentUserEmployee] = useState<Employee | null>(null);
   const [userCompany, setUserCompany] = useState<string>('Visibel');
-  const [trialInfo, setTrialInfo] = useState<{ daysLeft: number; isExpired: boolean; isActive: boolean }>({ daysLeft: 7, isExpired: false, isActive: false });
+  const [trialInfo, setTrialInfo] = useState<{ daysLeft: number; isExpired: boolean; isActive: boolean }>({ daysLeft: 7, isExpired: false, isActive: true });
   
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
@@ -290,7 +292,7 @@ export const App: React.FC = () => {
             await supabase.from('settings').upsert({ 
               key: `trial_info_${detectedCompany}`, 
               value: { startDate: startDateStr, isPremium: false } 
-            });
+            }, { onConflict: 'key' });
           }
           setTrialInfo({ daysLeft: 7, isExpired: false, isActive: true });
         } else {
@@ -432,7 +434,7 @@ export const App: React.FC = () => {
           await supabase.from('settings').upsert({ 
             key: `trial_info_${registerCompanyName.trim().toUpperCase()}`, 
             value: { startDate: new Date().toISOString(), isPremium: false } 
-          });
+          }, { onConflict: 'key' });
         }
 
         alert('Berhasil daftar Trial 7 Hari! Silakan cek email untuk verifikasi.');
@@ -556,7 +558,13 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteEmployee = async (id: string) => {
-    if (!confirm('Pindahkan karyawan ini ke Tempat Sampah?')) return;
+    const isConfirmed = await confirm({
+      title: 'Hapus Karyawan?',
+      message: 'Pindahkan karyawan ini ke Tempat Sampah?',
+      type: 'danger',
+      confirmText: 'HAPUS'
+    });
+    if (!isConfirmed) return;
     try {
       const { error } = await supabase
         .from('employees')
@@ -896,9 +904,13 @@ export const App: React.FC = () => {
                         <div className="bg-slate-100/60 p-1.5 rounded-full border border-slate-100 shadow-inner relative">
                           <DesktopNav />
                         </div>
-                        {trialInfo.isActive && (
+                        {trialInfo.isActive ? (
                           <div className={`text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${trialInfo.isExpired ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
                             Trial Mode: {trialInfo.daysLeft} Hari Tersisa
+                          </div>
+                        ) : (
+                          <div className="text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-emerald-100 text-emerald-600">
+                            Premium Access
                           </div>
                         )}
                       </div>
@@ -949,7 +961,24 @@ export const App: React.FC = () => {
               ) : activeTab === 'shift' ? (
                 <ShiftModule employees={employees} assignments={shiftAssignments} setAssignments={setShiftAssignments} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} globalShifts={shifts} onRefreshShifts={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'attendance' ? (
-                <AttendanceModule employees={employees} records={attendanceRecords} setRecords={setAttendanceRecords} searchQuery={searchQuery} setSearchQuery={setSearchQuery} userRole={userRole} currentEmployee={currentUserEmployee} startDate={attendanceStartDate} endDate={attendanceEndDate} onStartDateChange={setAttendanceStartDate} onEndDateChange={setAttendanceEndDate} weeklyHolidays={weeklyHolidays} company={userCompany} positionRates={positionRates} />
+                <AttendanceModule 
+                  employees={employees} 
+                  records={attendanceRecords} 
+                  setRecords={setAttendanceRecords} 
+                  searchQuery={searchQuery} 
+                  setSearchQuery={setSearchQuery} 
+                  userRole={userRole} 
+                  currentEmployee={currentUserEmployee} 
+                  startDate={attendanceStartDate} 
+                  endDate={attendanceEndDate} 
+                  onStartDateChange={setAttendanceStartDate} 
+                  onEndDateChange={setAttendanceEndDate} 
+                  weeklyHolidays={weeklyHolidays} 
+                  company={userCompany} 
+                  positionRates={positionRates}
+                  shifts={shifts}
+                  shiftAssignments={shiftAssignments}
+                />
               ) : activeTab === 'schedule' ? (
                 <LiveScheduleModule employees={employees} schedules={liveSchedules} setSchedules={setLiveSchedules} reports={liveReports} setReports={setLiveReports} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} attendanceRecords={attendanceRecords} shiftAssignments={shiftAssignments} shifts={shifts} onRefreshData={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'content' ? (
@@ -1073,112 +1102,121 @@ export const App: React.FC = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className="w-full overflow-x-auto">
-                      <div className="min-w-[1400px]">
-                        <div className="grid grid-cols-11 bg-slate-50 text-slate-500 text-[8px] uppercase font-bold tracking-[0.15em] border-b border-slate-100 px-14 py-4 sticky top-0 z-10">
-                          <div className="col-span-1 flex items-center gap-1">
-                            <Icons.Edit className="w-2.5 h-2.5" />
-                            <span>ID KARYAWAN</span>
-                          </div>
-                          <div className="col-span-2">NAMA KARYAWAN</div>
-                          <div className="col-span-1">LOKASI KERJA</div>
-                          <div className="col-span-1">DIVISI</div>
-                          <div className="col-span-1">JABATAN</div>
-                          <div className="col-span-1">STATUS</div>
-                          <div className="col-span-1">TANGGAL MULAI KERJA</div>
-                          <div className="col-span-1">KONTRAK BERAKHIR</div>
-                          <div className="col-span-1">SALDO CUTI</div>
-                          <div className="col-span-1 text-right">AKSI</div>
-                        </div>
-                        <div className="bg-white">
-                          {paginatedEmployeesList.map((emp, index) => {
-                            const isEven = index % 2 === 1;
-                            return (
-                              <div key={emp.id} className={`hover:bg-slate-100/50 transition-all duration-300 border-b border-slate-50 last:border-0 ${isResigned(emp) ? 'opacity-60 grayscale-[0.5]' : ''} ${isEven ? 'bg-slate-50/50' : 'bg-white'}`}>
-                                <div className="md:hidden p-6 flex items-center justify-between relative group overflow-hidden">
-                                  <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-rose-500 rounded-r-full shadow-[2px_0_10px_rgba(244,63,94,0.3)]"></div>
-                                  <div className="flex-1 min-w-0" onClick={() => handleViewEmployee(emp)}>
-                                    <div className="flex items-center gap-2">
-                                      <p className="text-[12px] font-black text-slate-900 uppercase tracking-tight truncate pl-2">{emp.nama}</p>
-                                      {isResigned(emp) && <span className="text-[7px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded-full uppercase tracking-widest">RESIGN</span>}
-                                    </div>
-                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest pl-2 mt-0.5 truncate">{emp.jabatan}</p>
-                                  </div>
-                                  <div className="flex items-center gap-3 shrink-0">
-                                    <span className="bg-[#f1f5f9] text-slate-600 font-black text-[10px] uppercase px-4 py-2 rounded-full tracking-[0.1em] border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span>
-                                    <div className="flex gap-1.5 ml-2">
-                                       {userRole !== 'employee' && (
-                                         <button onClick={() => handleEditEmployee(emp)} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg"><Icons.Edit className="w-4 h-4" /></button>
-                                       )}
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="hidden md:grid grid-cols-11 items-center px-14 py-4 gap-4">
-                                  <div className="col-span-1 flex items-center gap-2">
-                                    {userRole !== 'employee' && (
-                                      <button onClick={() => handleEditEmployee(emp)} className="text-slate-400 hover:text-indigo-600 transition-colors">
-                                        <Icons.Edit className="w-3.5 h-3.5" />
-                                      </button>
-                                    )}
-                                    <span className="inline-block bg-slate-50 text-slate-700 font-black text-[9px] uppercase px-3 py-1.5 rounded-lg border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span>
-                                  </div>
-                                  <div className="col-span-2">
-                                    <div className="flex items-center gap-2">
-                                      <p className="font-semibold text-slate-900 text-[11px] uppercase truncate cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleViewEmployee(emp)}>{emp.nama}</p>
-                                      {isResigned(emp) && <span className="text-[7px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded-full uppercase tracking-widest">RESIGN</span>}
-                                    </div>
-                                  </div>
-                                  <div className="col-span-1">
-                                    <p className="text-[9px] font-black text-slate-800 uppercase">{emp.lokasiKerja || 'Head Office'}</p>
-                                  </div>
-                                  <div className="col-span-1">
-                                    <p className="text-[9px] font-black text-slate-800 uppercase">{emp.division || '-'}</p>
-                                  </div>
-                                  <div className="col-span-1">
-                                    <p className="text-[9px] font-black text-slate-800 uppercase">{emp.jabatan || '-'}</p>
-                                  </div>
-                                  <div className="col-span-1">
-                                    <p className="text-[9px] font-black text-slate-800 uppercase">{emp.statusKaryawan || 'Tetap'}</p>
-                                  </div>
-                                  <div className="col-span-1">
-                                    <p className="text-[9px] font-black text-slate-800 uppercase">{emp.tanggalMasuk || '-'}</p>
-                                  </div>
-                                  <div className="col-span-1">
-                                    <p className="text-[9px] font-black text-slate-800 uppercase">{emp.resigned_at || '-'}</p>
-                                  </div>
-                                  <div className="col-span-1">
-                                    <p className="text-[9px] font-black text-slate-800 font-mono">
-                                      {(() => {
-                                        const tenure = getTenureYears(emp.tanggalMasuk);
-                                        if (tenure < 1) return '0 Hari';
-                                        
-                                        const name = emp.nama.toLowerCase();
-                                        let adjustment = 0;
-                                        if (name.includes('fikry aditya rizky')) adjustment = 2;
-                                        else if (name.includes('iskandar juliana')) adjustment = 3;
-                                        else if (name.includes('adinda salsabilla')) adjustment = 3;
-                                        else if (name.includes('pajar sidik')) adjustment = 1;
-
-                                        const used = attendanceRecords.filter(r => 
-                                          r.employeeId === emp.id && 
-                                          r.status === 'Cuti' && 
-                                          new Date(r.date).getFullYear() === new Date().getFullYear()
-                                        ).length;
-                                        
-                                        return `${Math.max(0, 12 - used - adjustment)} Hari`;
-                                      })()}
-                                    </p>
-                                  </div>
-                                  <div className="col-span-1 text-right">
-                                    <div className="flex justify-end gap-2">
-                                      <button onClick={() => handleViewEmployee(emp)} className="p-2.5 text-slate-400 hover:bg-slate-100 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Info Karyawan"><Icons.Info className="w-4 h-4" /></button>
-                                      {isHighAdminAccess && <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2.5 text-rose-500 hover:bg-rose-100 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Hapus Karyawan"><Icons.Trash className="w-4 h-4" /></button>}
-                                    </div>
-                                  </div>
-                                </div>
+                    <div className="w-full">
+                      {/* Mobile View */}
+                      <div className="md:hidden divide-y divide-slate-50">
+                        {paginatedEmployeesList.map((emp) => (
+                          <div key={emp.id} className={`p-6 flex items-center justify-between relative group overflow-hidden bg-white ${isResigned(emp) ? 'opacity-60 grayscale-[0.5]' : ''}`}>
+                            <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-rose-500 rounded-r-full shadow-[2px_0_10px_rgba(244,63,94,0.3)]"></div>
+                            <div className="flex-1 min-w-0" onClick={() => handleViewEmployee(emp)}>
+                              <div className="flex items-center gap-2">
+                                <p className="text-[12px] font-black text-slate-900 uppercase tracking-tight truncate pl-2">{emp.nama}</p>
+                                {isResigned(emp) && <span className="text-[7px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded-full uppercase tracking-widest">RESIGN</span>}
                               </div>
-                            );
-                          })}
+                              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest pl-2 mt-0.5 truncate">{emp.jabatan}</p>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="bg-[#f1f5f9] text-slate-600 font-black text-[10px] uppercase px-4 py-2 rounded-full tracking-[0.1em] border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span>
+                              <div className="flex gap-1.5 ml-2">
+                                 {userRole !== 'employee' && (
+                                   <button onClick={() => handleEditEmployee(emp)} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg"><Icons.Edit className="w-4 h-4" /></button>
+                                 )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Desktop View */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <div className="min-w-[1400px]">
+                          <div className="grid grid-cols-11 bg-slate-50 text-slate-500 text-[8px] uppercase font-bold tracking-[0.15em] border-b border-slate-100 px-14 py-4 sticky top-0 z-10">
+                            <div className="col-span-1 flex items-center gap-1">
+                              <Icons.Edit className="w-2.5 h-2.5" />
+                              <span>ID KARYAWAN</span>
+                            </div>
+                            <div className="col-span-2">NAMA KARYAWAN</div>
+                            <div className="col-span-1">LOKASI KERJA</div>
+                            <div className="col-span-1">DIVISI</div>
+                            <div className="col-span-1">JABATAN</div>
+                            <div className="col-span-1">STATUS</div>
+                            <div className="col-span-1">TANGGAL MULAI KERJA</div>
+                            <div className="col-span-1">KONTRAK BERAKHIR</div>
+                            <div className="col-span-1">SALDO CUTI</div>
+                            <div className="col-span-1 text-right">AKSI</div>
+                          </div>
+                          <div className="bg-white">
+                            {paginatedEmployeesList.map((emp, index) => {
+                              const isEven = index % 2 === 1;
+                              return (
+                                <div key={emp.id} className={`hover:bg-slate-100/50 transition-all duration-300 border-b border-slate-50 last:border-0 ${isResigned(emp) ? 'opacity-60 grayscale-[0.5]' : ''} ${isEven ? 'bg-slate-50/50' : 'bg-white'}`}>
+                                  <div className="grid grid-cols-11 items-center px-14 py-4 gap-4">
+                                    <div className="col-span-1 flex items-center gap-2">
+                                      {userRole !== 'employee' && (
+                                        <button onClick={() => handleEditEmployee(emp)} className="text-slate-400 hover:text-indigo-600 transition-colors">
+                                          <Icons.Edit className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                      <span className="inline-block bg-slate-50 text-slate-700 font-black text-[9px] uppercase px-3 py-1.5 rounded-lg border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span>
+                                    </div>
+                                    <div className="col-span-2">
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-semibold text-slate-900 text-[11px] uppercase truncate cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleViewEmployee(emp)}>{emp.nama}</p>
+                                        {isResigned(emp) && <span className="text-[7px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded-full uppercase tracking-widest">RESIGN</span>}
+                                      </div>
+                                    </div>
+                                    <div className="col-span-1">
+                                      <p className="text-[9px] font-black text-slate-800 uppercase">{emp.lokasiKerja || 'Head Office'}</p>
+                                    </div>
+                                    <div className="col-span-1">
+                                      <p className="text-[9px] font-black text-slate-800 uppercase">{emp.division || '-'}</p>
+                                    </div>
+                                    <div className="col-span-1">
+                                      <p className="text-[9px] font-black text-slate-800 uppercase">{emp.jabatan || '-'}</p>
+                                    </div>
+                                    <div className="col-span-1">
+                                      <p className="text-[9px] font-black text-slate-800 uppercase">{emp.statusKaryawan || 'Tetap'}</p>
+                                    </div>
+                                    <div className="col-span-1">
+                                      <p className="text-[9px] font-black text-slate-800 uppercase">{emp.tanggalMasuk || '-'}</p>
+                                    </div>
+                                    <div className="col-span-1">
+                                      <p className="text-[9px] font-black text-slate-800 uppercase">{emp.resigned_at || '-'}</p>
+                                    </div>
+                                    <div className="col-span-1">
+                                      <p className="text-[9px] font-black text-slate-800 font-mono">
+                                        {(() => {
+                                          const tenure = getTenureYears(emp.tanggalMasuk);
+                                          if (tenure < 1) return '0 Hari';
+                                          
+                                          const name = emp.nama.toLowerCase();
+                                          let adjustment = 0;
+                                          if (name.includes('fikry aditya rizky')) adjustment = 2;
+                                          else if (name.includes('iskandar juliana')) adjustment = 3;
+                                          else if (name.includes('adinda salsabilla')) adjustment = 3;
+                                          else if (name.includes('pajar sidik')) adjustment = 1;
+
+                                          const used = attendanceRecords.filter(r => 
+                                            r.employeeId === emp.id && 
+                                            r.status === 'Cuti' && 
+                                            new Date(r.date).getFullYear() === new Date().getFullYear()
+                                          ).length;
+                                          
+                                          return `${Math.max(0, 12 - used - adjustment)} Hari`;
+                                        })()}
+                                      </p>
+                                    </div>
+                                    <div className="col-span-1 text-right">
+                                      <div className="flex justify-end gap-2">
+                                        <button onClick={() => handleViewEmployee(emp)} className="p-2.5 text-slate-400 hover:bg-slate-100 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Info Karyawan"><Icons.Info className="w-4 h-4" /></button>
+                                        {isHighAdminAccess && <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2.5 text-rose-500 hover:bg-rose-100 rounded-xl transition-all active:scale-90 border border-transparent shadow-sm bg-white" title="Hapus Karyawan"><Icons.Trash className="w-4 h-4" /></button>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1275,7 +1313,7 @@ export const App: React.FC = () => {
       </footer>
 
       {isFormOpen && <EmployeeForm employees={employees} initialData={editingEmployee} userRole={userRole} userCompany={userCompany} currentUserEmployee={currentUserEmployee} onSave={async (emp) => { 
-        const { error } = await supabase.from('employees').upsert(emp); 
+        const { error } = await supabase.from('employees').upsert(emp, { onConflict: 'id' }); 
         if (error) {
           alert("Gagal menyimpan data: " + error.message);
           return;

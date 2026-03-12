@@ -5,6 +5,7 @@ import { Employee, LiveSchedule, LiveReport, AttendanceRecord, ShiftAssignment, 
 import { Icons, LIVE_BRANDS as INITIAL_BRANDS, TIME_SLOTS } from '../constants';
 import { supabase } from '../services/supabaseClient';
 import { generateGoogleCalendarUrl, getMondayISO, getSundayISO, formatDateToYYYYMMDD, parseFlexibleDate } from '../utils/dateUtils';
+import { useConfirmation } from '../contexts/ConfirmationContext';
 import LiveReportModule from './LiveReportModule';
 import LiveCharts from './LiveCharts';
 
@@ -61,6 +62,7 @@ const isDateInRange = (target: string, start: string, end: string) => {
 const DAYS_OF_WEEK = ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU'];
 
 const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, schedules, setSchedules, reports, setReports, userRole = 'employee', company, onClose, attendanceRecords = [], shiftAssignments = [], shifts = [], onRefreshData }) => {
+  const { confirm } = useConfirmation();
   const readOnly = userRole === 'employee';
   const [activeSubTab, setActiveSubTab] = useState<'JADWAL' | 'REPORT' | 'GRAFIK' | 'LIBUR' | 'BRAND'>('JADWAL');
   
@@ -126,7 +128,13 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   };
 
   const removeBrand = async (name: string) => {
-    if (!confirm(`Hapus brand "${name}"?`)) return;
+    const isConfirmed = await confirm({
+      title: 'Hapus Brand?',
+      message: `Hapus brand "${name}"?`,
+      type: 'danger',
+      confirmText: 'HAPUS'
+    });
+    if (!isConfirmed) return;
     const updated = brands.filter((b: any) => b.name !== name);
     await handleSaveBrands(updated);
   };
@@ -214,7 +222,13 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
           const missingBrands = importedBrands.filter(b => !brands.some((ex: any) => ex.name === b));
           
           if (missingBrands.length > 0) {
-            if (confirm(`BRAND BARU TERDETEKSI: ${missingBrands.join(', ')}. Daftarkan brand ini secara otomatis?`)) {
+            const isConfirmed = await confirm({
+              title: 'Brand Baru Terdeteksi',
+              message: `BRAND BARU TERDETEKSI: ${missingBrands.join(', ')}. Daftarkan brand ini secara otomatis?`,
+              type: 'warning',
+              confirmText: 'DAFTARKAN'
+            });
+            if (isConfirmed) {
               const updatedBrands = [...brands, ...missingBrands.map(b => ({ name: b, color: 'bg-slate-200' }))];
               await handleSaveBrands(updatedBrands);
             }
@@ -247,12 +261,18 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
     reader.readAsArrayBuffer(file);
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const exportedData = schedules.filter(s => isDateInRange(s.date, startDate, endDate));
     if (exportedData.length === 0) return alert("Data tidak ditemukan untuk rentang tanggal ini.");
     
     if (exportedData.length > 1000) {
-      if (!confirm(`PERINGATAN EGRESS: Anda mengekspor ${exportedData.length} baris data. Proses ini akan memakan lebih banyak kuota data Supabase. Lanjutkan?`)) {
+      const isConfirmed = await confirm({
+        title: 'Peringatan Egress',
+        message: `PERINGATAN EGRESS: Anda mengekspor ${exportedData.length} baris data. Proses ini akan memakan lebih banyak kuota data Supabase. Lanjutkan?`,
+        type: 'warning',
+        confirmText: 'LANJUTKAN'
+      });
+      if (!isConfirmed) {
         return;
       }
     }
@@ -326,7 +346,13 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
 
   const deleteScheduleSlot = async (date: string, brand: string, hourSlot: string) => {
     if (readOnly) return;
-    if (!confirm(`Hapus jadwal manual untuk ${brand} pada ${date} jam ${hourSlot}?`)) return;
+    const isConfirmed = await confirm({
+      title: 'Hapus Jadwal?',
+      message: `Hapus jadwal manual untuk ${brand} pada ${date} jam ${hourSlot}?`,
+      type: 'danger',
+      confirmText: 'HAPUS'
+    });
+    if (!isConfirmed) return;
     setIsSyncing(true);
     try {
       const { error } = await supabase

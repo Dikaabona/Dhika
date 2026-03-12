@@ -5,6 +5,7 @@ import html2canvas from 'html2canvas';
 import { Icons } from '../constants';
 import { Invoice, InvoiceItem } from '../types';
 import { supabase } from '../services/supabaseClient';
+import { useConfirmation } from '../contexts/ConfirmationContext';
 import { QuotationModule } from './QuotationModule';
 
 interface InvoiceModuleProps {
@@ -31,6 +32,7 @@ const COMPANY_DATA: Record<string, any> = {
 };
 
 export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, forceTab }) => {
+  const { confirm } = useConfirmation();
   const [activeSubTab, setActiveSubTab] = useState<'invoice' | 'quotation'>(forceTab || 'invoice');
   const [sequence, setSequence] = useState(1);
   const [isSaving, setIsSaving] = useState(false);

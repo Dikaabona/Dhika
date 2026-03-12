@@ -3,6 +3,7 @@ import { Employee, CalendarEvent } from '../types';
 import { Icons } from '../constants';
 import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
 import { supabase } from '../services/supabaseClient';
+import { useConfirmation } from '../contexts/ConfirmationContext';
 
 interface CalendarModuleProps {
   employees: Employee[];
@@ -12,6 +13,7 @@ interface CalendarModuleProps {
 }
 
 const CalendarModule: React.FC<CalendarModuleProps> = ({ employees, userRole, company, onClose }) => {
+  const { confirm } = useConfirmation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -89,7 +91,13 @@ const CalendarModule: React.FC<CalendarModuleProps> = ({ employees, userRole, co
   };
 
   const handleDeleteEvent = async (id: string) => {
-    if (!confirm('Hapus reminder ini?')) return;
+    const isConfirmed = await confirm({
+      title: 'Hapus Reminder?',
+      message: 'Hapus reminder ini?',
+      type: 'danger',
+      confirmText: 'HAPUS'
+    });
+    if (!isConfirmed) return;
     try {
       const { error } = await supabase.from('calendar_events').delete().eq('id', id);
       if (error) throw error;
