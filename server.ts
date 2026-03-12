@@ -32,27 +32,13 @@ app.get("/api/test", (req, res) => {
 // Initialize Supabase safely
 let supabase: any;
 try {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_ANON_KEY;
+  // Use environment variables if available, otherwise fallback to hardcoded keys
+  const SUPABASE_URL = process.env.SUPABASE_URL || 'https://rcrtknakiwvfkmnwvdvf.supabase.co';
+  // Using service_role key for backend operations to bypass RLS
+  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcnRrbmFraXd2Zmttbnd2ZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTY2MTI4NiwiZXhwIjoyMDg1MjM3Mjg2fQ.cyX8hoZWpbZ1V8qAPUwoLAHE-mlftuhOuI1x7x8KYk0';
   
-  if (supabaseUrl && supabaseKey) {
-    supabase = createClient(supabaseUrl, supabaseKey);
-    console.log("Supabase initialized successfully");
-  } else {
-    console.warn("SUPABASE_URL or SUPABASE_ANON_KEY missing. Supabase features will be disabled.");
-    // Create a mock supabase client that returns errors to prevent crashes
-    supabase = {
-      from: () => ({
-        select: () => ({
-          eq: () => ({
-            single: () => Promise.resolve({ data: null, error: new Error("Supabase not configured") }),
-            order: () => Promise.resolve({ data: [], error: new Error("Supabase not configured") }),
-          }),
-          order: () => Promise.resolve({ data: [], error: new Error("Supabase not configured") }),
-        }),
-      }),
-    };
-  }
+  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  console.log("Supabase initialized successfully with service_role");
 } catch (err) {
   console.error("Error initializing Supabase:", err);
 }
@@ -193,9 +179,51 @@ app.all("/api/webhook/waha", async (req, res) => {
         `3️⃣ *!absen* - Cek status absensi Anda hari ini\n` +
         `4️⃣ *!layanan* - Info layanan Visibel Agency\n` +
         `5️⃣ *!live* - Jadwal live streaming Visibel\n` +
-        `6️⃣ *!menu* - Menampilkan menu ini\n\n` +
+        `6️⃣ *!libur* - Cek siapa saja yang libur hari ini\n` +
+        `7️⃣ *!menu* - Menampilkan menu ini\n\n` +
         `Silakan ketik perintah di atas untuk mendapatkan informasi.`;
       await sendWahaMessage(from, menu, emp.company);
+      return res.status(200).json({ status: "received" });
+    }
+
+    if (lowerMsg === '!libur') {
+      const today = new Date().toISOString().split('T')[0];
+      
+      // 1. Get all employees
+      const { data: allEmployees, error: empErr } = await supabase.from('employees').select('id, nama').eq('company', emp.company);
+      if (empErr) {
+        await sendWahaMessage(from, "Terjadi kesalahan saat mengambil data karyawan.", emp.company);
+        return res.status(200).json({ status: "error" });
+      }
+
+      // 2. Get all shift assignments for today
+      const { data: assignments, error: assignErr } = await supabase
+        .from('shift_assignments')
+        .select('employeeId, shiftId')
+        .eq('date', today)
+        .eq('company', emp.company);
+      
+      if (assignErr) {
+        await sendWahaMessage(from, "Terjadi kesalahan saat mengambil data jadwal.", emp.company);
+        return res.status(200).json({ status: "error" });
+      }
+
+      // 3. Identify who is off
+      // An employee is off if they have NO assignment OR their assignment is an "Off" shift (if we can identify it)
+      // For now, let's assume no assignment = off
+      const assignedEmpIds = new Set(assignments?.map((a: any) => a.employeeId) || []);
+      const offEmployees = allEmployees?.filter((e: any) => !assignedEmpIds.has(e.id)) || [];
+
+      let reply = `🏖️ *KARYAWAN LIBUR HARI INI* 🏖️\n\nTanggal: ${today}\n\n`;
+      if (offEmployees.length > 0) {
+        offEmployees.forEach((e: any, index: number) => {
+          reply += `${index + 1}. ${e.nama}\n`;
+        });
+      } else {
+        reply += `Semua karyawan memiliki jadwal hari ini.`;
+      }
+
+      await sendWahaMessage(from, reply, emp.company);
       return res.status(200).json({ status: "received" });
     }
 
@@ -368,15 +396,6 @@ app.get("/api/waha/send-weekly-schedule", async (req, res) => {
 
     if (shiftError) throw shiftError;
 
-    // Debug: log first assignment date if exists
-    if (assignments && assignments.length > 0) {
-      console.log(`[WAHA API] Sample assignment date: ${assignments[0].date}`);
-    } else {
-      // Check if ANY assignments exist for this employee at all
-      const { data: anyAssign } = await supabase.from('shift_assignments').select('date').eq('employeeId', emp.id);
-      console.log(`[WAHA API] All assignments for this employee: ${JSON.stringify(anyAssign)}`);
-    }
-
     console.log(`[WAHA API] Found ${assignments?.length || 0} assignments for ${emp.nama} between ${todayStr} and ${nextWeekStr}`);
 
     const { data: allShifts } = await supabase.from('shifts').select('*');
@@ -391,7 +410,7 @@ app.get("/api/waha/send-weekly-schedule", async (req, res) => {
         reply += `🔹 *${dateStr}*\n   ${shiftName} (${time})\n\n`;
       });
     } else {
-      reply += "Maaf, belum ada jadwal shift yang terinput untuk 1 minggu ke depan.";
+      reply += `Maaf, belum ada jadwal shift yang terinput untuk 1 minggu ke depan (${todayStr} s/d ${nextWeekStr}).`;
     }
 
     await sendWahaMessage(phone.includes('@') ? phone : `${phone.replace(/\D/g, '')}@c.us`, reply, emp.company);
@@ -541,6 +560,42 @@ app.post("/api/send-email", async (req, res) => {
     res.status(200).json(data);
   } catch (err: any) {
     console.error("Server Error sending email:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Debug endpoint to check assignments
+app.get("/api/debug/inspect-assignments", async (req, res) => {
+  const phone = req.query.phone as string;
+  if (!phone) return res.status(400).json({ error: "Phone is required" });
+
+  try {
+    const last10 = phone.replace(/\D/g, '').slice(-10);
+    const { data: emps } = await supabase.from('employees').select('*');
+    const emp = emps?.find((e: any) => (e.noHandphone || '').replace(/\D/g, '').endsWith(last10));
+
+    if (!emp) return res.status(404).json({ error: "Employee not found", last10 });
+
+    const { data: allAssignments } = await supabase
+      .from('shift_assignments')
+      .select('*')
+      .eq('employeeId', emp.id);
+
+    res.json({
+      emp: { id: emp.id, nama: emp.nama, noHandphone: emp.noHandphone },
+      assignmentCount: allAssignments?.length || 0,
+      allAssignments: allAssignments?.slice(0, 20), // Show first 20
+      serverTime: new Date().toISOString(),
+      jakartaTime: new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Jakarta',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(new Date())
+    });
+  } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
