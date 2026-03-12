@@ -163,48 +163,58 @@ app.all("/api/webhook/waha", async (req, res) => {
       return res.status(200).json({ status: "ignored_missing_data" });
     }
 
-    console.log(`[WAHA Webhook] Message from ${from}: ${message}`);
+    // --- RESTRICTION: Only reply to employees in database ---
+    const phoneDigits = from.split('@')[0].replace(/\D/g, '');
+    const last10 = phoneDigits.slice(-10);
+    
+    const { data: emps, error: empError } = await supabase.from('employees').select('*');
+    if (empError) {
+      console.error("[WAHA Webhook] Supabase error fetching employees:", empError);
+      return res.status(200).json({ status: "error" });
+    }
+
+    const emp = emps?.find((e: any) => (e.noHandphone || '').replace(/\D/g, '').endsWith(last10));
+
+    if (!emp) {
+      console.log(`[WAHA Webhook] Ignoring message from non-employee: ${from}`);
+      addWahaLog('UNAUTHORIZED_ACCESS', { from, last10 });
+      // We don't reply at all to non-employees as requested
+      return res.status(200).json({ status: "ignored_unauthorized" });
+    }
+    // -------------------------------------------------------
+
+    console.log(`[WAHA Webhook] Message from ${emp.nama} (${from}): ${message}`);
     const lowerMsg = message.toLowerCase().trim();
 
     if (lowerMsg === '!menu' || lowerMsg === '!help' || lowerMsg === 'p' || lowerMsg === 'halo') {
-      const menu = `🤖 *VISIBEL HR BOT MENU* 🤖\n\nBerikut adalah perintah yang bisa Anda gunakan:\n\n` +
+      const menu = `🤖 *VISIBEL HR BOT MENU* 🤖\n\nHalo ${emp.nama},\n\nBerikut adalah perintah yang bisa Anda gunakan:\n\n` +
         `1️⃣ *!jadwal* - Cek jadwal shift Anda hari ini\n` +
         `2️⃣ *!konten* - Cek jadwal posting konten Anda hari ini\n` +
         `3️⃣ *!absen* - Cek status absensi Anda hari ini\n` +
-        `4️⃣ *!menu* - Menampilkan menu ini\n\n` +
+        `4️⃣ *!layanan* - Info layanan Visibel Agency\n` +
+        `5️⃣ *!live* - Jadwal live streaming Visibel\n` +
+        `6️⃣ *!menu* - Menampilkan menu ini\n\n` +
         `Silakan ketik perintah di atas untuk mendapatkan informasi.`;
-      await sendWahaMessage(from, menu);
+      await sendWahaMessage(from, menu, emp.company);
+      return res.status(200).json({ status: "received" });
+    }
+
+    if (lowerMsg === '!layanan') {
+      const reply = "Visibel menyediakan:\n• Live Streaming\n• Short Video\n• TikTok Ads\n• Social Media Management";
+      await sendWahaMessage(from, reply, emp.company);
+      return res.status(200).json({ status: "received" });
+    }
+
+    if (lowerMsg === '!live') {
+      const reply = "Jadwal live Visibel minggu ini:\nSenin - Jumat\n19.00 - 23.00 WIB";
+      await sendWahaMessage(from, reply, emp.company);
       return res.status(200).json({ status: "received" });
     }
 
     if (lowerMsg === '!jadwal' || lowerMsg === '!konten' || lowerMsg === '!absen') {
-      // Find employee by phone number
-      const phoneDigits = from.split('@')[0].replace(/\D/g, '');
-      const last10 = phoneDigits.slice(-10);
-      
-      console.log(`[WAHA Webhook] Searching for employee with phone ending in: ${last10}`);
-      
-      const { data: emps, error: empError } = await supabase.from('employees').select('*');
-      
-      if (empError) {
-        console.error("[WAHA Webhook] Supabase error fetching employees:", empError);
-        await sendWahaMessage(from, "Maaf, terjadi kesalahan saat mengakses database karyawan.");
-        return res.status(200).json({ status: "error" });
-      }
-
-      const emp = emps?.find((e: any) => (e.noHandphone || '').replace(/\D/g, '').endsWith(last10));
-
-      if (!emp) {
-        addWahaLog('EMPLOYEE_NOT_FOUND', { from, last10 });
-        console.warn(`[WAHA Webhook] Phone number ${from} not found in employees table.`);
-        await sendWahaMessage(from, `Maaf, nomor WhatsApp Anda (${from.split('@')[0]}) belum terdaftar di sistem HR Visibel. Silakan hubungi Admin untuk pendaftaran.`);
-        return res.status(200).json({ status: "received" });
-      }
-
-      addWahaLog('EMPLOYEE_FOUND', { name: emp.nama, company: emp.company });
+      addWahaLog('EMPLOYEE_COMMAND', { name: emp.nama, command: lowerMsg });
       const today = new Date().toISOString().split('T')[0];
-      console.log(`[WAHA Webhook] Found employee: ${emp.nama}. Checking data for date: ${today}`);
-
+      
       if (lowerMsg === '!jadwal') {
         const { data: shiftAssignments, error: shiftError } = await supabase
           .from('shift_assignments')
@@ -236,7 +246,7 @@ app.all("/api/webhook/waha", async (req, res) => {
           .from('content_plans')
           .select('*')
           .eq('creatorId', emp.id)
-          .eq('date', today);
+          .eq('postingDate', today);
 
         if (contentError) {
           console.error("[WAHA Webhook] Error fetching content plans:", contentError);
@@ -307,6 +317,88 @@ app.post("/api/waha/test", async (req, res) => {
     res.status(err.response?.status || 500).json({ 
       error: err.response?.data || err.message 
     });
+  }
+});
+
+// API to manually send weekly schedule to a phone number
+app.get("/api/waha/send-weekly-schedule", async (req, res) => {
+  const phone = req.query.phone as string;
+  if (!phone) return res.status(400).json({ error: "Phone is required" });
+
+  try {
+    const last10 = phone.replace(/\D/g, '').slice(-10);
+    const { data: emps } = await supabase.from('employees').select('*');
+    const emp = emps?.find((e: any) => (e.noHandphone || '').replace(/\D/g, '').endsWith(last10));
+
+    if (!emp) return res.status(404).json({ error: "Employee not found" });
+
+    // Use Asia/Jakarta for consistency
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const parts = formatter.formatToParts(now);
+    const dateMap: any = {};
+    parts.forEach(p => dateMap[p.type] = p.value);
+    const todayStr = `${dateMap.year}-${dateMap.month}-${dateMap.day}`;
+
+    const nextWeek = new Date(now);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    const nextWeekParts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(nextWeek);
+    const nwMap: any = {};
+    nextWeekParts.forEach(p => nwMap[p.type] = p.value);
+    const nextWeekStr = `${nwMap.year}-${nwMap.month}-${nwMap.day}`;
+
+    // Fetch assignments and shifts separately to avoid relationship error
+    const { data: assignments, error: shiftError } = await supabase
+      .from('shift_assignments')
+      .select('*')
+      .eq('employeeId', emp.id)
+      .gte('date', todayStr)
+      .lte('date', nextWeekStr)
+      .order('date', { ascending: true });
+
+    if (shiftError) throw shiftError;
+
+    // Debug: log first assignment date if exists
+    if (assignments && assignments.length > 0) {
+      console.log(`[WAHA API] Sample assignment date: ${assignments[0].date}`);
+    } else {
+      // Check if ANY assignments exist for this employee at all
+      const { data: anyAssign } = await supabase.from('shift_assignments').select('date').eq('employeeId', emp.id);
+      console.log(`[WAHA API] All assignments for this employee: ${JSON.stringify(anyAssign)}`);
+    }
+
+    console.log(`[WAHA API] Found ${assignments?.length || 0} assignments for ${emp.nama} between ${todayStr} and ${nextWeekStr}`);
+
+    const { data: allShifts } = await supabase.from('shifts').select('*');
+
+    let reply = `📅 *JADWAL SHIFT 1 MINGGU KE DEPAN* 📅\n\nHalo ${emp.nama},\n\n`;
+    if (assignments && assignments.length > 0) {
+      assignments.forEach((s: any) => {
+        const dateStr = new Date(s.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' });
+        const shift = allShifts?.find((sh: any) => sh.id === s.shiftId);
+        const shiftName = shift?.name || 'Off';
+        const time = shift ? `${shift.startTime} - ${shift.endTime}` : 'Libur';
+        reply += `🔹 *${dateStr}*\n   ${shiftName} (${time})\n\n`;
+      });
+    } else {
+      reply += "Maaf, belum ada jadwal shift yang terinput untuk 1 minggu ke depan.";
+    }
+
+    await sendWahaMessage(phone.includes('@') ? phone : `${phone.replace(/\D/g, '')}@c.us`, reply, emp.company);
+    res.json({ status: "ok", message: "Schedule sent", reply });
+  } catch (err: any) {
+    console.error("[WAHA API] Error:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -382,62 +474,6 @@ app.get("/api/waha/send-test", async (req, res) => {
 });
 
 // Cron Job for Reminders (Runs every 15 minutes)
-// Disable cron in Vercel as serverless functions are short-lived
-if (!process.env.VERCEL) {
-  cron.schedule('*/15 * * * *', async () => {
-    console.log("Running reminder checks...");
-    const now = new Date();
-    // Use WIB (UTC+7) if needed, but for now let's use UTC or assume server time is correct
-    const today = now.toISOString().split('T')[0];
-    const currentTime = now.toTimeString().split(' ')[0].substring(0, 5); // HH:mm
-
-    try {
-      // 1. Check Content Plans
-      const { data: contentPlans } = await supabase
-        .from('content_plans')
-        .select('*, creator:employees(*)')
-        .eq('date', today)
-        .eq('status', 'Planned');
-
-      if (contentPlans) {
-        for (const plan of contentPlans) {
-          if (plan.jamUpload && plan.jamUpload.startsWith(currentTime)) {
-            const phone = plan.creator?.noHandphone;
-            if (phone) {
-              const msg = `🔔 *PENGINGAT POSTING* 🔔\n\nHalo ${plan.creator.nama},\n\nSudah waktunya posting konten:\n📌 *${plan.title}*\n📱 Platform: ${plan.platform}\n⏰ Jam: ${plan.jamUpload}\n\nSemangat! 💪`;
-              await sendWahaMessage(phone, msg, plan.company);
-            }
-          }
-        }
-      }
-
-      // 2. Check Shift Reminders (30 mins before)
-      // Fetch shifts starting in ~30 minutes
-      const futureTime = new Date(now.getTime() + 30 * 60000);
-      const targetTime = futureTime.toTimeString().split(' ')[0].substring(0, 5);
-
-      const { data: upcomingShifts } = await supabase
-        .from('shift_assignments')
-        .select('*, employees(*), shifts(*)')
-        .eq('date', today);
-
-      if (upcomingShifts) {
-        for (const assignment of upcomingShifts) {
-          if (assignment.shifts?.startTime && assignment.shifts.startTime.startsWith(targetTime)) {
-            const phone = assignment.employees?.noHandphone;
-            if (phone) {
-              const msg = `⏰ *PENGINGAT SHIFT* ⏰\n\nHalo ${assignment.employees.nama},\n\nShift Anda *${assignment.shifts.name}* akan dimulai dalam 30 menit (${assignment.shifts.startTime}).\n\nJangan lupa absen ya! 😊`;
-              await sendWahaMessage(phone, msg, assignment.company);
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Error in cron job:", err);
-    }
-  });
-}
-
 // Initialize Resend lazily to avoid crashes on startup and better handle serverless environments
 let resendClient: Resend | null = null;
 
@@ -561,12 +597,137 @@ async function startServer() {
   }
 }
 
+// --- SCHEDULED NOTIFICATIONS ---
+async function checkAndSendNotifications() {
+  // Use Asia/Jakarta (WIB) for comparison as the app is for Indonesian context
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  
+  const parts = formatter.formatToParts(now);
+  const dateMap: any = {};
+  parts.forEach(p => dateMap[p.type] = p.value);
+  
+  const today = `${dateMap.year}-${dateMap.month}-${dateMap.day}`;
+  const currentHour = parseInt(dateMap.hour);
+  const currentMin = parseInt(dateMap.minute);
+  
+  console.log(`[Cron] Checking notifications for WIB: ${today} ${dateMap.hour}:${dateMap.minute}`);
+
+  try {
+    // Fetch data separately to avoid relationship errors
+    const { data: assignments, error: assignError } = await supabase
+      .from('shift_assignments')
+      .select('*')
+      .eq('date', today);
+
+    if (assignError) throw assignError;
+
+    const { data: emps } = await supabase.from('employees').select('*');
+    const { data: allShifts } = await supabase.from('shifts').select('*');
+
+    console.log(`[Cron] Found ${assignments?.length || 0} assignments today`);
+
+    for (const assign of assignments || []) {
+      const emp = emps?.find((e: any) => e.id === assign.employeeId);
+      const shift = allShifts?.find((s: any) => s.id === assign.shiftId);
+      
+      if (!emp || !shift || !emp.noHandphone) continue;
+
+      const shiftStart = shift.startTime; // HH:mm
+      if (!shiftStart) continue;
+      
+      const [sHour, sMin] = shiftStart.split(':').map(Number);
+      
+      // Calculate difference in minutes
+      const nowTotalMins = (currentHour * 60) + currentMin;
+      const shiftTotalMins = (sHour * 60) + sMin;
+      const diffMinutes = shiftTotalMins - nowTotalMins;
+
+      // A. Absen Reminder (15 mins before shift start)
+      // Only for non-off shifts
+      const isOff = shift.name.toLowerCase().includes('off') || shift.name.toLowerCase().includes('libur');
+      if (diffMinutes === 15 && !isOff) {
+        // Check if already clocked in
+        const { data: att } = await supabase
+          .from('attendance')
+          .select('*')
+          .eq('employeeId', emp.id)
+          .eq('date', today)
+          .maybeSingle();
+
+        if (!att || !att.clockIn) {
+          await sendWahaMessage(emp.noHandphone, `⏰ *PENGINGAT ABSEN* ⏰\n\nHalo ${emp.nama}, shift *${shift.name}* Anda akan dimulai dalam 15 menit (${shiftStart}). Jangan lupa untuk melakukan absensi ya!`, emp.company);
+        }
+      }
+
+      // B. Live Streaming & Studio Prep
+      if (shift.name.toLowerCase().includes('live')) {
+        const jab = (emp.jabatan || '').toLowerCase();
+        
+        // Studio Prep (30 mins before) - ONLY for Operator
+        if (diffMinutes === 30 && jab.includes('operator')) {
+          await sendWahaMessage(emp.noHandphone, `🎙️ *PERSIAPAN STUDIO* 🎙️\n\nHalo ${emp.nama}, jadwal Live Streaming akan dimulai dalam 30 menit. Sebagai Operator, silakan mulai persiapkan studio dan peralatan.`, emp.company);
+        }
+        
+        // Live Starting (5 mins before) - ONLY for Host Livestreaming
+        if (diffMinutes === 5 && jab.includes('host livestreaming')) {
+          await sendWahaMessage(emp.noHandphone, `🚀 *LIVE SEGERA DIMULAI* 🚀\n\nHalo ${emp.nama}, Live Streaming Anda akan dimulai dalam 5 menit (${shiftStart}). Sebagai Host, pastikan semuanya sudah siap!`, emp.company);
+        }
+      }
+    }
+
+    // 2. Fetch Content Plans for today
+    const { data: contents, error: contentError } = await supabase
+      .from('content_plans')
+      .select('*')
+      .eq('postingDate', today);
+
+    if (contentError) throw contentError;
+
+    for (const content of contents || []) {
+      const emp = emps?.find((e: any) => e.id === content.creatorId);
+      if (!emp || !emp.noHandphone || !content.jamUpload) continue;
+
+      const jab = (emp.jabatan || '').toLowerCase();
+      // ONLY for Content Creator
+      if (!jab.includes('content creator')) continue;
+
+      const [cHour, cMin] = content.jamUpload.split(':').map(Number);
+      
+      const nowTotalMins = (currentHour * 60) + currentMin;
+      const uploadTotalMins = (cHour * 60) + cMin;
+      const diffMinutes = uploadTotalMins - nowTotalMins;
+
+      // Content Posting Reminder (5 mins before)
+      if (diffMinutes === 5) {
+        await sendWahaMessage(emp.noHandphone, `📱 *PENGINGAT POSTING KONTEN* 📱\n\nHalo ${emp.nama}, jadwal posting konten *${content.title}* Anda adalah 5 menit lagi (${content.jamUpload}). Siapkan file dan caption-nya ya!`, emp.company);
+      }
+    }
+  } catch (err) {
+    console.error("[Cron] Error in checkAndSendNotifications:", err);
+  }
+}
+
 // Start the server only if not in a serverless environment like Vercel
-// In Vercel, the app is exported and handled by Vercel's internal server
 if (!process.env.VERCEL) {
   startServer().catch(err => {
     console.error("CRITICAL: Failed to start server:", err);
   });
+
+  // Schedule cron job every minute
+  cron.schedule('* * * * *', () => {
+    checkAndSendNotifications();
+  });
+  console.log("Cron jobs scheduled successfully");
 } else {
   // In Vercel, we still want to run any non-Vite initialization if needed
   // but currently startServer is mostly about Vite/Static/Listen
