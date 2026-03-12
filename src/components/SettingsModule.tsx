@@ -104,6 +104,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [isEditingOvertime, setIsEditingOvertime] = useState(false);
   const [isEditingSalary, setIsEditingSalary] = useState(false);
+  const [isTestingWaha, setIsTestingWaha] = useState(false);
+  const [wahaSettings, setWahaSettings] = useState({
+    apiUrl: '',
+    apiKey: '',
+    sessionName: 'default'
+  });
   const [searchEmp, setSearchEmp] = useState('');
   const [searchRemote, setSearchRemote] = useState('');
 
@@ -127,7 +133,16 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     fetchCompanyData();
     fetchTrialInfo();
     if (isOwner) fetchAllCompanies();
+    fetchWahaSettings();
   }, [selectedCompany, isOwner, userCompany]);
+
+  const fetchWahaSettings = async () => {
+    try {
+      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const { data } = await supabase.from('settings').select('value').eq('key', `waha_settings_${targetCompany}`).single();
+      if (data) setWahaSettings(data.value);
+    } catch (e) {}
+  };
 
   const fetchTrialInfo = async () => {
     try {

@@ -5,6 +5,9 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import axios from "axios";
+import cron from "node-cron";
+import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
 
@@ -12,6 +15,423 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+// Health check
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+// Middleware
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Initialize Supabase safely
+let supabase: any;
+try {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_ANON_KEY;
+  
+  if (supabaseUrl && supabaseKey) {
+    supabase = createClient(supabaseUrl, supabaseKey);
+    console.log("Supabase initialized successfully");
+  } else {
+    console.warn("SUPABASE_URL or SUPABASE_ANON_KEY missing. Supabase features will be disabled.");
+    // Create a mock supabase client that returns errors to prevent crashes
+    supabase = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            single: () => Promise.resolve({ data: null, error: new Error("Supabase not configured") }),
+            order: () => Promise.resolve({ data: [], error: new Error("Supabase not configured") }),
+          }),
+          order: () => Promise.resolve({ data: [], error: new Error("Supabase not configured") }),
+        }),
+      }),
+    };
+  }
+} catch (err) {
+  console.error("Error initializing Supabase:", err);
+}
+
+// Global variable to store recent logs (in-memory for debugging)
+let wahaLogs: any[] = [];
+function addWahaLog(type: string, data: any) {
+  wahaLogs.unshift({
+    timestamp: new Date().toISOString(),
+    type,
+    data
+  });
+  if (wahaLogs.length > 50) wahaLogs.pop();
+}
+
+// Helper to get WAHA settings for a company
+async function getWahaSettings(company: string) {
+  // First check environment variables (as default/global)
+  const envUrl = process.env.WAHA_API_URL;
+  const envKey = process.env.WAHA_API_KEY;
+  const envSession = process.env.WAHA_SESSION_NAME || 'default';
+
+  if (envUrl) {
+    let apiUrl = envUrl;
+    if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
+    if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+    return { apiUrl, apiKey: envKey, sessionName: envSession };
+  }
+
+  // Otherwise fetch from Supabase
+  try {
+    const { data } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', `waha_settings_${company}`)
+      .single();
+    
+    if (data && data.value) {
+      const settings = data.value as { apiUrl: string; apiKey: string; sessionName: string };
+      let apiUrl = settings.apiUrl;
+      if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
+      if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+      return { ...settings, apiUrl };
+    }
+  } catch (err) {
+    // Fallback to default if no company settings
+  }
+
+  return null;
+}
+
+// Helper to send WAHA message
+async function sendWahaMessage(to: string, message: string, company: string = 'Visibel') {
+  const settings = await getWahaSettings(company);
+
+  if (!settings || !settings.apiUrl) {
+    console.warn(`WAHA not configured for company: ${company}`);
+    return;
+  }
+
+  const { apiUrl, apiKey, sessionName } = settings;
+
+  // Format number: remove +, ensure it ends with @c.us
+  let chatId = to.replace(/\+/g, '').replace(/\s/g, '');
+  if (!chatId.includes('@')) {
+    chatId = `${chatId}@c.us`;
+  }
+
+  try {
+    await axios.post(`${apiUrl}/api/sendText`, {
+      chatId,
+      text: message,
+      session: sessionName
+    }, {
+      headers: {
+        'X-Api-Key': apiKey,
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log(`WAHA message sent to ${chatId} (${company})`);
+  } catch (err: any) {
+    console.error(`Error sending WAHA message (${company}):`, err.response?.data || err.message);
+  }
+}
+
+// WAHA Webhook Endpoint
+app.all("/api/webhook/waha", async (req, res) => {
+  const { event, payload } = req.body;
+  
+  // Log every request that hits this endpoint
+  addWahaLog('WEBHOOK_HIT', { 
+    method: req.method,
+    headers: req.headers,
+    body: req.body,
+    query: req.query
+  });
+
+  if (req.method === 'GET') {
+    return res.send("✅ Webhook endpoint is ACTIVE and reachable. Please use POST for actual WAHA data.");
+  }
+
+  console.log(`[WAHA Webhook] Event: ${event}`);
+
+  if (event === 'message.upsert' || event === 'message') {
+    const message = payload.body || payload.content || payload.text;
+    const from = payload.from || payload.chatId; // e.g. 628123456789@c.us
+    
+    if (!message || !from) {
+      console.warn("[WAHA Webhook] Missing message body or sender info", payload);
+      return res.status(200).json({ status: "ignored_missing_data" });
+    }
+
+    console.log(`[WAHA Webhook] Message from ${from}: ${message}`);
+    const lowerMsg = message.toLowerCase().trim();
+
+    if (lowerMsg === '!menu' || lowerMsg === '!help' || lowerMsg === 'p' || lowerMsg === 'halo') {
+      const menu = `🤖 *VISIBEL HR BOT MENU* 🤖\n\nBerikut adalah perintah yang bisa Anda gunakan:\n\n` +
+        `1️⃣ *!jadwal* - Cek jadwal shift Anda hari ini\n` +
+        `2️⃣ *!konten* - Cek jadwal posting konten Anda hari ini\n` +
+        `3️⃣ *!absen* - Cek status absensi Anda hari ini\n` +
+        `4️⃣ *!menu* - Menampilkan menu ini\n\n` +
+        `Silakan ketik perintah di atas untuk mendapatkan informasi.`;
+      await sendWahaMessage(from, menu);
+      return res.status(200).json({ status: "received" });
+    }
+
+    if (lowerMsg === '!jadwal' || lowerMsg === '!konten' || lowerMsg === '!absen') {
+      // Find employee by phone number
+      const phoneDigits = from.split('@')[0].replace(/\D/g, '');
+      const last10 = phoneDigits.slice(-10);
+      
+      console.log(`[WAHA Webhook] Searching for employee with phone ending in: ${last10}`);
+      
+      const { data: emps, error: empError } = await supabase.from('employees').select('*');
+      
+      if (empError) {
+        console.error("[WAHA Webhook] Supabase error fetching employees:", empError);
+        await sendWahaMessage(from, "Maaf, terjadi kesalahan saat mengakses database karyawan.");
+        return res.status(200).json({ status: "error" });
+      }
+
+      const emp = emps?.find(e => (e.noHandphone || '').replace(/\D/g, '').endsWith(last10));
+
+      if (!emp) {
+        addWahaLog('EMPLOYEE_NOT_FOUND', { from, last10 });
+        console.warn(`[WAHA Webhook] Phone number ${from} not found in employees table.`);
+        await sendWahaMessage(from, `Maaf, nomor WhatsApp Anda (${from.split('@')[0]}) belum terdaftar di sistem HR Visibel. Silakan hubungi Admin untuk pendaftaran.`);
+        return res.status(200).json({ status: "received" });
+      }
+
+      addWahaLog('EMPLOYEE_FOUND', { name: emp.nama, company: emp.company });
+      const today = new Date().toISOString().split('T')[0];
+      console.log(`[WAHA Webhook] Found employee: ${emp.nama}. Checking data for date: ${today}`);
+
+      if (lowerMsg === '!jadwal') {
+        const { data: shiftAssignments, error: shiftError } = await supabase
+          .from('shift_assignments')
+          .select('*, shifts(*)')
+          .eq('employeeId', emp.id)
+          .eq('date', today);
+
+        if (shiftError) {
+          console.error("[WAHA Webhook] Error fetching shifts:", shiftError);
+          await sendWahaMessage(from, "Maaf, terjadi kesalahan saat mengambil jadwal shift Anda.", emp.company);
+          return res.status(200).json({ status: "error" });
+        }
+
+        if (shiftAssignments && shiftAssignments.length > 0) {
+          let reply = `📅 *JADWAL SHIFT HARI INI* 📅\n\nHalo ${emp.nama},\n\n`;
+          shiftAssignments.forEach((a: any) => {
+            const shiftName = a.shifts?.name || 'Shift Tidak Diketahui';
+            const startTime = a.shifts?.startTime || '-';
+            const endTime = a.shifts?.endTime || '-';
+            reply += `🔹 *${shiftName}*\n⏰ ${startTime} - ${endTime}\n`;
+          });
+          await sendWahaMessage(from, reply, emp.company);
+        } else {
+          await sendWahaMessage(from, `Halo ${emp.nama}, Anda tidak memiliki jadwal shift hari ini (${today}).`, emp.company);
+        }
+      } 
+      else if (lowerMsg === '!konten') {
+        const { data: contentPlans, error: contentError } = await supabase
+          .from('content_plans')
+          .select('*')
+          .eq('creatorId', emp.id)
+          .eq('date', today);
+
+        if (contentError) {
+          console.error("[WAHA Webhook] Error fetching content plans:", contentError);
+          await sendWahaMessage(from, "Maaf, terjadi kesalahan saat mengambil jadwal konten Anda.", emp.company);
+          return res.status(200).json({ status: "error" });
+        }
+
+        if (contentPlans && contentPlans.length > 0) {
+          let reply = `🎬 *JADWAL KONTEN HARI INI* 📅\n\nHalo ${emp.nama},\n\n`;
+          contentPlans.forEach((p: any) => {
+            reply += `📌 *${p.title}*\n📱 Platform: ${p.platform}\n⏰ Jam: ${p.jamUpload || '-'}\n\n`;
+          });
+          await sendWahaMessage(from, reply, emp.company);
+        } else {
+          await sendWahaMessage(from, `Halo ${emp.nama}, Anda tidak memiliki jadwal posting konten hari ini (${today}).`, emp.company);
+        }
+      }
+      else if (lowerMsg === '!absen') {
+        const { data: attendance, error: attError } = await supabase
+          .from('attendance')
+          .select('*')
+          .eq('employeeId', emp.id)
+          .eq('date', today)
+          .maybeSingle();
+
+        if (attError) {
+          console.error("[WAHA Webhook] Error fetching attendance:", attError);
+          await sendWahaMessage(from, "Maaf, terjadi kesalahan saat mengambil data absensi Anda.", emp.company);
+          return res.status(200).json({ status: "error" });
+        }
+
+        if (attendance) {
+          const reply = `✅ *STATUS ABSENSI HARI INI* ✅\n\nHalo ${emp.nama},\n\n` +
+            `📍 Status: ${attendance.status}\n` +
+            `🕒 Masuk: ${attendance.clockIn || '-'}\n` +
+            `🕒 Pulang: ${attendance.clockOut || '-'}\n` +
+            `📝 Catatan: ${attendance.notes || '-'}`;
+          await sendWahaMessage(from, reply, emp.company);
+        } else {
+          await sendWahaMessage(from, `Halo ${emp.nama}, Anda belum melakukan absensi hari ini (${today}). Jangan lupa absen ya!`, emp.company);
+        }
+      }
+    } else {
+      // Fallback for debugging: if message is received but no command matched
+      console.log(`[WAHA Webhook] No command matched for: ${lowerMsg}`);
+      if (lowerMsg.startsWith('!')) {
+        await sendWahaMessage(from, "Perintah tidak dikenal. Ketik !menu untuk melihat daftar perintah.");
+      }
+    }
+  }
+
+  res.status(200).json({ status: "received" });
+});
+
+// API to test WAHA connection from backend (to avoid CORS)
+app.post("/api/waha/test", async (req, res) => {
+  const { apiUrl, apiKey } = req.body;
+  
+  if (!apiUrl) return res.status(400).json({ error: "URL is required" });
+
+  try {
+    const response = await axios.get(`${apiUrl}/api/sessions`, {
+      headers: { 'X-Api-Key': apiKey }
+    });
+    res.status(200).json({ status: "ok", data: response.data });
+  } catch (err: any) {
+    console.error("WAHA Test Error:", err.response?.data || err.message);
+    res.status(err.response?.status || 500).json({ 
+      error: err.response?.data || err.message 
+    });
+  }
+});
+
+// API to check WAHA configuration status
+app.get("/api/waha/status", async (req, res) => {
+  const company = (req.query.company as string) || 'Visibel';
+  const settings = await getWahaSettings(company);
+  
+  res.json({
+    configured: !!settings?.apiUrl,
+    apiUrl: settings?.apiUrl ? `${settings.apiUrl.substring(0, 15)}...` : null,
+    hasApiKey: !!settings?.apiKey,
+    sessionName: settings?.sessionName || 'not set',
+    webhookUrl: `${process.env.APP_URL || 'https://' + req.get('host')}/api/webhook/waha`
+  });
+});
+
+// API to view WAHA logs
+app.get("/api/waha/logs", (req, res) => {
+  res.json(wahaLogs);
+});
+
+// API to automatically register webhook in WAHA
+app.get("/api/waha/setup-webhook", async (req, res) => {
+  const company = (req.query.company as string) || 'Visibel';
+  const settings = await getWahaSettings(company);
+  
+  if (!settings?.apiUrl) return res.status(400).json({ error: "WAHA not configured yet" });
+
+  const webhookUrl = `${process.env.APP_URL || 'https://' + req.get('host')}/api/webhook/waha`;
+
+  try {
+    // WAHA API to create/update webhook
+    // Documentation: https://waha.dev/docs/how-to/webhooks/
+    const response = await axios.post(`${settings.apiUrl}/api/webhooks`, {
+      url: webhookUrl,
+      events: ["message", "message.upsert"],
+      enabled: true,
+      session: settings.sessionName || "default"
+    }, {
+      headers: { 'X-Api-Key': settings.apiKey }
+    });
+
+    res.json({ 
+      status: "success", 
+      message: "Webhook berhasil didaftarkan otomatis ke server WAHA!",
+      data: response.data 
+    });
+  } catch (err: any) {
+    console.error("WAHA Setup Error:", err.response?.data || err.message);
+    res.status(500).json({ 
+      status: "error", 
+      message: "Gagal mendaftarkan webhook otomatis. Silakan lakukan manual di dashboard WAHA.",
+      error: err.response?.data || err.message 
+    });
+  }
+});
+
+// API to manually test sending a message
+app.get("/api/waha/send-test", async (req, res) => {
+  const to = req.query.to as string;
+  const msg = (req.query.msg as string) || "Tes pesan dari sistem HR Visibel";
+  const company = (req.query.company as string) || 'Visibel';
+
+  if (!to) return res.status(400).json({ error: "Parameter 'to' (nomor HP) diperlukan. Contoh: ?to=628123456789" });
+
+  try {
+    await sendWahaMessage(to, msg, company);
+    res.json({ status: "success", message: `Pesan sedang dikirim ke ${to}` });
+  } catch (err: any) {
+    res.status(500).json({ status: "error", error: err.message });
+  }
+});
+
+// Cron Job for Reminders (Runs every 15 minutes)
+cron.schedule('*/15 * * * *', async () => {
+  console.log("Running reminder checks...");
+  const now = new Date();
+  // Use WIB (UTC+7) if needed, but for now let's use UTC or assume server time is correct
+  const today = now.toISOString().split('T')[0];
+  const currentTime = now.toTimeString().split(' ')[0].substring(0, 5); // HH:mm
+
+  try {
+    // 1. Check Content Plans
+    const { data: contentPlans } = await supabase
+      .from('content_plans')
+      .select('*, creator:employees(*)')
+      .eq('date', today)
+      .eq('status', 'Planned');
+
+    if (contentPlans) {
+      for (const plan of contentPlans) {
+        if (plan.jamUpload && plan.jamUpload.startsWith(currentTime)) {
+          const phone = plan.creator?.noHandphone;
+          if (phone) {
+            const msg = `🔔 *PENGINGAT POSTING* 🔔\n\nHalo ${plan.creator.nama},\n\nSudah waktunya posting konten:\n📌 *${plan.title}*\n📱 Platform: ${plan.platform}\n⏰ Jam: ${plan.jamUpload}\n\nSemangat! 💪`;
+            await sendWahaMessage(phone, msg, plan.company);
+          }
+        }
+      }
+    }
+
+    // 2. Check Shift Reminders (30 mins before)
+    // Fetch shifts starting in ~30 minutes
+    const futureTime = new Date(now.getTime() + 30 * 60000);
+    const targetTime = futureTime.toTimeString().split(' ')[0].substring(0, 5);
+
+    const { data: upcomingShifts } = await supabase
+      .from('shift_assignments')
+      .select('*, employees(*), shifts(*)')
+      .eq('date', today);
+
+    if (upcomingShifts) {
+      for (const assignment of upcomingShifts) {
+        if (assignment.shifts?.startTime && assignment.shifts.startTime.startsWith(targetTime)) {
+          const phone = assignment.employees?.noHandphone;
+          if (phone) {
+            const msg = `⏰ *PENGINGAT SHIFT* ⏰\n\nHalo ${assignment.employees.nama},\n\nShift Anda *${assignment.shifts.name}* akan dimulai dalam 30 menit (${assignment.shifts.startTime}).\n\nJangan lupa absen ya! 😊`;
+            await sendWahaMessage(phone, msg, assignment.company);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Error in cron job:", err);
+  }
+});
 
 // Initialize Resend safely
 let resend: Resend | null = null;
@@ -25,9 +445,6 @@ try {
 } catch (e) {
   console.error("Error initializing Resend:", e);
 }
-
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // API Route to send email
 app.post("/api/send-email", async (req, res) => {
@@ -78,47 +495,50 @@ app.post("/api/send-email", async (req, res) => {
 
 async function startServer() {
   const PORT = 3000;
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd = process.env.NODE_ENV === "production" && fs.existsSync(path.join(__dirname, "dist"));
 
   console.log(`Starting server in ${isProd ? 'production' : 'development'} mode...`);
 
+  // Start listening immediately to prevent "Please wait while your application starts..." screen
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server listening on http://0.0.0.0:${PORT}`);
+  });
+
   if (!isProd) {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-    
-    app.use('*', async (req, res, next) => {
-      const url = req.originalUrl;
-      if (url.startsWith('/api') || url.includes('.')) return next();
+    try {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
       
-      try {
-        let template = fs.readFileSync(path.resolve(__dirname, "index.html"), "utf-8");
-        template = await vite.transformIndexHtml(url, template);
-        res.status(200).set({ "Content-Type": "text/html" }).end(template);
-      } catch (e) {
-        vite.ssrFixStacktrace(e as Error);
-        next(e);
-      }
-    });
+      app.use('*', async (req, res, next) => {
+        const url = req.originalUrl;
+        if (url.startsWith('/api') || url.includes('.')) return next();
+        
+        try {
+          let template = fs.readFileSync(path.resolve(__dirname, "index.html"), "utf-8");
+          template = await vite.transformIndexHtml(url, template);
+          res.status(200).set({ "Content-Type": "text/html" }).end(template);
+        } catch (e) {
+          vite.ssrFixStacktrace(e as Error);
+          next(e);
+        }
+      });
+    } catch (err) {
+      console.error("Vite initialization failed, falling back to static:", err);
+    }
   } else {
     app.use(express.static(path.join(__dirname, "dist")));
     app.get("*", (req, res) => {
       res.sendFile(path.join(__dirname, "dist", "index.html"));
     });
   }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server listening on http://0.0.0.0:${PORT}`);
-  });
 }
 
-// Only start the server if not running on Vercel
-if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-  startServer().catch(err => {
-    console.error("CRITICAL: Failed to start server:", err);
-  });
-}
+// Start the server
+startServer().catch(err => {
+  console.error("CRITICAL: Failed to start server:", err);
+});
 
 export default app;
