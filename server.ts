@@ -382,70 +382,82 @@ app.get("/api/waha/send-test", async (req, res) => {
 });
 
 // Cron Job for Reminders (Runs every 15 minutes)
-cron.schedule('*/15 * * * *', async () => {
-  console.log("Running reminder checks...");
-  const now = new Date();
-  // Use WIB (UTC+7) if needed, but for now let's use UTC or assume server time is correct
-  const today = now.toISOString().split('T')[0];
-  const currentTime = now.toTimeString().split(' ')[0].substring(0, 5); // HH:mm
+// Disable cron in Vercel as serverless functions are short-lived
+if (!process.env.VERCEL) {
+  cron.schedule('*/15 * * * *', async () => {
+    console.log("Running reminder checks...");
+    const now = new Date();
+    // Use WIB (UTC+7) if needed, but for now let's use UTC or assume server time is correct
+    const today = now.toISOString().split('T')[0];
+    const currentTime = now.toTimeString().split(' ')[0].substring(0, 5); // HH:mm
+
+    try {
+      // 1. Check Content Plans
+      const { data: contentPlans } = await supabase
+        .from('content_plans')
+        .select('*, creator:employees(*)')
+        .eq('date', today)
+        .eq('status', 'Planned');
+
+      if (contentPlans) {
+        for (const plan of contentPlans) {
+          if (plan.jamUpload && plan.jamUpload.startsWith(currentTime)) {
+            const phone = plan.creator?.noHandphone;
+            if (phone) {
+              const msg = `🔔 *PENGINGAT POSTING* 🔔\n\nHalo ${plan.creator.nama},\n\nSudah waktunya posting konten:\n📌 *${plan.title}*\n📱 Platform: ${plan.platform}\n⏰ Jam: ${plan.jamUpload}\n\nSemangat! 💪`;
+              await sendWahaMessage(phone, msg, plan.company);
+            }
+          }
+        }
+      }
+
+      // 2. Check Shift Reminders (30 mins before)
+      // Fetch shifts starting in ~30 minutes
+      const futureTime = new Date(now.getTime() + 30 * 60000);
+      const targetTime = futureTime.toTimeString().split(' ')[0].substring(0, 5);
+
+      const { data: upcomingShifts } = await supabase
+        .from('shift_assignments')
+        .select('*, employees(*), shifts(*)')
+        .eq('date', today);
+
+      if (upcomingShifts) {
+        for (const assignment of upcomingShifts) {
+          if (assignment.shifts?.startTime && assignment.shifts.startTime.startsWith(targetTime)) {
+            const phone = assignment.employees?.noHandphone;
+            if (phone) {
+              const msg = `⏰ *PENGINGAT SHIFT* ⏰\n\nHalo ${assignment.employees.nama},\n\nShift Anda *${assignment.shifts.name}* akan dimulai dalam 30 menit (${assignment.shifts.startTime}).\n\nJangan lupa absen ya! 😊`;
+              await sendWahaMessage(phone, msg, assignment.company);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error in cron job:", err);
+    }
+  });
+}
+
+// Initialize Resend lazily to avoid crashes on startup and better handle serverless environments
+let resendClient: Resend | null = null;
+
+function getResendClient() {
+  if (resendClient) return resendClient;
+  
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn("RESEND_API_KEY not found in environment variables");
+    return null;
+  }
 
   try {
-    // 1. Check Content Plans
-    const { data: contentPlans } = await supabase
-      .from('content_plans')
-      .select('*, creator:employees(*)')
-      .eq('date', today)
-      .eq('status', 'Planned');
-
-    if (contentPlans) {
-      for (const plan of contentPlans) {
-        if (plan.jamUpload && plan.jamUpload.startsWith(currentTime)) {
-          const phone = plan.creator?.noHandphone;
-          if (phone) {
-            const msg = `🔔 *PENGINGAT POSTING* 🔔\n\nHalo ${plan.creator.nama},\n\nSudah waktunya posting konten:\n📌 *${plan.title}*\n📱 Platform: ${plan.platform}\n⏰ Jam: ${plan.jamUpload}\n\nSemangat! 💪`;
-            await sendWahaMessage(phone, msg, plan.company);
-          }
-        }
-      }
-    }
-
-    // 2. Check Shift Reminders (30 mins before)
-    // Fetch shifts starting in ~30 minutes
-    const futureTime = new Date(now.getTime() + 30 * 60000);
-    const targetTime = futureTime.toTimeString().split(' ')[0].substring(0, 5);
-
-    const { data: upcomingShifts } = await supabase
-      .from('shift_assignments')
-      .select('*, employees(*), shifts(*)')
-      .eq('date', today);
-
-    if (upcomingShifts) {
-      for (const assignment of upcomingShifts) {
-        if (assignment.shifts?.startTime && assignment.shifts.startTime.startsWith(targetTime)) {
-          const phone = assignment.employees?.noHandphone;
-          if (phone) {
-            const msg = `⏰ *PENGINGAT SHIFT* ⏰\n\nHalo ${assignment.employees.nama},\n\nShift Anda *${assignment.shifts.name}* akan dimulai dalam 30 menit (${assignment.shifts.startTime}).\n\nJangan lupa absen ya! 😊`;
-            await sendWahaMessage(phone, msg, assignment.company);
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.error("Error in cron job:", err);
+    resendClient = new Resend(apiKey);
+    console.log("Resend client initialized");
+    return resendClient;
+  } catch (e) {
+    console.error("Error initializing Resend:", e);
+    return null;
   }
-});
-
-// Initialize Resend safely
-let resend: Resend | null = null;
-try {
-  if (process.env.RESEND_API_KEY) {
-    resend = new Resend(process.env.RESEND_API_KEY);
-    console.log("Resend initialized with API key");
-  } else {
-    console.warn("RESEND_API_KEY not found in environment variables");
-  }
-} catch (e) {
-  console.error("Error initializing Resend:", e);
 }
 
 // API Route to send email
@@ -453,6 +465,7 @@ app.post("/api/send-email", async (req, res) => {
   const { to, subject, html, from, attachments } = req.body;
   console.log(`API Request: Send email to ${to}`);
 
+  const resend = getResendClient();
   if (!resend) {
     const msg = "Email service not configured. Please ensure RESEND_API_KEY is set in environment variables.";
     console.error(msg);
@@ -498,14 +511,12 @@ app.post("/api/send-email", async (req, res) => {
 
 async function startServer() {
   const PORT = 3000;
-  const isProd = process.env.NODE_ENV === "production" && fs.existsSync(path.join(__dirname, "dist"));
+  // In Vercel, we don't need to serve static files from Express as Vercel handles it
+  // and we definitely don't want to start Vite.
+  const isVercel = !!process.env.VERCEL;
+  const isProd = process.env.NODE_ENV === "production" || isVercel;
 
-  console.log(`Starting server in ${isProd ? 'production' : 'development'} mode...`);
-
-  // Start listening immediately to prevent "Please wait while your application starts..." screen
-  const server = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server listening on http://0.0.0.0:${PORT}`);
-  });
+  console.log(`Starting server in ${isProd ? 'production' : 'development'} mode (Vercel: ${isVercel})...`);
 
   if (!isProd) {
     try {
@@ -531,19 +542,34 @@ async function startServer() {
     } catch (err) {
       console.error("Vite initialization failed, falling back to static:", err);
     }
-  } else {
-    app.use(express.static(path.join(__dirname, "dist")));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
+  } else if (!isVercel) {
+    // Only serve static files if we are in a traditional production environment (not Vercel)
+    const distPath = path.join(process.cwd(), "dist");
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    }
+  }
+
+  // Start listening only if not in Vercel
+  if (!isVercel) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server listening on http://0.0.0.0:${PORT}`);
     });
   }
 }
 
 // Start the server only if not in a serverless environment like Vercel
-if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+// In Vercel, the app is exported and handled by Vercel's internal server
+if (!process.env.VERCEL) {
   startServer().catch(err => {
     console.error("CRITICAL: Failed to start server:", err);
   });
+} else {
+  // In Vercel, we still want to run any non-Vite initialization if needed
+  // but currently startServer is mostly about Vite/Static/Listen
 }
 
 export default app;
