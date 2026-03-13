@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import domtoimage from 'dom-to-image-more';
+import html2canvas from 'html2canvas';
 import { Icons } from '../constants';
 import { Quotation, QuotationItem } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -127,13 +127,15 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
     try {
       const element = quotationRef.current;
       
-      const dataUrl = await domtoimage.toJpeg(element, {
-        width: element.clientWidth,
-        height: element.clientHeight,
-        quality: 0.8,
-        bgcolor: '#ffffff',
-        cacheBust: true
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false
       });
+      
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
 
       const link = document.createElement('a');
       link.href = dataUrl;
@@ -141,7 +143,7 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
       link.click();
     } catch (err) {
       console.error(err);
-      alert("Gagal men-download PNG");
+      alert("Gagal men-download JPG");
     } finally {
       setIsSaving(false);
     }

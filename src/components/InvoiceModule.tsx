@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import domtoimage from 'dom-to-image-more';
+import html2canvas from 'html2canvas';
 import { Icons } from '../constants';
 import { Invoice, InvoiceItem } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -299,21 +299,23 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
       if (!element) return;
 
       try {
-        const dataUrl = await domtoimage.toJpeg(element, {
-          width: element.clientWidth,
-          height: element.clientHeight,
-          quality: 0.8,
-          bgcolor: '#ffffff',
-          cacheBust: true
+        const canvas = await html2canvas(element, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false
         });
+        
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
 
         const link = document.createElement('a');
         link.href = dataUrl;
         link.download = `Invoice_${invoice.invoiceNumber}.jpg`;
         link.click();
       } catch (imgErr) {
-        console.error("Gagal generate PNG:", imgErr);
-        alert("Gagal mengunduh PNG. Silakan coba lagi.");
+        console.error("Gagal generate JPG:", imgErr);
+        alert("Gagal mengunduh JPG. Silakan coba lagi.");
       }
 
       // 4. Update local state for next invoice

@@ -7,7 +7,7 @@ import SalarySlipModal from './SalarySlipModal';
 import SalarySlipContent from './SalarySlipContent';
 import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
 import { jsPDF } from 'jspdf';
-import domtoimage from 'dom-to-image-more';
+import html2canvas from 'html2canvas';
 
 interface FinancialModuleProps {
   company: string;
@@ -425,34 +425,19 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
           try {
             const target = hiddenSlipRef.current;
             if (target) {
-              console.log(`DEBUG: Capturing slip for ${emp.nama} with dom-to-image-more...`);
+              console.log(`DEBUG: Capturing slip for ${emp.nama} with html2canvas...`);
               
-              // Wait for images to load inside the target
-              const images = target.getElementsByTagName('img');
-              await Promise.all(Array.from(images).map(img => {
-                if (img.complete) return Promise.resolve();
-                return new Promise(resolve => {
-                  img.onload = resolve;
-                  img.onerror = resolve;
-                });
-              }));
-
-              // dom-to-image-more is generally robust
-              const dataUrl = await domtoimage.toJpeg(target, {
+              const canvas = await html2canvas(target, {
+                scale: 2,
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#ffffff',
+                logging: false,
                 width: 794,
-                height: 1122,
-                quality: 0.8,
-                bgcolor: '#ffffff',
-                cacheBust: true,
-                style: {
-                  transform: 'scale(1)',
-                  transformOrigin: 'top left',
-                  visibility: 'visible',
-                  opacity: '1'
-                }
+                height: 1122
               });
               
-              jpegBase64 = dataUrl;
+              jpegBase64 = canvas.toDataURL('image/jpeg', 0.8);
               
               // Generate PDF
               const pdf = new jsPDF({
@@ -466,7 +451,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
               pdfBase64 = pdfOutput.includes(',') ? pdfOutput.split(',')[1] : pdfOutput;
               
               captureSuccess = true;
-              console.log("DEBUG: dom-to-image captured and PDF generated for", emp.nama);
+              console.log("DEBUG: html2canvas captured and PDF generated for", emp.nama);
             } else {
               console.warn("DEBUG: hiddenSlipRef.current is null!");
               (window as any).lastEmailError = "Internal Error: Slip container not found.";
@@ -475,10 +460,6 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
             console.error("DEBUG: Capture failed:", captureError);
             const errorMsg = captureError.message || captureError.toString();
             (window as any).lastEmailError = `Capture Error (${emp.nama}): ${errorMsg}`;
-            
-            if (errorMsg.includes('CORS') || errorMsg.includes('SecurityError')) {
-              (window as any).lastEmailError += " (Kemungkinan masalah CORS pada logo)";
-            }
           }
 
           if (!captureSuccess) {
@@ -530,7 +511,8 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
                 to: emp.email,
                 subject: `SLIP GAJI ${selectedMonth.toUpperCase()} ${selectedYear} - ${emp.nama}`,
                 html: emailHtml,
-                from: companyDetails?.email || "admin@visibel.agency",
+                from: "admin@visibel.agency",
+                replyTo: companyDetails?.email || "admin@visibel.agency",
                 attachments: [
                   {
                     filename: `slip-gaji-${emp.nama.toLowerCase().replace(/\s+/g, '-')}.pdf`,

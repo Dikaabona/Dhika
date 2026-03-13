@@ -522,7 +522,7 @@ function getResendClient() {
 
 // API Route to send email
 app.post("/api/send-email", async (req, res) => {
-  const { to, subject, html, from, attachments } = req.body;
+  const { to, subject, html, from, attachments, replyTo } = req.body;
   console.log(`API Request: Send email to ${to}`);
 
   const resend = getResendClient();
@@ -560,6 +560,7 @@ app.post("/api/send-email", async (req, res) => {
       to: [to],
       subject: subject,
       html: html,
+      replyTo: replyTo,
       attachments: processedAttachments.length > 0 ? processedAttachments : undefined,
     });
 
