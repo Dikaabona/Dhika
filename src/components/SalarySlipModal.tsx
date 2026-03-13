@@ -7,6 +7,7 @@ import { supabase } from '../services/supabaseClient';
 import { useConfirmation } from '../contexts/ConfirmationContext';
 
 import SalarySlipContent from './SalarySlipContent';
+import domtoimage from 'dom-to-image-more';
 
 interface SalarySlipModalProps {
   employee: Employee;
@@ -416,48 +417,21 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     if (!target) return;
     if (!silent) setIsProcessing(true);
     try {
-      if (!(window as any).html2canvas) {
-        throw new Error("Library html2canvas tidak ditemukan.");
-      }
-
-      const canvas = await (window as any).html2canvas(target, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
+      console.log("DEBUG: Capturing image with dom-to-image-more...");
+      const dataUrl = await domtoimage.toPng(target, {
         width: 794,
         height: 1122,
-        windowWidth: 794,
-        windowHeight: 1122,
-        x: 0,
-        y: 0,
-        scrollX: 0,
-        scrollY: 0,
-        onclone: (clonedDoc: Document) => {
-          // Fix for html2canvas not supporting oklch colors (Tailwind v4 default)
-          const styleTags = clonedDoc.getElementsByTagName('style');
-          for (let i = 0; i < styleTags.length; i++) {
-            if (styleTags[i].innerHTML.includes('oklch')) {
-              styleTags[i].innerHTML = styleTags[i].innerHTML.replace(/oklch\([^)]+\)/g, '#000000');
-            }
-          }
-          const all = clonedDoc.getElementsByTagName('*');
-          for (let i = 0; i < all.length; i++) {
-            const el = all[i] as HTMLElement;
-            if (el.style && el.style.cssText && el.style.cssText.includes('oklch')) {
-              el.style.cssText = el.style.cssText.replace(/oklch\([^)]+\)/g, '#000000');
-            }
-          }
-        }
+        bgcolor: '#ffffff',
+        cacheBust: true
       });
       
       const link = document.createElement('a');
       link.download = `Slip_Gaji_${employee.nama}_${data.month}_${data.year}.png`;
-      link.href = canvas.toDataURL('image/png');
+      link.href = dataUrl;
       link.click();
-    } catch (err) {
+    } catch (err: any) {
       console.error("PNG Download Error:", err);
-      if (!silent) alert("Gagal mengunduh gambar. Pastikan koneksi internet stabil.");
+      if (!silent) alert("Gagal mengunduh gambar: " + (err.message || "Unknown Error"));
     } finally {
       if (!silent) setIsProcessing(false);
     }
@@ -520,31 +494,13 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       const target = isPreview ? previewSlipRef.current : hiddenSlipRef.current;
       if (!target) return;
 
-      const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(target, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
+      console.log("DEBUG: Capturing image for email with dom-to-image-more...");
+      const pngBase64 = await domtoimage.toPng(target, {
         width: 794,
         height: 1122,
-        onclone: (clonedDoc: Document) => {
-          // Fix for html2canvas not supporting oklch colors (Tailwind v4 default)
-          const styleTags = clonedDoc.getElementsByTagName('style');
-          for (let i = 0; i < styleTags.length; i++) {
-            if (styleTags[i].innerHTML.includes('oklch')) {
-              styleTags[i].innerHTML = styleTags[i].innerHTML.replace(/oklch\([^)]+\)/g, '#000000');
-            }
-          }
-          const all = clonedDoc.getElementsByTagName('*');
-          for (let i = 0; i < all.length; i++) {
-            const el = all[i] as HTMLElement;
-            if (el.style && el.style.cssText && el.style.cssText.includes('oklch')) {
-              el.style.cssText = el.style.cssText.replace(/oklch\([^)]+\)/g, '#000000');
-            }
-          }
-        }
+        bgcolor: '#ffffff',
+        cacheBust: true
       });
-      const pngBase64 = canvas.toDataURL('image/png');
 
       const recipientEmail = (currentEmployee.email || '').trim();
       if (!recipientEmail) {
@@ -660,41 +616,13 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     
     setIsProcessing(true);
     try {
-      if (!(window as any).html2canvas) {
-        throw new Error("Library html2canvas tidak ditemukan.");
-      }
-
-      const canvas = await (window as any).html2canvas(target, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
+      console.log("DEBUG: Capturing image for inbox with dom-to-image-more...");
+      const pngBase64 = await domtoimage.toPng(target, {
         width: 794,
         height: 1122,
-        windowWidth: 794,
-        windowHeight: 1122,
-        x: 0,
-        y: 0,
-        scrollX: 0,
-        scrollY: 0,
-        onclone: (clonedDoc: Document) => {
-          // Fix for html2canvas not supporting oklch colors (Tailwind v4 default)
-          const styleTags = clonedDoc.getElementsByTagName('style');
-          for (let i = 0; i < styleTags.length; i++) {
-            if (styleTags[i].innerHTML.includes('oklch')) {
-              styleTags[i].innerHTML = styleTags[i].innerHTML.replace(/oklch\([^)]+\)/g, '#000000');
-            }
-          }
-          const all = clonedDoc.getElementsByTagName('*');
-          for (let i = 0; i < all.length; i++) {
-            const el = all[i] as HTMLElement;
-            if (el.style && el.style.cssText && el.style.cssText.includes('oklch')) {
-              el.style.cssText = el.style.cssText.replace(/oklch\([^)]+\)/g, '#000000');
-            }
-          }
-        }
+        bgcolor: '#ffffff',
+        cacheBust: true
       });
-      const pngBase64 = canvas.toDataURL('image/png');
 
       const newBroadcast: Broadcast = {
         title: `SLIP GAJI ${data.month.toUpperCase()} ${data.year}`,

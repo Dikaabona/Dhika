@@ -46,7 +46,15 @@ const SalarySlipContent: React.FC<SalarySlipContentProps> = ({
       {/* Header Section */}
       <div className="flex justify-between items-start mb-10">
         <div className="w-48">
-          <img src={slipLogo} alt="Visibel Logo" className="w-full object-contain" referrerPolicy="no-referrer" />
+          <img 
+            src={slipLogo} 
+            alt="Visibel Logo" 
+            className="w-full object-contain" 
+            referrerPolicy="no-referrer" 
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/200x80?text=LOGO';
+            }}
+          />
         </div>
         <div className="text-right">
           <h1 className="text-4xl font-black tracking-tighter uppercase leading-none mb-1">SLIP GAJI</h1>
@@ -88,7 +96,7 @@ const SalarySlipContent: React.FC<SalarySlipContentProps> = ({
       <div className="grid grid-cols-2 gap-16 mb-16">
         {/* Penerimaan */}
         <div>
-          <h5 className="text-sm font-black uppercase tracking-widest mb-6 border-b-2 border-slate-900 pb-2 inline-block">
+          <h5 className="text-sm font-black uppercase tracking-widest mb-6 border-b-2 border-[#0f172a] pb-2 inline-block">
             Penerimaan (+)
           </h5>
           <div className="space-y-4">
@@ -121,7 +129,7 @@ const SalarySlipContent: React.FC<SalarySlipContentProps> = ({
 
         {/* Potongan */}
         <div>
-          <h5 className="text-sm font-black uppercase tracking-widest mb-6 border-b-2 border-slate-900 pb-2 inline-block">
+          <h5 className="text-sm font-black uppercase tracking-widest mb-6 border-b-2 border-[#0f172a] pb-2 inline-block">
             Potongan (-)
           </h5>
           <div className="space-y-4">
@@ -151,10 +159,13 @@ const SalarySlipContent: React.FC<SalarySlipContentProps> = ({
 
       {/* Total Net Pay Box */}
       <div className="mt-auto mb-12">
-        <div className="bg-[#0f172a] rounded-[48px] p-12 text-center shadow-2xl relative overflow-hidden">
+        <div className="bg-[#0f172a] rounded-[48px] p-12 text-center relative overflow-hidden">
           {/* Subtle background pattern */}
           <div className="absolute inset-0 opacity-5 pointer-events-none">
-            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
+            <div 
+              className="absolute top-0 left-0 w-full h-full" 
+              style={{ background: 'radial-gradient(circle at center, #ffffff 0%, transparent 100%)' }}
+            ></div>
           </div>
           
           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[#94a3b8] mb-6 relative z-10">

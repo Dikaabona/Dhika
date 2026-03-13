@@ -7,7 +7,7 @@ import SalarySlipModal from './SalarySlipModal';
 import SalarySlipContent from './SalarySlipContent';
 import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
 import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+import domtoimage from 'dom-to-image-more';
 
 interface FinancialModuleProps {
   company: string;
@@ -413,69 +413,42 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
           setProcessingEmployeeData(slipData);
           
           // Wait for render and assets to load
-          await new Promise(resolve => setTimeout(resolve, 800)); 
+          await new Promise(resolve => setTimeout(resolve, 2000)); 
 
           // Capture image and PDF
           let pngBase64 = '';
           let pdfBase64 = '';
           let captureSuccess = false;
           try {
-            if (hiddenSlipRef.current) {
-              console.log("DEBUG: hiddenSlipRef.current exists, capturing...");
+            const target = hiddenSlipRef.current;
+            if (target) {
+              console.log(`DEBUG: Capturing slip for ${emp.nama} with dom-to-image-more...`);
               
-              const canvas = await html2canvas(hiddenSlipRef.current, {
-                scale: 2,
-                useCORS: true,
-                backgroundColor: '#ffffff',
-                logging: false,
+              // Wait for images to load inside the target
+              const images = target.getElementsByTagName('img');
+              await Promise.all(Array.from(images).map(img => {
+                if (img.complete) return Promise.resolve();
+                return new Promise(resolve => {
+                  img.onload = resolve;
+                  img.onerror = resolve;
+                });
+              }));
+
+              // dom-to-image-more is generally robust
+              const dataUrl = await domtoimage.toPng(target, {
                 width: 794,
                 height: 1122,
-                windowWidth: 794,
-                windowHeight: 1122,
-                x: 0,
-                y: 0,
-                scrollX: 0,
-                scrollY: 0,
-                onclone: (clonedDoc: Document) => {
-                  // Fix for html2canvas not supporting oklch colors (Tailwind v4 default)
-                  // 1. Process all style tags
-                  const styleTags = clonedDoc.getElementsByTagName('style');
-                  for (let i = 0; i < styleTags.length; i++) {
-                    if (styleTags[i].innerHTML.includes('oklch')) {
-                      styleTags[i].innerHTML = styleTags[i].innerHTML.replace(/oklch\([^)]+\)/g, '#000000');
-                    }
-                  }
-                  
-                  // 2. Process all link tags (external stylesheets)
-                  // Note: html2canvas usually handles this, but we can try to patch the rules if accessible
-                  try {
-                    for (let i = 0; i < clonedDoc.styleSheets.length; i++) {
-                      const sheet = clonedDoc.styleSheets[i];
-                      try {
-                        for (let j = 0; j < sheet.cssRules.length; j++) {
-                          const rule = sheet.cssRules[j] as CSSStyleRule;
-                          if (rule.style && rule.style.cssText && rule.style.cssText.includes('oklch')) {
-                            rule.style.cssText = rule.style.cssText.replace(/oklch\([^)]+\)/g, '#000000');
-                          }
-                        }
-                      } catch (e) {
-                        // Cross-origin stylesheet might not be accessible
-                      }
-                    }
-                  } catch (e) {}
-
-                  // 3. Process all elements with inline styles
-                  const all = clonedDoc.getElementsByTagName('*');
-                  for (let i = 0; i < all.length; i++) {
-                    const el = all[i] as HTMLElement;
-                    if (el.style && el.style.cssText && el.style.cssText.includes('oklch')) {
-                      el.style.cssText = el.style.cssText.replace(/oklch\([^)]+\)/g, '#000000');
-                    }
-                  }
+                bgcolor: '#ffffff',
+                cacheBust: true,
+                style: {
+                  transform: 'scale(1)',
+                  transformOrigin: 'top left',
+                  visibility: 'visible',
+                  opacity: '1'
                 }
               });
               
-              pngBase64 = canvas.toDataURL('image/png');
+              pngBase64 = dataUrl;
               
               // Generate PDF
               const pdf = new jsPDF({
@@ -489,12 +462,19 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
               pdfBase64 = pdfOutput.includes(',') ? pdfOutput.split(',')[1] : pdfOutput;
               
               captureSuccess = true;
-              console.log("DEBUG: Canvas captured and PDF generated for", emp.nama);
+              console.log("DEBUG: dom-to-image captured and PDF generated for", emp.nama);
             } else {
               console.warn("DEBUG: hiddenSlipRef.current is null!");
+              (window as any).lastEmailError = "Internal Error: Slip container not found.";
             }
-          } catch (canvasError: any) {
-            console.error("DEBUG: Canvas/PDF capture failed:", canvasError);
+          } catch (captureError: any) {
+            console.error("DEBUG: Capture failed:", captureError);
+            const errorMsg = captureError.message || captureError.toString();
+            (window as any).lastEmailError = `Capture Error (${emp.nama}): ${errorMsg}`;
+            
+            if (errorMsg.includes('CORS') || errorMsg.includes('SecurityError')) {
+              (window as any).lastEmailError += " (Kemungkinan masalah CORS pada logo)";
+            }
           }
 
           if (!captureSuccess) {
@@ -982,8 +962,18 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
       )}
 
       {/* Hidden slip for bulk processing */}
-      <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', width: '794px', height: '1122px', pointerEvents: 'none', zIndex: -1 }}>
-        <div ref={hiddenSlipRef}>
+      <div style={{ 
+        position: 'fixed', 
+        top: 0, 
+        left: '-9999px', 
+        width: '794px', 
+        height: '1122px', 
+        pointerEvents: 'none', 
+        zIndex: -1000,
+        background: 'white',
+        overflow: 'hidden'
+      }}>
+        <div ref={hiddenSlipRef} style={{ width: '794px', height: '1122px' }}>
           {processingEmployeeData && (
             <SalarySlipContent {...processingEmployeeData} />
           )}
