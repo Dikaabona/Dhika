@@ -8,6 +8,7 @@ import { useConfirmation } from '../contexts/ConfirmationContext';
 
 import SalarySlipContent from './SalarySlipContent';
 import domtoimage from 'dom-to-image-more';
+import { jsPDF } from 'jspdf';
 
 interface SalarySlipModalProps {
   employee: Employee;
@@ -441,47 +442,25 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     const target = isPreview ? previewSlipRef.current : hiddenSlipRef.current;
     if (!target) return null;
     
-    if (!(window as any).html2pdf) {
-      throw new Error("Library html2pdf tidak ditemukan.");
-    }
-
     const fileName = `Slip_Gaji_${employee.nama.replace(/\s/g, '_')}_${data.month}_${data.year}.pdf`;
-    const opt = {
-      margin: 0,
-      filename: fileName,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { 
-        scale: 2, 
-        useCORS: true, 
-        letterRendering: true, 
-        scrollY: 0, 
-        scrollX: 0, 
-        width: 794, 
-        windowWidth: 794,
-        x: 0,
-        y: 0,
-        onclone: (clonedDoc: Document) => {
-          // Fix for html2canvas not supporting oklch colors (Tailwind v4 default)
-          const styleTags = clonedDoc.getElementsByTagName('style');
-          for (let i = 0; i < styleTags.length; i++) {
-            if (styleTags[i].innerHTML.includes('oklch')) {
-              styleTags[i].innerHTML = styleTags[i].innerHTML.replace(/oklch\([^)]+\)/g, '#000000');
-            }
-          }
-          const all = clonedDoc.getElementsByTagName('*');
-          for (let i = 0; i < all.length; i++) {
-            const el = all[i] as HTMLElement;
-            if (el.style && el.style.cssText && el.style.cssText.includes('oklch')) {
-              el.style.cssText = el.style.cssText.replace(/oklch\([^)]+\)/g, '#000000');
-            }
-          }
-        }
-      },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-
+    
     try {
-      return await (window as any).html2pdf().from(target).set(opt).output('blob');
+      console.log("DEBUG: Generating PDF blob with dom-to-image-more + jsPDF...");
+      const dataUrl = await domtoimage.toPng(target, {
+        width: 794,
+        height: 1122,
+        bgcolor: '#ffffff',
+        cacheBust: true
+      });
+
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: [794, 1122]
+      });
+
+      pdf.addImage(dataUrl, 'PNG', 0, 0, 794, 1122);
+      return pdf.output('blob');
     } catch (err) {
       console.error("PDF Generation Error:", err);
       throw err;

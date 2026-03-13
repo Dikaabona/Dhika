@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import html2canvas from 'html2canvas';
+import domtoimage from 'dom-to-image-more';
 import { Icons } from '../constants';
 import { Invoice, InvoiceItem } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -299,18 +299,15 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
       if (!element) return;
 
       try {
-        const canvas = await html2canvas(element, {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          scrollY: 0,
-          windowWidth: element.clientWidth,
-          backgroundColor: '#ffffff'
+        const dataUrl = await domtoimage.toPng(element, {
+          width: element.clientWidth,
+          height: element.clientHeight,
+          bgcolor: '#ffffff',
+          cacheBust: true
         });
 
-        const image = canvas.toDataURL("image/png");
         const link = document.createElement('a');
-        link.href = image;
+        link.href = dataUrl;
         link.download = `Invoice_${invoice.invoiceNumber}.png`;
         link.click();
       } catch (imgErr) {

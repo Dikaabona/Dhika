@@ -17,6 +17,9 @@ interface FinancialModuleProps {
 }
 
 const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, attendanceRecords, onClose }) => {
+  useEffect(() => {
+    console.log("DEBUG: FinancialModule V2.1 (dom-to-image-more) Loaded");
+  }, []);
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
