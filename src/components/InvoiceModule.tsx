@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import html2canvas from 'html2canvas';
+import { domToJpeg } from 'modern-screenshot';
 import { Icons } from '../constants';
 import { Invoice, InvoiceItem } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -299,15 +299,11 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
       if (!element) return;
 
       try {
-        const canvas = await html2canvas(element, {
+        const dataUrl = await domToJpeg(element, {
+          quality: 0.8,
           scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: '#ffffff',
-          logging: false
+          backgroundColor: '#ffffff'
         });
-        
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
 
         const link = document.createElement('a');
         link.href = dataUrl;

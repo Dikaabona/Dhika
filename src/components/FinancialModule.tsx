@@ -7,7 +7,7 @@ import SalarySlipModal from './SalarySlipModal';
 import SalarySlipContent from './SalarySlipContent';
 import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
 import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+import { domToJpeg } from 'modern-screenshot';
 
 interface FinancialModuleProps {
   company: string;
@@ -18,7 +18,7 @@ interface FinancialModuleProps {
 
 const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, attendanceRecords, onClose }) => {
   useEffect(() => {
-    console.log("DEBUG: FinancialModule V2.1 (dom-to-image-more) Loaded");
+    console.log("DEBUG: FinancialModule V2.2 (modern-screenshot) Loaded");
   }, []);
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -425,19 +425,20 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
           try {
             const target = hiddenSlipRef.current;
             if (target) {
-              console.log(`DEBUG: Capturing slip for ${emp.nama} with html2canvas...`);
+              console.log(`DEBUG: Capturing slip for ${emp.nama} with modern-screenshot...`);
               
-              const canvas = await html2canvas(target, {
+              const dataUrl = await domToJpeg(target, {
+                quality: 0.8,
                 scale: 2,
-                useCORS: true,
-                allowTaint: true,
-                backgroundColor: '#ffffff',
-                logging: false,
                 width: 794,
-                height: 1122
+                height: 1122,
+                backgroundColor: '#ffffff',
+                features: {
+                  // Disable some features if they cause issues, but usually default is fine
+                }
               });
               
-              jpegBase64 = canvas.toDataURL('image/jpeg', 0.8);
+              jpegBase64 = dataUrl;
               
               // Generate PDF
               const pdf = new jsPDF({
@@ -451,7 +452,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
               pdfBase64 = pdfOutput.includes(',') ? pdfOutput.split(',')[1] : pdfOutput;
               
               captureSuccess = true;
-              console.log("DEBUG: html2canvas captured and PDF generated for", emp.nama);
+              console.log("DEBUG: modern-screenshot captured and PDF generated for", emp.nama);
             } else {
               console.warn("DEBUG: hiddenSlipRef.current is null!");
               (window as any).lastEmailError = "Internal Error: Slip container not found.";

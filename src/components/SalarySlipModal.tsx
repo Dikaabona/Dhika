@@ -7,7 +7,7 @@ import { supabase } from '../services/supabaseClient';
 import { useConfirmation } from '../contexts/ConfirmationContext';
 
 import SalarySlipContent from './SalarySlipContent';
-import html2canvas from 'html2canvas';
+import { domToJpeg } from 'modern-screenshot';
 import { jsPDF } from 'jspdf';
 
 interface SalarySlipModalProps {
@@ -418,18 +418,14 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     if (!target) return;
     if (!silent) setIsProcessing(true);
     try {
-      console.log("DEBUG: Capturing image with html2canvas...");
-      const canvas = await html2canvas(target, {
+      console.log("DEBUG: Capturing image with modern-screenshot...");
+      const dataUrl = await domToJpeg(target, {
+        quality: 0.8,
         scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
         width: 794,
-        height: 1122
+        height: 1122,
+        backgroundColor: '#ffffff'
       });
-      
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
       
       const link = document.createElement('a');
       link.download = `Slip_Gaji_${employee.nama}_${data.month}_${data.year}.jpg`;
@@ -450,18 +446,14 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     const fileName = `Slip_Gaji_${employee.nama.replace(/\s/g, '_')}_${data.month}_${data.year}.pdf`;
     
     try {
-      console.log("DEBUG: Generating PDF blob with html2canvas + jsPDF...");
-      const canvas = await html2canvas(target, {
+      console.log("DEBUG: Generating PDF blob with modern-screenshot + jsPDF...");
+      const dataUrl = await domToJpeg(target, {
+        quality: 0.8,
         scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
         width: 794,
-        height: 1122
+        height: 1122,
+        backgroundColor: '#ffffff'
       });
-      
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
 
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -483,18 +475,14 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       const target = isPreview ? previewSlipRef.current : hiddenSlipRef.current;
       if (!target) return;
 
-      console.log("DEBUG: Capturing image for email with html2canvas...");
-      const canvas = await html2canvas(target, {
+      console.log("DEBUG: Capturing image for email with modern-screenshot...");
+      const jpegBase64 = await domToJpeg(target, {
+        quality: 0.8,
         scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
         width: 794,
-        height: 1122
+        height: 1122,
+        backgroundColor: '#ffffff'
       });
-      
-      const jpegBase64 = canvas.toDataURL('image/jpeg', 0.8);
 
       const recipientEmail = (currentEmployee.email || '').trim();
       if (!recipientEmail) {
@@ -618,18 +606,14 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     
     setIsProcessing(true);
     try {
-      console.log("DEBUG: Capturing image for inbox with html2canvas...");
-      const canvas = await html2canvas(target, {
+      console.log("DEBUG: Capturing image for inbox with modern-screenshot...");
+      const jpegBase64 = await domToJpeg(target, {
+        quality: 0.8,
         scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
         width: 794,
-        height: 1122
+        height: 1122,
+        backgroundColor: '#ffffff'
       });
-      
-      const jpegBase64 = canvas.toDataURL('image/jpeg', 0.8);
 
       const newBroadcast: Broadcast = {
         title: `SLIP GAJI ${data.month.toUpperCase()} ${data.year}`,

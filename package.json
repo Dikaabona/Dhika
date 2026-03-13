@@ -22,6 +22,7 @@
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.0",
     "leaflet": "^1.9.4",
+    "modern-screenshot": "^4.6.8",
     "node-cron": "^4.2.1",
     "node-fetch": "^3.3.2",
     "papaparse": "^5.5.3",
