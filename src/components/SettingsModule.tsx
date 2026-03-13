@@ -23,7 +23,7 @@ interface SettingsModuleProps {
   onRefresh: () => void;
 }
 
-type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT' | 'COMPANY' | 'GAJI' | 'WHATSAPP';
+type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT' | 'COMPANY' | 'GAJI';
 
 interface CustomCriteria {
   id: string;
@@ -98,19 +98,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [trialInfo, setTrialInfo] = useState<{ startDate: string; isPremium: boolean } | null>(null);
-  const [wahaSettings, setWahaSettings] = useState({
-    apiUrl: '',
-    apiKey: '',
-    sessionName: 'default'
-  });
-  const [isWahaLoading, setIsWahaLoading] = useState(false);
-  
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [isEditingOvertime, setIsEditingOvertime] = useState(false);
   const [isEditingSalary, setIsEditingSalary] = useState(false);
-  const [isTestingWaha, setIsTestingWaha] = useState(false);
   const [searchEmp, setSearchEmp] = useState('');
   const [searchRemote, setSearchRemote] = useState('');
 
@@ -134,16 +126,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     fetchCompanyData();
     fetchTrialInfo();
     if (isOwner) fetchAllCompanies();
-    fetchWahaSettings();
   }, [selectedCompany, isOwner, userCompany]);
-
-  const fetchWahaSettings = async () => {
-    try {
-      const targetCompany = isOwner ? selectedCompany : userCompany;
-      const { data } = await supabase.from('settings').select('value').eq('key', `waha_settings_${targetCompany}`).single();
-      if (data) setWahaSettings(data.value);
-    } catch (e) {}
-  };
 
   const fetchTrialInfo = async () => {
     try {
@@ -433,40 +416,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const handleUpdateComponentWeight = (field: string, value: number) => {
     const updated = { ...kpiSystem, [field]: value };
     setKpiSystem(updated);
-  };
-
-  const handleSetupWahaWebhook = async () => {
-    setIsWahaLoading(true);
-    try {
-      const targetCompany = isOwner ? selectedCompany : userCompany;
-      
-      // First save settings to Supabase
-      const { error: saveError } = await supabase.from('settings').upsert({
-        key: `waha_settings_${targetCompany}`,
-        value: wahaSettings
-      }, { onConflict: 'key' });
-      
-      if (saveError) throw saveError;
-
-      // Then call backend to setup webhook in WAHA
-      const response = await fetch('/api/waha/setup-webhook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          company: targetCompany,
-          ...wahaSettings
-        })
-      });
-      
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Gagal setup webhook');
-      
-      alert("WAHA Webhook berhasil dikonfigurasi!");
-    } catch (err: any) {
-      alert("Error: " + err.message);
-    } finally {
-      setIsWahaLoading(false);
-    }
   };
 
   const handleUpdateRole = async (empId: string, newRole: string) => {
@@ -801,12 +750,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                     DATA CLIENT
                   </button>
                 )}
-                <button 
-                  onClick={() => setActiveSubTab('WHATSAPP')} 
-                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'WHATSAPP' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  WHATSAPP
-                </button>
               </div>
             </div>
           </div>
@@ -1770,116 +1713,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                      <div className="absolute top-0 right-0 w-32 h-32 bg-[#FFC000]/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000"></div>
                   </div>
                </div>
-            </div>
-          </div>
-        ) : activeSubTab === 'WHATSAPP' ? (
-          <div className="animate-in fade-in duration-300 space-y-12">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-              <div className="space-y-2">
-                 <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Integrasi WhatsApp (WAHA)</h3>
-                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Hubungkan sistem dengan WhatsApp HTTP API untuk fitur auto-reply AI.</p>
-              </div>
-              <button 
-                onClick={handleSetupWahaWebhook}
-                disabled={isWahaLoading || !wahaSettings.apiUrl}
-                className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50 flex items-center gap-3"
-              >
-                {isWahaLoading ? <Icons.Loader2 className="w-4 h-4 animate-spin" /> : <Icons.Zap className="w-4 h-4" />}
-                SETUP WEBHOOK
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-              <div className="bg-white p-8 rounded-[40px] border border-slate-100 space-y-8 shadow-sm">
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">WAHA API URL</label>
-                    <input 
-                      type="text" 
-                      value={wahaSettings.apiUrl}
-                      onChange={e => setWahaSettings({...wahaSettings, apiUrl: e.target.value})}
-                      placeholder="https://your-waha-instance.com"
-                      className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-black text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10" 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">WAHA API KEY (Optional)</label>
-                    <input 
-                      type="password" 
-                      value={wahaSettings.apiKey}
-                      onChange={e => setWahaSettings({...wahaSettings, apiKey: e.target.value})}
-                      placeholder="Your API Key"
-                      className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-black text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10" 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Session Name</label>
-                    <input 
-                      type="text" 
-                      value={wahaSettings.sessionName}
-                      onChange={e => setWahaSettings({...wahaSettings, sessionName: e.target.value})}
-                      placeholder="default"
-                      className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-black text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10" 
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
-                  <div className="flex gap-3">
-                    <Icons.Info className="w-5 h-5 text-indigo-500 shrink-0" />
-                    <div className="space-y-2">
-                      <p className="text-[11px] font-black text-indigo-900 uppercase tracking-tight">Cara Setup:</p>
-                      <ol className="text-[10px] text-indigo-700 space-y-1 list-decimal ml-4 font-medium">
-                        <li>Masukkan URL API WAHA Anda.</li>
-                        <li>Klik tombol <b>SETUP WEBHOOK</b> untuk mendaftarkan endpoint otomatis.</li>
-                        <li>Sistem akan mulai menerima pesan dan membalas menggunakan Gemini AI.</li>
-                      </ol>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <div className="bg-slate-900 p-8 rounded-[40px] text-white shadow-2xl relative overflow-hidden group">
-                  <div className="relative z-10 space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-[#FFC000] rounded-xl text-black">
-                        <Icons.Sparkles className="w-5 h-5" />
-                      </div>
-                      <h4 className="text-[10px] font-black tracking-widest uppercase text-[#FFC000]">AI Auto-Reply</h4>
-                    </div>
-                    <p className="text-lg font-black uppercase tracking-tight leading-snug">
-                      Fitur ini menggunakan Gemini AI untuk membalas pesan secara otomatis berdasarkan data perusahaan.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="px-3 py-1 bg-white/10 rounded-full text-[9px] font-black uppercase tracking-widest">!menu</span>
-                      <span className="px-3 py-1 bg-white/10 rounded-full text-[9px] font-black uppercase tracking-widest">!jadwal</span>
-                      <span className="px-3 py-1 bg-white/10 rounded-full text-[9px] font-black uppercase tracking-widest">!absen</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Webhook URL</h4>
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex items-center justify-between gap-4">
-                    <code className="text-[10px] font-mono text-indigo-600 break-all">
-                      {window.location.origin}/api/webhook/waha
-                    </code>
-                    <button 
-                      onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/api/webhook/waha`);
-                        alert("URL disalin!");
-                      }}
-                      className="p-2 hover:bg-indigo-50 rounded-lg text-indigo-400 transition-colors"
-                    >
-                      <Icons.Copy className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <p className="text-[9px] text-slate-400 mt-4 font-medium italic">
-                    * Gunakan URL ini jika Anda ingin melakukan konfigurasi manual di dashboard WAHA.
-                  </p>
-                </div>
-              </div>
             </div>
           </div>
         ) : activeSubTab === 'LEMBUR' ? (

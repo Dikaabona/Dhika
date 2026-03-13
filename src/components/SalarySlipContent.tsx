@@ -53,23 +53,23 @@ const SalarySlipContent: React.FC<SalarySlipContentProps> = ({
           <h2 className="text-xl font-black text-[#FFC000] uppercase tracking-tight mb-1">
             {data.month} {data.year}
           </h2>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          <p className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-widest">
             Cutoff: {cutoffStart} - {cutoffEnd}
           </p>
         </div>
       </div>
 
-      <div className="w-full h-0.5 bg-slate-100 mb-8"></div>
+      <div className="w-full h-0.5 bg-[#f1f5f9] mb-8"></div>
 
       {/* Employee Info Box */}
       <div className="bg-[#FFFDF0] border-2 border-[#FFC000] rounded-[32px] p-8 mb-12 flex justify-between items-center">
         <div className="space-y-6">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Nama Karyawan</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-[#94a3b8] mb-1">Nama Karyawan</p>
             <h3 className="text-2xl font-black tracking-tight">{employee.nama}</h3>
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">ID Karyawan</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-[#94a3b8] mb-1">ID Karyawan</p>
             <p className="text-lg font-black text-[#FFC000]">{employee.idKaryawan || employee.id}</p>
           </div>
         </div>
@@ -78,7 +78,7 @@ const SalarySlipContent: React.FC<SalarySlipContentProps> = ({
             <h4 className="text-3xl font-black tracking-tighter uppercase">{employee.jabatan}</h4>
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">No. Rekening</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-[#94a3b8] mb-1">No. Rekening</p>
             <p className="text-lg font-black">{employee.noRekening || '-'}</p>
           </div>
         </div>
@@ -93,26 +93,26 @@ const SalarySlipContent: React.FC<SalarySlipContentProps> = ({
           </h5>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-slate-600">Gaji Pokok</span>
+              <span className="text-sm font-medium text-[#475569]">Gaji Pokok</span>
               <span className="text-sm font-black">{formatCurrency(data.gapok || 0)}</span>
             </div>
             {data.tunjanganJabatan > 0 && (
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-slate-600">Tunjangan Jabatan</span>
+                <span className="text-sm font-medium text-[#475569]">Tunjangan Jabatan</span>
                 <span className="text-sm font-black">{formatCurrency(data.tunjanganJabatan)}</span>
               </div>
             )}
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-slate-600">Tunjangan Ops..</span>
+              <span className="text-sm font-medium text-[#475569]">Tunjangan Ops..</span>
               <span className="text-sm font-black">{formatCurrency(totalTunjanganOps)}</span>
             </div>
             {data.bonus > 0 && (
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-slate-600">Bonus/Insentif</span>
+                <span className="text-sm font-medium text-[#475569]">Bonus/Insentif</span>
                 <span className="text-sm font-black">{formatCurrency(data.bonus)}</span>
               </div>
             )}
-            <div className="pt-4 mt-4 border-t border-slate-100 flex justify-between items-center">
+            <div className="pt-4 mt-4 border-t border-[#f1f5f9] flex justify-between items-center">
               <span className="text-sm font-black uppercase tracking-widest">Total Bruto</span>
               <span className="text-sm font-black">{formatCurrency(totalPendapatan)}</span>
             </div>
@@ -126,24 +126,24 @@ const SalarySlipContent: React.FC<SalarySlipContentProps> = ({
           </h5>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-slate-600">Absensi ({attendanceResults?.absent || 0} Alpha)</span>
-              <span className="text-sm font-black text-rose-500">{formatCurrency(potonganAbsensi)}</span>
+              <span className="text-sm font-medium text-[#475569]">Absensi ({attendanceResults?.absent || 0} Alpha)</span>
+              <span className="text-sm font-black text-[#f43f5e]">{formatCurrency(potonganAbsensi)}</span>
             </div>
             {isBPJSTKActive && data.bpjstk > 0 && (
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-slate-600">BPJS TK</span>
-                <span className="text-sm font-black text-rose-500">{formatCurrency(data.bpjstk)}</span>
+                <span className="text-sm font-medium text-[#475569]">BPJS TK</span>
+                <span className="text-sm font-black text-[#f43f5e]">{formatCurrency(data.bpjstk)}</span>
               </div>
             )}
             {data.potonganHutang > 0 && (
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-slate-600">Cicilan Hutang</span>
-                <span className="text-sm font-black text-rose-500">{formatCurrency(data.potonganHutang)}</span>
+                <span className="text-sm font-medium text-[#475569]">Cicilan Hutang</span>
+                <span className="text-sm font-black text-[#f43f5e]">{formatCurrency(data.potonganHutang)}</span>
               </div>
             )}
-            <div className="pt-4 mt-4 border-t border-slate-100 flex justify-between items-center">
+            <div className="pt-4 mt-4 border-t border-[#f1f5f9] flex justify-between items-center">
               <span className="text-sm font-black uppercase tracking-widest">Total Potongan</span>
-              <span className="text-sm font-black text-rose-500">{formatCurrency(totalPotongan)}</span>
+              <span className="text-sm font-black text-[#f43f5e]">{formatCurrency(totalPotongan)}</span>
             </div>
           </div>
         </div>
@@ -157,7 +157,7 @@ const SalarySlipContent: React.FC<SalarySlipContentProps> = ({
             <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
           </div>
           
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400 mb-6 relative z-10">
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[#94a3b8] mb-6 relative z-10">
             Total Gaji Bersih
           </p>
           <div className="flex items-center justify-center gap-4 relative z-10">
@@ -171,7 +171,7 @@ const SalarySlipContent: React.FC<SalarySlipContentProps> = ({
 
       {/* Footer */}
       <div className="text-center">
-        <p className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.3em]">
+        <p className="text-[10px] font-bold text-[#cbd5e1] uppercase tracking-[0.3em]">
           - Dokumen Elektronik Sah -
         </p>
       </div>

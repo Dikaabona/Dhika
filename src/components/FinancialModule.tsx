@@ -418,6 +418,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
           // Capture image and PDF
           let pngBase64 = '';
           let pdfBase64 = '';
+          let captureSuccess = false;
           try {
             if (hiddenSlipRef.current) {
               console.log("DEBUG: hiddenSlipRef.current exists, capturing...");
@@ -437,12 +438,33 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
                 scrollY: 0,
                 onclone: (clonedDoc: Document) => {
                   // Fix for html2canvas not supporting oklch colors (Tailwind v4 default)
+                  // 1. Process all style tags
                   const styleTags = clonedDoc.getElementsByTagName('style');
                   for (let i = 0; i < styleTags.length; i++) {
                     if (styleTags[i].innerHTML.includes('oklch')) {
                       styleTags[i].innerHTML = styleTags[i].innerHTML.replace(/oklch\([^)]+\)/g, '#000000');
                     }
                   }
+                  
+                  // 2. Process all link tags (external stylesheets)
+                  // Note: html2canvas usually handles this, but we can try to patch the rules if accessible
+                  try {
+                    for (let i = 0; i < clonedDoc.styleSheets.length; i++) {
+                      const sheet = clonedDoc.styleSheets[i];
+                      try {
+                        for (let j = 0; j < sheet.cssRules.length; j++) {
+                          const rule = sheet.cssRules[j] as CSSStyleRule;
+                          if (rule.style && rule.style.cssText && rule.style.cssText.includes('oklch')) {
+                            rule.style.cssText = rule.style.cssText.replace(/oklch\([^)]+\)/g, '#000000');
+                          }
+                        }
+                      } catch (e) {
+                        // Cross-origin stylesheet might not be accessible
+                      }
+                    }
+                  } catch (e) {}
+
+                  // 3. Process all elements with inline styles
                   const all = clonedDoc.getElementsByTagName('*');
                   for (let i = 0; i < all.length; i++) {
                     const el = all[i] as HTMLElement;
@@ -466,12 +488,20 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
               const pdfOutput = pdf.output('datauristring');
               pdfBase64 = pdfOutput.includes(',') ? pdfOutput.split(',')[1] : pdfOutput;
               
+              captureSuccess = true;
               console.log("DEBUG: Canvas captured and PDF generated for", emp.nama);
             } else {
               console.warn("DEBUG: hiddenSlipRef.current is null!");
             }
           } catch (canvasError: any) {
             console.error("DEBUG: Canvas/PDF capture failed:", canvasError);
+          }
+
+          if (!captureSuccess) {
+            console.error(`DEBUG: Skipping email for ${emp.nama} due to capture failure`);
+            if (!(window as any).lastEmailError) (window as any).lastEmailError = "Gagal membuat file PDF slip gaji (Canvas Error).";
+            errorCount++;
+            continue;
           }
 
           // 1. Send to Inbox (Broadcasts)

@@ -535,19 +535,23 @@ app.post("/api/send-email", async (req, res) => {
   try {
     let processedAttachments: any[] = [];
     if (attachments && Array.isArray(attachments)) {
-      processedAttachments = attachments.map((att: any) => {
-        const contentBuffer = typeof att.content === 'string' 
-          ? Buffer.from(att.content, 'base64') 
-          : att.content;
+      processedAttachments = attachments
+        .filter((att: any) => att.content && att.content.length > 0)
+        .map((att: any) => {
+          const contentBuffer = typeof att.content === 'string' 
+            ? Buffer.from(att.content, 'base64') 
+            : att.content;
 
-        return {
-          filename: att.filename || 'attachment.png',
-          content: contentBuffer,
-          contentType: att.contentType,
-          contentId: att.cid || att.contentId
-        };
-      });
+          return {
+            filename: att.filename || 'attachment.png',
+            content: contentBuffer,
+            contentType: att.contentType,
+            contentId: att.cid || att.contentId
+          };
+        });
     }
+
+    console.log(`Sending email via Resend with ${processedAttachments.length} attachments`);
 
     const { data, error } = await resend.emails.send({
       from: from || "admin@visibel.agency",
