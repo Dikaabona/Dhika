@@ -1,5 +1,4 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import { Resend } from "resend";
 import dotenv from "dotenv";
 import path from "path";
@@ -27,6 +26,16 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.get("/api/test", (req, res) => {
   res.send("🚀 API Server HR Visibel is ONLINE!");
+});
+
+// Cron endpoint for Vercel
+app.get("/api/cron/notifications", async (req, res) => {
+  try {
+    await checkAndSendNotifications();
+    res.json({ status: "success", message: "Notifications checked and sent" });
+  } catch (err: any) {
+    res.status(500).json({ status: "error", message: err.message });
+  }
 });
 
 // Initialize Supabase safely
@@ -623,6 +632,7 @@ async function startServer() {
 
   if (!isProd) {
     try {
+      const { createServer: createViteServer } = await import("vite");
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: "spa",
