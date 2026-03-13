@@ -299,16 +299,17 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
       if (!element) return;
 
       try {
-        const dataUrl = await domtoimage.toPng(element, {
+        const dataUrl = await domtoimage.toJpeg(element, {
           width: element.clientWidth,
           height: element.clientHeight,
+          quality: 0.8,
           bgcolor: '#ffffff',
           cacheBust: true
         });
 
         const link = document.createElement('a');
         link.href = dataUrl;
-        link.download = `Invoice_${invoice.invoiceNumber}.png`;
+        link.download = `Invoice_${invoice.invoiceNumber}.jpg`;
         link.click();
       } catch (imgErr) {
         console.error("Gagal generate PNG:", imgErr);

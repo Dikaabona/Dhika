@@ -127,16 +127,17 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
     try {
       const element = quotationRef.current;
       
-      const dataUrl = await domtoimage.toPng(element, {
+      const dataUrl = await domtoimage.toJpeg(element, {
         width: element.clientWidth,
         height: element.clientHeight,
+        quality: 0.8,
         bgcolor: '#ffffff',
         cacheBust: true
       });
 
       const link = document.createElement('a');
       link.href = dataUrl;
-      link.download = `Quotation_${quotation.recipientName}_${new Date().getTime()}.png`;
+      link.download = `Quotation_${quotation.recipientName}_${new Date().getTime()}.jpg`;
       link.click();
     } catch (err) {
       console.error(err);

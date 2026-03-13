@@ -474,9 +474,10 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       if (!target) return;
 
       console.log("DEBUG: Capturing image for email with dom-to-image-more...");
-      const pngBase64 = await domtoimage.toPng(target, {
+      const jpegBase64 = await domtoimage.toJpeg(target, {
         width: 794,
         height: 1122,
+        quality: 0.8,
         bgcolor: '#ffffff',
         cacheBust: true
       });
@@ -497,9 +498,9 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
             <p style="margin-top: 0;">Halo <strong>${employee.nama}</strong>,</p>
             <p>Berikut adalah slip gaji Anda untuk periode ${data.month} ${data.year}.</p>
             
-            <div style="text-align: center; margin: 30px 0;">
-              <img src="${pngBase64}" alt="Slip Gaji" style="max-width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" />
-            </div>
+            <p style="margin: 20px 0; padding: 15px; background-color: #f8fafc; border-radius: 8px; border-left: 4px solid #FFC000;">
+              Silakan temukan rincian slip gaji Anda pada lampiran email ini.
+            </p>
 
             <div style="background-color: #f8fafc; padding: 20px; border-radius: 12px; margin: 25px 0;">
               <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
@@ -528,7 +529,14 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           to: recipientEmail,
           subject: `SLIP GAJI ${data.month.toUpperCase()} ${data.year} - ${employee.nama}`,
           html: emailHtml,
-          from: "admin@visibel.agency"
+          from: "admin@visibel.agency",
+          attachments: [
+            {
+              filename: `slip-gaji-${employee.nama.toLowerCase().replace(/\s+/g, '-')}.jpg`,
+              content: jpegBase64.split(',')[1],
+              contentType: 'image/jpeg'
+            }
+          ]
         })
       });
 
@@ -596,20 +604,21 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
     setIsProcessing(true);
     try {
       console.log("DEBUG: Capturing image for inbox with dom-to-image-more...");
-      const pngBase64 = await domtoimage.toPng(target, {
+      const jpegBase64 = await domtoimage.toJpeg(target, {
         width: 794,
         height: 1122,
+        quality: 0.8,
         bgcolor: '#ffffff',
         cacheBust: true
       });
 
       const newBroadcast: Broadcast = {
         title: `SLIP GAJI ${data.month.toUpperCase()} ${data.year}`,
-        message: `Halo ${employee.nama}, berikut slip gaji Anda untuk periode ${data.month} ${data.year} dalam format gambar (PNG). Anda dapat mendownload gambar ini langsung dari Inbox sebagai arsip pribadi.`,
+        message: `Halo ${employee.nama}, berikut slip gaji Anda untuk periode ${data.month} ${data.year} dalam format gambar (JPG). Anda dapat mendownload gambar ini langsung dari Inbox sebagai arsip pribadi.`,
         company: employee.company || 'Visibel',
         targetEmployeeIds: [employee.id],
         sentAt: new Date().toISOString(),
-        imageBase64: pngBase64
+        imageBase64: jpegBase64
       };
 
       const { error } = await supabase.from('broadcasts').insert([newBroadcast]);

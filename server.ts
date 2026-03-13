@@ -541,6 +541,8 @@ app.post("/api/send-email", async (req, res) => {
           const contentBuffer = typeof att.content === 'string' 
             ? Buffer.from(att.content, 'base64') 
             : att.content;
+          
+          console.log(`Attachment: ${att.filename}, Size: ${(contentBuffer.length / 1024).toFixed(2)} KB`);
 
           return {
             filename: att.filename || 'attachment.png',

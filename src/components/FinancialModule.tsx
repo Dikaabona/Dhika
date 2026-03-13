@@ -419,7 +419,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
           await new Promise(resolve => setTimeout(resolve, 2000)); 
 
           // Capture image and PDF
-          let pngBase64 = '';
+          let jpegBase64 = '';
           let pdfBase64 = '';
           let captureSuccess = false;
           try {
@@ -438,9 +438,10 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
               }));
 
               // dom-to-image-more is generally robust
-              const dataUrl = await domtoimage.toPng(target, {
+              const dataUrl = await domtoimage.toJpeg(target, {
                 width: 794,
                 height: 1122,
+                quality: 0.8,
                 bgcolor: '#ffffff',
                 cacheBust: true,
                 style: {
@@ -451,7 +452,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
                 }
               });
               
-              pngBase64 = dataUrl;
+              jpegBase64 = dataUrl;
               
               // Generate PDF
               const pdf = new jsPDF({
@@ -460,7 +461,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
                 format: [794, 1122]
               });
               
-              pdf.addImage(pngBase64, 'PNG', 0, 0, 794, 1122);
+              pdf.addImage(jpegBase64, 'JPEG', 0, 0, 794, 1122);
               const pdfOutput = pdf.output('datauristring');
               pdfBase64 = pdfOutput.includes(',') ? pdfOutput.split(',')[1] : pdfOutput;
               
@@ -495,7 +496,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
             company: company,
             targetEmployeeIds: [emp.id],
             sentAt: new Date().toISOString(),
-            imageBase64: pngBase64
+            imageBase64: jpegBase64
           };
           const { error: bcError } = await supabase.from('broadcasts').insert([newBroadcast]);
           if (bcError) {
