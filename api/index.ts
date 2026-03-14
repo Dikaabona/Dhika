@@ -499,9 +499,10 @@ app.get("/api/waha/send-test", async (req, res) => {
 // Initialize Resend lazily
 let resendClient: Resend | null = null;
 
-function getResendClient() {
+async function getResendClient() {
   if (resendClient) return resendClient;
   const apiKey = process.env.RESEND_API_KEY;
+  
   if (!apiKey) {
     console.warn("RESEND_API_KEY not found in environment variables");
     return null;
@@ -521,7 +522,7 @@ app.post("/api/send-email", async (req, res) => {
   const { to, subject, html, from, attachments, replyTo } = req.body;
   console.log(`API Request: Send email to ${to}`);
 
-  const resend = getResendClient();
+  const resend = await getResendClient();
   if (!resend) {
     const msg = "Email service not configured. Please ensure RESEND_API_KEY is set in environment variables.";
     console.error(msg);

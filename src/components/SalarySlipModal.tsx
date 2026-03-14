@@ -531,7 +531,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
           to: recipientEmail,
           subject: `SLIP GAJI ${data.month.toUpperCase()} ${data.year} - ${employee.nama}`,
           html: emailHtml,
-          from: "admin@visibel.agency",
+          from: companyDetails?.email || "admin@visibel.agency",
           replyTo: companyDetails?.email || "admin@visibel.agency",
           attachments: [
             {
