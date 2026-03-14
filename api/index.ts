@@ -7,6 +7,7 @@ import fs from "fs";
 import axios from "axios";
 import cron from "node-cron";
 import { createClient } from "@supabase/supabase-js";
+import { Buffer } from "buffer";
 
 dotenv.config();
 
@@ -16,8 +17,14 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // Health check
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok" });
+app.get("/api/health", async (req, res) => {
+  const resend = await getResendClient();
+  res.json({ 
+    status: "ok", 
+    resendConfigured: !!resend,
+    env: process.env.NODE_ENV,
+    vercel: !!process.env.VERCEL
+  });
 });
 
 // Middleware
@@ -501,7 +508,7 @@ let resendClient: Resend | null = null;
 
 async function getResendClient() {
   if (resendClient) return resendClient;
-  const apiKey = process.env.RESEND_API_KEY;
+  const apiKey = (process.env.RESEND_API_KEY || "").trim();
   
   if (!apiKey) {
     console.warn("RESEND_API_KEY not found in environment variables");
@@ -509,7 +516,7 @@ async function getResendClient() {
   }
   try {
     resendClient = new Resend(apiKey);
-    console.log("Resend client initialized");
+    console.log("Resend client initialized successfully");
     return resendClient;
   } catch (e) {
     console.error("Error initializing Resend:", e);
@@ -520,7 +527,7 @@ async function getResendClient() {
 // API Route to send email
 app.post("/api/send-email", async (req, res) => {
   const { to, subject, html, from, attachments, replyTo } = req.body;
-  console.log(`API Request: Send email to ${to}`);
+  console.log(`API Request: Send email to ${to}, subject: ${subject}`);
 
   const resend = await getResendClient();
   if (!resend) {
@@ -530,26 +537,34 @@ app.post("/api/send-email", async (req, res) => {
   }
 
   try {
+    console.log("Processing attachments...");
     let processedAttachments: any[] = [];
     if (attachments && Array.isArray(attachments)) {
       processedAttachments = attachments
         .filter((att: any) => att.content && att.content.length > 0)
         .map((att: any) => {
-          const contentBuffer = typeof att.content === 'string' 
-            ? Buffer.from(att.content, 'base64') 
-            : att.content;
-          return {
-            filename: att.filename || 'attachment.png',
-            content: contentBuffer,
-            contentType: att.contentType,
-            contentId: att.cid || att.contentId
-          };
-        });
+          try {
+            const contentBuffer = typeof att.content === 'string' 
+              ? Buffer.from(att.content, 'base64') 
+              : att.content;
+            return {
+              filename: att.filename || 'attachment.png',
+              content: contentBuffer,
+              contentType: att.contentType,
+              contentId: att.cid || att.contentId
+            };
+          } catch (err) {
+            console.error("Error processing attachment:", att.filename, err);
+            return null;
+          }
+        })
+        .filter(Boolean);
     }
 
+    console.log(`Sending email via Resend to ${to}...`);
     const { data, error } = await resend.emails.send({
       from: from || "admin@visibel.agency",
-      to: [to],
+      to: typeof to === 'string' ? [to] : to,
       subject: subject,
       html: html,
       replyTo: replyTo,
@@ -557,13 +572,19 @@ app.post("/api/send-email", async (req, res) => {
     });
 
     if (error) {
-      console.error("Resend API Error:", error);
-      return res.status(400).json(error);
+      console.error("Resend API Error:", JSON.stringify(error));
+      return res.status(400).json({ error: error.message || "Resend API Error", details: error });
     }
+    
+    console.log("Email sent successfully:", data?.id);
     res.status(200).json(data);
   } catch (err: any) {
     console.error("Server Error sending email:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ 
+      error: "Internal Server Error", 
+      message: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined 
+    });
   }
 });
 

@@ -478,11 +478,17 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       console.log("DEBUG: Capturing image for email with modern-screenshot...");
       const jpegBase64 = await domToJpeg(target, {
         quality: 0.8,
-        scale: 2,
+        scale: 1.5,
         width: 794,
         height: 1122,
         backgroundColor: '#ffffff'
       });
+
+      if (!jpegBase64 || !jpegBase64.includes(',')) {
+        throw new Error("Gagal menghasilkan gambar slip gaji. Silakan coba lagi.");
+      }
+
+      console.log("DEBUG: Image captured, size:", Math.round(jpegBase64.length / 1024), "KB");
 
       const recipientEmail = (currentEmployee.email || '').trim();
       if (!recipientEmail) {
