@@ -348,19 +348,19 @@ export const App: React.FC = () => {
       };
 
       const fetchPromises = [
-        buildQuery('attendance').order('date', { ascending: false }).limit(2000).then(({data, error}: any) => { if(error) throw error; setAttendanceRecords(data || []); }),
-        buildQuery('live_reports').order('tanggal', { ascending: false }).limit(500).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
+        buildQuery('attendance').order('date', { ascending: false }).limit(500).then(({data, error}: any) => { if(error) throw error; setAttendanceRecords(data || []); }),
+        buildQuery('live_reports').order('tanggal', { ascending: false }).limit(200).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(50).then(({data, error}: any) => { if(error) throw error; setSubmissions(data || []); }),
         buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(30).then(({data, error}: any) => { if(error) throw error; setBroadcasts(data || []); }),
-        buildQuery('schedules').order('date', { ascending: false }).limit(2000).then(({data, error}: any) => { 
+        buildQuery('schedules').order('date', { ascending: false }).limit(500).then(({data, error}: any) => { 
           if(error) throw error; 
-          if (data && data.length > 1500) {
-            console.warn("PERINGATAN EGRESS: Data jadwal mendekati 2.000 record. Pertimbangkan untuk membersihkan data lama.");
+          if (data && data.length > 450) {
+            console.warn("PERINGATAN EGRESS: Data jadwal mendekati 500 record.");
           }
           setLiveSchedules(data || []); 
         }),
-        buildQuery('content_plans').order('postingDate', { ascending: false }).limit(1000).then(({data, error}: any) => { if(error) throw error; setContentPlans(data || []); }),
-        buildQuery('shift_assignments').order('date', { ascending: false }).limit(3000).then(({data, error}: any) => { if(error) throw error; setShiftAssignments(data || []); }),
+        buildQuery('content_plans').order('postingDate', { ascending: false }).limit(300).then(({data, error}: any) => { if(error) throw error; setContentPlans(data || []); }),
+        buildQuery('shift_assignments').order('date', { ascending: false }).limit(1000).then(({data, error}: any) => { if(error) throw error; setShiftAssignments(data || []); }),
         supabase.from('settings').select('value').eq('key', `shifts_config_${companyFilterVal}`).single().then(({data}) => {
           if (data && Array.isArray(data.value)) setShifts(data.value);
           else setShifts(DEFAULT_SHIFTS);

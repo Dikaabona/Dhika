@@ -415,8 +415,8 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
           // Set data for hidden rendering
           setProcessingEmployeeData(slipData);
           
-          // Wait for render and assets to load
-          await new Promise(resolve => setTimeout(resolve, 2000)); 
+          // Wait for render and assets to load - reduced from 2000ms to 800ms for better performance
+          await new Promise(resolve => setTimeout(resolve, 800)); 
 
           // Capture image and PDF
           let jpegBase64 = '';

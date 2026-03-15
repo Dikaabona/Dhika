@@ -1,5 +1,4 @@
 import express from "express";
-import { Resend } from "resend";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -18,10 +17,10 @@ const app = express();
 
 // Health check
 app.get("/api/health", async (req, res) => {
-  const resend = await getResendClient();
+  const resendKey = (process.env.RESEND_API_KEY || "").trim();
   res.json({ 
     status: "ok", 
-    resendConfigured: !!resend,
+    resendConfigured: !!resendKey,
     env: process.env.NODE_ENV,
     vercel: !!process.env.VERCEL
   });
@@ -503,24 +502,26 @@ app.get("/api/waha/send-test", async (req, res) => {
   }
 });
 
-// Initialize Resend lazily
-let resendClient: Resend | null = null;
-
-async function getResendClient() {
-  if (resendClient) return resendClient;
+// --- EMAIL SERVICE (RESEND) ---
+// Using direct API calls to avoid dependency issues with the SDK
+async function sendEmailViaApi(payload: any): Promise<{ data: any; error: any }> {
   const apiKey = (process.env.RESEND_API_KEY || "").trim();
-  
   if (!apiKey) {
-    console.warn("RESEND_API_KEY not found in environment variables");
-    return null;
+    throw new Error("RESEND_API_KEY is not set");
   }
+
   try {
-    resendClient = new Resend(apiKey);
-    console.log("Resend client initialized successfully");
-    return resendClient;
-  } catch (e) {
-    console.error("Error initializing Resend:", e);
-    return null;
+    const response = await axios.post("https://api.resend.com/emails", payload, {
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+    });
+    return { data: response.data, error: null };
+  } catch (error: any) {
+    const errorData = error.response?.data || error.message;
+    console.error("Resend API Error:", errorData);
+    return { data: null, error: errorData };
   }
 }
 
@@ -528,13 +529,6 @@ async function getResendClient() {
 app.post("/api/send-email", async (req, res) => {
   const { to, subject, html, from, attachments, replyTo } = req.body;
   console.log(`API Request: Send email to ${to}, subject: ${subject}`);
-
-  const resend = await getResendClient();
-  if (!resend) {
-    const msg = "Email service not configured. Please ensure RESEND_API_KEY is set in environment variables.";
-    console.error(msg);
-    return res.status(500).json({ error: msg });
-  }
 
   try {
     console.log("Processing attachments...");
@@ -544,14 +538,13 @@ app.post("/api/send-email", async (req, res) => {
         .filter((att: any) => att.content && att.content.length > 0)
         .map((att: any) => {
           try {
-            const contentBuffer = typeof att.content === 'string' 
-              ? Buffer.from(att.content, 'base64') 
-              : att.content;
+            const base64Content = typeof att.content === 'string' 
+              ? att.content 
+              : Buffer.from(att.content).toString('base64');
+            
             return {
               filename: att.filename || 'attachment.png',
-              content: contentBuffer,
-              contentType: att.contentType,
-              contentId: att.cid || att.contentId
+              content: base64Content,
             };
           } catch (err) {
             console.error("Error processing attachment:", att.filename, err);
@@ -561,15 +554,17 @@ app.post("/api/send-email", async (req, res) => {
         .filter(Boolean);
     }
 
-    console.log(`Sending email via Resend to ${to}...`);
-    const { data, error } = await resend.emails.send({
+    console.log(`Sending email via Resend API to ${to}...`);
+    const emailPayload = {
       from: from || "admin@visibel.agency",
       to: typeof to === 'string' ? [to] : to,
       subject: subject,
       html: html,
-      replyTo: replyTo,
+      reply_to: replyTo,
       attachments: processedAttachments.length > 0 ? processedAttachments : undefined,
-    });
+    };
+
+    const { data, error } = await sendEmailViaApi(emailPayload);
 
     if (error) {
       console.error("Resend API Error:", JSON.stringify(error));
@@ -624,8 +619,16 @@ async function startServer() {
 
   console.log(`Starting server in ${isProd ? 'production' : 'development'} mode (Vercel: ${isVercel})...`);
 
+  // Start listening immediately to satisfy the platform's health check
+  if (!isVercel) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`🚀 Server listening on http://0.0.0.0:${PORT}`);
+    });
+  }
+
   if (!isProd) {
     try {
+      console.log("Initializing Vite middleware...");
       const { createServer: createViteServer } = await import("vite");
       const vite = await createViteServer({
         server: { middlewareMode: true },
@@ -638,7 +641,6 @@ async function startServer() {
         if (url.startsWith('/api') || url.includes('.')) return next();
         
         try {
-          // Adjusted path for api/index.ts
           let template = fs.readFileSync(path.resolve(__dirname, "../index.html"), "utf-8");
           template = await vite.transformIndexHtml(url, template);
           res.status(200).set({ "Content-Type": "text/html" }).end(template);
@@ -647,6 +649,7 @@ async function startServer() {
           next(e);
         }
       });
+      console.log("Vite middleware initialized successfully");
     } catch (err) {
       console.error("Vite initialization failed, falling back to static:", err);
     }
@@ -658,12 +661,6 @@ async function startServer() {
         res.sendFile(path.join(distPath, "index.html"));
       });
     }
-  }
-
-  if (!isVercel) {
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server listening on http://0.0.0.0:${PORT}`);
-    });
   }
 }
 
