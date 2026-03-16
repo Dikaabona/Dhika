@@ -114,25 +114,57 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
 
   const handleUpdateStatus = async (id: string, newStatus: string, isVirtual: boolean, empId?: string, date?: string) => {
     try {
+      let finalRecord;
+      
       if (isVirtual && empId && date) {
-        // Create new record
-        const newRecord = {
+        // Check if a record already exists for this employee and date to avoid unique constraint errors
+        // even if we use upsert, sometimes it's safer to have the ID if possible
+        const { data: existing } = await supabase
+          .from('attendance')
+          .select('id')
+          .eq('employeeId', empId)
+          .eq('date', date)
+          .maybeSingle();
+
+        const recordToUpsert: any = {
           employeeId: empId,
           date: date,
           status: newStatus,
           company: employees.find(e => e.id === empId)?.company || company
         };
-        const { data, error } = await supabase.from('attendance').insert([newRecord]).select();
+
+        if (existing) {
+          recordToUpsert.id = existing.id;
+        }
+
+        const { data, error } = await supabase
+          .from('attendance')
+          .upsert(recordToUpsert)
+          .select();
+
         if (error) throw error;
-        if (data) setRecords(prev => [data[0], ...prev]);
+        finalRecord = data?.[0];
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('attendance')
           .update({ status: newStatus })
-          .eq('id', id);
+          .eq('id', id)
+          .select();
         
         if (error) throw error;
-        setRecords(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
+        finalRecord = data?.[0];
+      }
+
+      if (finalRecord) {
+        setRecords(prev => {
+          const index = prev.findIndex(r => r.id === finalRecord.id || (r.employeeId === finalRecord.employeeId && r.date === finalRecord.date));
+          if (index !== -1) {
+            const updated = [...prev];
+            updated[index] = { ...updated[index], ...finalRecord };
+            return updated;
+          }
+          return [finalRecord, ...prev];
+        });
       }
       setEditingStatus(null);
     } catch (err: any) {
@@ -210,7 +242,23 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         }
 
         if (newRecords.length > 0) {
-          const { data: upsertedData, error } = await supabase.from('attendance').upsert(newRecords, { onConflict: 'employeeId,date' }).select();
+          // Fetch existing records to get IDs for upsert to avoid unique constraint issues
+          const employeeIds = [...new Set(newRecords.map(r => r.employeeId))];
+          const dates = [...new Set(newRecords.map(r => r.date))];
+          
+          const { data: existingRecords } = await supabase
+            .from('attendance')
+            .select('id, employeeId, date')
+            .in('employeeId', employeeIds)
+            .in('date', dates);
+
+          const finalRecords = newRecords.map(r => {
+            const existing = existingRecords?.find(er => er.employeeId === r.employeeId && er.date === r.date);
+            if (existing) return { ...r, id: existing.id } as AttendanceRecord;
+            return r;
+          });
+
+          const { data: upsertedData, error } = await supabase.from('attendance').upsert(finalRecords).select();
           if (error) throw error;
           
           alert(`Berhasil mengimpor ${newRecords.length} data absensi!`);

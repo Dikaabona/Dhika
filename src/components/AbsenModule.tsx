@@ -288,7 +288,18 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         status: 'Hadir'
       };
 
-      if (localTodayRecord?.id) updateData.id = localTodayRecord.id;
+      // Ensure we have the latest ID if it exists in DB but not in local state
+      if (!localTodayRecord?.id) {
+        const { data: existing } = await supabase
+          .from('attendance')
+          .select('id')
+          .eq('employeeId', employee.id)
+          .eq('date', todayStr)
+          .maybeSingle();
+        if (existing) updateData.id = existing.id;
+      } else {
+        updateData.id = localTodayRecord.id;
+      }
 
       if (isClockIn) {
         updateData.clockIn = nowTime;
@@ -305,7 +316,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         updateData.clockIn = localTodayRecord.clockIn;
       }
 
-      const { data, error } = await supabase.from('attendance').upsert(updateData, { onConflict: 'employeeId,date' }).select();
+      const { data, error } = await supabase.from('attendance').upsert(updateData).select();
       if (error) throw error;
       
       setLocalTodayRecord(data?.[0] || updateData);

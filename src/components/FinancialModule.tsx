@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Icons } from '../constants';
 import { flipService } from '../services/flipService';
 import { supabase } from '../services/supabaseClient';
@@ -62,7 +62,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
 
   const yearOptions = ['2024', '2025', '2026'];
 
-  const calculateTotalSalary = (config: any, hutang: number = 0, empId?: string) => {
+  const calculateTotalSalary = useCallback((config: any, hutang: number = 0, empId?: string) => {
     const actualPotonganHutang = Math.min(hutang, config.potonganHutang || 0);
     const isDaily = config.type === 'daily';
     
@@ -105,7 +105,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
            (config.pph21 || 0) - 
            actualPotonganHutang - 
            (config.potonganLain || 0);
-  };
+  }, [attendanceRecords, selectedMonth, selectedYear, settings]);
 
   useEffect(() => {
     if (isProcessingPayroll && employees.length > 0 && payrollEmployees.length > 0) {
@@ -130,7 +130,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
         savePayrollDraft(updatedPayroll);
       }
     }
-  }, [employees, isProcessingPayroll, payrollEmployees, selectedMonth, selectedYear, settings, attendanceRecords]);
+  }, [employees, isProcessingPayroll, payrollEmployees, selectedMonth, selectedYear, settings, attendanceRecords, calculateTotalSalary]);
 
   useEffect(() => {
     loadFinanceData();
