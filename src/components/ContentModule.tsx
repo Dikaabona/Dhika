@@ -26,6 +26,12 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     return jabatan.includes('content creator') || jabatan.includes('creator') || jabatan.includes('lead content');
   }, [currentEmployee]);
 
+  const canViewReport = useMemo(() => {
+    const jabatan = (currentEmployee?.jabatan || '').toLowerCase();
+    // Restriction: Only owner, super admin, admin, and content creator jabatan can view
+    return ['owner', 'super', 'superadmin', 'admin'].includes(userRole) || jabatan.includes('content creator');
+  }, [userRole, currentEmployee]);
+
   const hasFullAccess = userRole === 'admin' || userRole === 'super' || userRole === 'owner' || isCreator;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -789,7 +795,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                     <button onClick={() => setIsManagingSettings(!isManagingSettings)} className={`flex-1 sm:flex-none px-4 sm:px-8 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-sm border ${isManagingSettings ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
                       SETTINGS
                     </button>
-                    {onOpenReport && (
+                    {onOpenReport && canViewReport && (
                       <button onClick={onOpenReport} className="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 sm:px-8 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95">
                         <Icons.Briefcase className="w-4 h-4" /> REPORT
                       </button>
@@ -1011,8 +1017,9 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         ))}
       </div>
 
-      <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto no-scrollbar scroll-smooth">
+      <div className="bg-white rounded-[32px] sm:rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
+        {/* Desktop View */}
+        <div className="hidden sm:block overflow-x-auto no-scrollbar scroll-smooth">
           <table className="w-full text-left min-w-[1000px] border-separate border-spacing-0">
             <thead className="bg-slate-50/80 backdrop-blur-sm text-slate-500 text-[10px] uppercase font-bold tracking-[0.15em] sticky top-0 z-10 border-b border-slate-100">
               <tr>
@@ -1083,7 +1090,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                       <div className="flex gap-5">
                         <div className="text-center min-w-[45px]"><p className="text-[12px] font-black text-slate-900">{formatNumber(plan.views)}</p><p className="text-[8px] text-slate-400 font-black uppercase mt-1 tracking-tighter">Views</p></div>
                         <div className="text-center min-w-[45px]"><p className="text-[12px] font-black text-slate-900">{formatNumber(plan.likes)}</p><p className="text-[8px] text-slate-400 font-black uppercase mt-1 tracking-tighter">Likes</p></div>
-                        <div className="text-center min-w-[45px]"><p className="text-[12px] font-black text-slate-900">{formatNumber(plan.likes)}</p><p className="text-[8px] text-slate-400 font-black uppercase mt-1 tracking-tighter">Comm</p></div>
+                        <div className="text-center min-w-[45px]"><p className="text-[12px] font-black text-slate-900">{formatNumber(plan.comments)}</p><p className="text-[8px] text-slate-400 font-black uppercase mt-1 tracking-tighter">Comm</p></div>
                         <div className="text-center min-w-[45px]"><p className="text-[12px] font-black text-slate-900">{formatNumber(plan.saves)}</p><p className="text-[8px] text-slate-400 font-black uppercase mt-1 tracking-tighter">Save</p></div>
                       </div>
                     </td>
@@ -1115,6 +1122,99 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile View */}
+        <div className="sm:hidden divide-y divide-slate-50">
+          {paginatedPlans.map((plan) => {
+            const er = calculateEngagementRate(plan);
+            const erValue = parseFloat(er);
+            let jamDisplay = plan.jamUpload || '';
+            if (!jamDisplay && plan.notes && plan.notes.includes('[Time:')) {
+                const match = plan.notes.match(/\[Time:\s*(\d{2}:\d{2})\]/);
+                if (match) jamDisplay = match[1];
+            }
+
+            return (
+              <div key={plan.id} className="p-6 space-y-5">
+                <div className="flex items-center gap-5">
+                  <div 
+                    onClick={() => plan.id && fetchScreenshot(plan.id)}
+                    className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 border border-slate-100 shadow-inner shrink-0 cursor-zoom-in active:scale-95 transition-transform"
+                  >
+                    <Icons.Image className="w-7 h-7" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="font-black text-slate-900 text-sm uppercase truncate tracking-tight">{plan.brand}</h4>
+                      <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100 shrink-0">{jamDisplay || '-'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{plan.postingDate}</p>
+                      <button onClick={() => handleSyncItemToCalendar(plan)} className="text-slate-300 p-1 hover:text-indigo-600 transition-colors">
+                        <Icons.Calendar className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                  <div className="min-w-0">
+                    <p className="text-[12px] font-black text-slate-800 uppercase truncate leading-none">{getCreatorName(plan.creatorId || '')}</p>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-2">{plan.contentPillar}</p>
+                  </div>
+                  {plan.linkPostingan ? (
+                    <a href={plan.linkPostingan} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center shadow-sm active:scale-90 transition-transform">
+                      <img src={CUSTOM_LINK_ICON} className="w-5 h-5 object-contain" alt="link" />
+                    </a>
+                  ) : (
+                    <div className="w-10 h-10 bg-slate-50/50 border border-dashed border-slate-200 rounded-xl flex items-center justify-center opacity-20 grayscale">
+                      <img src={CUSTOM_LINK_ICON} className="w-5 h-5 object-contain" alt="no link" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="text-center p-2.5 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                    <p className="text-[12px] font-black text-slate-900">{formatNumber(plan.views)}</p>
+                    <p className="text-[8px] text-slate-400 font-black uppercase tracking-tighter mt-1">Views</p>
+                  </div>
+                  <div className="text-center p-2.5 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                    <p className="text-[12px] font-black text-slate-900">{formatNumber(plan.likes)}</p>
+                    <p className="text-[8px] text-slate-400 font-black uppercase tracking-tighter mt-1">Likes</p>
+                  </div>
+                  <div className="text-center p-2.5 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                    <p className="text-[12px] font-black text-slate-900">{formatNumber(plan.comments)}</p>
+                    <p className="text-[8px] text-slate-400 font-black uppercase tracking-tighter mt-1">Comm</p>
+                  </div>
+                  <div className="text-center p-2.5 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                    <p className="text-[12px] font-black text-slate-900">{formatNumber(plan.saves)}</p>
+                    <p className="text-[8px] text-slate-400 font-black uppercase tracking-tighter mt-1">Save</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <div className={`px-5 py-2 rounded-2xl text-[11px] font-black tracking-tight border shadow-sm transition-all ${erValue >= 5 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
+                    ER: {er}
+                  </div>
+                  {hasFullAccess && (
+                    <div className="flex gap-3">
+                      <button onClick={() => handleOpenModal(plan)} className="p-3 text-indigo-600 bg-white border border-slate-100 rounded-2xl shadow-sm active:scale-90 transition-all"><Icons.Edit className="w-5 h-5" /></button>
+                      <button onClick={() => handleDelete(plan.id)} className="p-3 text-rose-500 bg-white border border-slate-100 rounded-2xl shadow-sm active:scale-90 transition-all"><Icons.Trash className="w-5 h-5" /></button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {paginatedPlans.length === 0 && (
+            <div className="py-24 text-center">
+              <div className="flex flex-col items-center justify-center space-y-4 opacity-30">
+                <Icons.Database className="w-12 h-12" />
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">Laporan Tidak Ditemukan</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {totalPages > 1 && (

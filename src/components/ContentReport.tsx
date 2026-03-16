@@ -133,7 +133,7 @@ const ContentReport: React.FC<ContentReportProps> = ({ plans, employees, company
             <Icons.ArrowLeft className="w-6 h-6" />
           </button>
           <div>
-            <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Content Performance Report</h2>
+            <h2 className="text-2xl md:text-3xl font-black text-slate-900 uppercase tracking-tight">Content Performance Report</h2>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-1">Analytics & AI Insights</p>
           </div>
         </div>
@@ -163,12 +163,12 @@ const ContentReport: React.FC<ContentReportProps> = ({ plans, employees, company
             </div>
           </div>
 
-          <div className="flex items-center bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm">
+          <div className="flex flex-wrap items-center bg-white p-2 rounded-2xl border border-slate-100 shadow-sm gap-2">
             {brands.map(b => (
               <button
                 key={b}
                 onClick={() => setSelectedBrand(b)}
-                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                className={`px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${
                   selectedBrand === b 
                     ? 'bg-slate-900 text-white shadow-lg' 
                     : 'text-slate-400 hover:text-slate-600'
@@ -252,62 +252,58 @@ const ContentReport: React.FC<ContentReportProps> = ({ plans, employees, company
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-        <div className="bg-white p-10 rounded-[48px] shadow-sm border border-slate-100 space-y-8">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Top Performing Content</h3>
-            <span className="bg-emerald-50 text-emerald-600 text-[8px] font-black px-3 py-1 rounded-full uppercase">BY VIEWS</span>
+        <div className="bg-white p-5 md:p-10 rounded-[32px] md:rounded-[48px] shadow-sm border border-slate-100 space-y-5 md:space-y-8">
+          <div className="flex items-center justify-between gap-4">
+            <h3 className="text-[12px] md:text-sm font-black text-slate-900 uppercase tracking-widest truncate">Top Performing Content</h3>
+            <div className="bg-emerald-50 text-emerald-600 text-[8px] font-black px-3 py-1.5 rounded-full uppercase shrink-0 shadow-sm border border-emerald-100/50">BY VIEWS</div>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-4 md:space-y-6">
             {stats.topContent.map((p, i) => (
-              <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center font-black text-slate-400 border border-slate-100">
-                    {i + 1}
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-slate-900 uppercase truncate max-w-[200px]">{p.title}</p>
-                    <p className="text-[8px] font-bold text-slate-400 uppercase">{p.brand} • {p.contentPillar}</p>
-                    {p.linkPostingan && (
-                      <a href={p.linkPostingan} target="_blank" rel="noreferrer" className="text-[8px] font-black text-indigo-600 uppercase tracking-widest mt-1 inline-flex items-center gap-1 hover:underline">
-                        <Icons.ExternalLink className="w-2 h-2" /> LIHAT VIDEO
-                      </a>
-                    )}
-                  </div>
+              <div key={i} className="grid grid-cols-[32px_1fr_75px] md:grid-cols-[48px_1fr_100px] items-center gap-4 p-4 md:p-6 bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+                <div className="w-8 h-8 md:w-12 md:h-12 bg-indigo-50 rounded-full flex items-center justify-center font-black text-indigo-600 text-[11px] md:text-lg shadow-inner group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
+                  {i + 1}
                 </div>
-                <div className="text-right">
-                  <p className="text-xs font-black text-slate-900">{(p.views || 0).toLocaleString()}</p>
-                  <p className="text-[8px] font-bold text-slate-400 uppercase">VIEWS</p>
+                <div className="min-w-0">
+                  <p className="text-[11px] md:text-base font-black text-slate-900 uppercase truncate leading-tight">{p.title}</p>
+                  <p className="text-[9px] md:text-[11px] font-bold text-slate-400 uppercase truncate mt-1.5">{p.brand} • {p.contentPillar}</p>
+                  {p.linkPostingan && (
+                    <a href={p.linkPostingan} target="_blank" rel="noreferrer" className="text-[9px] md:text-[11px] font-black text-indigo-600 uppercase tracking-widest mt-3 inline-flex items-center gap-1.5 hover:text-indigo-800 transition-colors">
+                      <Icons.Play className="w-2.5 h-2.5 fill-current" /> LIHAT VIDEO
+                    </a>
+                  )}
+                </div>
+                <div className="text-right pl-3 border-l border-slate-100">
+                  <p className="text-xs md:text-lg font-black text-slate-900">{(p.views || 0).toLocaleString()}</p>
+                  <p className="text-[8px] md:text-[11px] font-bold text-slate-400 uppercase tracking-widest">VIEWS</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="bg-white p-10 rounded-[48px] shadow-sm border border-slate-100 space-y-8">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Scalable Content</h3>
-            <span className="bg-indigo-50 text-indigo-600 text-[8px] font-black px-3 py-1 rounded-full uppercase">BY ENGAGEMENT</span>
+        <div className="bg-white p-5 md:p-10 rounded-[32px] md:rounded-[48px] shadow-sm border border-slate-100 space-y-5 md:space-y-8">
+          <div className="flex items-center justify-between gap-4">
+            <h3 className="text-[12px] md:text-sm font-black text-slate-900 uppercase tracking-widest truncate">Scalable Content</h3>
+            <div className="bg-indigo-50 text-indigo-600 text-[8px] font-black px-3 py-1.5 rounded-full uppercase shrink-0 shadow-sm border border-indigo-100/50">BY ENGAGEMENT</div>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-4 md:space-y-6">
             {stats.scalableContent.map((p, i) => (
-              <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center font-black text-slate-400 border border-slate-100">
-                    {i + 1}
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-slate-900 uppercase truncate max-w-[200px]">{p.title}</p>
-                    <p className="text-[8px] font-bold text-slate-400 uppercase">{p.brand} • {p.contentPillar}</p>
-                    {p.linkPostingan && (
-                      <a href={p.linkPostingan} target="_blank" rel="noreferrer" className="text-[8px] font-black text-indigo-600 uppercase tracking-widest mt-1 inline-flex items-center gap-1 hover:underline">
-                        <Icons.ExternalLink className="w-2 h-2" /> LIHAT VIDEO
-                      </a>
-                    )}
-                  </div>
+              <div key={i} className="grid grid-cols-[32px_1fr_75px] md:grid-cols-[48px_1fr_100px] items-center gap-4 p-4 md:p-6 bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+                <div className="w-8 h-8 md:w-12 md:h-12 bg-indigo-50 rounded-full flex items-center justify-center font-black text-indigo-600 text-[11px] md:text-lg shadow-inner group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
+                  {i + 1}
                 </div>
-                <div className="text-right">
-                  <p className="text-xs font-black text-indigo-600">{(((p.likes || 0) + (p.comments || 0) + (p.saves || 0) + (p.shares || 0)) / (p.views || 1) * 100).toFixed(2)}%</p>
-                  <p className="text-[8px] font-bold text-slate-400 uppercase">ENGAGEMENT</p>
+                <div className="min-w-0">
+                  <p className="text-[11px] md:text-base font-black text-slate-900 uppercase truncate leading-tight">{p.title}</p>
+                  <p className="text-[9px] md:text-[11px] font-bold text-slate-400 uppercase truncate mt-1.5">{p.brand} • {p.contentPillar}</p>
+                  {p.linkPostingan && (
+                    <a href={p.linkPostingan} target="_blank" rel="noreferrer" className="text-[9px] md:text-[11px] font-black text-indigo-600 uppercase tracking-widest mt-3 inline-flex items-center gap-1.5 hover:text-indigo-800 transition-colors">
+                      <Icons.Play className="w-2.5 h-2.5 fill-current" /> LIHAT VIDEO
+                    </a>
+                  )}
+                </div>
+                <div className="text-right pl-3 border-l border-slate-100">
+                  <p className="text-xs md:text-lg font-black text-indigo-600">{(((p.likes || 0) + (p.comments || 0) + (p.saves || 0) + (p.shares || 0)) / (p.views || 1) * 100).toFixed(2)}%</p>
+                  <p className="text-[8px] md:text-[11px] font-bold text-slate-400 uppercase tracking-widest">ENGAGEMENT</p>
                 </div>
               </div>
             ))}

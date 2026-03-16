@@ -493,6 +493,12 @@ export const App: React.FC = () => {
 
   const isResigned = (emp: Employee) => (emp.resigned_at && emp.resigned_at.trim() !== '') || (emp.resign_reason && emp.resign_reason.trim() !== '');
 
+  const canViewContentReport = useMemo(() => {
+    const jabatan = (currentUserEmployee?.jabatan || '').toLowerCase();
+    // Only owner, super admin, admin, and content creator jabatan can view
+    return ['owner', 'super', 'superadmin', 'admin'].includes(userRole) || jabatan.includes('content creator');
+  }, [userRole, currentUserEmployee]);
+
   const filteredEmployees = useMemo(() => {
     let baseList = employees;
     if (userRole !== 'owner') {
@@ -990,9 +996,9 @@ export const App: React.FC = () => {
                   userRole={userRole} 
                   currentEmployee={currentUserEmployee} 
                   company={userCompany} 
-                  onOpenReport={() => setActiveTab('content_report')}
+                  onOpenReport={canViewContentReport ? () => setActiveTab('content_report') : undefined}
                 />
-              ) : activeTab === 'content_report' ? (
+              ) : (activeTab === 'content_report' && canViewContentReport) ? (
                 <ContentReport 
                   plans={contentPlans}
                   employees={employees}
