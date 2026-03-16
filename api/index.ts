@@ -664,6 +664,42 @@ async function startServer() {
   }
 }
 
+// Helper to send Email notification
+async function sendEmailNotification(to: string, subject: string, message: string) {
+  const apiKey = (process.env.RESEND_API_KEY || "").trim();
+  if (!apiKey || !to) return;
+
+  try {
+    await sendEmailViaApi({
+      from: "HR Visibel <admin@visibel.agency>",
+      to: [to],
+      subject: subject,
+      html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+        <h2 style="color: #4f46e5;">${subject}</h2>
+        <p style="font-size: 16px; color: #374151;">${message.replace(/\n/g, '<br>')}</p>
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+        <p style="font-size: 12px; color: #9ca3af;">Ini adalah pesan otomatis dari sistem HR Visibel.</p>
+      </div>`,
+    });
+    console.log(`Email notification sent to ${to}`);
+  } catch (err) {
+    console.error("Error sending email notification:", err);
+  }
+}
+
+// Generic notification sender (WA + Email)
+async function sendNotification(emp: any, subject: string, message: string) {
+  // Try WhatsApp
+  if (emp.noHandphone) {
+    await sendWahaMessage(emp.noHandphone, message, emp.company);
+  }
+  
+  // Try Email
+  if (emp.email) {
+    await sendEmailNotification(emp.email, subject, message);
+  }
+}
+
 // --- SCHEDULED NOTIFICATIONS ---
 async function checkAndSendNotifications() {
   const now = new Date();
@@ -712,17 +748,23 @@ async function checkAndSendNotifications() {
       if (diffMinutes === 15 && !isOff) {
         const { data: att } = await supabase.from('attendance').select('*').eq('employeeId', emp.id).eq('date', today).maybeSingle();
         if (!att || !att.clockIn) {
-          await sendWahaMessage(emp.noHandphone, `⏰ *PENGINGAT ABSEN* ⏰\n\nHalo ${emp.nama}, shift *${shift.name}* Anda akan dimulai dalam 15 menit (${shiftStart}). Jangan lupa untuk melakukan absensi ya!`, emp.company);
+          const subject = "⏰ Pengingat Absen";
+          const msg = `⏰ *PENGINGAT ABSEN* ⏰\n\nHalo ${emp.nama}, shift *${shift.name}* Anda akan dimulai dalam 15 menit (${shiftStart}). Jangan lupa untuk melakukan absensi ya!`;
+          await sendNotification(emp, subject, msg);
         }
       }
 
       if (shift.name.toLowerCase().includes('live')) {
         const jab = (emp.jabatan || '').toLowerCase();
         if (diffMinutes === 30 && jab.includes('operator')) {
-          await sendWahaMessage(emp.noHandphone, `🎙️ *PERSIAPAN STUDIO* 🎙️\n\nHalo ${emp.nama}, jadwal Live Streaming akan dimulai dalam 30 menit. Sebagai Operator, silakan mulai persiapkan studio dan peralatan.`, emp.company);
+          const subject = "🎙️ Persiapan Studio";
+          const msg = `🎙️ *PERSIAPAN STUDIO* 🎙️\n\nHalo ${emp.nama}, jadwal Live Streaming akan dimulai dalam 30 menit. Sebagai Operator, silakan mulai persiapkan studio dan peralatan.`;
+          await sendNotification(emp, subject, msg);
         }
         if (diffMinutes === 5 && jab.includes('host livestreaming')) {
-          await sendWahaMessage(emp.noHandphone, `🚀 *LIVE SEGERA DIMULAI* 🚀\n\nHalo ${emp.nama}, Live Streaming Anda akan dimulai dalam 5 menit (${shiftStart}). Sebagai Host, pastikan semuanya sudah siap!`, emp.company);
+          const subject = "🚀 Live Segera Dimulai";
+          const msg = `🚀 *LIVE SEGERA DIMULAI* 🚀\n\nHalo ${emp.nama}, Live Streaming Anda akan dimulai dalam 5 menit (${shiftStart}). Sebagai Host, pastikan semuanya sudah siap!`;
+          await sendNotification(emp, subject, msg);
         }
       }
     }
@@ -732,7 +774,7 @@ async function checkAndSendNotifications() {
 
     for (const content of contents || []) {
       const emp = emps?.find((e: any) => e.id === content.creatorId);
-      if (!emp || !emp.noHandphone || !content.jamUpload) continue;
+      if (!emp || !content.jamUpload) continue;
 
       const jab = (emp.jabatan || '').toLowerCase();
       if (!jab.includes('content creator')) continue;
@@ -743,7 +785,9 @@ async function checkAndSendNotifications() {
       const diffMinutes = uploadTotalMins - nowTotalMins;
 
       if (diffMinutes === 5) {
-        await sendWahaMessage(emp.noHandphone, `📱 *PENGINGAT POSTING KONTEN* 📱\n\nHalo ${emp.nama}, jadwal posting konten *${content.title}* Anda adalah 5 menit lagi (${content.jamUpload}). Siapkan file dan caption-nya ya!`, emp.company);
+        const subject = "📱 Pengingat Posting Konten";
+        const msg = `📱 *PENGINGAT POSTING KONTEN* 📱\n\nHalo ${emp.nama}, jadwal posting konten *${content.title}* Anda adalah 5 menit lagi (${content.jamUpload}). Siapkan file dan caption-nya ya!`;
+        await sendNotification(emp, subject, msg);
       }
     }
   } catch (err) {

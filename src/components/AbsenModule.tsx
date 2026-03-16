@@ -305,7 +305,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         updateData.clockIn = localTodayRecord.clockIn;
       }
 
-      const { data, error } = await supabase.from('attendance').upsert(updateData).select();
+      const { data, error } = await supabase.from('attendance').upsert(updateData, { onConflict: 'employeeId,date' }).select();
       if (error) throw error;
       
       setLocalTodayRecord(data?.[0] || updateData);

@@ -210,13 +210,23 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         }
 
         if (newRecords.length > 0) {
-          const { error } = await supabase.from('attendance').upsert(newRecords);
+          const { error } = await supabase.from('attendance').upsert(newRecords, { onConflict: 'employeeId,date' });
           if (error) throw error;
           
           alert(`Berhasil mengimpor ${newRecords.length} data absensi!`);
-          // Refresh records logic should be handled by parent or by updating local state if records is local
-          // Since records is passed as prop, we assume parent handles refresh or we update via setRecords
-          setRecords(prev => [...newRecords, ...prev]);
+          
+          setRecords(prev => {
+            const updated = [...prev];
+            newRecords.forEach(nr => {
+              const index = updated.findIndex(r => r.employeeId === nr.employeeId && r.date === nr.date);
+              if (index !== -1) {
+                updated[index] = { ...updated[index], ...nr };
+              } else {
+                updated.unshift(nr);
+              }
+            });
+            return updated;
+          });
         }
       } catch (err: any) {
         alert("Gagal mengimpor data: " + err.message);

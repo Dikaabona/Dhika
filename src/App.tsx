@@ -232,15 +232,16 @@ export const App: React.FC = () => {
         try {
           const now = new Date();
           
-          // 1. Cleanup old photos (older than 14 days)
-          const fourteenDaysAgo = new Date(now);
-          fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-          const photoDateStr = fourteenDaysAgo.toISOString().split('T')[0];
+          // 1. Cleanup old photos (older than 3 months / 90 days)
+          const threeMonthsAgo = new Date(now);
+          threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+          const photoDateStr = threeMonthsAgo.toISOString().split('T')[0];
           
           await supabase
             .from('attendance')
             .update({ photoIn: null, photoOut: null })
-            .lt('date', photoDateStr);
+            .lt('date', photoDateStr)
+            .eq('company', detectedCompany);
 
           // 2. Cleanup old shifts (older than 21 days / 3 weeks)
           const twentyOneDaysAgo = new Date(now);
@@ -253,14 +254,14 @@ export const App: React.FC = () => {
             .lt('date', shiftDateStr)
             .eq('company', detectedCompany);
 
-          // 3. Cleanup old schedules (Retention Policy: Max 2000 records)
+          // 3. Cleanup old schedules (Retention Policy: Max 1000 records)
           const { count: scheduleCount } = await supabase
             .from('schedules')
             .select('*', { count: 'exact', head: true })
             .eq('company', detectedCompany);
 
-          if (scheduleCount && scheduleCount > 2000) {
-            const overflow = scheduleCount - 1800; // Leave 1800 records to have some buffer
+          if (scheduleCount && scheduleCount > 1000) {
+            const overflow = scheduleCount - 900; // Leave 900 records to have some buffer
             const { data: oldSchedules } = await supabase
               .from('schedules')
               .select('id, date')
@@ -352,10 +353,10 @@ export const App: React.FC = () => {
         buildQuery('live_reports').order('tanggal', { ascending: false }).limit(200).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(50).then(({data, error}: any) => { if(error) throw error; setSubmissions(data || []); }),
         buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(30).then(({data, error}: any) => { if(error) throw error; setBroadcasts(data || []); }),
-        buildQuery('schedules').order('date', { ascending: false }).limit(500).then(({data, error}: any) => { 
+        buildQuery('schedules').order('date', { ascending: false }).limit(1000).then(({data, error}: any) => { 
           if(error) throw error; 
-          if (data && data.length > 450) {
-            console.warn("PERINGATAN EGRESS: Data jadwal mendekati 500 record.");
+          if (data && data.length > 900) {
+            console.warn("PERINGATAN EGRESS: Data jadwal mendekati 1.000 record.");
           }
           setLiveSchedules(data || []); 
         }),
