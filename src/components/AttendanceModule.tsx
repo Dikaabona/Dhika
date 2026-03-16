@@ -210,14 +210,14 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         }
 
         if (newRecords.length > 0) {
-          const { error } = await supabase.from('attendance').upsert(newRecords, { onConflict: 'employeeId,date' });
+          const { data: upsertedData, error } = await supabase.from('attendance').upsert(newRecords, { onConflict: 'employeeId,date' }).select();
           if (error) throw error;
           
           alert(`Berhasil mengimpor ${newRecords.length} data absensi!`);
           
           setRecords(prev => {
             const updated = [...prev];
-            newRecords.forEach(nr => {
+            (upsertedData || []).forEach(nr => {
               const index = updated.findIndex(r => r.employeeId === nr.employeeId && r.date === nr.date);
               if (index !== -1) {
                 updated[index] = { ...updated[index], ...nr };
@@ -418,7 +418,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                         </div>
                       </td>
                       <td className="px-8 py-5">
-                        {editingStatus?.id === record.id ? (
+                        {editingStatus && editingStatus.id === record.id ? (
                           <select 
                             value={editingStatus.status}
                             onChange={(e) => handleUpdateStatus(record.id!, e.target.value, record.isVirtual, record.employeeId, record.date)}
@@ -497,7 +497,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{record.date}</span>
-                      {editingStatus?.id === record.id ? (
+                      {editingStatus && editingStatus.id === record.id ? (
                         <select 
                           value={editingStatus.status}
                           onChange={(e) => handleUpdateStatus(record.id!, e.target.value, record.isVirtual, record.employeeId, record.date)}

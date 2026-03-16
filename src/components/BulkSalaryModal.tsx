@@ -196,7 +196,7 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
           
           const finalLembur = overtimePayTotal > 0 ? overtimePayTotal : (config.lembur || 0);
 
-          const bpjstkAmount = config.isBPJSTKActive !== false ? (config.bpjstk || 0) : 0;
+          const bpjstkAmount = config.isBPJSTKActive === true ? (config.bpjstk || 0) : 0;
           const totalPotongan = potonganAbsen + bpjstkAmount + (config.pph21 || 0);
           const thp = (totalFixed + finalLembur + (config.bonus || 0) + (config.thr || 0)) - totalPotongan;
 

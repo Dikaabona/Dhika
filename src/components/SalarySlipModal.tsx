@@ -40,7 +40,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
       
       if (latest) {
         setCurrentEmployee(latest);
-        setIsBPJSTKActive(latest.salaryConfig?.isBPJSTKActive ?? true);
+        setIsBPJSTKActive(latest.salaryConfig?.isBPJSTKActive ?? false);
         setData(prev => ({
           ...prev,
           gapok: latest.salaryConfig?.gapok ?? prev.gapok,
@@ -77,7 +77,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
 
   const activePeriod = getActivePayrollMonthInfo();
 
-  const [isBPJSTKActive, setIsBPJSTKActive] = useState(employee.salaryConfig?.isBPJSTKActive ?? true);
+  const [isBPJSTKActive, setIsBPJSTKActive] = useState(employee.salaryConfig?.isBPJSTKActive ?? false);
   const [showOvertimeDetails, setShowOvertimeDetails] = useState(false);
   const [data, setData] = useState<SalaryData & { adjustment: number; pph21: number; totalHutang: number }>({
     month: activePeriod.name,

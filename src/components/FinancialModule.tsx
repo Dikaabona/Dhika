@@ -14,9 +14,10 @@ interface FinancialModuleProps {
   employees: any[];
   attendanceRecords: any[];
   onClose: () => void;
+  onRefresh?: () => void;
 }
 
-const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, attendanceRecords, onClose }) => {
+const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, attendanceRecords, onClose, onRefresh }) => {
   useEffect(() => {
     console.log("DEBUG: FinancialModule V2.2 (modern-screenshot) Loaded");
   }, []);
@@ -100,7 +101,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
            (config.lembur || 0) + 
            (config.bonus || 0) + 
            (config.thr || 0) - 
-           (config.isBPJSTKActive !== false ? (config.bpjstk || 0) : 0) - 
+           (config.isBPJSTKActive === true ? (config.bpjstk || 0) : 0) - 
            (config.pph21 || 0) - 
            actualPotonganHutang - 
            (config.potonganLain || 0);
@@ -129,7 +130,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
         savePayrollDraft(updatedPayroll);
       }
     }
-  }, [employees, isProcessingPayroll, payrollEmployees]);
+  }, [employees, isProcessingPayroll, payrollEmployees, selectedMonth, selectedYear, settings, attendanceRecords]);
 
   useEffect(() => {
     loadFinanceData();
@@ -228,6 +229,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
       setIsProcessingPayroll(true);
       setCurrentPage(1);
       await savePayrollDraft(validEmployees);
+      if (onRefresh) onRefresh();
     } catch (e: any) {
       alert("Gagal memuat data karyawan: " + e.message);
     } finally {
@@ -386,7 +388,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
           const thr = config.thr || 0;
           const totalPendapatan = effectiveGapok + tunjanganOps + lembur + bonus + thr;
           
-          const bpjstk = config.isBPJSTKActive !== false ? (config.bpjstk || 0) : 0;
+          const bpjstk = config.isBPJSTKActive === true ? (config.bpjstk || 0) : 0;
           const pph21 = config.pph21 || 0;
           const dailyRate = gapok / 26;
           const potonganAbsensi = isDaily ? 0 : Math.round(summary.alpha * dailyRate);
@@ -862,8 +864,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
                                   <td className="px-6 py-5 text-center">
                                      <button 
                                        onClick={() => {
-                                         const latestEmp = employees.find(e => e.id === emp.id) || emp;
-                                         setShowSlipModal({ employee: latestEmp });
+                                         setShowSlipModal({ employee: emp });
                                        }}
                                        className="p-2 bg-slate-100 hover:bg-[#FFC000] hover:text-black rounded-lg transition-all text-slate-400"
                                      >
@@ -943,7 +944,10 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
           attendanceRecords={attendanceRecords}
           userRole="owner"
           onClose={() => setShowSlipModal(null)}
-          onUpdate={() => startPayrollProcess()}
+          onUpdate={() => {
+            if (onRefresh) onRefresh();
+            startPayrollProcess();
+          }}
           positionRates={positionRates}
         />
       )}

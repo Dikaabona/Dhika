@@ -956,7 +956,13 @@ export const App: React.FC = () => {
               ) : activeTab === 'live_map' ? (
                 <LiveMapModule employees={employees} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'finance' ? (
-                <FinancialModule company={userCompany} employees={employees} attendanceRecords={attendanceRecords} onClose={() => setActiveTab('home')} />
+                <FinancialModule 
+                  company={userCompany} 
+                  employees={employees} 
+                  attendanceRecords={attendanceRecords} 
+                  onClose={() => setActiveTab('home')} 
+                  onRefresh={() => fetchData(session?.user?.email, true)}
+                />
               ) : activeTab === 'inventory' ? (
                 <InventoryModule company={userCompany} userRole={userRole} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'calendar' ? (
