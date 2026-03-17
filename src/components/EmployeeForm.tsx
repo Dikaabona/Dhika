@@ -106,6 +106,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
         ...rest,
         gender: rest.gender || 'Laki-laki',
         hutang: rest.hutang || 0,
+        sisaCuti: rest.sisaCuti || 12,
         isRemoteAllowed: rest.isRemoteAllowed || false,
         resigned_at: rest.resigned_at || null,
         resign_reason: rest.resign_reason || null
@@ -145,6 +146,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
         tanggalMasuk: formattedToday,
         company: formData.company || userCompany,
         hutang: 0,
+        sisaCuti: 12,
         isRemoteAllowed: false
       }));
     }
@@ -418,6 +420,16 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
                   className="w-5 h-5 rounded border-emerald-200 text-emerald-600 focus:ring-emerald-500" 
                 />
                 <label className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Izinkan Absen Remote (Individu)</label>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Sisa Cuti (Hari)</label>
+                <input 
+                  type="number" 
+                  name="sisaCuti" 
+                  value={formData.sisaCuti || 0} 
+                  onChange={handleChange} 
+                  className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" 
+                />
               </div>
             </div>
             

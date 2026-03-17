@@ -78,6 +78,7 @@ export interface Employee {
   kodePos?: string;
   masaProbation?: string;
   gender?: string;
+  sisaCuti?: number;
   isTrackingActive?: boolean;
   lastLocationUpdate?: string;
   lastLatitude?: number;

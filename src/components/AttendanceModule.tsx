@@ -114,6 +114,9 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
 
   const handleUpdateStatus = async (id: string, newStatus: string, isVirtual: boolean, empId?: string, date?: string) => {
     try {
+      const targetEmpId = empId || records.find(r => r.id === id)?.employeeId;
+      const oldStatus = records.find(r => r.id === id || (r.employeeId === empId && r.date === date))?.status;
+
       let finalRecord;
       
       if (isVirtual && empId && date) {
@@ -156,6 +159,23 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
       }
 
       if (finalRecord) {
+        // Sync sisaCuti if status changed to/from 'Cuti'
+        if (targetEmpId && oldStatus !== newStatus) {
+          const employee = employees.find(e => e.id === targetEmpId);
+          if (employee) {
+            let newSisaCuti = employee.sisaCuti || 0;
+            if (oldStatus !== 'Cuti' && newStatus === 'Cuti') {
+              newSisaCuti -= 1;
+            } else if (oldStatus === 'Cuti' && newStatus !== 'Cuti') {
+              newSisaCuti += 1;
+            }
+
+            if (newSisaCuti !== (employee.sisaCuti || 0)) {
+              await supabase.from('employees').update({ sisaCuti: newSisaCuti }).eq('id', targetEmpId);
+            }
+          }
+        }
+
         setRecords(prev => {
           const index = prev.findIndex(r => r.id === finalRecord.id || (r.employeeId === finalRecord.employeeId && r.date === finalRecord.date));
           if (index !== -1) {
@@ -475,7 +495,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                             className="text-[10px] font-black uppercase px-2 py-1 rounded-lg border border-slate-200 outline-none bg-white shadow-sm"
                           >
                             <option value="Hadir">Hadir</option>
-                            <option value="Terlambat">Terlambat</option>
+                            <option value="Cuti">Cuti</option>
                             <option value="Izin">Izin</option>
                             <option value="Sakit">Sakit</option>
                             <option value="Alpa">Alpa</option>
@@ -484,6 +504,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                         ) : (
                           <span className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-full border ${
                             record.status === 'Hadir' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                            record.status === 'Cuti' ? 'bg-purple-50 text-purple-700 border-purple-100' :
                             record.status === 'Terlambat' ? 'bg-amber-50 text-amber-700 border-amber-100' :
                             record.status === 'Izin' || record.status === 'Sakit' ? 'bg-blue-50 text-blue-700 border-blue-100' :
                             record.status === 'Alpa' ? 'bg-rose-50 text-rose-700 border-rose-100' :
@@ -554,7 +575,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                           className="text-[9px] font-black uppercase px-2 py-1 rounded-lg border border-slate-200 outline-none bg-white shadow-sm"
                         >
                           <option value="Hadir">Hadir</option>
-                          <option value="Terlambat">Terlambat</option>
+                          <option value="Cuti">Cuti</option>
                           <option value="Izin">Izin</option>
                           <option value="Sakit">Sakit</option>
                           <option value="Alpa">Alpa</option>
@@ -564,6 +585,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                         <div className="flex items-center gap-2">
                           <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-full border ${
                             record.status === 'Hadir' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                            record.status === 'Cuti' ? 'bg-purple-50 text-purple-700 border-purple-100' :
                             record.status === 'Terlambat' ? 'bg-amber-50 text-amber-700 border-amber-100' :
                             record.status === 'Izin' || record.status === 'Sakit' ? 'bg-blue-50 text-blue-700 border-blue-100' :
                             record.status === 'Alpa' ? 'bg-rose-50 text-rose-700 border-rose-100' :

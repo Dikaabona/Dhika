@@ -140,7 +140,8 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, use
         bpjsKetenagakerjaan: editedEmployee.bpjsKetenagakerjaan,
         bpjsKesehatan: editedEmployee.bpjsKesehatan,
         email: editedEmployee.email,
-        resigned_at: editedEmployee.resigned_at
+        resigned_at: editedEmployee.resigned_at,
+        sisaCuti: editedEmployee.sisaCuti
       }).eq('id', employee.id);
 
       if (error) throw error;
@@ -205,6 +206,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, use
                 <InfoRow label="Lokasi kerja" value={editedEmployee.lokasiKerja} field="lokasiKerja" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} branches={branches} />
                 <InfoRow label="Divisi" value={editedEmployee.division} field="division" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
                 <InfoRow label="Jabatan" value={editedEmployee.jabatan} field="jabatan" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
+                <InfoRow label="Sisa Cuti" value={editedEmployee.sisaCuti} field="sisaCuti" type="number" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
               </div>
             </div>
 

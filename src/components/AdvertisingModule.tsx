@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { AdvertisingRecord, UserRole } from '../types';
-import { Icons, LIVE_BRANDS } from '../constants';
+import { Icons, ADS_BRANDS } from '../constants';
 import { supabase } from '../services/supabaseClient';
 
 interface AdvertisingModuleProps {
@@ -19,6 +19,7 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
   onRefresh,
   onClose,
 }) => {
+  const [view, setView] = useState<'performance' | 'brands'>('performance');
   const [searchQuery, setSearchQuery] = useState('');
   const [brandFilter, setBrandFilter] = useState('ALL');
   const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
@@ -28,7 +29,7 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
   const [isAdding, setIsAdding] = useState(false);
   const [newRecord, setNewRecord] = useState<Partial<AdvertisingRecord>>({
     date: new Date().toISOString().split('T')[0],
-    brand: LIVE_BRANDS[0]?.name || '',
+    brand: ADS_BRANDS[0]?.name || '',
     grossRevenue: 0,
     cost: 0,
     purchase: 0,
@@ -66,7 +67,7 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
       onRefresh();
       setNewRecord({
         date: new Date().toISOString().split('T')[0],
-        brand: LIVE_BRANDS[0]?.name || '',
+        brand: ADS_BRANDS[0]?.name || '',
         grossRevenue: 0,
         cost: 0,
         purchase: 0,
@@ -83,78 +84,118 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
   return (
     <div className="flex flex-col h-full bg-white rounded-[40px] shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in duration-500">
       {/* Header */}
-      <div className="bg-[#FF8A00] px-8 py-6 flex items-center justify-between shadow-lg relative z-10">
+      <div className="bg-white px-8 py-6 flex items-center justify-between border-b border-slate-100 relative z-10">
         <div className="flex items-center gap-4">
-          <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md">
-            <Icons.BarChart2 className="w-8 h-8 text-white" />
+          <div className="bg-slate-100 p-3 rounded-2xl">
+            <Icons.BarChart2 className="w-8 h-8 text-slate-900" />
           </div>
           <div>
-            <h2 className="text-3xl font-black text-white uppercase tracking-tighter italic">ADVERTISING MAX</h2>
-            <p className="text-white/80 text-[10px] font-bold tracking-widest uppercase">Performance Tracking Dashboard</p>
+            <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter italic">Ecommerce Ads</h2>
           </div>
         </div>
-        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-          <Icons.X className="w-6 h-6 text-white" />
+        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+          <Icons.X className="w-6 h-6 text-slate-400" />
         </button>
       </div>
 
-      {/* Toolbar */}
-      <div className="p-6 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center gap-4">
+      {/* Sub-menu / Tabs */}
+      <div className="px-8 flex gap-8 border-b border-slate-100 bg-white">
+        <button 
+          onClick={() => setView('performance')} 
+          className={`py-4 text-xs font-black uppercase tracking-widest transition-all relative ${view === 'performance' ? 'text-slate-900' : 'text-slate-400'}`}
+        >
+          Performance
+          {view === 'performance' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-900 rounded-t-full" />}
+        </button>
+        <button 
+          onClick={() => setView('brands')} 
+          className={`py-4 text-xs font-black uppercase tracking-widest transition-all relative ${view === 'brands' ? 'text-slate-900' : 'text-slate-400'}`}
+        >
+          Brands
+          {view === 'brands' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-900 rounded-t-full" />}
+        </button>
+      </div>
+
+      {view === 'performance' ? (
+        <>
+          {/* Toolbar */}
+          <div className="p-6 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center gap-4">
         {/* Search */}
         <div className="relative flex-1 min-w-[240px]">
-          <Icons.Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input 
-            type="text" 
-            placeholder="Search notes or brand..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-[#FF8A00] focus:border-transparent outline-none transition-all shadow-sm"
-          />
-        </div>
+            <Icons.Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="Search notes or brand..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all shadow-sm"
+            />
+          </div>
 
-        {/* Numeric Filters */}
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <input 
-              type="number" 
-              placeholder="Min GMV" 
-              value={minGMV}
-              onChange={(e) => setMinGMV(e.target.value ? Number(e.target.value) : '')}
-              className="w-28 pl-3 pr-2 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-[#FF8A00] shadow-sm"
-            />
+          {/* Numeric Filters */}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <input 
+                type="number" 
+                placeholder="Min GMV" 
+                value={minGMV === 0 ? 0 : (minGMV || '')}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') setMinGMV('');
+                  else {
+                    const num = parseFloat(val);
+                    setMinGMV(isNaN(num) ? '' : num);
+                  }
+                }}
+                className="w-28 pl-3 pr-2 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-slate-900 shadow-sm"
+              />
+            </div>
+            <div className="relative">
+              <input 
+                type="number" 
+                placeholder="Min ROI" 
+                value={minROI === 0 ? 0 : (minROI || '')}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') setMinROI('');
+                  else {
+                    const num = parseFloat(val);
+                    setMinROI(isNaN(num) ? '' : num);
+                  }
+                }}
+                className="w-24 pl-3 pr-2 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-slate-900 shadow-sm"
+              />
+            </div>
+            <div className="relative">
+              <input 
+                type="number" 
+                placeholder="Min Purc" 
+                value={minPurchase === 0 ? 0 : (minPurchase || '')}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') setMinPurchase('');
+                  else {
+                    const num = parseFloat(val);
+                    setMinPurchase(isNaN(num) ? '' : num);
+                  }
+                }}
+                className="w-24 pl-3 pr-2 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-slate-900 shadow-sm"
+              />
+            </div>
           </div>
-          <div className="relative">
-            <input 
-              type="number" 
-              placeholder="Min ROI" 
-              value={minROI}
-              onChange={(e) => setMinROI(e.target.value ? Number(e.target.value) : '')}
-              className="w-24 pl-3 pr-2 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-[#FF8A00] shadow-sm"
-            />
-          </div>
-          <div className="relative">
-            <input 
-              type="number" 
-              placeholder="Min Purc" 
-              value={minPurchase}
-              onChange={(e) => setMinPurchase(e.target.value ? Number(e.target.value) : '')}
-              className="w-24 pl-3 pr-2 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-[#FF8A00] shadow-sm"
-            />
-          </div>
-        </div>
 
-        {/* Brand Filter */}
-        <div className="relative">
-          <select 
-            value={brandFilter}
-            onChange={(e) => setBrandFilter(e.target.value)}
-            className="pl-4 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold appearance-none outline-none focus:ring-2 focus:ring-[#FF8A00] shadow-sm"
-          >
-            <option value="ALL">ALL BRANDS</option>
-            {LIVE_BRANDS.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
-          </select>
-          <Icons.ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-        </div>
+          {/* Brand Filter */}
+          <div className="relative">
+            <select 
+              value={brandFilter}
+              onChange={(e) => setBrandFilter(e.target.value)}
+              className="pl-4 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold appearance-none outline-none focus:ring-2 focus:ring-slate-900 shadow-sm"
+            >
+              <option value="ALL">ALL BRANDS</option>
+              {ADS_BRANDS.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+            </select>
+            <Icons.ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          </div>
 
         {/* Date Filter */}
         <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl p-1 shadow-sm">
@@ -262,12 +303,44 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
           )}
         </div>
       </div>
+    </>
+  ) : (
+    <div className="flex-1 p-8 bg-slate-50 overflow-auto">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Ads Brands Management</h3>
+                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">List of brands using advertising services</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {ADS_BRANDS.map((brand) => (
+                <div key={brand.name} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm flex items-center justify-between group hover:shadow-md transition-all">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-2xl ${brand.color} flex items-center justify-center font-black text-xs`}>
+                      {brand.name.substring(0, 2)}
+                    </div>
+                    <div>
+                      <p className="font-black text-slate-900 uppercase tracking-tight">{brand.name}</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Active Client</p>
+                    </div>
+                  </div>
+                  <button className="p-2 text-slate-300 hover:text-slate-900 transition-colors">
+                    <Icons.MoreVertical className="w-5 h-5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Modal */}
       {isAdding && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-500">
-            <div className="bg-[#FF8A00] p-8">
+            <div className="bg-slate-900 p-8">
               <h3 className="text-2xl font-black text-white uppercase italic tracking-tight">Add Performance Data</h3>
               <p className="text-white/70 text-xs font-bold uppercase tracking-widest">Input daily advertising metrics</p>
             </div>
@@ -279,7 +352,7 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
                     type="date" 
                     value={newRecord.date}
                     onChange={(e) => setNewRecord({...newRecord, date: e.target.value})}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-[#FF8A00]"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-900"
                   />
                 </div>
                 <div className="space-y-2">
@@ -287,9 +360,9 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
                   <select 
                     value={newRecord.brand}
                     onChange={(e) => setNewRecord({...newRecord, brand: e.target.value})}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-[#FF8A00]"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-900"
                   >
-                    {LIVE_BRANDS.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+                    {ADS_BRANDS.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
                   </select>
                 </div>
               </div>
@@ -300,9 +373,13 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">Rp</span>
                   <input 
                     type="number" 
-                    value={newRecord.grossRevenue}
-                    onChange={(e) => setNewRecord({...newRecord, grossRevenue: Number(e.target.value)})}
-                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-[#FF8A00]"
+                    value={newRecord.grossRevenue ?? 0}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const num = parseFloat(val);
+                      setNewRecord({...newRecord, grossRevenue: isNaN(num) ? 0 : num});
+                    }}
+                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-900"
                   />
                 </div>
               </div>
@@ -312,18 +389,26 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ad Cost</label>
                   <input 
                     type="number" 
-                    value={newRecord.cost}
-                    onChange={(e) => setNewRecord({...newRecord, cost: Number(e.target.value)})}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-[#FF8A00]"
+                    value={newRecord.cost ?? 0}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const num = parseFloat(val);
+                      setNewRecord({...newRecord, cost: isNaN(num) ? 0 : num});
+                    }}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-900"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Purchase</label>
                   <input 
                     type="number" 
-                    value={newRecord.purchase}
-                    onChange={(e) => setNewRecord({...newRecord, purchase: Number(e.target.value)})}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-[#FF8A00]"
+                    value={newRecord.purchase ?? 0}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const num = parseFloat(val);
+                      setNewRecord({...newRecord, purchase: isNaN(num) ? 0 : num});
+                    }}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-900"
                   />
                 </div>
               </div>
@@ -337,7 +422,7 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
                 </button>
                 <button 
                   onClick={handleSave}
-                  className="flex-[2] py-4 bg-[#FF8A00] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-orange-200 hover:scale-[1.02] active:scale-95 transition-all"
+                  className="flex-[2] py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
                 >
                   Save Performance
                 </button>

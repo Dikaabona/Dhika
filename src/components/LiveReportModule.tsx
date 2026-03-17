@@ -83,12 +83,16 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
   });
 
   const calculateDuration = (start: string, end: string): number => {
-    if (!start || !end) return 0;
+    if (!start || !end || !start.includes(':') || !end.includes(':')) return 0;
     const [sH, sM] = start.split(':').map(Number);
     const [eH, eM] = end.split(':').map(Number);
+    
+    if (isNaN(sH) || isNaN(sM) || isNaN(eH) || isNaN(eM)) return 0;
+    
     let diff = (eH * 60 + eM) - (sH * 60 + sM);
     if (diff < 0) diff += 1440;
-    return parseFloat((diff / 60).toFixed(2));
+    const result = parseFloat((diff / 60).toFixed(2));
+    return isNaN(result) ? 0 : result;
   };
 
   useEffect(() => {
@@ -677,7 +681,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Durasi</label>
-                  <input type="number" step="0.01" value={formData.durasi} disabled className="w-full bg-slate-100 border border-slate-200 px-2 py-3.5 rounded-2xl text-[11px] font-black text-slate-400 outline-none" />
+                  <input type="number" step="0.01" value={formData.durasi || 0} disabled className="w-full bg-slate-100 border border-slate-200 px-2 py-3.5 rounded-2xl text-[11px] font-black text-slate-400 outline-none" />
                 </div>
               </div>
 

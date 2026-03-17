@@ -14,6 +14,12 @@ export const LIVE_BRANDS = [
   { name: 'YONGKI KOMALADI', color: 'bg-slate-800 text-white' }
 ];
 
+export const ADS_BRANDS = [
+  { name: 'BRAND ADS A', color: 'bg-blue-400' },
+  { name: 'BRAND ADS B', color: 'bg-purple-400' },
+  { name: 'BRAND ADS C', color: 'bg-pink-400' }
+];
+
 export const TIME_SLOTS = [
   '00.00 - 01.00', '01.00 - 02.00', '02.00 - 03.00', '03.00 - 04.00',
   '04.00 - 05.00', '05.00 - 06.00', '06.00 - 07.00', '07.00 - 08.00',
@@ -226,8 +232,5 @@ export const Icons = {
   ),
   BarChart2: ({ className }: { className?: string }) => (
     <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-  ),
-  CheckCircle: ({ className }: { className?: string }) => (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
   ),
 };
