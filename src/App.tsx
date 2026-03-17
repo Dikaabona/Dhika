@@ -256,7 +256,18 @@ export const App: React.FC = () => {
             .lt('date', shiftDateStr)
             .eq('company', detectedCompany);
 
-          // 3. Cleanup old schedules (Retention Policy: Max 1000 records)
+          // 3. Cleanup old live reports (older than 6 months / 180 days)
+          const sixMonthsAgo = new Date(now);
+          sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+          const reportDateStr = sixMonthsAgo.toISOString().split('T')[0];
+
+          await supabase
+            .from('live_reports')
+            .delete()
+            .lt('tanggal', reportDateStr)
+            .eq('company', detectedCompany);
+
+          // 4. Cleanup old schedules (Retention Policy: Max 1000 records)
           const { count: scheduleCount } = await supabase
             .from('schedules')
             .select('*', { count: 'exact', head: true })
@@ -352,7 +363,7 @@ export const App: React.FC = () => {
 
       const fetchPromises = [
         buildQuery('attendance').order('date', { ascending: false }).limit(500).then(({data, error}: any) => { if(error) throw error; setAttendanceRecords(data || []); }),
-        buildQuery('live_reports').order('tanggal', { ascending: false }).limit(200).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
+        buildQuery('live_reports').order('tanggal', { ascending: false }).limit(2000).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(50).then(({data, error}: any) => { if(error) throw error; setSubmissions(data || []); }),
         buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(30).then(({data, error}: any) => { if(error) throw error; setBroadcasts(data || []); }),
         buildQuery('schedules').order('date', { ascending: false }).limit(1000).then(({data, error}: any) => { 

@@ -41,9 +41,9 @@ const parseYMDToIso = (val: any) => {
   return str;
 };
 
-const getSevenDaysAgoStr = () => {
+const getThirtyDaysAgoStr = () => {
   const d = new Date();
-  d.setDate(d.getDate() - 7);
+  d.setDate(d.getDate() - 30);
   return d.toISOString().split('T')[0];
 };
 
@@ -55,7 +55,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
   const getTodayStr = () => new Date().toISOString().split('T')[0];
-  const [startDate, setStartDate] = useState(getSevenDaysAgoStr());
+  const [startDate, setStartDate] = useState(getThirtyDaysAgoStr());
   const [endDate, setEndDate] = useState(getTodayStr());
   
   const [isImporting, setIsImporting] = useState(false);
