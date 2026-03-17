@@ -769,6 +769,41 @@ async function checkAndSendNotifications() {
       }
     }
 
+    // --- LIVE SCHEDULE NOTIFICATIONS (15 Minutes Before) ---
+    const { data: liveSchedules, error: liveError } = await supabase.from('live_schedules').select('*').eq('date', today);
+    if (!liveError && liveSchedules) {
+      for (const schedule of liveSchedules) {
+        const host = emps?.find((e: any) => e.id === schedule.hostId);
+        const operator = emps?.find((e: any) => e.id === schedule.opId);
+        
+        if (!schedule.hourSlot) continue;
+        
+        // Parse hourSlot like "19.00 - 21.00" or "19:00 - 21:00"
+        const startTimeStr = schedule.hourSlot.split('-')[0].trim().replace('.', ':');
+        const [sHour, sMin] = startTimeStr.split(':').map(Number);
+        
+        if (isNaN(sHour) || isNaN(sMin)) continue;
+
+        const nowTotalMins = (currentHour * 60) + currentMin;
+        const shiftTotalMins = (sHour * 60) + sMin;
+        const diffMinutes = shiftTotalMins - nowTotalMins;
+
+        if (diffMinutes === 15) {
+          // Notify Host
+          if (host && host.noHandphone) {
+            const msg = `🎥 *PENGINGAT LIVE STREAMING* 🎥\n\nHalo *${host.nama}*,\n\nJadwal Live Anda di brand *${schedule.brand}* jam *${schedule.hourSlot}* akan dimulai dalam *15 menit*. Mohon bersiap-siap ya! Semangat! 🚀`;
+            await sendWahaMessage(host.noHandphone, msg, host.company);
+          }
+          
+          // Notify Operator
+          if (operator && operator.noHandphone) {
+            const msg = `🎙️ *PERSIAPAN STUDIO LIVE* 🎙️\n\nHalo *${operator.nama}*,\n\nJadwal Live brand *${schedule.brand}* jam *${schedule.hourSlot}* akan dimulai dalam *15 menit*.\n\nMohon segera persiapkan studio dan peralatan untuk Host (*${host?.nama || 'Unknown'}*). Terima kasih! 🙏`;
+            await sendWahaMessage(operator.noHandphone, msg, operator.company);
+          }
+        }
+      }
+    }
+
     const { data: contents, error: contentError } = await supabase.from('content_plans').select('*').eq('postingDate', today);
     if (contentError) throw contentError;
 
