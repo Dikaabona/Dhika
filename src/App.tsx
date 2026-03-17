@@ -962,6 +962,8 @@ export const App: React.FC = () => {
                   attendanceRecords={attendanceRecords} 
                   onClose={() => setActiveTab('home')} 
                   onRefresh={() => fetchData(session?.user?.email, true)}
+                  weeklyHolidays={weeklyHolidays}
+                  positionRates={positionRates}
                 />
               ) : activeTab === 'inventory' ? (
                 <InventoryModule company={userCompany} userRole={userRole} onClose={() => setActiveTab('home')} />

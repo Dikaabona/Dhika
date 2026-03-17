@@ -18,6 +18,8 @@ interface SalarySlipModalProps {
   onUpdate?: () => void;
   weeklyHolidays?: Record<string, string[]>;
   positionRates?: any[];
+  initialMonth?: string;
+  initialYear?: string;
 }
 
 const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
@@ -25,7 +27,17 @@ const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9
 
 const ALPHA_START_DATE = '2025-01-01';
 
-const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceRecords, userRole, onClose, onUpdate, weeklyHolidays, positionRates = [] }) => {
+const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ 
+  employee, 
+  attendanceRecords, 
+  userRole, 
+  onClose, 
+  onUpdate, 
+  weeklyHolidays, 
+  positionRates = [],
+  initialMonth,
+  initialYear
+}) => {
   const { confirm } = useConfirmation();
   const isReadOnlyRole = userRole === 'admin' || userRole === 'employee';
   const [currentEmployee, setCurrentEmployee] = useState(employee);
@@ -76,12 +88,11 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ employee, attendanceR
   };
 
   const activePeriod = getActivePayrollMonthInfo();
-
   const [isBPJSTKActive, setIsBPJSTKActive] = useState(employee.salaryConfig?.isBPJSTKActive ?? false);
   const [showOvertimeDetails, setShowOvertimeDetails] = useState(false);
   const [data, setData] = useState<SalaryData & { adjustment: number; pph21: number; totalHutang: number }>({
-    month: activePeriod.name,
-    year: activePeriod.year,
+    month: initialMonth || activePeriod.name,
+    year: initialYear || activePeriod.year,
     gapok: employee.salaryConfig?.gapok ?? 0,
     tunjanganMakan: employee.salaryConfig?.tunjanganMakan ?? 0,
     tunjanganTransport: employee.salaryConfig?.tunjanganTransport ?? 0,

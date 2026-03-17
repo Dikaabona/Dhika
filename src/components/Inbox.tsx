@@ -133,7 +133,7 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
         return r;
       });
 
-      const { error: attError } = await supabase.from('attendance').upsert(finalRecords);
+      const { error: attError } = await supabase.from('attendance').upsert(finalRecords, { onConflict: 'employeeId,date' });
       if (attError) throw new Error(`Gagal mencatat absensi: ${attError.message}`);
 
       const { error: subError } = await supabase.from('submissions').update({ status: 'Approved' }).eq('id', sub.id);

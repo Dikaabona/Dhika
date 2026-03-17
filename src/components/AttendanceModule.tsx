@@ -139,7 +139,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
 
         const { data, error } = await supabase
           .from('attendance')
-          .upsert(recordToUpsert)
+          .upsert(recordToUpsert, { onConflict: 'employeeId,date' })
           .select();
 
         if (error) throw error;
@@ -258,7 +258,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
             return r;
           });
 
-          const { data: upsertedData, error } = await supabase.from('attendance').upsert(finalRecords).select();
+          const { data: upsertedData, error } = await supabase.from('attendance').upsert(finalRecords, { onConflict: 'employeeId,date' }).select();
           if (error) throw error;
           
           alert(`Berhasil mengimpor ${newRecords.length} data absensi!`);

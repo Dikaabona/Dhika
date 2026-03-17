@@ -15,9 +15,19 @@ interface FinancialModuleProps {
   attendanceRecords: any[];
   onClose: () => void;
   onRefresh?: () => void;
+  weeklyHolidays?: Record<string, string[]>;
+  positionRates?: any[];
 }
 
-const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, attendanceRecords, onClose, onRefresh }) => {
+const FinancialModule: React.FC<FinancialModuleProps> = ({ 
+  company, 
+  employees, 
+  attendanceRecords, 
+  onClose, 
+  onRefresh,
+  weeklyHolidays,
+  positionRates = []
+}) => {
   useEffect(() => {
     console.log("DEBUG: FinancialModule V2.2 (modern-screenshot) Loaded");
   }, []);
@@ -28,6 +38,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
   const [isProcessingPayroll, setIsProcessingPayroll] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [payrollEmployees, setPayrollEmployees] = useState<any[]>([]);
+  const [localAttendance, setLocalAttendance] = useState<any[]>([]);
   const [isDisbursing, setIsDisbursing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -55,6 +66,32 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
     fetchCompany();
   }, [company]);
 
+  useEffect(() => {
+    const fetchLocalAttendance = async () => {
+      const monthIdx = monthOptions.indexOf(selectedMonth);
+      if (monthIdx === -1) return;
+
+      const yearNum = parseInt(selectedYear);
+      // Fetch a wide range to be safe (e.g. from 20th of prev month to 10th of next month)
+      // Actually, just fetch the whole previous month and current month to be safe.
+      const startDate = new Date(yearNum, monthIdx - 1, 1);
+      const endDate = new Date(yearNum, monthIdx + 1, 0);
+      
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('company', company)
+        .gte('date', startDate.toISOString().split('T')[0])
+        .lte('date', endDate.toISOString().split('T')[0]);
+      
+      if (!error && data) {
+        setLocalAttendance(data);
+      }
+    };
+
+    fetchLocalAttendance();
+  }, [selectedMonth, selectedYear, company]);
+
   const monthOptions = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
     'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
@@ -67,7 +104,12 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
     const isDaily = config.type === 'daily';
     
     let workingDays = config.workingDays || 26;
-    if (isDaily && empId && settings) {
+    let alphaCount = 0;
+    let hadirCount = 0;
+
+    const emp = employees.find(e => e.id === empId);
+
+    if (empId && settings && emp) {
       const monthIdx = monthOptions.indexOf(selectedMonth);
       if (monthIdx !== -1) {
         const cutoffStart = config.cutoffStart || settings.payrollCutoffStart || 26;
@@ -79,18 +121,64 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
         const startStr = rangeStart.toISOString().split('T')[0];
         const endStr = rangeEnd.toISOString().split('T')[0];
 
-        const hadirCount = attendanceRecords.filter(r => 
+        const relevantRecords = localAttendance.filter(r => 
           r.employeeId === empId && 
           r.date >= startStr && 
-          r.date <= endStr && 
-          (r.status === 'Hadir' || (r.notes && r.notes.toUpperCase().includes('JAM:')))
-        ).length;
+          r.date <= endStr
+        );
+
+        // Helper to check workday (same as SalarySlipModal)
+        const isWorkDay = (date: Date) => {
+          const day = date.getDay();
+          const isHost = (emp.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
+          if (day === 0) return isHost;
+          if (day === 6) return false;
+          const dayNameMap = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
+          const currentDayName = dayNameMap[day];
+          if (weeklyHolidays) {
+            const empNameUpper = emp.nama.toUpperCase();
+            const employeeInHolidays = Object.values(weeklyHolidays).some(names => (names as string[]).map(n => n.toUpperCase()).includes(empNameUpper));
+            if (employeeInHolidays) {
+              return !(weeklyHolidays[currentDayName] || []).map(n => n.toUpperCase()).includes(empNameUpper);
+            }
+          }
+          return true;
+        };
+
+        const todayStr = formatDateToYYYYMMDD(new Date());
+        let temp = new Date(rangeStart);
+        while (temp <= rangeEnd) {
+          const dStr = formatDateToYYYYMMDD(temp);
+          const dayRecords = relevantRecords.filter(r => r.date === dStr);
+          const isWork = isWorkDay(temp);
+          
+          const mainRecord = dayRecords.find(r => (r.status || '').toLowerCase() !== 'lembur');
+          const hasLembur = dayRecords.some(r => (r.status || '').toLowerCase() === 'lembur' || (r.notes && r.notes.toLowerCase().includes('lembur')));
+
+          if (mainRecord) {
+            if (mainRecord.status === 'Hadir') hadirCount++;
+            else if (mainRecord.status === 'Alpha') alphaCount++;
+            // Sakit, Izin, Cuti, Libur don't count as Alpha but also don't count as Hadir for daily
+          } else if (hasLembur) {
+            hadirCount++;
+          } else {
+            if (dStr < todayStr) {
+              if (isWork) alphaCount++;
+            }
+          }
+          temp.setDate(temp.getDate() + 1);
+        }
         
-        workingDays = hadirCount;
+        if (isDaily) {
+          workingDays = hadirCount;
+        }
       }
     }
 
-    const effectiveGapok = isDaily ? (config.gapok || 0) * workingDays : (config.gapok || 0);
+    const gapok = config.gapok || 0;
+    const effectiveGapok = isDaily ? gapok * workingDays : gapok;
+    const dailyRate = gapok / 26;
+    const potonganAbsensi = isDaily ? 0 : Math.round(alphaCount * dailyRate);
 
     return effectiveGapok + 
            (config.tunjanganMakan || 0) + 
@@ -104,8 +192,9 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
            (config.isBPJSTKActive === true ? (config.bpjstk || 0) : 0) - 
            (config.pph21 || 0) - 
            actualPotonganHutang - 
-           (config.potonganLain || 0);
-  }, [attendanceRecords, selectedMonth, selectedYear, settings]);
+           (config.potonganLain || 0) -
+           potonganAbsensi;
+  }, [localAttendance, selectedMonth, selectedYear, settings, employees, weeklyHolidays]);
 
   useEffect(() => {
     if (isProcessingPayroll && employees.length > 0 && payrollEmployees.length > 0) {
@@ -130,7 +219,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
         savePayrollDraft(updatedPayroll);
       }
     }
-  }, [employees, isProcessingPayroll, payrollEmployees, selectedMonth, selectedYear, settings, attendanceRecords, calculateTotalSalary]);
+  }, [employees, isProcessingPayroll, payrollEmployees, selectedMonth, selectedYear, settings, localAttendance, calculateTotalSalary]);
 
   useEffect(() => {
     loadFinanceData();
@@ -216,7 +305,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
       // Filter employees who have bank info and salary config
       const validEmployees = (data || []).map(emp => {
         const config = emp.salaryConfig || {};
-        const totalSalary = calculateTotalSalary(config, emp.hutang);
+        const totalSalary = calculateTotalSalary(config, emp.hutang, emp.id);
         
         return {
           ...emp,
@@ -309,21 +398,6 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
 
   const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
 
-  const [positionRates, setPositionRates] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (showSlipModal || isSendingEmails) {
-      fetchAttendanceAndRates();
-    }
-  }, [showSlipModal, isSendingEmails]);
-
-  const fetchAttendanceAndRates = async () => {
-    try {
-      const { data: rates } = await supabase.from('settings').select('value').eq('key', 'position_rates').single();
-      setPositionRates(rates?.value || []);
-    } catch (e) {}
-  };
-
   const handleSendAllEmails = async () => {
     console.log("DEBUG: Starting handleSendAllEmails");
     console.log("DEBUG: Company prop:", company);
@@ -365,7 +439,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
           const startStr = formatDateToYYYYMMDD(rangeStart);
           const endStr = formatDateToYYYYMMDD(rangeEnd);
 
-          const cutoffRecords = attendanceRecords.filter(r => r.employeeId === emp.id && r.date >= startStr && r.date <= endStr);
+          const cutoffRecords = localAttendance.filter(r => r.employeeId === emp.id && r.date >= startStr && r.date <= endStr);
           
           // Basic attendance summary
           const summary = { alpha: 0, hadir: 0, sakit: 0, izin: 0, libur: 0, cuti: 0, totalOvertimePay: 0 };
@@ -834,7 +908,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
                                  </th>
                                  <th className="px-6 py-6">KARYAWAN</th>
                                 <th className="px-6 py-6">REKENING</th>
-                                <th className="px-6 py-6">NOMINAL</th>
+                                <th className="px-6 py-6">NOMINAL (THP)</th>
                                 <th className="px-6 py-6 text-center">SLIP</th>
                                 <th className="px-10 py-6 text-right">STATUS</th>
                              </tr>
@@ -941,7 +1015,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
       {showSlipModal && (
         <SalarySlipModal 
           employee={showSlipModal.employee}
-          attendanceRecords={attendanceRecords}
+          attendanceRecords={localAttendance}
           userRole="owner"
           onClose={() => setShowSlipModal(null)}
           onUpdate={() => {
@@ -949,6 +1023,9 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({ company, employees, a
             startPayrollProcess();
           }}
           positionRates={positionRates}
+          initialMonth={selectedMonth}
+          initialYear={selectedYear}
+          weeklyHolidays={weeklyHolidays}
         />
       )}
 
