@@ -4,7 +4,7 @@ console.log("App.tsx loading...");
 import * as XLSX from 'xlsx';
 import { createClient, Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabaseClient';
-import { Employee, AttendanceRecord, LiveSchedule, Submission, Broadcast, ContentPlan, LiveReport, ShiftAssignment, ActiveTab, UserRole, Shift } from './types';
+import { Employee, AttendanceRecord, LiveSchedule, Submission, Broadcast, ContentPlan, LiveReport, ShiftAssignment, ActiveTab, UserRole, Shift, AdvertisingRecord } from './types';
 import { Icons, BANK_OPTIONS, DEFAULT_SHIFTS } from './constants';
 import EmployeeForm from './components/EmployeeForm';
 import Dashboard from './components/Dashboard';
@@ -31,6 +31,7 @@ import LiveMapModule from './components/LiveMapModule';
 import FinancialModule from './components/FinancialModule';
 import RecruitmentModule from './components/RecruitmentModule';
 import { InvoiceModule } from './components/InvoiceModule';
+import { AdvertisingModule } from './components/AdvertisingModule';
 import { getTenureYears, calculateTenure, formatDateToYYYYMMDD, getMondayISO } from './utils/dateUtils';
 import { useConfirmation } from './contexts/ConfirmationContext';
 
@@ -94,6 +95,7 @@ export const App: React.FC = () => {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [shiftAssignments, setShiftAssignments] = useState<ShiftAssignment[]>([]);
+  const [advertisingRecords, setAdvertisingRecords] = useState<AdvertisingRecord[]>([]);
   const [shifts, setShifts] = useState<Shift[]>(DEFAULT_SHIFTS);
   const [positionRates, setPositionRates] = useState<any[]>([]);
   const [weeklyHolidays, setWeeklyHolidays] = useState<Record<string, string[]>>({});
@@ -361,6 +363,14 @@ export const App: React.FC = () => {
           setLiveSchedules(data || []); 
         }),
         buildQuery('content_plans').order('postingDate', { ascending: false }).limit(300).then(({data, error}: any) => { if(error) throw error; setContentPlans(data || []); }),
+        buildQuery('advertising_records').order('date', { ascending: false }).limit(500).then(({data, error}: any) => { 
+          if(error) {
+            console.warn("Table advertising_records might not exist yet:", error.message);
+            setAdvertisingRecords([]);
+            return;
+          }
+          setAdvertisingRecords(data || []); 
+        }),
         buildQuery('shift_assignments').order('date', { ascending: false }).limit(1000).then(({data, error}: any) => { if(error) throw error; setShiftAssignments(data || []); }),
         supabase.from('settings').select('value').eq('key', `shifts_config_${companyFilterVal}`).single().then(({data}) => {
           if (data && Array.isArray(data.value)) setShifts(data.value);
@@ -736,7 +746,7 @@ export const App: React.FC = () => {
 
   const isFullscreenModule = activeTab === 'absen' || activeTab === 'minvis';
   const isAttendanceActive = ['absen', 'attendance', 'submissions', 'shift', 'live_map'].includes(activeTab);
-  const isModulActive = ['schedule', 'content', 'minvis', 'calendar'].includes(activeTab);
+  const isModulActive = ['schedule', 'content', 'minvis', 'calendar', 'advertising'].includes(activeTab);
 
   const isUnregistered = useMemo(() => {
     if (!session || isLoadingData) return false;
@@ -780,13 +790,15 @@ export const App: React.FC = () => {
         {!isSellerSpace && (
           <div className="relative" ref={desktopModulRef}>
             <button onClick={() => setIsDesktopModulOpen(!isDesktopModulOpen)} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${isModulActive ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-              CONTENT <Icons.ChevronDown className={`w-3.5 h-3.5 transition-transform ${isDesktopModulOpen ? 'rotate-180' : ''}`} />
+              REPORT <Icons.ChevronDown className={`w-3.5 h-3.5 transition-transform ${isDesktopModulOpen ? 'rotate-180' : ''}`} />
             </button>
             {isDesktopModulOpen && (
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in duration-300">
                 <button onClick={() => { setActiveTab('schedule'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">LIVE STREAMING</button>
                 <div className="h-px bg-slate-50 w-full"></div>
                 <button onClick={() => { setActiveTab('content'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">SHORT VIDEO</button>
+                <div className="h-px bg-slate-50 w-full"></div>
+                <button onClick={() => { setActiveTab('advertising'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">ADVERTISING</button>
                 <div className="h-px bg-slate-50 w-full"></div>
                 <button onClick={() => { setActiveTab('minvis'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-[#FFC000] hover:text-black transition-colors text-[#334155]">MINVIS (AI)</button>
               </div>
@@ -1013,6 +1025,14 @@ export const App: React.FC = () => {
                   employees={employees}
                   company={userCompany}
                   onClose={() => setActiveTab('content')}
+                />
+              ) : activeTab === 'advertising' ? (
+                <AdvertisingModule 
+                  records={advertisingRecords}
+                  userRole={userRole}
+                  company={userCompany}
+                  onRefresh={() => fetchData(session?.user?.email, true)}
+                  onClose={() => setActiveTab('home')}
                 />
               ) : activeTab === 'submissions' ? (
                 <SubmissionForm employee={currentUserEmployee} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} />

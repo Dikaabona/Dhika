@@ -7,8 +7,14 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 async function check() {
-  const { data: schedules } = await supabase.from('schedules').select('*').limit(5);
-  console.log("Schedules:", schedules);
+  const today = '2026-03-17';
+  const { data: schedules, error } = await supabase.from('schedules').select('*').eq('date', today);
+  console.log("Schedules for today:", schedules);
+  if (error) console.error(error);
+
+  const { data: assignments, error2 } = await supabase.from('shift_assignments').select('*').eq('date', today);
+  console.log("Assignments for today:", assignments);
+  if (error2) console.error(error2);
 }
 
 check();

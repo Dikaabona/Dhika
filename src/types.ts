@@ -3,7 +3,19 @@ export type AttendanceStatus = 'Hadir' | 'Izin' | 'Sakit' | 'Cuti' | 'Alpa' | 'L
 
 export type UserRole = 'admin' | 'employee' | 'superadmin' | 'manager' | 'owner' | 'super';
 
-export type ActiveTab = 'dashboard' | 'attendance' | 'employee' | 'content' | 'finance' | 'settings' | 'inbox' | 'inventory' | 'invoice' | 'quotation' | 'recruitment' | 'kpi' | 'calendar' | 'map' | 'report' | 'schedule' | 'minvis' | 'absen' | 'home' | 'database' | 'shift' | 'live_map' | 'submissions' | 'mobile_history' | 'content_report';
+export interface AdvertisingRecord {
+  id: string;
+  date: string;
+  brand: string;
+  grossRevenue: number;
+  cost: number;
+  purchase: number;
+  company: string;
+  notes?: string;
+}
+
+export type ActiveTab = 'dashboard' | 'attendance' | 'employee' | 'content' | 'finance' | 'settings' | 'inbox' | 'inventory' | 'invoice' | 'quotation' | 'recruitment' | 'kpi' | 'calendar' | 'map' | 'report' | 'schedule' | 'minvis' | 'absen' | 'home' | 'database' | 'shift' | 'live_map' | 'submissions' | 'mobile_history' | 'content_report' | 'advertising';
+
 
 export interface Employee {
   id: string;

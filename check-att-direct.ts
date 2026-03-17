@@ -7,8 +7,10 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 async function check() {
-  const { data: schedules } = await supabase.from('schedules').select('*').limit(5);
-  console.log("Schedules:", schedules);
+  const today = '2026-03-17';
+  const { data, error } = await supabase.from('attendance').select('*').eq('date', today);
+  console.log("Attendance today:", JSON.stringify(data, null, 2));
+  if (error) console.error(error);
 }
 
 check();

@@ -7,7 +7,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 async function check() {
-  const { data: emps } = await supabase.from('employees').select('*');
+  const { data: emps } = await supabase.from('employees').select('id, nama, company').limit(5);
   console.log("Employees:", emps);
 }
 

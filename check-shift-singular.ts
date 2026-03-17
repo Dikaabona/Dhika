@@ -7,8 +7,12 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 async function check() {
-  const { data: schedules } = await supabase.from('schedules').select('*').limit(5);
-  console.log("Schedules:", schedules);
+  const { error } = await supabase.from('shift').select('*').limit(1);
+  if (error) {
+    console.log("Table 'shift' error:", error.message);
+  } else {
+    console.log("Table 'shift' exists.");
+  }
 }
 
 check();

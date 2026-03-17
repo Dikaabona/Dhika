@@ -733,7 +733,15 @@ async function checkAndSendNotifications() {
     if (assignError) throw assignError;
 
     const { data: emps } = await supabase.from('employees').select('*');
-    const { data: allShifts } = await supabase.from('shifts').select('*');
+    let { data: allShifts } = await supabase.from('shifts').select('*');
+
+    // Fallback if shifts table doesn't exist
+    if (!allShifts) {
+      const { data: settings } = await supabase.from('settings').select('*').eq('key', 'shifts_config_Visibel').maybeSingle();
+      if (settings && settings.value) {
+        allShifts = settings.value;
+      }
+    }
 
     for (const assign of assignments || []) {
       const emp = emps?.find((e: any) => e.id === assign.employeeId);
@@ -749,12 +757,23 @@ async function checkAndSendNotifications() {
       const diffMinutes = shiftTotalMins - nowTotalMins;
 
       const isOff = shift.name.toLowerCase().includes('off') || shift.name.toLowerCase().includes('libur');
-      if (diffMinutes === 15 && !isOff) {
+      if (!isOff) {
         const { data: att } = await supabase.from('attendance').select('*').eq('employeeId', emp.id).eq('date', today).maybeSingle();
+        
         if (!att || !att.clockIn) {
-          const subject = "⏰ Pengingat Absen";
-          const msg = `⏰ *PENGINGAT ABSEN* ⏰\n\nHalo ${emp.nama}, shift *${shift.name}* Anda akan dimulai dalam 15 menit (${shiftStart}). Jangan lupa untuk melakukan absensi ya!`;
-          await sendNotification(emp, subject, msg);
+          if (diffMinutes === 15) {
+            const subject = "⏰ Pengingat Absen (15 Menit Lagi)";
+            const msg = `⏰ *PENGINGAT ABSEN* ⏰\n\nHalo ${emp.nama}, shift *${shift.name}* Anda akan dimulai dalam 15 menit (${shiftStart}). Jangan lupa untuk melakukan absensi ya!`;
+            await sendNotification(emp, subject, msg);
+          } else if (diffMinutes === 0) {
+            const subject = "⏰ Shift Dimulai";
+            const msg = `⏰ *SHIFT DIMULAI* ⏰\n\nHalo ${emp.nama}, shift *${shift.name}* Anda sudah dimulai (${shiftStart}). Anda belum melakukan absensi masuk. Segera absen ya!`;
+            await sendNotification(emp, subject, msg);
+          } else if (diffMinutes === -10) {
+            const subject = "⚠️ Peringatan Terlambat";
+            const msg = `⚠️ *PERINGATAN TERLAMBAT* ⚠️\n\nHalo ${emp.nama}, Anda sudah terlambat 10 menit dari jadwal shift *${shift.name}* (${shiftStart}) dan belum melakukan absensi masuk. Harap segera melakukan absensi!`;
+            await sendNotification(emp, subject, msg);
+          }
         }
       }
 

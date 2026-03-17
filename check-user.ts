@@ -7,8 +7,10 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 async function check() {
-  const { data: schedules } = await supabase.from('schedules').select('*').limit(5);
-  console.log("Schedules:", schedules);
+  const email = 'muhammadmahardhikadib@gmail.com';
+  const { data, error } = await supabase.from('employees').select('*').eq('email', email).maybeSingle();
+  console.log("User Profile:", data);
+  if (error) console.error(error);
 }
 
 check();

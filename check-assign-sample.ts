@@ -7,8 +7,14 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 async function check() {
-  const { data: schedules } = await supabase.from('schedules').select('*').limit(5);
-  console.log("Schedules:", schedules);
+  const { data, error } = await supabase.from('shift_assignments').select('*').limit(1);
+  if (error) {
+    console.error(error);
+  } else if (data && data.length > 0) {
+    console.log("Sample assignment:", data[0]);
+  } else {
+    console.log("No assignments found.");
+  }
 }
 
 check();
