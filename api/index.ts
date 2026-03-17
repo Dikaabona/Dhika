@@ -844,9 +844,9 @@ if (!process.env.VERCEL) {
     cron.schedule('* * * * *', () => {
       checkAndSendNotifications();
     });
-    console.log("✅ Local cron jobs scheduled successfully");
+    console.log("Local cron jobs scheduled successfully");
   } else {
-    console.log("ℹ️ Local cron is DISABLED. Set ENABLE_LOCAL_CRON=true in .env to enable.");
+    console.log("Local cron is DISABLED. Set ENABLE_LOCAL_CRON=true in .env to enable.");
   }
 }
 
