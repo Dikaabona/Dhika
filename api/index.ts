@@ -77,7 +77,7 @@ async function getWahaSettings(company: string) {
   const envSession = process.env.WAHA_SESSION_NAME || 'default';
 
   if (envUrl) {
-    let apiUrl = envUrl;
+    let apiUrl = envUrl.trim();
     if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
     if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
     return { apiUrl, apiKey: envKey, sessionName: envSession };
@@ -116,10 +116,24 @@ async function sendWahaMessage(to: string, message: string, company: string = 'V
 
   const { apiUrl, apiKey, sessionName } = settings;
 
-  // Format number: remove +, ensure it ends with @c.us
-  let chatId = to.replace(/\+/g, '').replace(/\s/g, '');
-  if (!chatId.includes('@')) {
+  // Format number: remove +, ensure it ends with @c.us, handle leading 0 for Indonesia
+  let cleaned = to.replace(/\D/g, ''); // Remove all non-digits
+  if (cleaned.startsWith('0')) {
+    cleaned = '62' + cleaned.substring(1);
+  }
+  // If it's a standard Indonesian number without 62, add it
+  if (cleaned.length >= 9 && cleaned.length <= 13 && !cleaned.startsWith('62')) {
+    cleaned = '62' + cleaned;
+  }
+  
+  let chatId = cleaned;
+  if (chatId && !chatId.includes('@')) {
     chatId = `${chatId}@c.us`;
+  }
+
+  if (!chatId || chatId === '@c.us') {
+    console.warn(`Invalid phone number for WAHA: ${to}`);
+    return;
   }
 
   try {
@@ -802,14 +816,24 @@ async function checkAndSendNotifications() {
         if (!schedule.hourSlot) continue;
         
         // Parse hourSlot like "19.00 - 21.00" or "19:00 - 21:00"
-        const startTimeStr = schedule.hourSlot.split('-')[0].trim().replace('.', ':');
+        // Handle different dashes: hyphen (-), en-dash (–), em-dash (—)
+        const parts = schedule.hourSlot.split(/[-–—]/);
+        const startTimeStr = parts[0].trim().replace('.', ':');
         const [sHour, sMin] = startTimeStr.split(':').map(Number);
         
-        if (isNaN(sHour) || isNaN(sMin)) continue;
+        if (isNaN(sHour) || isNaN(sMin)) {
+          console.warn(`Invalid hourSlot format for schedule ${schedule.id}: ${schedule.hourSlot}`);
+          continue;
+        }
 
         const nowTotalMins = (currentHour * 60) + currentMin;
         const shiftTotalMins = (sHour * 60) + sMin;
         const diffMinutes = shiftTotalMins - nowTotalMins;
+
+        // Debug log for specific problematic time
+        if (sHour === 16 && sMin === 0) {
+          console.log(`Checking 16:00 schedule for ${schedule.brand}. Diff: ${diffMinutes} mins. Now: ${currentHour}:${currentMin}`);
+        }
 
         if (diffMinutes === 15) {
           // Notify Host
