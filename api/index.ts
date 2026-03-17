@@ -725,6 +725,10 @@ async function checkAndSendNotifications() {
   console.log(`[Cron] Checking notifications for WIB: ${today} ${dateMap.hour}:${dateMap.minute}`);
 
   try {
+    if (!supabase) {
+      console.warn("[Cron] Supabase not initialized, skipping notifications");
+      return;
+    }
     const { data: assignments, error: assignError } = await supabase.from('shift_assignments').select('*').eq('date', today);
     if (assignError) throw assignError;
 
@@ -737,7 +741,7 @@ async function checkAndSendNotifications() {
       if (!emp || !shift || !emp.noHandphone) continue;
 
       const shiftStart = shift.startTime;
-      if (!shiftStart) continue;
+      if (!shiftStart || typeof shiftStart !== 'string' || !shiftStart.includes(':')) continue;
       
       const [sHour, sMin] = shiftStart.split(':').map(Number);
       const nowTotalMins = (currentHour * 60) + currentMin;
@@ -809,7 +813,7 @@ async function checkAndSendNotifications() {
 
     for (const content of contents || []) {
       const emp = emps?.find((e: any) => e.id === content.creatorId);
-      if (!emp || !content.jamUpload) continue;
+      if (!emp || !content.jamUpload || typeof content.jamUpload !== 'string' || !content.jamUpload.includes(':')) continue;
 
       const jab = (emp.jabatan || '').toLowerCase();
       if (!jab.includes('content creator')) continue;
