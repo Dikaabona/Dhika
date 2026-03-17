@@ -774,7 +774,7 @@ async function checkAndSendNotifications() {
     }
 
     // --- LIVE SCHEDULE NOTIFICATIONS (15 Minutes Before) ---
-    const { data: liveSchedules, error: liveError } = await supabase.from('live_schedules').select('*').eq('date', today);
+    const { data: liveSchedules, error: liveError } = await supabase.from('schedules').select('*').eq('date', today);
     if (!liveError && liveSchedules) {
       for (const schedule of liveSchedules) {
         const host = emps?.find((e: any) => e.id === schedule.hostId);
