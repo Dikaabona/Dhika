@@ -116,6 +116,8 @@ export interface AttendanceRecord {
   company?: string;
 }
 
+export type WeeklyHolidays = Record<string, string[]>;
+
 export interface AttendanceSettings {
   locationName: string;
   latitude: number;

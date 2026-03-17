@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Employee, AttendanceRecord } from '../types';
 import { Icons } from '../constants';
 import { formatDateToYYYYMMDD } from '../utils/dateUtils';
+import { getSalaryDetails } from '../utils/salaryCalculations';
 
 interface BulkSalaryModalProps {
   employees: Employee[];
@@ -116,89 +117,9 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
 
       try {
         if (emp) {
-          const cutoffStart = emp.salaryConfig?.cutoffStart || 26;
-          const cutoffEnd = emp.salaryConfig?.cutoffEnd || 25;
-
-          const rangeStart = new Date(targetYearNum, targetMonthIdx - 1, cutoffStart);
-          const rangeEnd = new Date(targetYearNum, targetMonthIdx, cutoffEnd);
-          rangeStart.setHours(0, 0, 0, 0);
-          rangeEnd.setHours(23, 59, 59, 999);
-
-          const rangeStartStr = formatDateToYYYYMMDD(rangeStart);
-          const rangeEndStr = formatDateToYYYYMMDD(rangeEnd);
-
-          const empRecords = (attendanceRecords || []).filter(r => r.employeeId === emp.id && r.date >= rangeStartStr && r.date <= rangeEndStr);
-          let alphaCount = 0;
-          let overtimePayTotal = 0;
-          let hadirCount = 0;
-
-          const jabInput = (emp.jabatan || '').trim().toUpperCase();
-          const rateConfig = positionRates.find(p => p.name.toUpperCase() === jabInput);
-          let hourlyRate = rateConfig ? rateConfig.bonus : 10000;
-
-          if (!rateConfig) {
-             const jabLower = (emp.jabatan || '').toLowerCase();
-             const nameLower = (emp.nama || '').toLowerCase();
-             if (jabLower.includes('host') || jabLower.includes('operator') || nameLower.includes('mahardhika')) {
-               hourlyRate = 20000;
-             }
-          }
-
-          const todayStr = formatDateToYYYYMMDD(new Date());
-          let temp = new Date(rangeStart);
-          while (temp <= rangeEnd) {
-            const dStr = formatDateToYYYYMMDD(temp);
-            const dayRecs = empRecords.filter(r => r.date === dStr);
-            const mainRec = dayRecs.find(r => (r.status || '').toLowerCase() !== 'lembur');
-            const ovRecs = dayRecs.filter(r => (r.status || '').toLowerCase() === 'lembur' || (r.notes && r.notes.toLowerCase().includes('lembur')));
-
-            if (mainRec) {
-              if (mainRec.status === 'Alpha') alphaCount++;
-              if (mainRec.status === 'Hadir') hadirCount++;
-            } else if (ovRecs.length > 0) {
-              hadirCount++;
-            } else if (dStr < todayStr && dStr >= ALPHA_START_DATE && isWorkDay(temp, emp)) {
-              alphaCount++;
-            }
-
-            ovRecs.forEach(ov => {
-               let cIn = ov.clockIn;
-               let cOut = ov.clockOut;
-               if ((!cIn || !cOut || cOut === '--:--') && ov.notes) {
-                  const timeMatch = ov.notes.match(/(\d{1,2}[:.]\d{2})\s*-\s*(\d{1,2}[:.]\d{2})/);
-                  if (timeMatch) { cIn = timeMatch[1].replace('.', ':'); cOut = timeMatch[2].replace('.', ':'); }
-               }
-               if (cIn && cOut && cOut !== '--:--') {
-                  const sA = cIn.split(':').map(Number);
-                  const eA = cOut.split(':').map(Number);
-                  if (sA.length === 2 && eA.length === 2) {
-                     let diff = (eA[0] * 60 + eA[1]) - (sA[0] * 60 + sA[1]);
-                     if (diff < 0) diff += 1440;
-                     overtimePayTotal += Math.round((diff / 60) * hourlyRate);
-                  }
-               }
-            });
-
-            temp.setDate(temp.getDate() + 1);
-          }
-
-          const config = emp.salaryConfig || { 
-            gapok: 0, tunjanganMakan: 0, tunjanganTransport: 0, tunjanganKomunikasi: 0, 
-            tunjanganKesehatan: 0, tunjanganJabatan: 0, bpjstk: 0, pph21: 0, 
-            lembur: 0, bonus: 0, thr: 0, potonganHutang: 0, potonganLain: 0
-          };
-
-          const isDaily = config.type === 'daily';
-          const gapok = isDaily ? (config.gapok || 0) * hadirCount : (config.gapok || 0);
-          
-          const potonganAbsen = isDaily ? 0 : Math.round((alphaCount * (config.gapok || 0)) / 26);
-          const totalFixed = gapok + (config.tunjanganMakan || 0) + (config.tunjanganTransport || 0) + (config.tunjanganKomunikasi || 0) + (config.tunjanganKesehatan || 0) + (config.tunjanganJabatan || 0);
-          
-          const finalLembur = overtimePayTotal > 0 ? overtimePayTotal : (config.lembur || 0);
-
-          const bpjstkAmount = config.isBPJSTKActive === true ? (config.bpjstk || 0) : 0;
-          const totalPotongan = potonganAbsen + bpjstkAmount + (config.pph21 || 0);
-          const thp = (totalFixed + finalLembur + (config.bonus || 0) + (config.thr || 0)) - totalPotongan;
+          const config = emp.salaryConfig || {};
+          const details = getSalaryDetails(emp, config, attendanceRecords, selectedMonth, selectedYear, {}, weeklyHolidays, positionRates);
+          const thp = details.takeHomePay;
 
           await new Promise(resolve => setTimeout(resolve, 300));
           setLogs(prev => [{ name: emp.nama, status: 'Success', message: `Slip terkirim ke ${email} • THP: Rp ${thp.toLocaleString('id-ID')}` }, ...prev]);

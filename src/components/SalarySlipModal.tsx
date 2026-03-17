@@ -7,6 +7,7 @@ import { supabase } from '../services/supabaseClient';
 import { useConfirmation } from '../contexts/ConfirmationContext';
 
 import SalarySlipContent from './SalarySlipContent';
+import { getSalaryDetails } from '../utils/salaryCalculations';
 import { domToJpeg } from 'modern-screenshot';
 import { jsPDF } from 'jspdf';
 
@@ -189,140 +190,11 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
     return { years, months, totalMonths };
   }, [employee.tanggalMasuk]);
 
-  const attendanceResults = useMemo(() => {
-    const targetMonthIdx = monthMap[data.month] ?? 0;
-    const targetYear = parseInt(String(data.year));
-    
-    const rangeStart = new Date(targetYear, targetMonthIdx - 1, cutoffStart);
-    const rangeEnd = new Date(targetYear, targetMonthIdx, cutoffEnd);
-    rangeStart.setHours(0, 0, 0, 0);
-    rangeEnd.setHours(23, 59, 59, 999);
+  const salaryDetails = useMemo(() => {
+    return getSalaryDetails(currentEmployee, data, attendanceRecords, data.month, String(data.year), settings, weeklyHolidays, positionRates);
+  }, [currentEmployee, data, attendanceRecords, settings, weeklyHolidays, positionRates]);
 
-    const rangeStartStr = formatDateToYYYYMMDD(rangeStart);
-    const rangeEndStr = formatDateToYYYYMMDD(rangeEnd);
-
-    const cutoffRecords = attendanceRecords.filter(r => {
-      if (r.employeeId !== employee.id) return false;
-      return r.date >= rangeStartStr && r.date <= rangeEndStr;
-    });
-
-    const summary = { 
-      alpha: 0, 
-      hadir: 0, 
-      sakit: 0, 
-      izin: 0, 
-      libur: 0, 
-      cuti: 0, 
-      totalOvertimePay: 0, 
-      overtimeHours: 0,
-      overtimeItems: [] as { date: string, hours: number, pay: number, notes: string }[] 
-    };
-    
-    // Pencocokan jabatan yang lebih akurat
-    const currentJabatan = (employee.jabatan || '').trim().toUpperCase();
-    const rateConfig = positionRates.find(p => p.name.toUpperCase() === currentJabatan || currentJabatan.includes(p.name.toUpperCase()));
-    
-    let hourlyRate = rateConfig ? rateConfig.bonus : 10000;
-
-    // Legacy Fallback hanya jika tidak ditemukan di config
-    if (!rateConfig) {
-      const jabLower = (employee.jabatan || '').toLowerCase();
-      const divLower = (employee.division || '').toLowerCase();
-      const nameLower = (employee.nama || '').toLowerCase();
-      
-      if (jabLower.includes('content creator')) {
-        hourlyRate = 50000;
-      } else if (
-        jabLower.includes('host') || 
-        jabLower.includes('operator') || 
-        jabLower.includes('business development') ||
-        jabLower.includes('owner') ||
-        jabLower.includes('admin') ||
-        jabLower.includes('ceo') ||
-        divLower.includes('host') || 
-        divLower.includes('operator') || 
-        nameLower.includes('mahardhika') ||
-        nameLower.includes('fikry') ||
-        nameLower.includes('dimas')
-      ) {
-        hourlyRate = 20000;
-      }
-    }
-
-    const todayStr = formatDateToYYYYMMDD(new Date());
-    let temp = new Date(rangeStart);
-    while (temp <= rangeEnd) {
-      const dStr = formatDateToYYYYMMDD(temp);
-      const dayRecords = cutoffRecords.filter(r => r.date === dStr);
-      const isWork = isWorkDay(temp, employee);
-      
-      const mainRecord = dayRecords.find(r => (r.status || '').toLowerCase() !== 'lembur');
-      const overtimeRecords = dayRecords.filter(r => 
-        (r.status || '').toLowerCase() === 'lembur' || 
-        (r.notes && (
-          r.notes.toLowerCase().includes('lembur') || 
-          r.notes.toUpperCase().includes('JAM:') || 
-          r.notes.toUpperCase().includes('BRAND:')
-        ))
-      );
-      
-      if (mainRecord) {
-        if (mainRecord.status === 'Hadir') summary.hadir++;
-        else if (mainRecord.status === 'Sakit') summary.sakit++;
-        else if (mainRecord.status === 'Izin') summary.izin++;
-        else if (mainRecord.status === 'Cuti') summary.cuti++;
-        else if (mainRecord.status === 'Alpha') summary.alpha++;
-        else summary.libur++;
-      } else if (overtimeRecords.length > 0) {
-        // Jika ada lembur tapi tidak ada absen utama, tetap hitung hadir jika statusnya lembur
-        summary.hadir++;
-      } else {
-        if (dStr < todayStr) {
-          if (isWork) summary.alpha++;
-          else summary.libur++;
-        } else {
-          if (!isWork) summary.libur++;
-          // Jangan otomatis tambah hadir untuk tanggal mendatang
-        }
-      }
-
-      overtimeRecords.forEach(ov => {
-        let cIn = ov.clockIn;
-        let cOut = ov.clockOut;
-
-        if (!cIn || !cOut || cOut === '--:--' || cIn === '--:--') {
-          const timeMatch = (ov.notes || '').match(/(\d{1,2}[:.]\d{2})\s*-\s*(\d{1,2}[:.]\d{2})/);
-          if (timeMatch) {
-            cIn = timeMatch[1].replace('.', ':');
-            cOut = timeMatch[2].replace('.', ':');
-          }
-        }
-
-        if (cIn && cOut && cOut !== '--:--' && cIn !== '--:--') {
-          const startArr = cIn.split(':').map(Number);
-          const endArr = cOut.split(':').map(Number);
-          if (startArr.length === 2 && endArr.length === 2) {
-             const startMinutes = startArr[0] * 60 + startArr[1];
-             const endMinutes = endArr[0] * 60 + endArr[1];
-             let diffMinutes = endMinutes - startMinutes;
-             if (diffMinutes < 0) diffMinutes += 1440; 
-             const hours = diffMinutes / 60;
-             const pay = Math.round(hours * hourlyRate);
-             summary.overtimeHours += hours;
-             summary.totalOvertimePay += pay;
-             summary.overtimeItems.push({
-               date: dStr,
-               hours: hours,
-               pay: pay,
-               notes: ov.notes || 'Lembur'
-             });
-          }
-        }
-      });
-      temp.setDate(temp.getDate() + 1);
-    }
-    return summary;
-  }, [attendanceRecords, data.month, data.year, employee, weeklyHolidays, positionRates]);
+  const attendanceResults = salaryDetails.summary;
 
   useEffect(() => {
     if (!isReadOnlyRole && attendanceResults.totalOvertimePay > 0) {
@@ -332,16 +204,12 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
     }
   }, [attendanceResults.totalOvertimePay, isReadOnlyRole]);
 
-  const totalTunjanganOps = (data.tunjanganMakan || 0) + (data.tunjanganTransport || 0) + (data.tunjanganKomunikasi || 0) + (data.tunjanganKesehatan || 0) + (data.tunjanganJabatan || 0);
+  const totalTunjanganOps = salaryDetails.tunjanganOps;
   
   const isDaily = currentEmployee.salaryConfig?.type === 'daily';
-  const effectiveGapok = isDaily ? (data.gapok || 0) * (data.workingDays || 0) : (data.gapok || 0);
+  const effectiveGapok = salaryDetails.effectiveGapok;
 
-  const potonganAbsensi = useMemo(() => {
-    if (isDaily) return 0;
-    const dailyRate = (data.gapok || 0) / 26;
-    return Math.round((attendanceResults.alpha || 0) * dailyRate);
-  }, [data.gapok, attendanceResults.alpha, isDaily]);
+  const potonganAbsensi = salaryDetails.potonganAbsensi;
 
   useEffect(() => {
     if (isDaily && attendanceResults.hadir > 0) {
@@ -364,7 +232,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
   const currentBPJSTK = isBPJSTKActive ? (data.bpjstk || 0) : 0;
   const totalPotongan = currentBPJSTK + potonganAbsensi + (data.pph21 || 0) + (data.potonganHutang || 0) + (data.potonganLain || 0);
   const takeHomePay = totalPendapatan - totalPotongan + (data.adjustment || 0);
-  const sisaHutang = Math.max(0, (data.totalHutang || 0) - (data.potonganHutang || 0));
+  const sisaHutang = Math.max(0, (currentEmployee.hutang || 0) - (data.potonganHutang || 0));
 
   const handleAutoCalculateTHR = () => {
     const totalFixed = effectiveGapok + totalTunjanganOps;

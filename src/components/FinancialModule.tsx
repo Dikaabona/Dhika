@@ -3,6 +3,7 @@ import { Icons } from '../constants';
 import { flipService } from '../services/flipService';
 import { supabase } from '../services/supabaseClient';
 import { InvoiceModule } from './InvoiceModule';
+import { getSalaryDetails } from '../utils/salaryCalculations';
 import SalarySlipModal from './SalarySlipModal';
 import SalarySlipContent from './SalarySlipContent';
 import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
@@ -100,101 +101,11 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
   const yearOptions = ['2024', '2025', '2026'];
 
   const calculateTotalSalary = useCallback((config: any, hutang: number = 0, empId?: string) => {
-    const actualPotonganHutang = Math.min(hutang, config.potonganHutang || 0);
-    const isDaily = config.type === 'daily';
-    
-    let workingDays = config.workingDays || 26;
-    let alphaCount = 0;
-    let hadirCount = 0;
-
     const emp = employees.find(e => e.id === empId);
-
-    if (empId && settings && emp) {
-      const monthIdx = monthOptions.indexOf(selectedMonth);
-      if (monthIdx !== -1) {
-        const cutoffStart = config.cutoffStart || settings.payrollCutoffStart || 26;
-        const cutoffEnd = config.cutoffEnd || settings.payrollCutoffEnd || 25;
-        const yearNum = parseInt(selectedYear);
-        
-        const rangeStart = new Date(yearNum, monthIdx - 1, cutoffStart);
-        const rangeEnd = new Date(yearNum, monthIdx, cutoffEnd);
-        const startStr = rangeStart.toISOString().split('T')[0];
-        const endStr = rangeEnd.toISOString().split('T')[0];
-
-        const relevantRecords = localAttendance.filter(r => 
-          r.employeeId === empId && 
-          r.date >= startStr && 
-          r.date <= endStr
-        );
-
-        // Helper to check workday (same as SalarySlipModal)
-        const isWorkDay = (date: Date) => {
-          const day = date.getDay();
-          const isHost = (emp.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
-          if (day === 0) return isHost;
-          if (day === 6) return false;
-          const dayNameMap = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
-          const currentDayName = dayNameMap[day];
-          if (weeklyHolidays) {
-            const empNameUpper = emp.nama.toUpperCase();
-            const employeeInHolidays = Object.values(weeklyHolidays).some(names => (names as string[]).map(n => n.toUpperCase()).includes(empNameUpper));
-            if (employeeInHolidays) {
-              return !(weeklyHolidays[currentDayName] || []).map(n => n.toUpperCase()).includes(empNameUpper);
-            }
-          }
-          return true;
-        };
-
-        const todayStr = formatDateToYYYYMMDD(new Date());
-        let temp = new Date(rangeStart);
-        while (temp <= rangeEnd) {
-          const dStr = formatDateToYYYYMMDD(temp);
-          const dayRecords = relevantRecords.filter(r => r.date === dStr);
-          const isWork = isWorkDay(temp);
-          
-          const mainRecord = dayRecords.find(r => (r.status || '').toLowerCase() !== 'lembur');
-          const hasLembur = dayRecords.some(r => (r.status || '').toLowerCase() === 'lembur' || (r.notes && r.notes.toLowerCase().includes('lembur')));
-
-          if (mainRecord) {
-            if (mainRecord.status === 'Hadir') hadirCount++;
-            else if (mainRecord.status === 'Alpha') alphaCount++;
-            // Sakit, Izin, Cuti, Libur don't count as Alpha but also don't count as Hadir for daily
-          } else if (hasLembur) {
-            hadirCount++;
-          } else {
-            if (dStr < todayStr) {
-              if (isWork) alphaCount++;
-            }
-          }
-          temp.setDate(temp.getDate() + 1);
-        }
-        
-        if (isDaily) {
-          workingDays = hadirCount;
-        }
-      }
-    }
-
-    const gapok = config.gapok || 0;
-    const effectiveGapok = isDaily ? gapok * workingDays : gapok;
-    const dailyRate = gapok / 26;
-    const potonganAbsensi = isDaily ? 0 : Math.round(alphaCount * dailyRate);
-
-    return effectiveGapok + 
-           (config.tunjanganMakan || 0) + 
-           (config.tunjanganTransport || 0) + 
-           (config.tunjanganKomunikasi || 0) + 
-           (config.tunjanganKesehatan || 0) + 
-           (config.tunjanganJabatan || 0) + 
-           (config.lembur || 0) + 
-           (config.bonus || 0) + 
-           (config.thr || 0) - 
-           (config.isBPJSTKActive === true ? (config.bpjstk || 0) : 0) - 
-           (config.pph21 || 0) - 
-           actualPotonganHutang - 
-           (config.potonganLain || 0) -
-           potonganAbsensi;
-  }, [localAttendance, selectedMonth, selectedYear, settings, employees, weeklyHolidays]);
+    if (!emp) return 0;
+    const details = getSalaryDetails(emp, config, localAttendance, selectedMonth, selectedYear, settings, weeklyHolidays, positionRates);
+    return details.takeHomePay;
+  }, [getSalaryDetails, localAttendance, selectedMonth, selectedYear, settings, employees, weeklyHolidays, positionRates]);
 
   useEffect(() => {
     if (isProcessingPayroll && employees.length > 0 && payrollEmployees.length > 0) {
@@ -427,65 +338,35 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
       for (const emp of targetEmployees) {
         console.log(`DEBUG: Processing employee: ${emp.nama} (${emp.id})`);
         try {
-          // Calculate salary details for slip
           const config = emp.salaryConfig || {};
-          const monthIdx = monthOptions.indexOf(selectedMonth);
-          const yearNum = parseInt(selectedYear);
-          const cStart = config.cutoffStart || settings?.payrollCutoffStart || 26;
-          const cEnd = config.cutoffEnd || settings?.payrollCutoffEnd || 25;
-
-          const rangeStart = new Date(yearNum, monthIdx - 1, cStart);
-          const rangeEnd = new Date(yearNum, monthIdx, cEnd);
-          const startStr = formatDateToYYYYMMDD(rangeStart);
-          const endStr = formatDateToYYYYMMDD(rangeEnd);
-
-          const cutoffRecords = localAttendance.filter(r => r.employeeId === emp.id && r.date >= startStr && r.date <= endStr);
-          
-          // Basic attendance summary
-          const summary = { alpha: 0, hadir: 0, sakit: 0, izin: 0, libur: 0, cuti: 0, totalOvertimePay: 0 };
-          cutoffRecords.forEach(r => {
-            if (r.status === 'Hadir') summary.hadir++;
-            else if (r.status === 'Sakit') summary.sakit++;
-            else if (r.status === 'Izin') summary.izin++;
-            else if (r.status === 'Cuti') summary.cuti++;
-            else if (r.status === 'Alpha') summary.alpha++;
-            else summary.libur++;
-          });
-
-          const isDaily = config.type === 'daily';
-          const workingDays = isDaily ? summary.hadir : (config.workingDays || 26);
-          const gapok = config.gapok || 0;
-          const effectiveGapok = isDaily ? gapok * workingDays : gapok;
-          const tunjanganOps = (config.tunjanganMakan || 0) + (config.tunjanganTransport || 0) + (config.tunjanganKomunikasi || 0) + (config.tunjanganKesehatan || 0) + (config.tunjanganJabatan || 0);
-          const lembur = config.lembur || 0;
-          const bonus = config.bonus || 0;
-          const thr = config.thr || 0;
-          const totalPendapatan = effectiveGapok + tunjanganOps + lembur + bonus + thr;
-          
-          const bpjstk = config.isBPJSTKActive === true ? (config.bpjstk || 0) : 0;
-          const pph21 = config.pph21 || 0;
-          const dailyRate = gapok / 26;
-          const potonganAbsensi = isDaily ? 0 : Math.round(summary.alpha * dailyRate);
-          const potonganHutang = Math.min(emp.hutang || 0, config.potonganHutang || 0);
-          const potonganLain = config.potonganLain || 0;
-          const totalPotongan = bpjstk + pph21 + potonganAbsensi + potonganHutang + potonganLain;
-          const takeHomePay = totalPendapatan - totalPotongan;
-          const sisaHutang = Math.max(0, (emp.hutang || 0) - potonganHutang);
+          const details = getSalaryDetails(emp, config, localAttendance, selectedMonth, selectedYear, settings, weeklyHolidays, positionRates);
 
           const slipData = {
             employee: emp,
-            data: { month: selectedMonth, year: selectedYear, gapok, lembur, bonus, thr, workingDays, bpjstk, pph21, potonganHutang, potonganLain },
-            totalTunjanganOps: tunjanganOps,
-            totalPendapatan,
-            totalPotongan,
-            takeHomePay,
-            sisaHutang,
-            attendanceResults: summary,
-            cutoffStart: cStart,
-            cutoffEnd: cEnd,
+            data: { 
+              month: selectedMonth, 
+              year: selectedYear, 
+              gapok: details.gapok, 
+              lembur: details.lembur, 
+              bonus: details.bonus, 
+              thr: details.thr, 
+              workingDays: details.workingDays, 
+              bpjstk: details.bpjstk, 
+              pph21: details.pph21, 
+              potonganHutang: details.potonganHutang, 
+              potonganLain: details.potonganLain 
+            },
+            totalTunjanganOps: details.tunjanganOps,
+            totalPendapatan: details.totalPendapatan,
+            totalPotongan: details.totalPotongan,
+            takeHomePay: details.takeHomePay,
+            sisaHutang: Math.max(0, (emp.hutang || 0) - details.potonganHutang),
+            attendanceResults: details.summary,
+            cutoffStart: details.cutoffStart,
+            cutoffEnd: details.cutoffEnd,
             slipLogo,
-            isBPJSTKActive: bpjstk > 0,
-            potonganAbsensi
+            isBPJSTKActive: details.bpjstk > 0,
+            potonganAbsensi: details.potonganAbsensi
           };
 
           // Set data for hidden rendering
@@ -569,7 +450,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
             const emailHtml = `
               <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1e293b; line-height: 1.6;">
                 <p style="margin-bottom: 20px;">Halo ${emp.nama}</p>
-                <p style="margin-bottom: 20px;">Berikut kita lampirkan gaji bulan ${selectedMonth} ${selectedYear} dengan nominal take home pay senilai <strong>Rp ${takeHomePay.toLocaleString('id-ID')}</strong></p>
+                <p style="margin-bottom: 20px;">Berikut kita lampirkan gaji bulan ${selectedMonth} ${selectedYear} dengan nominal take home pay senilai <strong>Rp ${details.takeHomePay.toLocaleString('id-ID')}</strong></p>
                 
                 <p style="margin-bottom: 20px;">Terimakasih atas kerjasamanya dalam membantu Visibel. Kita berharap kerjasama kita selalu berjalan terus.</p>
                 
