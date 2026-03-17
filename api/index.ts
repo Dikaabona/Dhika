@@ -838,10 +838,16 @@ if (!process.env.VERCEL) {
   startServer().catch(err => {
     console.error("CRITICAL: Failed to start server:", err);
   });
-  cron.schedule('* * * * *', () => {
-    checkAndSendNotifications();
-  });
-  console.log("Cron jobs scheduled successfully");
+  
+  // Only run cron if explicitly enabled via environment variable
+  if (process.env.ENABLE_LOCAL_CRON === 'true') {
+    cron.schedule('* * * * *', () => {
+      checkAndSendNotifications();
+    });
+    console.log("✅ Local cron jobs scheduled successfully");
+  } else {
+    console.log("ℹ️ Local cron is DISABLED. Set ENABLE_LOCAL_CRON=true in .env to enable.");
+  }
 }
 
 export default app;
