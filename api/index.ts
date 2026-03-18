@@ -44,6 +44,15 @@ app.get("/api/cron/notifications", async (req, res) => {
   }
 });
 
+app.get("/api/cron/retention", async (req, res) => {
+  try {
+    await runDataRetentionPolicy();
+    res.json({ status: "success", message: "Data retention policy executed" });
+  } catch (err: any) {
+    res.status(500).json({ status: "error", message: err.message });
+  }
+});
+
 // Initialize Supabase safely
 let supabase: any;
 try {
@@ -701,16 +710,11 @@ async function sendEmailNotification(to: string, subject: string, message: strin
   }
 }
 
-// Generic notification sender (WA + Email)
+// Generic notification sender (WA only)
 async function sendNotification(emp: any, subject: string, message: string) {
   // Try WhatsApp
   if (emp.noHandphone) {
     await sendWahaMessage(emp.noHandphone, message, emp.company);
-  }
-  
-  // Try Email
-  if (emp.email) {
-    await sendEmailNotification(emp.email, subject, message);
   }
 }
 
@@ -877,6 +881,53 @@ async function checkAndSendNotifications() {
   }
 }
 
+// --- DATA RETENTION POLICY ---
+async function runDataRetentionPolicy() {
+  console.log("[Retention] Running data retention policy...");
+  if (!supabase) {
+    console.warn("[Retention] Supabase not initialized, skipping retention policy");
+    return;
+  }
+
+  const now = new Date();
+  
+  // 1. Attendance records (1 year)
+  // Deleting records older than 1 year
+  const oneYearAgo = new Date(now);
+  oneYearAgo.setFullYear(now.getFullYear() - 1);
+  const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+
+  console.log(`[Retention] Deleting attendance records older than ${oneYearAgoStr}...`);
+  const { error: attError, count: attCount } = await supabase
+    .from('attendance')
+    .delete({ count: 'exact' })
+    .lt('date', oneYearAgoStr);
+
+  if (attError) {
+    console.error("[Retention] Error deleting old attendance records:", attError);
+  } else {
+    console.log(`[Retention] Successfully deleted ${attCount || 0} attendance records older than ${oneYearAgoStr}`);
+  }
+
+  // 2. Attendance photos (1 month)
+  // Clearing photo fields for records older than 1 month
+  const oneMonthAgo = new Date(now);
+  oneMonthAgo.setMonth(now.getMonth() - 1);
+  const oneMonthAgoStr = oneMonthAgo.toISOString().split('T')[0];
+
+  console.log(`[Retention] Clearing attendance photos older than ${oneMonthAgoStr}...`);
+  const { error: photoError } = await supabase
+    .from('attendance')
+    .update({ photoIn: null, photoOut: null })
+    .lt('date', oneMonthAgoStr);
+
+  if (photoError) {
+    console.error("[Retention] Error clearing old attendance photos:", photoError);
+  } else {
+    console.log(`[Retention] Successfully cleared attendance photos older than ${oneMonthAgoStr}`);
+  }
+}
+
 if (!process.env.VERCEL) {
   startServer().catch(err => {
     console.error("CRITICAL: Failed to start server:", err);
@@ -887,6 +938,12 @@ if (!process.env.VERCEL) {
     cron.schedule('* * * * *', () => {
       checkAndSendNotifications();
     });
+    
+    // Run retention policy every day at 01:00 AM
+    cron.schedule('0 1 * * *', () => {
+      runDataRetentionPolicy();
+    });
+    
     console.log("Local cron jobs scheduled successfully");
   } else {
     console.log("Local cron is DISABLED. Set ENABLE_LOCAL_CRON=true in .env to enable.");
