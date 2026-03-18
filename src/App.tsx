@@ -37,7 +37,8 @@ import { useConfirmation } from './contexts/ConfirmationContext';
 
 const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
 
-const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1pjtSR-r2YJMexgm3hl6jtANdjbVn2FZD";
+const MAJOVA_LOGO = "https://lh3.googleusercontent.com/d/1pjtSR-r2YJMexgm3hl6jtANdjbVn2FZD";
+const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
 const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
 
 const sanitizeConfig = (val: any, fallback: string) => {
@@ -124,7 +125,10 @@ export const App: React.FC = () => {
   const empRowsPerPage = 10;
 
   const currentLogo = useMemo(() => {
-    return (userCompany || '').trim().toLowerCase() === 'seller space' ? SELLER_SPACE_LOGO : VISIBEL_LOGO;
+    const comp = (userCompany || '').trim().toLowerCase();
+    if (comp === 'seller space') return SELLER_SPACE_LOGO;
+    if (comp === 'visibel') return VISIBEL_LOGO;
+    return MAJOVA_LOGO;
   }, [userCompany]);
 
   useEffect(() => {
@@ -234,15 +238,26 @@ export const App: React.FC = () => {
         try {
           const now = new Date();
           
-          // 1. Cleanup old photos (older than 3 months / 90 days)
-          const threeMonthsAgo = new Date(now);
-          threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-          const photoDateStr = threeMonthsAgo.toISOString().split('T')[0];
+          // 1. Cleanup old photos (older than 1 month / 30 days)
+          const oneMonthAgo = new Date(now);
+          oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+          const photoDateStr = oneMonthAgo.toISOString().split('T')[0];
           
           await supabase
             .from('attendance')
             .update({ photoIn: null, photoOut: null })
             .lt('date', photoDateStr)
+            .eq('company', detectedCompany);
+
+          // 1b. Cleanup old attendance records (older than 1 year)
+          const oneYearAgo = new Date(now);
+          oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+          const attDateStr = oneYearAgo.toISOString().split('T')[0];
+
+          await supabase
+            .from('attendance')
+            .delete()
+            .lt('date', attDateStr)
             .eq('company', detectedCompany);
 
           // 2. Cleanup old shifts (older than 21 days / 3 weeks)

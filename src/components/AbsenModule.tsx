@@ -13,6 +13,7 @@ interface AbsenModuleProps {
   onClose?: () => void;
 }
 
+const MAJOVA_LOGO = "https://lh3.googleusercontent.com/d/1pjtSR-r2YJMexgm3hl6jtANdjbVn2FZD";
 const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
 const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
 
@@ -47,8 +48,8 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const isSellerSpace = (company || '').trim().toLowerCase() === 'seller space';
-  const currentLogo = isSellerSpace ? SELLER_SPACE_LOGO : VISIBEL_LOGO;
+  const comp = (company || '').trim().toLowerCase();
+  const currentLogo = comp === 'seller space' ? SELLER_SPACE_LOGO : comp === 'visibel' ? VISIBEL_LOGO : MAJOVA_LOGO;
 
   const getTodayLocalStr = () => {
     const now = new Date();
@@ -341,7 +342,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
           <span className="text-[10px] font-black uppercase tracking-widest">Tutup</span>
         </button>
         <div className="flex flex-col items-center">
-           <img src={currentLogo} alt="Logo" className={`${ isSellerSpace ? 'h-[80px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} />
+           <img src={currentLogo} alt="Logo" className={`${ comp === 'seller space' ? 'h-[80px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} />
         </div>
         <div className="w-10"></div>
       </div>
