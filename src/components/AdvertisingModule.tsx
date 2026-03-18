@@ -27,13 +27,94 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
   const [minROI, setMinROI] = useState<number | ''>('');
   const [minPurchase, setMinPurchase] = useState<number | ''>('');
   const [isAdding, setIsAdding] = useState(false);
+  const [brands, setBrands] = useState<any[]>([]);
+  const [isAddingBrand, setIsAddingBrand] = useState(false);
+  const [newBrandName, setNewBrandName] = useState('');
   const [newRecord, setNewRecord] = useState<Partial<AdvertisingRecord>>({
     date: new Date().toISOString().split('T')[0],
-    brand: ADS_BRANDS[0]?.name || '',
+    brand: '',
     grossRevenue: 0,
     cost: 0,
     purchase: 0,
   });
+
+  // Fetch brands from settings
+  const fetchBrands = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', `advertising_brands_${company}`)
+        .maybeSingle();
+      
+      if (error) throw error;
+      
+      if (data && data.value) {
+        setBrands(data.value);
+        if (data.value.length > 0 && !newRecord.brand) {
+          setNewRecord(prev => ({ ...prev, brand: data.value[0].name }));
+        }
+      } else {
+        // Use default from constants if none in DB
+        setBrands(ADS_BRANDS);
+        if (ADS_BRANDS.length > 0) {
+          setNewRecord(prev => ({ ...prev, brand: ADS_BRANDS[0].name }));
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching brands:", err);
+      setBrands(ADS_BRANDS);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchBrands();
+  }, [company]);
+
+  const handleAddBrand = async () => {
+    if (!newBrandName.trim()) return;
+    
+    const colors = ['bg-blue-400', 'bg-purple-400', 'bg-pink-400', 'bg-emerald-400', 'bg-amber-400', 'bg-rose-400', 'bg-indigo-400'];
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    
+    const updatedBrands = [...brands, { name: newBrandName.trim().toUpperCase(), color: randomColor }];
+    
+    try {
+      const { error } = await supabase.from('settings').upsert({
+        key: `advertising_brands_${company}`,
+        value: updatedBrands,
+        company
+      });
+      
+      if (error) throw error;
+      
+      setBrands(updatedBrands);
+      setNewBrandName('');
+      setIsAddingBrand(false);
+    } catch (err: any) {
+      alert("Gagal menambah brand: " + err.message);
+    }
+  };
+
+  const handleDeleteBrand = async (brandName: string) => {
+    if (!confirm(`Hapus brand ${brandName}? Data performa yang sudah ada tidak akan terhapus, tapi brand ini tidak akan muncul lagi di pilihan.`)) return;
+    
+    const updatedBrands = brands.filter(b => b.name !== brandName);
+    
+    try {
+      const { error } = await supabase.from('settings').upsert({
+        key: `advertising_brands_${company}`,
+        value: updatedBrands,
+        company
+      });
+      
+      if (error) throw error;
+      
+      setBrands(updatedBrands);
+    } catch (err: any) {
+      alert("Gagal menghapus brand: " + err.message);
+    }
+  };
 
   const filteredRecords = useMemo(() => {
     return records.filter((rec) => {
@@ -67,7 +148,7 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
       onRefresh();
       setNewRecord({
         date: new Date().toISOString().split('T')[0],
-        brand: ADS_BRANDS[0]?.name || '',
+        brand: brands[0]?.name || '',
         grossRevenue: 0,
         cost: 0,
         purchase: 0,
@@ -86,11 +167,8 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
       {/* Header */}
       <div className="bg-white px-8 py-6 flex items-center justify-between border-b border-slate-100 relative z-10">
         <div className="flex items-center gap-4">
-          <div className="bg-slate-100 p-3 rounded-2xl">
-            <Icons.BarChart2 className="w-8 h-8 text-slate-900" />
-          </div>
           <div>
-            <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter italic">Ecommerce Ads</h2>
+            <h2 className="text-[28px] font-black text-slate-900 uppercase tracking-tighter">Ecommerce Ads</h2>
           </div>
         </div>
         <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
@@ -192,7 +270,7 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
               className="pl-4 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold appearance-none outline-none focus:ring-2 focus:ring-slate-900 shadow-sm"
             >
               <option value="ALL">ALL BRANDS</option>
-              {ADS_BRANDS.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+              {brands.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
             </select>
             <Icons.ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
@@ -312,13 +390,50 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
                 <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Ads Brands Management</h3>
                 <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">List of brands using advertising services</p>
               </div>
+              {(userRole === 'owner' || userRole === 'super' || userRole === 'superadmin' || userRole === 'admin') && (
+                <button 
+                  onClick={() => setIsAddingBrand(true)}
+                  className="bg-slate-900 text-[#FFC000] px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:scale-105 active:scale-95 transition-all shadow-lg"
+                >
+                  <Icons.Plus className="w-4 h-4" />
+                  ADD BRAND
+                </button>
+              )}
             </div>
+
+            {isAddingBrand && (
+              <div className="mb-8 p-6 bg-white rounded-[32px] border-2 border-slate-900 shadow-xl animate-in slide-in-from-top-4 duration-300">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">New Brand Name</p>
+                <div className="flex gap-3">
+                  <input 
+                    type="text" 
+                    value={newBrandName}
+                    onChange={(e) => setNewBrandName(e.target.value)}
+                    placeholder="ENTER BRAND NAME..."
+                    className="flex-1 px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-black outline-none focus:ring-2 focus:ring-slate-900 uppercase"
+                    autoFocus
+                  />
+                  <button 
+                    onClick={() => setIsAddingBrand(false)}
+                    className="px-6 py-4 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-slate-900"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleAddBrand}
+                    className="px-8 py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:scale-105 active:scale-95 transition-all"
+                  >
+                    Save Brand
+                  </button>
+                </div>
+              </div>
+            )}
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {ADS_BRANDS.map((brand) => (
+              {brands.map((brand) => (
                 <div key={brand.name} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm flex items-center justify-between group hover:shadow-md transition-all">
                   <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-2xl ${brand.color} flex items-center justify-center font-black text-xs`}>
+                    <div className={`w-12 h-12 rounded-2xl ${brand.color} flex items-center justify-center font-black text-xs text-white`}>
                       {brand.name.substring(0, 2)}
                     </div>
                     <div>
@@ -326,11 +441,22 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Active Client</p>
                     </div>
                   </div>
-                  <button className="p-2 text-slate-300 hover:text-slate-900 transition-colors">
-                    <Icons.MoreVertical className="w-5 h-5" />
-                  </button>
+                  {(userRole === 'owner' || userRole === 'super' || userRole === 'superadmin' || userRole === 'admin') && (
+                    <button 
+                      onClick={() => handleDeleteBrand(brand.name)}
+                      className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                    >
+                      <Icons.Trash className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
               ))}
+              {brands.length === 0 && (
+                <div className="col-span-full py-20 text-center bg-white rounded-[40px] border border-dashed border-slate-200">
+                  <Icons.Layers className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                  <p className="text-xs font-black text-slate-300 uppercase tracking-widest">No brands registered yet</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -362,7 +488,7 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
                     onChange={(e) => setNewRecord({...newRecord, brand: e.target.value})}
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-900"
                   >
-                    {ADS_BRANDS.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+                    {brands.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
                   </select>
                 </div>
               </div>

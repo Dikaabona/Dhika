@@ -271,9 +271,24 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
           await fetchCandidates();
           
           if (failCount > 0) {
-            const sqlFix = `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS "gajiHarapan" text; ALTER TABLE candidates ADD COLUMN IF NOT EXISTS "noHp" text; ALTER TABLE candidates ADD COLUMN IF NOT EXISTS "videoUrl" text; ALTER TABLE candidates ADD COLUMN IF NOT EXISTS "portfolioUrl" text;`;
+            const sqlFix = `
+-- Jalankan di Supabase SQL Editor:
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS "gajiHarapan" text;
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS "noHp" text;
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS "videoUrl" text;
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS "portfolioUrl" text;
+
+-- Fix RLS Policy
+ALTER TABLE candidates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow auth insert" ON candidates;
+CREATE POLICY "Allow auth insert" ON candidates FOR INSERT TO authenticated WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow auth select" ON candidates;
+CREATE POLICY "Allow auth select" ON candidates FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow auth update" ON candidates;
+CREATE POLICY "Allow auth update" ON candidates FOR UPDATE TO authenticated USING (true);
+`.trim();
             console.error("SQL Fix Suggestion:", sqlFix);
-            alert(`Sinkronisasi selesai dengan kendala. Berhasil: ${successCount}, Gagal: ${failCount}.\n\nKEMUNGKINAN PENYEBAB: Kolom di database Supabase tidak lengkap.\n\nSOLUSI: Jalankan perintah SQL berikut di Supabase SQL Editor:\n\n${sqlFix}`);
+            alert(`Sinkronisasi selesai dengan kendala. Berhasil: ${successCount}, Gagal: ${failCount}.\n\nKEMUNGKINAN PENYEBAB: Izin akses (RLS) atau Kolom di database Supabase tidak lengkap.\n\nSOLUSI: Jalankan perintah SQL yang muncul di Console Log (F12) ke Supabase SQL Editor.`);
           } else {
             alert(`Sinkronisasi Berhasil! ${successCount} data baru ditambahkan.`);
           }
@@ -376,6 +391,8 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
     }
   };
 
+  const isAdmin = ['owner', 'super', 'superadmin', 'admin'].includes(userRole);
+
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-700">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -388,28 +405,34 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
             <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Manajemen Rekrutmen {company}</p>
           </div>
         </div>
-        <button 
-          onClick={fetchCandidates}
-          className="p-4 bg-white rounded-3xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-all active:scale-95 text-slate-400 hover:text-slate-900"
-          title="Refresh Data"
-        >
-          <Icons.RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-        </button>
-        <button 
-          onClick={() => setIsSettingsOpen(true)}
-          className="p-4 bg-white rounded-3xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-all active:scale-95 text-slate-400 hover:text-slate-900"
-          title="Pengaturan Email"
-        >
-          <Icons.Settings className="w-5 h-5" />
-        </button>
-        <button 
-          onClick={syncFromSheet}
-          disabled={isSyncing}
-          className="flex items-center justify-center gap-3 bg-[#0f172a] text-[#FFC000] px-8 py-4 rounded-3xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-black transition-all active:scale-95 disabled:opacity-50"
-        >
-          {isSyncing ? <Icons.Loader2 className="w-4 h-4 animate-spin" /> : <Icons.RefreshCw className="w-4 h-4" />}
-          Sinkronisasi Spreadsheet
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={fetchCandidates}
+            className="p-4 bg-white rounded-3xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-all active:scale-95 text-slate-400 hover:text-slate-900"
+            title="Refresh Data"
+          >
+            <Icons.RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+          {isAdmin && (
+            <>
+              <button 
+                onClick={() => setIsSettingsOpen(true)}
+                className="p-4 bg-white rounded-3xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-all active:scale-95 text-slate-400 hover:text-slate-900"
+                title="Pengaturan Email"
+              >
+                <Icons.Settings className="w-5 h-5" />
+              </button>
+              <button 
+                onClick={syncFromSheet}
+                disabled={isSyncing}
+                className="flex items-center justify-center gap-3 bg-[#0f172a] text-[#FFC000] px-8 py-4 rounded-3xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-black transition-all active:scale-95 disabled:opacity-50"
+              >
+                {isSyncing ? <Icons.Loader2 className="w-4 h-4 animate-spin" /> : <Icons.RefreshCw className="w-4 h-4" />}
+                Sinkronisasi Spreadsheet
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

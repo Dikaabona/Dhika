@@ -390,7 +390,7 @@ export interface Candidate {
   ttl?: string;
   alamat?: string;
   noHp?: string;
-  gajiHarapan?: number;
+  gajiHarapan?: string | number;
 }
 
 export interface Recruitment extends Candidate {}
