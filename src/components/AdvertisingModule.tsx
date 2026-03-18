@@ -1,8 +1,18 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { AdvertisingRecord, UserRole } from '../types';
 import { Icons, ADS_BRANDS } from '../constants';
 import { supabase } from '../services/supabaseClient';
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer
+} from 'recharts';
+import Papa from 'papaparse';
 
 interface AdvertisingModuleProps {
   records: AdvertisingRecord[];
@@ -30,6 +40,7 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
   const [brands, setBrands] = useState<any[]>([]);
   const [isAddingBrand, setIsAddingBrand] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [newRecord, setNewRecord] = useState<Partial<AdvertisingRecord>>({
     date: new Date().toISOString().split('T')[0],
     brand: '',
@@ -162,6 +173,98 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
   };
 
+  const handleDownloadTemplate = () => {
+    const headers = ['date', 'brand', 'grossRevenue', 'cost', 'purchase'];
+    const csvContent = headers.join(',') + '\n' + `2024-03-18,BRAND NAME,1000000,200000,10`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'ads_performance_template.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportCSV = () => {
+    if (filteredRecords.length === 0) return;
+    const csv = Papa.unparse(filteredRecords.map(r => ({
+      Date: r.date,
+      Brand: r.brand,
+      'Gross Revenue': r.grossRevenue,
+      Cost: r.cost,
+      Purchase: r.purchase,
+      ROI: (r.cost > 0 ? r.grossRevenue / r.cost : 0).toFixed(2)
+    })));
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `ads_performance_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const data = results.data as any[];
+        const validRecords = data.map(row => ({
+          date: row.date || row.Date,
+          brand: row.brand || row.Brand,
+          grossRevenue: parseFloat(row.grossRevenue || row['Gross Revenue'] || 0),
+          cost: parseFloat(row.cost || row.Cost || 0),
+          purchase: parseFloat(row.purchase || row.Purchase || 0),
+          company: company
+        })).filter(r => r.date && r.brand);
+
+        if (validRecords.length === 0) {
+          alert("Tidak ada data valid untuk diimpor.");
+          return;
+        }
+
+        try {
+          const { error } = await supabase
+            .from('advertising_records')
+            .insert(validRecords);
+
+          if (error) throw error;
+          alert(`Berhasil mengimpor ${validRecords.length} data.`);
+          onRefresh();
+        } catch (err: any) {
+          alert("Gagal mengimpor data: " + err.message);
+        }
+      }
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const chartData = useMemo(() => {
+    const dailyData: { [key: string]: any } = {};
+    
+    // Sort records by date first
+    const sorted = [...filteredRecords].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    sorted.forEach(rec => {
+      const dateStr = new Date(rec.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+      if (!dailyData[dateStr]) {
+        dailyData[dateStr] = { date: dateStr, gmv: 0, cost: 0 };
+      }
+      dailyData[dateStr].gmv += rec.grossRevenue;
+      dailyData[dateStr].cost += rec.cost;
+    });
+
+    return Object.values(dailyData);
+  }, [filteredRecords]);
+
   return (
     <div className="flex flex-col h-full bg-white rounded-[40px] shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in duration-500">
       {/* Header */}
@@ -292,16 +395,50 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
           />
         </div>
 
-        {/* Add Button */}
-        {(userRole === 'owner' || userRole === 'super' || userRole === 'admin') && (
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3 ml-auto">
           <button 
-            onClick={() => setIsAdding(true)}
-            className="bg-[#0F172A] text-[#FFC000] px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest flex items-center gap-2 hover:scale-105 active:scale-95 transition-all shadow-lg"
+            onClick={handleDownloadTemplate}
+            className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-full text-slate-500 text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm"
           >
-            <Icons.Plus className="w-4 h-4" />
-            ADD DATA
+            <Icons.Download className="w-4 h-4" />
+            TEMPLATE
           </button>
-        )}
+          
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-2 px-6 py-3 bg-[#009460] text-white rounded-full text-xs font-black uppercase tracking-widest hover:bg-[#007a4f] transition-all shadow-sm"
+          >
+            <Icons.Upload className="w-4 h-4" />
+            IMPORT
+          </button>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleImportCSV} 
+            accept=".csv" 
+            className="hidden" 
+          />
+
+          <button 
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-6 py-3 bg-[#FFC000] text-black rounded-full text-xs font-black uppercase tracking-widest hover:bg-[#e6ac00] transition-all shadow-sm"
+          >
+            <Icons.Download className="w-4 h-4" />
+            EKSPOR
+          </button>
+
+          {/* Add Button */}
+          {(userRole === 'owner' || userRole === 'super' || userRole === 'superadmin' || userRole === 'admin') && (
+            <button 
+              onClick={() => setIsAdding(true)}
+              className="bg-[#0F172A] text-[#FFC000] px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest flex items-center gap-2 hover:scale-105 active:scale-95 transition-all shadow-lg"
+            >
+              <Icons.Plus className="w-4 h-4" />
+              ADD DATA
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Quick Stats */}
@@ -317,6 +454,72 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
             <p className={`text-xl font-black ${stat.color}`}>{stat.value}</p>
           </div>
         ))}
+      </div>
+
+      {/* Performance Chart */}
+      <div className="px-6 mb-6">
+        <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm h-[300px]">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">Performance Trend</h3>
+            <div className="flex gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                <span className="text-[10px] font-bold text-slate-400 uppercase">GMV</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-rose-500" />
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Cost</span>
+              </div>
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData}>
+              <defs>
+                <linearGradient id="colorGmv" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                </linearGradient>
+                <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.1}/>
+                  <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis 
+                dataKey="date" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }}
+              />
+              <YAxis 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }}
+                tickFormatter={(val) => `Rp${val >= 1000000 ? (val/1000000).toFixed(1) + 'M' : (val/1000).toFixed(0) + 'k'}`}
+              />
+              <Tooltip 
+                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px', fontWeight: 'bold' }}
+                formatter={(value: any) => [formatCurrency(value), '']}
+              />
+              <Area 
+                type="monotone" 
+                dataKey="gmv" 
+                stroke="#10b981" 
+                strokeWidth={3}
+                fillOpacity={1} 
+                fill="url(#colorGmv)" 
+              />
+              <Area 
+                type="monotone" 
+                dataKey="cost" 
+                stroke="#f43f5e" 
+                strokeWidth={3}
+                fillOpacity={1} 
+                fill="url(#colorCost)" 
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       {/* Table Section */}
