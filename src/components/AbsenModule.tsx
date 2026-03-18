@@ -72,7 +72,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
       const { data } = await supabase
         .from('settings')
         .select('value')
-        .eq('key', `attendance_settings_${company}`)
+        .eq('key', `attendance_settings_${company.toUpperCase().trim()}`)
         .single();
       
       const attSettings: AttendanceSettings = data?.value || {
@@ -284,7 +284,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
       
       const updateData: any = {
         employeeId: employee.id,
-        company: company, 
+        company: company.toUpperCase().trim(), 
         date: todayStr,
         status: 'Hadir'
       };

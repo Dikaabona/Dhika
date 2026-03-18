@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { Employee, AttendanceRecord, Shift, ShiftAssignment } from '../types';
 import { Icons } from '../constants';
@@ -48,6 +48,13 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
   const [editingStatus, setEditingStatus] = useState<{ id: string; status: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [localCompanyFilter, setLocalCompanyFilter] = useState(company || 'Semua');
+  
+  // Sync local filter with App's companyFilter if user is owner
+  useEffect(() => {
+    if (userRole === 'owner' && company !== 'ALL') {
+      setLocalCompanyFilter(company);
+    }
+  }, [company, userRole]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const itemsPerPage = 10;
@@ -71,7 +78,9 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
   const attendanceEntries = useMemo(() => {
     const dates = getDatesInRange(startDate, endDate);
     const filteredEmployees = employees.filter(emp => {
-      const companyMatch = localCompanyFilter === 'Semua' || emp.company === localCompanyFilter;
+      const empCompany = (emp.company || '').toUpperCase().trim();
+      const filterCompany = (localCompanyFilter || '').toUpperCase().trim();
+      const companyMatch = filterCompany === 'SEMUA' || empCompany === filterCompany;
       const searchMatch = emp.nama.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          emp.idKaryawan?.toLowerCase().includes(searchQuery.toLowerCase());
       return companyMatch && searchMatch;
@@ -133,7 +142,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
           employeeId: empId,
           date: date,
           status: newStatus,
-          company: employees.find(e => e.id === empId)?.company || company
+          company: (employees.find(e => e.id === empId)?.company || company || 'VISIBEL').toUpperCase().trim()
         };
 
         if (existing) {
@@ -150,7 +159,10 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
       } else {
         const { data, error } = await supabase
           .from('attendance')
-          .update({ status: newStatus })
+          .update({ 
+            status: newStatus,
+            company: (records.find(r => r.id === id)?.company || company || 'VISIBEL').toUpperCase().trim()
+          })
           .eq('id', id)
           .select();
         
@@ -335,7 +347,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
               clockOut: parseTimeToStr(clockOutVal) || undefined,
               status: statusVal || 'Hadir',
               notes: notesVal || 'Imported',
-              company: companyVal || employee.company || company
+              company: (companyVal || employee.company || company || 'VISIBEL').toUpperCase().trim()
             });
           }
         }

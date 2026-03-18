@@ -50,7 +50,7 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
   const currentCompanyData = useMemo(() => {
     if (dynamicCompanyData) return dynamicCompanyData;
     const key = Object.keys(COMPANY_DATA).find(k => k.toLowerCase() === (company || '').toLowerCase());
-    return COMPANY_DATA[key || 'Majova'];
+    return COMPANY_DATA[key || (company.toLowerCase().includes('visibel') ? 'Visibel' : 'Majova')];
   }, [company, dynamicCompanyData]);
 
   const getTodayDMY = () => {
@@ -106,7 +106,7 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
             address: val.address || '',
             phone: val.phone || '',
             email: val.email || '',
-            logo: val.logo || (company.toLowerCase().includes('seller') ? COMPANY_DATA['Seller Space'].logo : COMPANY_DATA['Visibel'].logo)
+            logo: val.logo || (company.toLowerCase().includes('seller') ? COMPANY_DATA['Seller Space'].logo : (company.toLowerCase().includes('visibel') ? COMPANY_DATA['Visibel'].logo : COMPANY_DATA['Majova'].logo))
           });
         }
 

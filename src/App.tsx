@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 console.log("App.tsx loading...");
 import * as XLSX from 'xlsx';
 import { createClient, Session } from '@supabase/supabase-js';
@@ -52,7 +52,7 @@ export const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<UserRole>('employee');
   const [currentUserEmployee, setCurrentUserEmployee] = useState<Employee | null>(null);
-  const [userCompany, setUserCompany] = useState<string>('Visibel');
+  const [userCompany, setUserCompany] = useState<string>('VISIBEL');
   const [trialInfo, setTrialInfo] = useState<{ daysLeft: number; isExpired: boolean; isActive: boolean }>({ daysLeft: 7, isExpired: false, isActive: true });
   
   const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -77,8 +77,8 @@ export const App: React.FC = () => {
     }
   });
 
-  const [attendanceStartDate, setAttendanceStartDate] = useState(getTodayStr());
-  const [attendanceEndDate, setAttendanceEndDate] = useState(getTodayStr());
+  const [attendanceStartDate, setAttendanceStartDate] = useState(localStorage.getItem('attendanceStartDate') || getTodayStr());
+  const [attendanceEndDate, setAttendanceEndDate] = useState(localStorage.getItem('attendanceEndDate') || getTodayStr());
 
   useEffect(() => {
     try {
@@ -198,7 +198,34 @@ export const App: React.FC = () => {
     'SENIN': [], 'SELASA': [], 'RABU': [], 'KAMIS': [], 'JUMAT': [], 'SABTU': [], 'MINGGU': []
   };
 
-  const fetchData = async (userEmail?: string, isSilent: boolean = false) => {
+  useEffect(() => {
+    localStorage.setItem('attendanceStartDate', attendanceStartDate);
+    localStorage.setItem('attendanceEndDate', attendanceEndDate);
+  }, [attendanceStartDate, attendanceEndDate]);
+
+  const fetchAttendance = useCallback(async (start: string, end: string, role: string, company: string, filter: string) => {
+    try {
+      let q = supabase
+        .from('attendance')
+        .select('id, employeeId, company, date, status, clockIn, clockOut, photoIn, photoOut, notes, submittedAt')
+        .gte('date', start)
+        .lte('date', end);
+      
+      if (role !== 'owner' && role !== 'super') {
+        q = q.eq('company', company.toUpperCase().trim());
+      } else if (role === 'owner' && filter !== 'ALL') {
+        q = q.eq('company', filter.toUpperCase().trim());
+      }
+      
+      const { data, error } = await q.order('date', { ascending: false }).limit(5000);
+      if (error) throw error;
+      setAttendanceRecords(data || []);
+    } catch (e) {
+      console.error("Error fetching attendance:", e);
+    }
+  }, []);
+
+  const fetchData = useCallback(async (userEmail?: string, isSilent: boolean = false) => {
     if (!navigator.onLine) {
       setFetchError("Anda sedang offline. Periksa koneksi internet Anda.");
       return;
@@ -206,7 +233,17 @@ export const App: React.FC = () => {
 
     if (!isSilent) setIsLoadingData(true);
     setFetchError(null);
-    const targetEmail = (userEmail || session?.user?.email || '').toLowerCase().trim();
+    
+    let targetEmail = (userEmail || '').toLowerCase().trim();
+    if (!targetEmail) {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      targetEmail = (currentSession?.user?.email || '').toLowerCase().trim();
+    }
+
+    if (!targetEmail) {
+      setIsLoadingData(false);
+      return;
+    }
 
     try {
       const { data: myProfile, error: profileError } = await supabase
@@ -220,7 +257,7 @@ export const App: React.FC = () => {
 
       const activeUserRole = getRoleBasedOnEmail(targetEmail, myProfile?.role);
       const isOwner = activeUserRole === 'owner';
-      const detectedCompany = myProfile?.company || 'Visibel';
+      const detectedCompany = (myProfile?.company || 'VISIBEL').toUpperCase().trim();
 
       const isResignedUser = (myProfile?.resigned_at && myProfile.resigned_at.trim() !== '') || (myProfile?.resign_reason && myProfile.resign_reason.trim() !== '');
       if (isResignedUser) {
@@ -348,7 +385,7 @@ export const App: React.FC = () => {
 
       let empQuery = supabase.from('employees').select('*').is('deleted_at', null);
       if (!isOwner) {
-        empQuery = empQuery.eq('company', detectedCompany);
+        empQuery = empQuery.eq('company', detectedCompany.toUpperCase().trim());
       }
       
       const { data: empData, error: empError } = await empQuery;
@@ -372,17 +409,12 @@ export const App: React.FC = () => {
            q = q.select('*');
         }
         
-        if (!isOwner) q = q.eq('company', companyFilterVal);
+        if (!isOwner) q = q.eq('company', companyFilterVal.toUpperCase().trim());
         return q;
       };
 
       const fetchPromises = [
-        buildQuery('attendance')
-          .gte('date', attendanceStartDate)
-          .lte('date', attendanceEndDate)
-          .order('date', { ascending: false })
-          .limit(5000)
-          .then(({data, error}: any) => { if(error) throw error; setAttendanceRecords(data || []); }),
+        fetchAttendance(attendanceStartDate, attendanceEndDate, activeUserRole, detectedCompany, companyFilter),
         buildQuery('live_reports').order('tanggal', { ascending: false }).limit(2000).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(50).then(({data, error}: any) => { if(error) throw error; setSubmissions(data || []); }),
         buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(30).then(({data, error}: any) => { if(error) throw error; setBroadcasts(data || []); }),
@@ -436,32 +468,13 @@ export const App: React.FC = () => {
     } finally {
       setIsLoadingData(false);
     }
-  };
+  }, [attendanceStartDate, attendanceEndDate, companyFilter, fetchAttendance]);
 
   useEffect(() => {
     if (session && (activeTab === 'attendance' || activeTab === 'dashboard' || activeTab === 'home')) {
-      const fetchAttendanceRange = async () => {
-        try {
-          let q = supabase
-            .from('attendance')
-            .select('id, employeeId, company, date, status, clockIn, clockOut, photoIn, photoOut, notes, submittedAt')
-            .gte('date', attendanceStartDate)
-            .lte('date', attendanceEndDate);
-          
-          if (userRole !== 'owner' && userRole !== 'super') {
-            q = q.eq('company', userCompany);
-          }
-          
-          const { data, error } = await q.order('date', { ascending: false }).limit(5000);
-          if (error) throw error;
-          setAttendanceRecords(data || []);
-        } catch (e) {
-          console.error("Error fetching attendance range:", e);
-        }
-      };
-      fetchAttendanceRange();
+      fetchAttendance(attendanceStartDate, attendanceEndDate, userRole, userCompany, companyFilter);
     }
-  }, [attendanceStartDate, attendanceEndDate, session, userRole, userCompany, activeTab]);
+  }, [attendanceStartDate, attendanceEndDate, session, userRole, userCompany, activeTab, fetchAttendance, companyFilter]);
 
   const handleAuth = async (email: string, password?: string, isRegister = false, isReset = false) => {
     setIsAuthLoading(true);
@@ -550,7 +563,7 @@ export const App: React.FC = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [fetchData]);
 
   const uniqueCompanies = useMemo(() => {
     const set = new Set(employees.map(e => e.company || 'Visibel'));
@@ -1057,7 +1070,7 @@ export const App: React.FC = () => {
                   onStartDateChange={setAttendanceStartDate} 
                   onEndDateChange={setAttendanceEndDate} 
                   weeklyHolidays={weeklyHolidays} 
-                  company={userCompany} 
+                  company={userRole === 'owner' ? (companyFilter === 'ALL' ? 'Semua' : companyFilter) : userCompany} 
                   positionRates={positionRates}
                   shifts={shifts}
                   shiftAssignments={shiftAssignments}
