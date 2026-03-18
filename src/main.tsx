@@ -5,25 +5,25 @@ import App from './App';
 
 import { ConfirmationProvider } from './contexts/ConfirmationContext';
 
-console.log("HR.Visibel: React mounting started...");
+console.log("Majova.id: React mounting started...");
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
-  console.error("HR.Visibel: Could not find root element to mount to");
+  console.error("Majova.id: Could not find root element to mount to");
   throw new Error("Could not find root element to mount to");
 }
 
 try {
-  console.log("HR.Visibel: Root element found, creating root...");
+  console.log("Majova.id: Root element found, creating root...");
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <ConfirmationProvider>
       <App />
     </ConfirmationProvider>
   );
-  console.log("HR.Visibel: React render called.");
+  console.log("Majova.id: React render called.");
 } catch (err) {
-  console.error("HR.Visibel: React mounting failed:", err);
+  console.error("Majova.id: React mounting failed:", err);
   const errorMessage = err instanceof Error ? err.message : String(err);
   rootElement.innerHTML = `
     <div style="color: #e11d48; padding: 40px; font-family: sans-serif; text-align: center; background: #fff1f2; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">

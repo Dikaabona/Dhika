@@ -237,26 +237,105 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+        const wb = XLSX.read(data, { type: 'array', cellDates: true });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws) as any[];
+        const jsonData = XLSX.utils.sheet_to_json(ws, { raw: false }) as any[];
+
+        const parseYMDToIso = (val: any) => {
+          if (!val) return '';
+          if (val instanceof Date) return val.toISOString().split('T')[0];
+          const str = String(val).trim();
+          if (!str || str === '-') return '';
+
+          // Handle Excel serial date
+          if (!isNaN(Number(str)) && Number(str) > 30000) {
+            const date = new Date(Math.round((Number(str) - 25569) * 86400 * 1000));
+            return date.toISOString().split('T')[0];
+          }
+
+          // Try DD/MM/YYYY or DD-MM-YYYY
+          const dmyMatch = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+          if (dmyMatch) {
+            return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
+          }
+          
+          // Try YYYY/MM/DD or YYYY-MM-DD
+          const ymdMatch = str.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+          if (ymdMatch) {
+            return `${ymdMatch[1]}-${ymdMatch[2].padStart(2, '0')}-${ymdMatch[3].padStart(2, '0')}`;
+          }
+
+          // Fallback to native Date
+          const d = new Date(str);
+          if (!isNaN(d.getTime())) {
+            return d.toISOString().split('T')[0];
+          }
+          return str;
+        };
+
+        const parseTimeToStr = (val: any) => {
+          if (!val) return null;
+          const str = String(val).trim();
+          if (!str || str === '-') return null;
+
+          // Handle Excel serial time (e.g., 0.3333 for 08:00)
+          if (!isNaN(Number(str)) && Number(str) < 1) {
+            const totalSeconds = Math.round(Number(str) * 86400);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+          }
+
+          // Try to parse with Date to handle AM/PM and other formats
+          const d = new Date(`2000-01-01 ${str.replace(/\./g, ':')}`);
+          if (!isNaN(d.getTime())) {
+            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+          }
+
+          // Fallback regex for HH:mm or H:m
+          const timeMatch = str.match(/^(\d{1,2})[:.](\d{1,2})/);
+          if (timeMatch) {
+            return `${timeMatch[1].padStart(2, '0')}:${timeMatch[2].padStart(2, '0')}`;
+          }
+
+          return str;
+        };
 
         const newRecords: AttendanceRecord[] = [];
-        for (const row of data) {
-          const empId = row['ID Karyawan'];
+        for (const row of jsonData) {
+          const getVal = (keys: string[]) => {
+            for (const k of keys) {
+              if (row[k] !== undefined) return row[k];
+              const lowerK = k.toLowerCase();
+              if (row[lowerK] !== undefined) return row[lowerK];
+              const upperK = k.toUpperCase();
+              if (row[upperK] !== undefined) return row[upperK];
+            }
+            return undefined;
+          };
+
+          const empId = getVal(['ID Karyawan', 'ID', 'Employee ID', 'ID_Karyawan']);
+          const dateVal = getVal(['Tanggal', 'Date', 'TANGGAL']);
+          const clockInVal = getVal(['Jam Masuk', 'Clock In', 'ClockIn', 'JAM_MASUK']);
+          const clockOutVal = getVal(['Jam Pulang', 'Clock Out', 'ClockOut', 'JAM_PULANG']);
+          const statusVal = getVal(['Status', 'STATUS']);
+          const notesVal = getVal(['Catatan', 'Notes', 'CATATAN']);
+          const companyVal = getVal(['Company', 'COMPANY', 'Perusahaan']);
+
           const employee = employees.find(e => e.idKaryawan === empId || e.id === empId);
+          const normalizedDate = parseYMDToIso(dateVal);
           
-          if (employee) {
+          if (employee && normalizedDate) {
             newRecords.push({
               employeeId: employee.id,
-              date: row['Tanggal'],
-              clockIn: row['Jam Masuk'],
-              clockOut: row['Jam Pulang'],
-              status: row['Status'] || 'Hadir',
-              notes: row['Catatan'] || 'Imported',
-              company: company
+              date: normalizedDate,
+              clockIn: parseTimeToStr(clockInVal) || undefined,
+              clockOut: parseTimeToStr(clockOutVal) || undefined,
+              status: statusVal || 'Hadir',
+              notes: notesVal || 'Imported',
+              company: companyVal || employee.company || company
             });
           }
         }
@@ -303,7 +382,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         if (fileInputRef.current) fileInputRef.current.value = '';
       }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   };
 
   return (

@@ -37,7 +37,7 @@ import { useConfirmation } from './contexts/ConfirmationContext';
 
 const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
 
-const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
+const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1pjtSR-r2YJMexgm3hl6jtANdjbVn2FZD";
 const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
 
 const sanitizeConfig = (val: any, fallback: string) => {
@@ -362,7 +362,12 @@ export const App: React.FC = () => {
       };
 
       const fetchPromises = [
-        buildQuery('attendance').order('date', { ascending: false }).limit(500).then(({data, error}: any) => { if(error) throw error; setAttendanceRecords(data || []); }),
+        buildQuery('attendance')
+          .gte('date', attendanceStartDate)
+          .lte('date', attendanceEndDate)
+          .order('date', { ascending: false })
+          .limit(5000)
+          .then(({data, error}: any) => { if(error) throw error; setAttendanceRecords(data || []); }),
         buildQuery('live_reports').order('tanggal', { ascending: false }).limit(2000).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(50).then(({data, error}: any) => { if(error) throw error; setSubmissions(data || []); }),
         buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(30).then(({data, error}: any) => { if(error) throw error; setBroadcasts(data || []); }),
@@ -417,6 +422,31 @@ export const App: React.FC = () => {
       setIsLoadingData(false);
     }
   };
+
+  useEffect(() => {
+    if (session && (activeTab === 'attendance' || activeTab === 'dashboard' || activeTab === 'home')) {
+      const fetchAttendanceRange = async () => {
+        try {
+          let q = supabase
+            .from('attendance')
+            .select('id, employeeId, company, date, status, clockIn, clockOut, photoIn, photoOut, notes, submittedAt')
+            .gte('date', attendanceStartDate)
+            .lte('date', attendanceEndDate);
+          
+          if (userRole !== 'owner' && userRole !== 'super') {
+            q = q.eq('company', userCompany);
+          }
+          
+          const { data, error } = await q.order('date', { ascending: false }).limit(5000);
+          if (error) throw error;
+          setAttendanceRecords(data || []);
+        } catch (e) {
+          console.error("Error fetching attendance range:", e);
+        }
+      };
+      fetchAttendanceRange();
+    }
+  }, [attendanceStartDate, attendanceEndDate, session, userRole, userCompany, activeTab]);
 
   const handleAuth = async (email: string, password?: string, isRegister = false, isReset = false) => {
     setIsAuthLoading(true);

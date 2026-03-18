@@ -454,7 +454,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
                 
                 <p style="margin-bottom: 20px;">Terimakasih atas kerjasamanya dalam membantu Visibel. Kita berharap kerjasama kita selalu berjalan terus.</p>
                 
-                <p style="margin-top: 40px; font-weight: bold;">HR Visibel</p>
+                <p style="margin-top: 40px; font-weight: bold;">Majova.id</p>
                 
                 <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #f1f5f9; text-align: center;">
                   <p style="font-size: 11px; color: #94a3b8; margin: 0;">Email ini dikirim secara otomatis oleh sistem Finance ${company}.</p>
