@@ -23,7 +23,7 @@ interface SettingsModuleProps {
   onRefresh: () => void;
 }
 
-type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT' | 'COMPANY' | 'GAJI' | 'VALIDASI';
+type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT' | 'COMPANY' | 'GAJI';
 
 interface CustomCriteria {
   id: string;
@@ -97,7 +97,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     radius: 100
   });
   const [searchQuery, setSearchQuery] = useState('');
-  const [trialInfo, setTrialInfo] = useState<{ startDate: string; isPremium: boolean } | null>(null);
+  const [trialInfo, setTrialInfo] = useState<{ 
+    startDate?: string; 
+    isPremium: boolean;
+    daysLeft?: number;
+    isExpired?: boolean;
+    isActive?: boolean;
+  } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditingCompany, setIsEditingCompany] = useState(false);
@@ -105,24 +111,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const [isEditingSalary, setIsEditingSalary] = useState(false);
   const [searchEmp, setSearchEmp] = useState('');
   const [searchRemote, setSearchRemote] = useState('');
-  const [invalidPhones, setInvalidPhones] = useState<Employee[]>([]);
-  const [isValidating, setIsValidating] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
   const [remotePage, setRemotePage] = useState(1);
   const remoteItemsPerPage = 5;
-
-  const checkPhoneFormats = () => {
-    setIsValidating(true);
-    const invalid = employees.filter(e => {
-      const phone = (e.noHandphone || '').replace(/\D/g, '');
-      return !phone.startsWith('628');
-    });
-    setInvalidPhones(invalid);
-    setIsValidating(false);
-  };
 
   const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super';
@@ -142,8 +136,15 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
 
   const fetchTrialInfo = async () => {
     try {
-      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
       const { data } = await supabase.from('settings').select('value').eq('key', `trial_info_${targetCompany}`).single();
+      
+      // Force premium for VISIBEL
+      if (targetCompany === 'VISIBEL') {
+        setTrialInfo({ daysLeft: 999, isExpired: false, isActive: false, isPremium: true });
+        return;
+      }
+
       if (data) setTrialInfo(data.value);
       else setTrialInfo(null);
     } catch (e) {
@@ -176,7 +177,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
 
   const fetchCompanyData = async () => {
     try {
-      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
       const { data } = await supabase.from('settings').select('value').eq('key', `company_details_${targetCompany}`).single();
       if (data) {
         setCompanyData(data.value);
@@ -184,7 +185,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
         setCompanyData({ name: targetCompany, address: '', phone: '', email: '', npwp: '', logo: '' });
       }
     } catch (e) {
-      setCompanyData({ name: isOwner ? selectedCompany : userCompany, address: '', phone: '', email: '', npwp: '', logo: '' });
+      const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
+      setCompanyData({ name: targetCompany, address: '', phone: '', email: '', npwp: '', logo: '' });
     }
   };
 
@@ -202,7 +204,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const fetchSettingsAndEmployees = async () => {
     setIsLoading(true);
     try {
-      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
       
       const { data: settingsData, error: settingsError } = await supabase
         .from('settings')
@@ -229,7 +231,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
 
   const fetchKPIConfig = async () => {
     try {
-      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
       const { data } = await supabase.from('settings').select('value').eq('key', `kpi_system_${targetCompany}`).single();
       if (data) {
         const val = data.value as any;
@@ -250,7 +252,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
 
   const fetchDivisionsAndPositions = async () => {
     try {
-      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
       const { data: divData } = await supabase.from('settings').select('value').eq('key', `divisions_${targetCompany}`).single();
       if (divData && Array.isArray(divData.value)) {
         setDivisions(divData.value as string[]);
@@ -275,7 +277,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
 
   const fetchClients = async () => {
     try {
-      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
       const { data } = await supabase.from('settings').select('value').eq('key', `clients_${targetCompany}`).single();
       if (data && Array.isArray(data.value)) {
         setClients(data.value);
@@ -290,7 +292,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const handleSaveSettings = async () => {
     setIsSaving(true);
     try {
-      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
       const { error: settingsError } = await supabase.from('settings').upsert({
         key: `attendance_settings_${targetCompany}`,
         value: settings
@@ -309,7 +311,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const handleSaveKPISystem = async (newData: KPISystemData) => {
     setIsSaving(true);
     try {
-      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
       const { error: settingsError } = await supabase.from('settings').upsert({
         key: `kpi_system_${targetCompany}`,
         value: newData
@@ -358,7 +360,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
       return;
     }
     const updated = [...divisions, name];
-    await saveSettingsToCloud(`divisions_${isOwner ? selectedCompany : userCompany}`, updated);
+    const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
+    await saveSettingsToCloud(`divisions_${targetCompany}`, updated);
     setDivisions(updated);
     setNewDivisionName('');
     onRefresh();
@@ -373,7 +376,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     });
     if (!isConfirmed) return;
     const updated = divisions.filter(d => d !== name);
-    await saveSettingsToCloud(`divisions_${isOwner ? selectedCompany : userCompany}`, updated);
+    const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
+    await saveSettingsToCloud(`divisions_${targetCompany}`, updated);
     setDivisions(updated);
     onRefresh();
   };
@@ -386,7 +390,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
       return;
     }
     const updated = [...positions, { name, bonus: 0 }];
-    await saveSettingsToCloud(`positions_${isOwner ? selectedCompany : userCompany}`, updated);
+    const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
+    await saveSettingsToCloud(`positions_${targetCompany}`, updated);
     setPositions(updated);
     setNewPositionName('');
     onRefresh();
@@ -401,7 +406,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     });
     if (!isConfirmed) return;
     const updated = positions.filter(p => p.name !== name);
-    await saveSettingsToCloud(`positions_${isOwner ? selectedCompany : userCompany}`, updated);
+    const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
+    await saveSettingsToCloud(`positions_${targetCompany}`, updated);
     setPositions(updated);
     onRefresh();
   };
@@ -409,7 +415,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const handleUpdatePositionBonus = async (name: string, bonus: number) => {
     const updated = positions.map(p => p.name === name ? { ...p, bonus } : p);
     setPositions(updated);
-    await saveSettingsToCloud(`positions_${isOwner ? selectedCompany : userCompany}`, updated);
+    const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
+    await saveSettingsToCloud(`positions_${targetCompany}`, updated);
     onRefresh();
   };
 
@@ -482,7 +489,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
       return;
     }
     const updated = [...clients, { ...newClient, id: `client-${Date.now()}` }];
-    await saveSettingsToCloud(`clients_${isOwner ? selectedCompany : userCompany}`, updated);
+    const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
+    await saveSettingsToCloud(`clients_${targetCompany}`, updated);
     setClients(updated);
     setNewClient({ namaPic: '', noTelepon: '', namaBrand: '', alamat: '' });
     alert("Data client berhasil ditambahkan!");
@@ -497,7 +505,8 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     });
     if (!isConfirmed) return;
     const updated = clients.filter(c => c.id !== id);
-    await saveSettingsToCloud(`clients_${isOwner ? selectedCompany : userCompany}`, updated);
+    const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
+    await saveSettingsToCloud(`clients_${targetCompany}`, updated);
     setClients(updated);
   };
 
@@ -609,6 +618,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     return null;
   };
 
+  const MapEvents = ({ onClick }: { onClick: (e: any) => void }) => {
+    useMapEvents({
+      click: onClick,
+    });
+    return null;
+  };
+
   const handleAddBranch = async () => {
     if (!newBranch.code || !newBranch.name) {
       alert("Kode dan Nama Cabang wajib diisi!");
@@ -657,7 +673,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const saveAttendanceSettings = async (newSettings: AttendanceSettings) => {
     setIsSaving(true);
     try {
-      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const targetCompany = (isOwner ? selectedCompany : userCompany).toUpperCase().trim();
       const { error: settingsError } = await supabase.from('settings').upsert({
         key: `attendance_settings_${targetCompany}`,
         value: newSettings
@@ -760,14 +776,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                     className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'CLIENT' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                   >
                     DATA CLIENT
-                  </button>
-                )}
-                {isHighAdminAccess && (
-                  <button 
-                    onClick={() => setActiveSubTab('VALIDASI')} 
-                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'VALIDASI' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                  >
-                    VALIDASI DATA
                   </button>
                 )}
               </div>
@@ -958,7 +966,109 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
             </div>
           </div>
         ) : activeSubTab === 'MAPS' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in fade-in duration-300">
+          <div className="space-y-10 animate-in fade-in duration-500">
+            {/* Main Office Section */}
+            <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm space-y-8">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="space-y-2">
+                  <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Lokasi Kantor Utama</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Atur koordinat pusat untuk verifikasi kehadiran karyawan.</p>
+                </div>
+                <button 
+                  onClick={() => saveAttendanceSettings(settings)}
+                  disabled={isSaving}
+                  className="bg-[#0f172a] text-[#FFC000] px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isSaving ? 'MENYIMPAN...' : 'SIMPAN PENGATURAN'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Lokasi</label>
+                    <div className="relative">
+                      <Icons.MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                      <input 
+                        type="text" 
+                        value={settings.locationName}
+                        onChange={e => setSettings({...settings, locationName: e.target.value})}
+                        className="w-full bg-slate-50 border border-slate-100 pl-12 pr-5 py-4 rounded-2xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Latitude</label>
+                      <input 
+                        type="number" 
+                        step="any"
+                        value={settings.latitude}
+                        onChange={e => setSettings({...settings, latitude: parseFloat(e.target.value)})}
+                        className="w-full bg-slate-50 border border-slate-100 px-5 py-4 rounded-2xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Longitude</label>
+                      <input 
+                        type="number" 
+                        step="any"
+                        value={settings.longitude}
+                        onChange={e => setSettings({...settings, longitude: parseFloat(e.target.value)})}
+                        className="w-full bg-slate-50 border border-slate-100 px-5 py-4 rounded-2xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Radius Verifikasi (Meter)</label>
+                    <div className="flex items-center gap-4">
+                      <input 
+                        type="range" 
+                        min="10" 
+                        max="2000" 
+                        step="10"
+                        value={settings.radius} 
+                        onChange={e => setSettings({...settings, radius: parseInt(e.target.value)})}
+                        className="flex-grow accent-slate-900"
+                      />
+                      <span className="bg-slate-100 px-3 py-1 rounded-lg text-[10px] font-black text-slate-600 min-w-[60px] text-center">{settings.radius}m</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={getCurrentLocation}
+                      className="flex-grow bg-slate-100 text-slate-900 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Icons.MapPin className="w-4 h-4" /> Gunakan Lokasi Saya
+                    </button>
+                  </div>
+                </div>
+
+                <div className="h-[350px] rounded-[32px] overflow-hidden border-2 border-slate-100 relative z-10">
+                  <MapContainer 
+                    center={[settings.latitude, settings.longitude]} 
+                    zoom={15} 
+                    style={{ height: '100%', width: '100%' }}
+                  >
+                    <TileLayer
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    />
+                    <Marker position={[settings.latitude, settings.longitude]} />
+                    <MapUpdater center={[settings.latitude, settings.longitude]} />
+                    <MapEvents
+                      onClick={(e) => {
+                        setSettings(prev => ({ ...prev, latitude: e.latlng.lat, longitude: e.latlng.lng }));
+                      }}
+                    />
+                  </MapContainer>
+                </div>
+              </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
             {/* Left Column: Branch List & Remote Permissions */}
             <div className="lg:col-span-4 space-y-6">
               {/* Branch List */}
@@ -1212,7 +1322,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                 </div>
               </div>
             </div>
-          </div>
         ) : activeSubTab === 'COMPANY' ? (
           <div className="animate-in fade-in duration-300 space-y-10">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -1371,65 +1480,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
               </div>
             )}
           </div>
-        ) : activeSubTab === 'VALIDASI' ? (
-          <div className="animate-in fade-in duration-300 space-y-12">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-              <div className="space-y-2">
-                 <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Validasi & Integritas Data</h3>
-                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Lakukan pengecekan kualitas data untuk memastikan sistem berjalan optimal.</p>
-              </div>
-              <button 
-                onClick={checkPhoneFormats}
-                disabled={isValidating}
-                className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl active:scale-95 transition-all flex items-center gap-3"
-              >
-                {isValidating ? 'Memeriksa...' : <><Icons.CheckCircle className="w-4 h-4" /> JALANKAN VALIDASI</>}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm space-y-6">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Format Nomor WhatsApp (628...)</h4>
-                  <span className={`px-3 py-1 rounded-lg text-[9px] font-black ${invalidPhones.length > 0 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                    {invalidPhones.length} MASALAH
-                  </span>
-                </div>
-                
-                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                  {invalidPhones.map(emp => (
-                    <div key={emp.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between group hover:border-rose-200 transition-all">
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-black text-slate-900 uppercase truncate">{emp.nama}</p>
-                        <p className="text-[9px] font-bold text-rose-500 uppercase tracking-widest">{emp.noHandphone || 'TIDAK ADA NOMOR'}</p>
-                      </div>
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <p className="text-[8px] font-bold text-slate-400 uppercase">Harus diawali 628</p>
-                      </div>
-                    </div>
-                  ))}
-                  {invalidPhones.length === 0 && (
-                    <div className="py-12 text-center opacity-30">
-                       <Icons.CheckCircle className="w-10 h-10 mx-auto text-emerald-500 mb-2" />
-                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Semua nomor sudah benar</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 flex flex-col items-center justify-center text-center space-y-4">
-                 <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center shadow-sm">
-                    <Icons.Info className="w-8 h-8 text-[#0f172a]" />
-                 </div>
-                 <div className="space-y-2">
-                    <h5 className="text-sm font-black text-[#0f172a] uppercase tracking-tight">Pentingnya Format 628</h5>
-                    <p className="text-[10px] text-slate-400 font-medium leading-relaxed max-w-[250px] mx-auto">
-                      Sistem pengingat WhatsApp (WAHA) memerlukan format internasional tanpa tanda '+' atau '0' di depan. Gunakan format 628xxxxxxxxxx untuk memastikan pesan terkirim.
-                    </p>
-                 </div>
-              </div>
-            </div>
-          </div>
         ) : activeSubTab === 'CLIENT' ? (
           canAccessClientData ? (
             <div className="animate-in fade-in duration-300 space-y-12">
@@ -1538,13 +1588,15 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                   </div>
                 </div>
               </div>
-            </div>
           ) : (
             <div className="p-10 text-center">
               <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Akses Ditolak</h2>
               <p className="text-slate-500">Anda tidak memiliki izin untuk mengakses data client.</p>
             </div>
-          )
+           </div>
+        </div>
+      </div>
+    </div>
         ) : activeSubTab === 'ROLE' ? (
           <div className="animate-in fade-in duration-300 space-y-10">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">

@@ -225,6 +225,138 @@ export const App: React.FC = () => {
     }
   }, []);
 
+  const runRetentionPolicy = useCallback(async (role: string, company: string) => {
+    if (role !== 'owner' && role !== 'super' && role !== 'admin') return;
+    
+    // Only run once per session to avoid slowing down every refresh
+    const lastRunKey = `retention_last_run_${company}`;
+    const today = new Date().toISOString().split('T')[0];
+    if (localStorage.getItem(lastRunKey) === today) return;
+
+    try {
+      const now = new Date();
+      
+      // 1. Cleanup old photos (older than 1 month / 30 days)
+      const oneMonthAgo = new Date(now);
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      const photoDateStr = oneMonthAgo.toISOString().split('T')[0];
+      
+      await supabase
+        .from('attendance')
+        .update({ photoIn: null, photoOut: null })
+        .lt('date', photoDateStr)
+        .eq('company', company);
+
+      // 1b. Cleanup old attendance records (older than 1 year)
+      const oneYearAgo = new Date(now);
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      const attDateStr = oneYearAgo.toISOString().split('T')[0];
+
+      await supabase
+        .from('attendance')
+        .delete()
+        .lt('date', attDateStr)
+        .eq('company', company);
+
+      // 2. Cleanup old shifts (older than 21 days / 3 weeks)
+      const twentyOneDaysAgo = new Date(now);
+      twentyOneDaysAgo.setDate(twentyOneDaysAgo.getDate() - 21);
+      const shiftDateStr = twentyOneDaysAgo.toISOString().split('T')[0];
+
+      await supabase
+        .from('shift_assignments')
+        .delete()
+        .lt('date', shiftDateStr)
+        .eq('company', company);
+
+      // 3. Cleanup old live reports (older than 6 months / 180 days)
+      const sixMonthsAgo = new Date(now);
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      const reportDateStr = sixMonthsAgo.toISOString().split('T')[0];
+
+      await supabase
+        .from('live_reports')
+        .delete()
+        .lt('tanggal', reportDateStr)
+        .eq('company', company);
+
+      // 4. Cleanup old schedules (Retention Policy: Max 1000 records)
+      const { count: scheduleCount } = await supabase
+        .from('schedules')
+        .select('*', { count: 'exact', head: true })
+        .eq('company', company);
+
+      if (scheduleCount && scheduleCount > 1000) {
+        const overflow = scheduleCount - 900;
+        const { data: oldSchedules } = await supabase
+          .from('schedules')
+          .select('id, date')
+          .eq('company', company)
+          .order('date', { ascending: true })
+          .limit(overflow);
+
+        if (oldSchedules && oldSchedules.length > 0) {
+          const idsToDelete = oldSchedules.map(s => s.id);
+          await supabase.from('schedules').delete().in('id', idsToDelete);
+        }
+      }
+      
+      localStorage.setItem(lastRunKey, today);
+    } catch (e) {
+      console.error("Gagal membersihkan data lama:", e);
+    }
+  }, []);
+
+  const checkTrialStatus = useCallback(async (company: string, role: string) => {
+    try {
+      const { data: trialData } = await supabase.from('settings').select('value').eq('key', `trial_info_${company}`).single();
+      let startDateStr: string;
+      
+      const isForcePremium = company === 'VISIBEL';
+
+      if (!trialData) {
+        startDateStr = new Date().toISOString();
+        if (role === 'owner' || role === 'super' || role === 'admin') {
+          await supabase.from('settings').upsert({ 
+            key: `trial_info_${company}`, 
+            value: { startDate: startDateStr, isPremium: isForcePremium } 
+          }, { onConflict: 'key' });
+        }
+        setTrialInfo({ 
+          daysLeft: isForcePremium ? 999 : 7, 
+          isExpired: false, 
+          isActive: !isForcePremium 
+        });
+      } else {
+        const isPremium = trialData.value.isPremium || isForcePremium;
+        
+        if (isForcePremium && !trialData.value.isPremium && (role === 'owner' || role === 'super' || role === 'admin')) {
+          await supabase.from('settings').update({ 
+            value: { ...trialData.value, isPremium: true } 
+          }).eq('key', `trial_info_${company}`);
+        }
+
+        if (isPremium) {
+          setTrialInfo({ daysLeft: 999, isExpired: false, isActive: false });
+        } else {
+          startDateStr = trialData.value.startDate;
+          const start = new Date(startDateStr);
+          const now = new Date();
+          const diffTime = now.getTime() - start.getTime();
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          const remaining = 7 - diffDays;
+          setTrialInfo({ 
+            daysLeft: remaining < 0 ? 0 : remaining, 
+            isExpired: remaining < 0,
+            isActive: true
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Trial check error:", e);
+    }
+  }, []);
+
   const fetchData = useCallback(async (userEmail?: string, isSilent: boolean = false) => {
     if (!navigator.onLine) {
       setFetchError("Anda sedang offline. Periksa koneksi internet Anda.");
@@ -270,118 +402,9 @@ export const App: React.FC = () => {
       setUserCompany(detectedCompany);
       setCurrentUserEmployee(myProfile);
 
-      // Cleanup old data (Retention Policy)
-      if (activeUserRole === 'owner' || activeUserRole === 'super' || activeUserRole === 'admin') {
-        try {
-          const now = new Date();
-          
-          // 1. Cleanup old photos (older than 1 month / 30 days)
-          const oneMonthAgo = new Date(now);
-          oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-          const photoDateStr = oneMonthAgo.toISOString().split('T')[0];
-          
-          await supabase
-            .from('attendance')
-            .update({ photoIn: null, photoOut: null })
-            .lt('date', photoDateStr)
-            .eq('company', detectedCompany);
-
-          // 1b. Cleanup old attendance records (older than 1 year)
-          const oneYearAgo = new Date(now);
-          oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-          const attDateStr = oneYearAgo.toISOString().split('T')[0];
-
-          await supabase
-            .from('attendance')
-            .delete()
-            .lt('date', attDateStr)
-            .eq('company', detectedCompany);
-
-          // 2. Cleanup old shifts (older than 21 days / 3 weeks)
-          const twentyOneDaysAgo = new Date(now);
-          twentyOneDaysAgo.setDate(twentyOneDaysAgo.getDate() - 21);
-          const shiftDateStr = twentyOneDaysAgo.toISOString().split('T')[0];
-
-          await supabase
-            .from('shift_assignments')
-            .delete()
-            .lt('date', shiftDateStr)
-            .eq('company', detectedCompany);
-
-          // 3. Cleanup old live reports (older than 6 months / 180 days)
-          const sixMonthsAgo = new Date(now);
-          sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-          const reportDateStr = sixMonthsAgo.toISOString().split('T')[0];
-
-          await supabase
-            .from('live_reports')
-            .delete()
-            .lt('tanggal', reportDateStr)
-            .eq('company', detectedCompany);
-
-          // 4. Cleanup old schedules (Retention Policy: Max 1000 records)
-          const { count: scheduleCount } = await supabase
-            .from('schedules')
-            .select('*', { count: 'exact', head: true })
-            .eq('company', detectedCompany);
-
-          if (scheduleCount && scheduleCount > 1000) {
-            const overflow = scheduleCount - 900; // Leave 900 records to have some buffer
-            const { data: oldSchedules } = await supabase
-              .from('schedules')
-              .select('id, date')
-              .eq('company', detectedCompany)
-              .order('date', { ascending: true })
-              .limit(overflow);
-
-            if (oldSchedules && oldSchedules.length > 0) {
-              const idsToDelete = oldSchedules.map(s => s.id);
-              await supabase.from('schedules').delete().in('id', idsToDelete);
-              console.log(`Auto-Cleanup: Berhasil menghapus ${idsToDelete.length} jadwal lama untuk menjaga performa.`);
-            }
-          }
-
-        } catch (e) {
-          console.error("Gagal membersihkan data lama:", e);
-        }
-      }
-
-      // Trial Check Logic
-      try {
-        const { data: trialData } = await supabase.from('settings').select('value').eq('key', `trial_info_${detectedCompany}`).single();
-        let startDateStr: string;
-        
-        if (!trialData) {
-          startDateStr = new Date().toISOString();
-          // Auto-initialize trial for new company if user is admin/owner
-          if (activeUserRole === 'owner' || activeUserRole === 'super' || activeUserRole === 'admin') {
-            await supabase.from('settings').upsert({ 
-              key: `trial_info_${detectedCompany}`, 
-              value: { startDate: startDateStr, isPremium: false } 
-            }, { onConflict: 'key' });
-          }
-          setTrialInfo({ daysLeft: 7, isExpired: false, isActive: true });
-        } else {
-          const isPremium = trialData.value.isPremium || false;
-          if (isPremium) {
-            setTrialInfo({ daysLeft: 999, isExpired: false, isActive: false });
-          } else {
-            startDateStr = trialData.value.startDate;
-            const start = new Date(startDateStr);
-            const now = new Date();
-            const diffTime = now.getTime() - start.getTime();
-            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-            const remaining = 7 - diffDays;
-            setTrialInfo({ 
-              daysLeft: remaining < 0 ? 0 : remaining, 
-              isExpired: remaining < 0,
-              isActive: true
-            });
-          }
-        }
-      } catch (e) {
-        console.error("Trial check error:", e);
-      }
+      // Run background tasks without blocking initial load
+      runRetentionPolicy(activeUserRole, detectedCompany);
+      checkTrialStatus(detectedCompany, activeUserRole);
 
       let empQuery = supabase.from('employees').select('*').is('deleted_at', null);
       if (!isOwner) {

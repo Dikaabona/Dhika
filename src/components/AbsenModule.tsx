@@ -36,9 +36,10 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [locationStatus, setLocationStatus] = useState<{distance: number | null, isInside: boolean, settings: AttendanceSettings | null}>({
+  const [locationStatus, setLocationStatus] = useState<{distance: number | null, isInside: boolean, isUsingDefault: boolean, settings: AttendanceSettings | null}>({
     distance: null,
     isInside: false,
+    isUsingDefault: false,
     settings: null
   });
   
@@ -76,11 +77,12 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         .single();
       
       const attSettings: AttendanceSettings = data?.value || {
-        locationName: 'Main Office',
+        locationName: 'Main Office (Default)',
         latitude: -6.1754,
         longitude: 106.8272,
         radius: 100,
-        allowRemote: false
+        allowRemote: false,
+        isDefault: true
       };
 
       // Tentukan lokasi target (Cabang atau Main Office)
@@ -88,6 +90,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
       let targetLon = attSettings.longitude;
       let targetRadius = attSettings.radius;
       let targetName = attSettings.locationName;
+      let isUsingDefault = !!attSettings.isDefault;
 
       if (employee?.lokasiKerja && attSettings.branches) {
         const branch = attSettings.branches.find(b => b.name === employee.lokasiKerja);
@@ -113,6 +116,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         setLocationStatus({
           distance: Math.round(dist),
           isInside: isRemote ? true : dist <= targetRadius,
+          isUsingDefault,
           settings: {
             ...attSettings,
             locationName: targetName,
@@ -353,10 +357,21 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         </h2>
         <div className="h-1.5 w-10 bg-[#FFC000] rounded-full mt-4"></div>
         {locationStatus.settings && (
-          <div className={`mt-3 flex items-center gap-2 px-4 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all ${locationStatus.isInside || employee.isRemoteAllowed ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-rose-50 text-rose-600 border-rose-100 animate-pulse'}`}>
-            <Icons.Fingerprint className="w-3 h-3" />
-            {locationStatus.isInside ? 'Di Area Kantor' : (employee.isRemoteAllowed ? 'Izin Remote Aktif' : 'Di Luar Area Kantor')}
-            {locationStatus.distance !== null && <span className="ml-1">({locationStatus.distance}m)</span>}
+          <div className="flex flex-col items-center gap-1">
+            <div className={`mt-3 flex items-center gap-2 px-4 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all ${locationStatus.isInside || employee.isRemoteAllowed ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-rose-50 text-rose-600 border-rose-100 animate-pulse'}`}>
+              <Icons.Fingerprint className="w-3 h-3" />
+              {locationStatus.isInside ? 'Di Area Kantor' : (employee.isRemoteAllowed ? 'Izin Remote Aktif' : 'Di Luar Area Kantor')}
+              {locationStatus.distance !== null && <span className="ml-1">({locationStatus.distance}m)</span>}
+            </div>
+            {/* Debug Info for Admin/Owner or during troubleshooting */}
+            <div className="text-[7px] text-slate-300 uppercase tracking-tighter font-bold">
+              Target: {locationStatus.settings.locationName} ({locationStatus.settings.latitude.toFixed(4)}, {locationStatus.settings.longitude.toFixed(4)})
+            </div>
+            {locationStatus.isUsingDefault && (
+              <div className="text-[7px] text-rose-500 uppercase tracking-tighter font-black mt-1">
+                ⚠️ Pengaturan Lokasi Kantor Belum Diset (Default Jakarta)
+              </div>
+            )}
           </div>
         )}
       </div>

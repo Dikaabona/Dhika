@@ -137,6 +137,7 @@ export interface AttendanceSettings {
   longitude: number;
   radius: number;
   allowRemote: boolean;
+  isDefault?: boolean;
   payrollCutoffStart?: number;
   payrollCutoffEnd?: number;
   branches?: Array<Branch>;
