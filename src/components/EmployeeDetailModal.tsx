@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Employee } from '../types';
-import { Icons } from '../constants';
+import { BANK_OPTIONS, Icons } from '../constants';
 import { calculateTenure } from '../utils/dateUtils';
 import { supabase } from '../services/supabaseClient';
 
@@ -20,9 +20,12 @@ interface InfoRowProps {
   editedEmployee: Employee;
   setEditedEmployee: (emp: Employee) => void;
   branches?: string[];
+  divisions?: string[];
+  positions?: string[];
+  bankOptions?: string[];
 }
 
-const InfoRow: React.FC<InfoRowProps> = ({ label, value, field, type = 'text', isEditing, editedEmployee, setEditedEmployee, branches = [] }) => {
+const InfoRow: React.FC<InfoRowProps> = ({ label, value, field, type = 'text', isEditing, editedEmployee, setEditedEmployee, branches = [], divisions = [], positions = [], bankOptions = BANK_OPTIONS }) => {
   const statusOptions = ['Tetap', 'Kontrak', 'Probation', 'Freelance'];
   const maritalOptions = ['Menikah', 'Lajang'];
   const religionOptions = ['Islam', 'Kristen', 'Protestan', 'Hindu', 'Budha', 'Konghucu'];
@@ -64,6 +67,38 @@ const InfoRow: React.FC<InfoRowProps> = ({ label, value, field, type = 'text', i
             <option value="">Pilih Cabang</option>
             {branches.map(b => <option key={b} value={b}>{b}</option>)}
           </select>
+        ) : field === 'division' && divisions.length > 0 ? (
+          <select
+            value={value || ''}
+            onChange={(e) => setEditedEmployee({ ...editedEmployee, [field]: e.target.value })}
+            className="text-xs font-semibold text-slate-800 text-right bg-slate-50 px-2 py-1 rounded border border-slate-200 outline-none focus:border-[#FFC000] max-w-[60%]"
+          >
+            <option value="">Pilih Divisi</option>
+            {divisions.map(d => <option key={d} value={d}>{d}</option>)}
+            {value && !divisions.includes(String(value)) && (
+              <option value={String(value)}>{String(value)}</option>
+            )}
+          </select>
+        ) : field === 'jabatan' && positions.length > 0 ? (
+          <select
+            value={value || ''}
+            onChange={(e) => setEditedEmployee({ ...editedEmployee, [field]: e.target.value })}
+            className="text-xs font-semibold text-slate-800 text-right bg-slate-50 px-2 py-1 rounded border border-slate-200 outline-none focus:border-[#FFC000] max-w-[60%]"
+          >
+            <option value="">Pilih Jabatan</option>
+            {positions.map(p => <option key={p} value={p}>{p}</option>)}
+            {value && !positions.includes(String(value)) && (
+              <option value={String(value)}>{String(value)}</option>
+            )}
+          </select>
+        ) : field === 'bank' ? (
+          <select
+            value={value || bankOptions[0]}
+            onChange={(e) => setEditedEmployee({ ...editedEmployee, [field]: e.target.value })}
+            className="text-xs font-semibold text-slate-800 text-right bg-slate-50 px-2 py-1 rounded border border-slate-200 outline-none focus:border-[#FFC000] max-w-[60%]"
+          >
+            {bankOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
         ) : (
           <input 
             type={type}
@@ -91,22 +126,48 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, use
   const [isEditing, setIsEditing] = useState(false);
   const [editedEmployee, setEditedEmployee] = useState<Employee>(employee);
   const [branches, setBranches] = useState<string[]>([]);
+  const [divisions, setDivisions] = useState<string[]>([]);
+  const [positions, setPositions] = useState<string[]>([]);
 
   React.useEffect(() => {
-    const fetchBranches = async () => {
+    const fetchSettings = async () => {
+      const targetCompany = employee.company.toUpperCase().trim();
       try {
-        const { data } = await supabase
+        const { data: attData } = await supabase
           .from('settings')
           .select('value')
-          .eq('key', `attendance_settings_${employee.company}`)
+          .eq('key', `attendance_settings_${targetCompany}`)
           .single();
         
-        if (data?.value?.branches) {
-          setBranches(data.value.branches.map((b: any) => b.name));
+        if (attData?.value?.branches) {
+          setBranches(attData.value.branches.map((b: any) => b.name));
+        }
+
+        const { data: divData } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', `divisions_${targetCompany}`)
+          .single();
+        
+        if (divData && Array.isArray(divData.value)) {
+          setDivisions(divData.value);
+        }
+
+        const { data: posData } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', `positions_${targetCompany}`)
+          .single();
+        
+        if (posData && Array.isArray(posData.value)) {
+          const normalized = posData.value.map((p: any) => 
+            typeof p === 'string' ? p : (p.name || '')
+          );
+          setPositions(normalized);
         }
       } catch (e) {}
     };
-    fetchBranches();
+    fetchSettings();
   }, [employee.company]);
 
   const handleSave = async () => {
@@ -141,7 +202,10 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, use
         bpjsKesehatan: editedEmployee.bpjsKesehatan,
         email: editedEmployee.email,
         resigned_at: editedEmployee.resigned_at,
-        sisaCuti: editedEmployee.sisaCuti
+        sisaCuti: editedEmployee.sisaCuti,
+        bank: editedEmployee.bank,
+        noRekening: editedEmployee.noRekening,
+        namaDiRekening: editedEmployee.namaDiRekening
       }).eq('id', employee.id);
 
       if (error) throw error;
@@ -204,8 +268,8 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, use
                 <InfoRow label="Kontrak berakhir" value={editedEmployee.resigned_at || ''} field="resigned_at" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
                 <InfoRow label="Status karyawan" value={editedEmployee.statusKaryawan} field="statusKaryawan" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
                 <InfoRow label="Lokasi kerja" value={editedEmployee.lokasiKerja} field="lokasiKerja" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} branches={branches} />
-                <InfoRow label="Divisi" value={editedEmployee.division} field="division" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
-                <InfoRow label="Jabatan" value={editedEmployee.jabatan} field="jabatan" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
+                <InfoRow label="Divisi" value={editedEmployee.division} field="division" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} divisions={divisions} />
+                <InfoRow label="Jabatan" value={editedEmployee.jabatan} field="jabatan" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} positions={positions} />
                 <InfoRow label="Sisa Cuti" value={editedEmployee.sisaCuti} field="sisaCuti" type="number" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
               </div>
             </div>
@@ -267,6 +331,16 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, use
                 <InfoRow label="Nomor KTP" value={editedEmployee.noKtp} field="noKtp" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
                 <InfoRow label="Nomor handphone" value={editedEmployee.noHandphone} field="noHandphone" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
                 <InfoRow label="Golongan darah" value={editedEmployee.golonganDarah} field="golonganDarah" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
+              </div>
+            </div>
+
+            {/* Informasi Rekening */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              <SectionHeader title="Informasi rekening" icon={Icons.CreditCard} />
+              <div className="p-5 space-y-1">
+                <InfoRow label="Nama Bank" value={editedEmployee.bank} field="bank" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
+                <InfoRow label="Nomor Rekening" value={editedEmployee.noRekening} field="noRekening" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
+                <InfoRow label="Nama di Rekening" value={editedEmployee.namaDiRekening} field="namaDiRekening" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
               </div>
             </div>
 

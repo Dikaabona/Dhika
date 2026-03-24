@@ -49,6 +49,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     photoBase64: '',
     hutang: 0,
     isRemoteAllowed: false,
+    lokasiKerja: '',
     ktpDocBase64: '',
     ktpDocType: 'image',
     contractDocBase64: '',
@@ -58,6 +59,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
 
   const [divisions, setDivisions] = useState<string[]>([]);
   const [positions, setPositions] = useState<string[]>([]);
+  const [branches, setBranches] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const allCompanies = useMemo(() => {
@@ -76,7 +78,13 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     const targetCompany = rawCompany.toUpperCase().trim();
     setDivisions([]);
     setPositions([]);
+    setBranches([]);
     try {
+      const { data: attData } = await supabase.from('settings').select('value').eq('key', `attendance_settings_${targetCompany}`).single();
+      if (attData?.value?.branches) {
+        setBranches(attData.value.branches.map((b: any) => b.name));
+      }
+
       const { data: divData } = await supabase.from('settings').select('value').eq('key', `divisions_${targetCompany}`).single();
       if (divData && Array.isArray(divData.value)) {
         setDivisions(divData.value);
@@ -97,6 +105,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     } catch (e) {
       setDivisions([]);
       setPositions([]);
+      setBranches([]);
     }
   };
 
@@ -353,6 +362,9 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
                 <select name="division" value={formData.division} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all">
                   <option value="">Pilih Divisi...</option>
                   {divisions.map(d => <option key={d} value={d}>{d}</option>)}
+                  {formData.division && !divisions.includes(formData.division) && (
+                    <option value={formData.division}>{formData.division}</option>
+                  )}
                 </select>
               </div>
               <div className="space-y-2">
@@ -422,6 +434,41 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
                 />
                 <label className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Izinkan Absen Remote (Individu)</label>
               </div>
+              <div className="space-y-2">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Lokasi Kerja (Cabang)</label>
+                <select name="lokasiKerja" value={formData.lokasiKerja} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all">
+                  <option value="">Pilih Cabang...</option>
+                  {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                  {formData.lokasiKerja && !branches.includes(formData.lokasiKerja) && (
+                    <option value={formData.lokasiKerja}>{formData.lokasiKerja}</option>
+                  )}
+                </select>
+              </div>
+
+              {/* Informasi Rekening */}
+              <div className="pt-6 border-t border-slate-100 md:col-span-2">
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                  <Icons.CreditCard className="w-3 h-3 text-amber-500" />
+                  Informasi Rekening Bank
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Nama Bank</label>
+                    <select name="bank" value={formData.bank} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all">
+                      {BANK_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Nomor Rekening</label>
+                    <input name="noRekening" value={formData.noRekening} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Nama di Rekening</label>
+                    <input name="namaDiRekening" value={formData.namaDiRekening} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Sisa Cuti (Hari)</label>
                 <input 

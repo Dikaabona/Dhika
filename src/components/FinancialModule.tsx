@@ -100,12 +100,11 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
 
   const yearOptions = ['2024', '2025', '2026'];
 
-  const calculateTotalSalary = useCallback((config: any, hutang: number = 0, empId?: string) => {
-    const emp = employees.find(e => e.id === empId);
+  const calculateTotalSalary = useCallback((emp: any, config: any) => {
     if (!emp) return 0;
     const details = getSalaryDetails(emp, config, localAttendance, selectedMonth, selectedYear, settings, weeklyHolidays, positionRates);
     return details.takeHomePay;
-  }, [getSalaryDetails, localAttendance, selectedMonth, selectedYear, settings, employees, weeklyHolidays, positionRates]);
+  }, [localAttendance, selectedMonth, selectedYear, settings, weeklyHolidays, positionRates]);
 
   useEffect(() => {
     if (isProcessingPayroll && employees.length > 0 && payrollEmployees.length > 0) {
@@ -117,7 +116,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
           return {
             ...latest,
             status: pEmp.status || 'READY',
-            calculatedTotal: calculateTotalSalary(config, latest.hutang, latest.id)
+            calculatedTotal: calculateTotalSalary(latest, config)
           };
         }
         return pEmp;
@@ -204,6 +203,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
   const startPayrollProcess = async () => {
     setIsLoading(true);
     try {
+      console.log("DEBUG: Starting payroll process for company:", company);
       const { data, error } = await supabase
         .from('employees')
         .select('*')
@@ -212,23 +212,29 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
         .is('resigned_at', null);
       
       if (error) throw error;
+      console.log("DEBUG: Fetched employees count:", data?.length || 0);
 
-      // Filter employees who have bank info and salary config
-      const validEmployees = (data || []).map(emp => {
+      if (!data || data.length === 0) {
+        alert(`Tidak ada data karyawan aktif ditemukan untuk perusahaan ${company}. Pastikan data karyawan sudah diinput di menu Database.`);
+        return;
+      }
+
+      // Process all employees, but we'll flag those with missing info in the UI
+      const processedEmployees = data.map(emp => {
         const config = emp.salaryConfig || {};
-        const totalSalary = calculateTotalSalary(config, emp.hutang, emp.id);
+        const totalSalary = calculateTotalSalary(emp, config);
         
         return {
           ...emp,
           calculatedTotal: totalSalary,
           status: 'READY' // READY, PENDING, SUCCESS, FAILED
         };
-      }).filter(emp => emp.calculatedTotal > 0 && emp.bank && emp.noRekening);
+      });
 
-      setPayrollEmployees(validEmployees);
+      setPayrollEmployees(processedEmployees);
       setIsProcessingPayroll(true);
       setCurrentPage(1);
-      await savePayrollDraft(validEmployees);
+      await savePayrollDraft(processedEmployees);
       if (onRefresh) onRefresh();
     } catch (e: any) {
       alert("Gagal memuat data karyawan: " + e.message);
@@ -770,7 +776,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
                           </button>
                           <button 
                             onClick={handleBulkDisburse}
-                            disabled={isDisbursing || payrollEmployees.length === 0}
+                            disabled={isDisbursing || payrollEmployees.length === 0 || (selectedIds.length > 0 && payrollEmployees.filter(e => selectedIds.includes(e.id)).some(e => !e.bank || !e.noRekening || e.calculatedTotal <= 0))}
                             className="px-10 py-4 bg-[#0f172a] text-[#FFC000] rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:shadow-2xl transition-all disabled:opacity-50"
                           >
                             {isDisbursing ? 'MEMPROSES...' : selectedIds.length > 0 ? `BAYAR ${selectedIds.length} KARYAWAN` : `BAYAR ${payrollEmployees.length} KARYAWAN`}
@@ -818,6 +824,9 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
                                   </td>
                                   <td className="px-6 py-5">
                                      <p className="text-[12px] font-black text-slate-900">{formatCurrency(emp.calculatedTotal)}</p>
+                                     {emp.calculatedTotal <= 0 && (
+                                       <p className="text-[8px] text-rose-500 font-bold uppercase mt-1">Nominal Rp 0</p>
+                                     )}
                                   </td>
                                   <td className="px-6 py-5 text-center">
                                      <button 
@@ -830,14 +839,19 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
                                      </button>
                                   </td>
                                   <td className="px-10 py-5 text-right">
-                                     <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase border ${
-                                       emp.status === 'SUCCESS' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
-                                       emp.status === 'SENDING' ? 'bg-indigo-50 text-indigo-600 border-indigo-100 animate-pulse' : 
-                                       emp.status === 'FAILED' ? 'bg-rose-50 text-rose-600 border-rose-100' : 
-                                       'bg-slate-50 text-slate-400 border-slate-100'
-                                     }`}>
-                                        {emp.status}
-                                     </span>
+                                     <div className="flex flex-col items-end gap-1">
+                                       <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase border ${
+                                         emp.status === 'SUCCESS' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
+                                         emp.status === 'SENDING' ? 'bg-indigo-50 text-indigo-600 border-indigo-100 animate-pulse' : 
+                                         emp.status === 'FAILED' ? 'bg-rose-50 text-rose-600 border-rose-100' : 
+                                         'bg-slate-50 text-slate-400 border-slate-100'
+                                       }`}>
+                                          {emp.status}
+                                       </span>
+                                       {(!emp.bank || !emp.noRekening) && (
+                                         <span className="text-[7px] text-rose-500 font-bold uppercase">Data Bank Kosong</span>
+                                       )}
+                                     </div>
                                   </td>
                                </tr>
                              ))}
@@ -845,8 +859,9 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
                                <tr>
                                   <td colSpan={6} className="py-24 text-center">
                                      <div className="flex flex-col items-center gap-4 opacity-10">
-                                        <Icons.Users className="w-14 h-14" />
-                                        <p className="text-[11px] font-black uppercase tracking-[0.4em]">TIDAK ADA DATA KARYAWAN VALID</p>
+                                        <Icons.Users className="w-14 h-14 text-slate-300" />
+                                        <p className="text-[11px] font-black uppercase tracking-[0.4em] text-slate-400">TIDAK ADA DATA KARYAWAN</p>
+                                        <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Pastikan data karyawan sudah lengkap dengan info bank & gaji</p>
                                      </div>
                                   </td>
                                </tr>
