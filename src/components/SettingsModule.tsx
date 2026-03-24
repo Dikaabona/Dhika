@@ -23,7 +23,7 @@ interface SettingsModuleProps {
   onRefresh: () => void;
 }
 
-type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT' | 'COMPANY' | 'GAJI' | 'VALIDASI';
+type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT' | 'COMPANY' | 'GAJI';
 
 interface CustomCriteria {
   id: string;
@@ -105,24 +105,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const [isEditingSalary, setIsEditingSalary] = useState(false);
   const [searchEmp, setSearchEmp] = useState('');
   const [searchRemote, setSearchRemote] = useState('');
-  const [invalidPhones, setInvalidPhones] = useState<Employee[]>([]);
-  const [isValidating, setIsValidating] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
   const [remotePage, setRemotePage] = useState(1);
   const remoteItemsPerPage = 5;
-
-  const checkPhoneFormats = () => {
-    setIsValidating(true);
-    const invalid = employees.filter(e => {
-      const phone = (e.noHandphone || '').replace(/\D/g, '');
-      return !phone.startsWith('628');
-    });
-    setInvalidPhones(invalid);
-    setIsValidating(false);
-  };
 
   const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super';
@@ -762,14 +750,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                     DATA CLIENT
                   </button>
                 )}
-                {isHighAdminAccess && (
-                  <button 
-                    onClick={() => setActiveSubTab('VALIDASI')} 
-                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'VALIDASI' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                  >
-                    VALIDASI DATA
-                  </button>
-                )}
               </div>
             </div>
           </div>
@@ -1300,57 +1280,59 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                 </div>
               </div>
 
-              <div className="space-y-8">
-                <div className="bg-slate-900 p-8 rounded-[40px] border border-slate-800 space-y-6 shadow-2xl">
-                  <div className="flex items-center gap-4 mb-2">
-                    <div className="w-12 h-12 bg-amber-500/20 rounded-2xl flex items-center justify-center">
-                      <Icons.Sparkles className="w-6 h-6 text-amber-500" />
+              {isOwner && (
+                <div className="space-y-8">
+                  <div className="bg-slate-900 p-8 rounded-[40px] border border-slate-800 space-y-6 shadow-2xl">
+                    <div className="flex items-center gap-4 mb-2">
+                      <div className="w-12 h-12 bg-amber-500/20 rounded-2xl flex items-center justify-center">
+                        <Icons.Sparkles className="w-6 h-6 text-amber-500" />
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-black text-white uppercase tracking-tight">Status Layanan</h4>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Kelola paket langganan perusahaan.</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-lg font-black text-white uppercase tracking-tight">Status Layanan</h4>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Kelola paket langganan perusahaan.</p>
-                    </div>
-                  </div>
 
-                  <div className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Paket Saat Ini</span>
-                      <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${trialInfo?.isPremium ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
-                        {trialInfo?.isPremium ? 'PREMIUM ACCESS' : 'TRIAL MODE'}
-                      </span>
-                    </div>
-                    {!trialInfo?.isPremium && (
+                    <div className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-4">
                       <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Masa Berlaku</span>
-                        <span className="text-sm font-black text-white">
-                          {trialInfo ? (() => {
-                            const start = new Date(trialInfo.startDate);
-                            const now = new Date();
-                            const diff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-                            const left = 7 - diff;
-                            return left > 0 ? `${left} Hari Tersisa` : 'Trial Berakhir';
-                          })() : '7 Hari'}
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Paket Saat Ini</span>
+                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${trialInfo?.isPremium ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                          {trialInfo?.isPremium ? 'PREMIUM ACCESS' : 'TRIAL MODE'}
                         </span>
+                      </div>
+                      {!trialInfo?.isPremium && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Masa Berlaku</span>
+                          <span className="text-sm font-black text-white">
+                            {trialInfo ? (() => {
+                              const start = new Date(trialInfo.startDate);
+                              const now = new Date();
+                              const diff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                              const left = 7 - diff;
+                              return left > 0 ? `${left} Hari Tersisa` : 'Trial Berakhir';
+                            })() : '7 Hari'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {!trialInfo?.isPremium && (
+                      <button 
+                        onClick={handleActivatePremium}
+                        className="w-full bg-[#FFC000] text-slate-900 py-5 rounded-3xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-white transition-all active:scale-95 flex items-center justify-center gap-3"
+                      >
+                        <Icons.Check className="w-5 h-5" /> AKTIFKAN PREMIUM
+                      </button>
+                    )}
+                    
+                    {trialInfo?.isPremium && (
+                      <div className="p-5 bg-emerald-500/10 border border-emerald-500/20 rounded-3xl text-center">
+                        <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Sistem Berjalan dalam Mode Full Akses</p>
                       </div>
                     )}
                   </div>
-
-                  {!trialInfo?.isPremium && (
-                    <button 
-                      onClick={handleActivatePremium}
-                      className="w-full bg-[#FFC000] text-slate-900 py-5 rounded-3xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-white transition-all active:scale-95 flex items-center justify-center gap-3"
-                    >
-                      <Icons.Check className="w-5 h-5" /> AKTIFKAN PREMIUM
-                    </button>
-                  )}
-                  
-                  {trialInfo?.isPremium && (
-                    <div className="p-5 bg-emerald-500/10 border border-emerald-500/20 rounded-3xl text-center">
-                      <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Sistem Berjalan dalam Mode Full Akses</p>
-                    </div>
-                  )}
                 </div>
-              </div>
+              )}
             </div>
 
             {isEditingCompany && (
@@ -1370,65 +1352,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                 </button>
               </div>
             )}
-          </div>
-        ) : activeSubTab === 'VALIDASI' ? (
-          <div className="animate-in fade-in duration-300 space-y-12">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-              <div className="space-y-2">
-                 <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Validasi & Integritas Data</h3>
-                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Lakukan pengecekan kualitas data untuk memastikan sistem berjalan optimal.</p>
-              </div>
-              <button 
-                onClick={checkPhoneFormats}
-                disabled={isValidating}
-                className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl active:scale-95 transition-all flex items-center gap-3"
-              >
-                {isValidating ? 'Memeriksa...' : <><Icons.CheckCircle className="w-4 h-4" /> JALANKAN VALIDASI</>}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm space-y-6">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Format Nomor WhatsApp (628...)</h4>
-                  <span className={`px-3 py-1 rounded-lg text-[9px] font-black ${invalidPhones.length > 0 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                    {invalidPhones.length} MASALAH
-                  </span>
-                </div>
-                
-                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                  {invalidPhones.map(emp => (
-                    <div key={emp.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between group hover:border-rose-200 transition-all">
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-black text-slate-900 uppercase truncate">{emp.nama}</p>
-                        <p className="text-[9px] font-bold text-rose-500 uppercase tracking-widest">{emp.noHandphone || 'TIDAK ADA NOMOR'}</p>
-                      </div>
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <p className="text-[8px] font-bold text-slate-400 uppercase">Harus diawali 628</p>
-                      </div>
-                    </div>
-                  ))}
-                  {invalidPhones.length === 0 && (
-                    <div className="py-12 text-center opacity-30">
-                       <Icons.CheckCircle className="w-10 h-10 mx-auto text-emerald-500 mb-2" />
-                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Semua nomor sudah benar</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 flex flex-col items-center justify-center text-center space-y-4">
-                 <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center shadow-sm">
-                    <Icons.Info className="w-8 h-8 text-[#0f172a]" />
-                 </div>
-                 <div className="space-y-2">
-                    <h5 className="text-sm font-black text-[#0f172a] uppercase tracking-tight">Pentingnya Format 628</h5>
-                    <p className="text-[10px] text-slate-400 font-medium leading-relaxed max-w-[250px] mx-auto">
-                      Sistem pengingat WhatsApp (WAHA) memerlukan format internasional tanpa tanda '+' atau '0' di depan. Gunakan format 628xxxxxxxxxx untuk memastikan pesan terkirim.
-                    </p>
-                 </div>
-              </div>
-            </div>
           </div>
         ) : activeSubTab === 'CLIENT' ? (
           canAccessClientData ? (

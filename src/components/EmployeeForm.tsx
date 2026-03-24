@@ -72,7 +72,8 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     }
   }, [formData.company]);
 
-  const fetchSettings = async (targetCompany: string) => {
+  const fetchSettings = async (rawCompany: string) => {
+    const targetCompany = rawCompany.toUpperCase().trim();
     setDivisions([]);
     setPositions([]);
     try {

@@ -330,9 +330,12 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
     let successCount = 0;
     let errorCount = 0;
 
+    const MAJOVA_LOGO = "https://lh3.googleusercontent.com/d/1pjtSR-r2YJMexgm3hl6jtANdjbVn2FZD";
     const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
     const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
-    const slipLogo = companyDetails?.logo || ((company || '').toLowerCase() === 'seller space' ? SELLER_SPACE_LOGO : VISIBEL_LOGO);
+    const comp = (company || '').toLowerCase();
+    const defaultLogo = comp === 'seller space' ? SELLER_SPACE_LOGO : comp === 'visibel' ? VISIBEL_LOGO : MAJOVA_LOGO;
+    const slipLogo = companyDetails?.logo || defaultLogo;
 
     try {
       for (const emp of targetEmployees) {
@@ -454,7 +457,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
                 
                 <p style="margin-bottom: 20px;">Terimakasih atas kerjasamanya dalam membantu Visibel. Kita berharap kerjasama kita selalu berjalan terus.</p>
                 
-                <p style="margin-top: 40px; font-weight: bold;">HR Visibel</p>
+                <p style="margin-top: 40px; font-weight: bold;">Majova.id</p>
                 
                 <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #f1f5f9; text-align: center;">
                   <p style="font-size: 11px; color: #94a3b8; margin: 0;">Email ini dikirim secara otomatis oleh sistem Finance ${company}.</p>

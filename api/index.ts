@@ -31,7 +31,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.get("/api/test", (req, res) => {
-  res.send("🚀 API Server HR Visibel is ONLINE!");
+  res.send("🚀 API Server Majova.id is ONLINE!");
 });
 
 // Cron endpoint for Vercel
@@ -211,7 +211,7 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
     const lowerMsg = message.toLowerCase().trim();
 
     if (lowerMsg === '!menu' || lowerMsg === '!help' || lowerMsg === 'p' || lowerMsg === 'halo') {
-      const menu = `🤖 *VISIBEL HR BOT MENU* 🤖\n\nHalo ${emp.nama},\n\nBerikut adalah perintah yang bisa Anda gunakan:\n\n` +
+      const menu = `🤖 *MAJOVA.ID HR BOT MENU* 🤖\n\nHalo ${emp.nama},\n\nBerikut adalah perintah yang bisa Anda gunakan:\n\n` +
         `1️⃣ *!jadwal* - Cek jadwal shift Anda hari ini\n` +
         `2️⃣ *!konten* - Cek jadwal posting konten Anda hari ini\n` +
         `3️⃣ *!absen* - Cek status absensi Anda hari ini\n` +
@@ -512,7 +512,7 @@ app.get("/api/waha/setup-webhook", async (req, res) => {
 // API to manually test sending a message
 app.get("/api/waha/send-test", async (req, res) => {
   const to = req.query.to as string;
-  const msg = (req.query.msg as string) || "Tes pesan dari sistem HR Visibel";
+  const msg = (req.query.msg as string) || "Tes pesan dari sistem Majova.id";
   const company = (req.query.company as string) || 'Visibel';
 
   if (!to) return res.status(400).json({ error: "Parameter 'to' (nomor HP) diperlukan. Contoh: ?to=628123456789" });
@@ -694,14 +694,14 @@ async function sendEmailNotification(to: string, subject: string, message: strin
 
   try {
     await sendEmailViaApi({
-      from: "HR Visibel <admin@visibel.agency>",
+      from: "Majova.id <admin@visibel.agency>",
       to: [to],
       subject: subject,
       html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
         <h2 style="color: #4f46e5;">${subject}</h2>
         <p style="font-size: 16px; color: #374151;">${message.replace(/\n/g, '<br>')}</p>
         <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-        <p style="font-size: 12px; color: #9ca3af;">Ini adalah pesan otomatis dari sistem HR Visibel.</p>
+        <p style="font-size: 12px; color: #9ca3af;">Ini adalah pesan otomatis dari sistem Majova.id.</p>
       </div>`,
     });
     console.log(`Email notification sent to ${to}`);
