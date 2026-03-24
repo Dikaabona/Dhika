@@ -679,7 +679,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     }
     const url = generateGoogleCalendarUrl({
       title: `DEADLINE KONTEN: ${bs.name}`,
-      details: `Target: ${bs.target} konten.\nStatus saat ini: ${bs.done}/${bs.target}.\nSistem: Majova.id`,
+      details: `Target: ${bs.target} konten.\nStatus saat ini: ${bs.done}/${bs.target}.\nSistem: HR.Visibel ID`,
       date: bs.quotaDeadline,
       timeSlot: bs.jamUpload || '19:00'
     });
@@ -694,7 +694,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     }
     const url = generateGoogleCalendarUrl({
       title: `POSTING: ${plan.brand} (${plan.platform})`,
-      details: `Pillar: ${plan.contentPillar}\nCreator: ${getCreatorName(plan.creatorId || '')}\nSistem: Majova.id`,
+      details: `Pillar: ${plan.contentPillar}\nCreator: ${getCreatorName(plan.creatorId || '')}\nSistem: HR.Visibel ID`,
       date: plan.postingDate || new Date().toISOString().split('T')[0],
       timeSlot: jamVal
     });

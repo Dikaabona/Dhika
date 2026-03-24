@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 console.log("App.tsx loading...");
 import * as XLSX from 'xlsx';
 import { createClient, Session } from '@supabase/supabase-js';
@@ -37,7 +37,6 @@ import { useConfirmation } from './contexts/ConfirmationContext';
 
 const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
 
-const MAJOVA_LOGO = "https://lh3.googleusercontent.com/d/1pjtSR-r2YJMexgm3hl6jtANdjbVn2FZD";
 const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
 const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
 
@@ -52,7 +51,7 @@ export const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<UserRole>('employee');
   const [currentUserEmployee, setCurrentUserEmployee] = useState<Employee | null>(null);
-  const [userCompany, setUserCompany] = useState<string>('VISIBEL');
+  const [userCompany, setUserCompany] = useState<string>('Visibel');
   const [trialInfo, setTrialInfo] = useState<{ daysLeft: number; isExpired: boolean; isActive: boolean }>({ daysLeft: 7, isExpired: false, isActive: true });
   
   const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -77,8 +76,8 @@ export const App: React.FC = () => {
     }
   });
 
-  const [attendanceStartDate, setAttendanceStartDate] = useState(localStorage.getItem('attendanceStartDate') || getTodayStr());
-  const [attendanceEndDate, setAttendanceEndDate] = useState(localStorage.getItem('attendanceEndDate') || getTodayStr());
+  const [attendanceStartDate, setAttendanceStartDate] = useState(getTodayStr());
+  const [attendanceEndDate, setAttendanceEndDate] = useState(getTodayStr());
 
   useEffect(() => {
     try {
@@ -125,10 +124,7 @@ export const App: React.FC = () => {
   const empRowsPerPage = 10;
 
   const currentLogo = useMemo(() => {
-    const comp = (userCompany || '').trim().toLowerCase();
-    if (comp === 'seller space') return SELLER_SPACE_LOGO;
-    if (comp === 'visibel') return VISIBEL_LOGO;
-    return MAJOVA_LOGO;
+    return (userCompany || '').trim().toLowerCase() === 'seller space' ? SELLER_SPACE_LOGO : VISIBEL_LOGO;
   }, [userCompany]);
 
   useEffect(() => {
@@ -198,166 +194,7 @@ export const App: React.FC = () => {
     'SENIN': [], 'SELASA': [], 'RABU': [], 'KAMIS': [], 'JUMAT': [], 'SABTU': [], 'MINGGU': []
   };
 
-  useEffect(() => {
-    localStorage.setItem('attendanceStartDate', attendanceStartDate);
-    localStorage.setItem('attendanceEndDate', attendanceEndDate);
-  }, [attendanceStartDate, attendanceEndDate]);
-
-  const fetchAttendance = useCallback(async (start: string, end: string, role: string, company: string, filter: string) => {
-    try {
-      let q = supabase
-        .from('attendance')
-        .select('id, employeeId, company, date, status, clockIn, clockOut, photoIn, photoOut, notes, submittedAt')
-        .gte('date', start)
-        .lte('date', end);
-      
-      if (role !== 'owner' && role !== 'super') {
-        q = q.eq('company', company.toUpperCase().trim());
-      } else if (role === 'owner' && filter !== 'ALL') {
-        q = q.eq('company', filter.toUpperCase().trim());
-      }
-      
-      const { data, error } = await q.order('date', { ascending: false }).limit(5000);
-      if (error) throw error;
-      setAttendanceRecords(data || []);
-    } catch (e) {
-      console.error("Error fetching attendance:", e);
-    }
-  }, []);
-
-  const runRetentionPolicy = useCallback(async (role: string, company: string) => {
-    if (role !== 'owner' && role !== 'super' && role !== 'admin') return;
-    
-    // Only run once per session to avoid slowing down every refresh
-    const lastRunKey = `retention_last_run_${company}`;
-    const today = new Date().toISOString().split('T')[0];
-    if (localStorage.getItem(lastRunKey) === today) return;
-
-    try {
-      const now = new Date();
-      
-      // 1. Cleanup old photos (older than 1 month / 30 days)
-      const oneMonthAgo = new Date(now);
-      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-      const photoDateStr = oneMonthAgo.toISOString().split('T')[0];
-      
-      await supabase
-        .from('attendance')
-        .update({ photoIn: null, photoOut: null })
-        .lt('date', photoDateStr)
-        .eq('company', company);
-
-      // 1b. Cleanup old attendance records (older than 1 year)
-      const oneYearAgo = new Date(now);
-      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-      const attDateStr = oneYearAgo.toISOString().split('T')[0];
-
-      await supabase
-        .from('attendance')
-        .delete()
-        .lt('date', attDateStr)
-        .eq('company', company);
-
-      // 2. Cleanup old shifts (older than 21 days / 3 weeks)
-      const twentyOneDaysAgo = new Date(now);
-      twentyOneDaysAgo.setDate(twentyOneDaysAgo.getDate() - 21);
-      const shiftDateStr = twentyOneDaysAgo.toISOString().split('T')[0];
-
-      await supabase
-        .from('shift_assignments')
-        .delete()
-        .lt('date', shiftDateStr)
-        .eq('company', company);
-
-      // 3. Cleanup old live reports (older than 6 months / 180 days)
-      const sixMonthsAgo = new Date(now);
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-      const reportDateStr = sixMonthsAgo.toISOString().split('T')[0];
-
-      await supabase
-        .from('live_reports')
-        .delete()
-        .lt('tanggal', reportDateStr)
-        .eq('company', company);
-
-      // 4. Cleanup old schedules (Retention Policy: Max 1000 records)
-      const { count: scheduleCount } = await supabase
-        .from('schedules')
-        .select('*', { count: 'exact', head: true })
-        .eq('company', company);
-
-      if (scheduleCount && scheduleCount > 1000) {
-        const overflow = scheduleCount - 900;
-        const { data: oldSchedules } = await supabase
-          .from('schedules')
-          .select('id, date')
-          .eq('company', company)
-          .order('date', { ascending: true })
-          .limit(overflow);
-
-        if (oldSchedules && oldSchedules.length > 0) {
-          const idsToDelete = oldSchedules.map(s => s.id);
-          await supabase.from('schedules').delete().in('id', idsToDelete);
-        }
-      }
-      
-      localStorage.setItem(lastRunKey, today);
-    } catch (e) {
-      console.error("Gagal membersihkan data lama:", e);
-    }
-  }, []);
-
-  const checkTrialStatus = useCallback(async (company: string, role: string) => {
-    try {
-      const { data: trialData } = await supabase.from('settings').select('value').eq('key', `trial_info_${company}`).single();
-      let startDateStr: string;
-      
-      const isForcePremium = company === 'VISIBEL';
-
-      if (!trialData) {
-        startDateStr = new Date().toISOString();
-        if (role === 'owner' || role === 'super' || role === 'admin') {
-          await supabase.from('settings').upsert({ 
-            key: `trial_info_${company}`, 
-            value: { startDate: startDateStr, isPremium: isForcePremium } 
-          }, { onConflict: 'key' });
-        }
-        setTrialInfo({ 
-          daysLeft: isForcePremium ? 999 : 7, 
-          isExpired: false, 
-          isActive: !isForcePremium 
-        });
-      } else {
-        const isPremium = trialData.value.isPremium || isForcePremium;
-        
-        if (isForcePremium && !trialData.value.isPremium && (role === 'owner' || role === 'super' || role === 'admin')) {
-          await supabase.from('settings').update({ 
-            value: { ...trialData.value, isPremium: true } 
-          }).eq('key', `trial_info_${company}`);
-        }
-
-        if (isPremium) {
-          setTrialInfo({ daysLeft: 999, isExpired: false, isActive: false });
-        } else {
-          startDateStr = trialData.value.startDate;
-          const start = new Date(startDateStr);
-          const now = new Date();
-          const diffTime = now.getTime() - start.getTime();
-          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-          const remaining = 7 - diffDays;
-          setTrialInfo({ 
-            daysLeft: remaining < 0 ? 0 : remaining, 
-            isExpired: remaining < 0,
-            isActive: true
-          });
-        }
-      }
-    } catch (e) {
-      console.error("Trial check error:", e);
-    }
-  }, []);
-
-  const fetchData = useCallback(async (userEmail?: string, isSilent: boolean = false) => {
+  const fetchData = async (userEmail?: string, isSilent: boolean = false) => {
     if (!navigator.onLine) {
       setFetchError("Anda sedang offline. Periksa koneksi internet Anda.");
       return;
@@ -365,17 +202,7 @@ export const App: React.FC = () => {
 
     if (!isSilent) setIsLoadingData(true);
     setFetchError(null);
-    
-    let targetEmail = (userEmail || '').toLowerCase().trim();
-    if (!targetEmail) {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      targetEmail = (currentSession?.user?.email || '').toLowerCase().trim();
-    }
-
-    if (!targetEmail) {
-      setIsLoadingData(false);
-      return;
-    }
+    const targetEmail = (userEmail || session?.user?.email || '').toLowerCase().trim();
 
     try {
       const { data: myProfile, error: profileError } = await supabase
@@ -389,7 +216,7 @@ export const App: React.FC = () => {
 
       const activeUserRole = getRoleBasedOnEmail(targetEmail, myProfile?.role);
       const isOwner = activeUserRole === 'owner';
-      const detectedCompany = (myProfile?.company || 'VISIBEL').toUpperCase().trim();
+      const detectedCompany = myProfile?.company || 'Visibel';
 
       const isResignedUser = (myProfile?.resigned_at && myProfile.resigned_at.trim() !== '') || (myProfile?.resign_reason && myProfile.resign_reason.trim() !== '');
       if (isResignedUser) {
@@ -402,13 +229,111 @@ export const App: React.FC = () => {
       setUserCompany(detectedCompany);
       setCurrentUserEmployee(myProfile);
 
-      // Run background tasks without blocking initial load
-      runRetentionPolicy(activeUserRole, detectedCompany);
-      checkTrialStatus(detectedCompany, activeUserRole);
+      // Cleanup old data (Retention Policy)
+      if (activeUserRole === 'owner' || activeUserRole === 'super' || activeUserRole === 'admin') {
+        try {
+          const now = new Date();
+          
+          // 1. Cleanup old photos (older than 3 months / 90 days)
+          const threeMonthsAgo = new Date(now);
+          threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+          const photoDateStr = threeMonthsAgo.toISOString().split('T')[0];
+          
+          await supabase
+            .from('attendance')
+            .update({ photoIn: null, photoOut: null })
+            .lt('date', photoDateStr)
+            .eq('company', detectedCompany);
+
+          // 2. Cleanup old shifts (older than 21 days / 3 weeks)
+          const twentyOneDaysAgo = new Date(now);
+          twentyOneDaysAgo.setDate(twentyOneDaysAgo.getDate() - 21);
+          const shiftDateStr = twentyOneDaysAgo.toISOString().split('T')[0];
+
+          await supabase
+            .from('shift_assignments')
+            .delete()
+            .lt('date', shiftDateStr)
+            .eq('company', detectedCompany);
+
+          // 3. Cleanup old live reports (older than 6 months / 180 days)
+          const sixMonthsAgo = new Date(now);
+          sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+          const reportDateStr = sixMonthsAgo.toISOString().split('T')[0];
+
+          await supabase
+            .from('live_reports')
+            .delete()
+            .lt('tanggal', reportDateStr)
+            .eq('company', detectedCompany);
+
+          // 4. Cleanup old schedules (Retention Policy: Max 1000 records)
+          const { count: scheduleCount } = await supabase
+            .from('schedules')
+            .select('*', { count: 'exact', head: true })
+            .eq('company', detectedCompany);
+
+          if (scheduleCount && scheduleCount > 1000) {
+            const overflow = scheduleCount - 900; // Leave 900 records to have some buffer
+            const { data: oldSchedules } = await supabase
+              .from('schedules')
+              .select('id, date')
+              .eq('company', detectedCompany)
+              .order('date', { ascending: true })
+              .limit(overflow);
+
+            if (oldSchedules && oldSchedules.length > 0) {
+              const idsToDelete = oldSchedules.map(s => s.id);
+              await supabase.from('schedules').delete().in('id', idsToDelete);
+              console.log(`Auto-Cleanup: Berhasil menghapus ${idsToDelete.length} jadwal lama untuk menjaga performa.`);
+            }
+          }
+
+        } catch (e) {
+          console.error("Gagal membersihkan data lama:", e);
+        }
+      }
+
+      // Trial Check Logic
+      try {
+        const { data: trialData } = await supabase.from('settings').select('value').eq('key', `trial_info_${detectedCompany}`).single();
+        let startDateStr: string;
+        
+        if (!trialData) {
+          startDateStr = new Date().toISOString();
+          // Auto-initialize trial for new company if user is admin/owner
+          if (activeUserRole === 'owner' || activeUserRole === 'super' || activeUserRole === 'admin') {
+            await supabase.from('settings').upsert({ 
+              key: `trial_info_${detectedCompany}`, 
+              value: { startDate: startDateStr, isPremium: false } 
+            }, { onConflict: 'key' });
+          }
+          setTrialInfo({ daysLeft: 7, isExpired: false, isActive: true });
+        } else {
+          const isPremium = trialData.value.isPremium || false;
+          if (isPremium) {
+            setTrialInfo({ daysLeft: 999, isExpired: false, isActive: false });
+          } else {
+            startDateStr = trialData.value.startDate;
+            const start = new Date(startDateStr);
+            const now = new Date();
+            const diffTime = now.getTime() - start.getTime();
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            const remaining = 7 - diffDays;
+            setTrialInfo({ 
+              daysLeft: remaining < 0 ? 0 : remaining, 
+              isExpired: remaining < 0,
+              isActive: true
+            });
+          }
+        }
+      } catch (e) {
+        console.error("Trial check error:", e);
+      }
 
       let empQuery = supabase.from('employees').select('*').is('deleted_at', null);
       if (!isOwner) {
-        empQuery = empQuery.eq('company', detectedCompany.toUpperCase().trim());
+        empQuery = empQuery.eq('company', detectedCompany);
       }
       
       const { data: empData, error: empError } = await empQuery;
@@ -432,12 +357,12 @@ export const App: React.FC = () => {
            q = q.select('*');
         }
         
-        if (!isOwner) q = q.eq('company', companyFilterVal.toUpperCase().trim());
+        if (!isOwner) q = q.eq('company', companyFilterVal);
         return q;
       };
 
       const fetchPromises = [
-        fetchAttendance(attendanceStartDate, attendanceEndDate, activeUserRole, detectedCompany, companyFilter),
+        buildQuery('attendance').order('date', { ascending: false }).limit(500).then(({data, error}: any) => { if(error) throw error; setAttendanceRecords(data || []); }),
         buildQuery('live_reports').order('tanggal', { ascending: false }).limit(2000).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(50).then(({data, error}: any) => { if(error) throw error; setSubmissions(data || []); }),
         buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(30).then(({data, error}: any) => { if(error) throw error; setBroadcasts(data || []); }),
@@ -491,13 +416,7 @@ export const App: React.FC = () => {
     } finally {
       setIsLoadingData(false);
     }
-  }, [attendanceStartDate, attendanceEndDate, companyFilter, fetchAttendance]);
-
-  useEffect(() => {
-    if (session && (activeTab === 'attendance' || activeTab === 'dashboard' || activeTab === 'home')) {
-      fetchAttendance(attendanceStartDate, attendanceEndDate, userRole, userCompany, companyFilter);
-    }
-  }, [attendanceStartDate, attendanceEndDate, session, userRole, userCompany, activeTab, fetchAttendance, companyFilter]);
+  };
 
   const handleAuth = async (email: string, password?: string, isRegister = false, isReset = false) => {
     setIsAuthLoading(true);
@@ -586,7 +505,7 @@ export const App: React.FC = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [fetchData]);
+  }, []);
 
   const uniqueCompanies = useMemo(() => {
     const set = new Set(employees.map(e => e.company || 'Visibel'));
@@ -1093,7 +1012,7 @@ export const App: React.FC = () => {
                   onStartDateChange={setAttendanceStartDate} 
                   onEndDateChange={setAttendanceEndDate} 
                   weeklyHolidays={weeklyHolidays} 
-                  company={userRole === 'owner' ? (companyFilter === 'ALL' ? 'Semua' : companyFilter) : userCompany} 
+                  company={userCompany} 
                   positionRates={positionRates}
                   shifts={shifts}
                   shiftAssignments={shiftAssignments}

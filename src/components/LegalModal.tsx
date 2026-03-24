@@ -32,7 +32,7 @@ const LegalModal: React.FC<LegalModalProps> = ({ type, onClose }) => {
             <div className="space-y-6">
               <section className="space-y-3">
                 <h3 className="font-bold text-slate-900 uppercase text-sm tracking-widest">1. Kepemilikan & Kerahasiaan Data</h3>
-                <p className="text-sm">Seluruh data pribadi yang dikelola oleh aplikasi Majova.id (Nama, KTP, Rekening, dll) adalah hak milik organisasi pengguna. Pengembang menjamin bahwa data ini disimpan dalam infrastruktur terenkripsi dan tidak akan dibagikan kepada pihak ketiga manapun untuk kepentingan komersial selain operasional sistem.</p>
+                <p className="text-sm">Seluruh data pribadi yang dikelola oleh aplikasi HR.Visibel (Nama, KTP, Rekening, dll) adalah hak milik organisasi pengguna. Pengembang menjamin bahwa data ini disimpan dalam infrastruktur terenkripsi dan tidak akan dibagikan kepada pihak ketiga manapun untuk kepentingan komersial selain operasional sistem.</p>
               </section>
               <section className="space-y-3">
                 <h3 className="font-bold text-slate-900 uppercase text-sm tracking-widest">2. Integritas Verifikasi</h3>
@@ -53,7 +53,7 @@ const LegalModal: React.FC<LegalModalProps> = ({ type, onClose }) => {
             <div className="space-y-6">
               <section className="space-y-3">
                 <h3 className="font-bold text-slate-900 uppercase text-sm tracking-widest">1. Lisensi Penggunaan & Hak Cipta</h3>
-                <p className="text-sm">Majova.id adalah produk kekayaan intelektual Visibel ID. Pengguna diberikan hak non-eksklusif untuk menggunakan sistem ini sebagai platform manajemen. Dilarang keras menyalin, mendistribusikan ulang, atau melakukan rekayasa balik (reverse engineering) pada kode sumber tanpa izin tertulis.</p>
+                <p className="text-sm">HR.Visibel adalah produk kekayaan intelektual Visibel ID. Pengguna diberikan hak non-eksklusif untuk menggunakan sistem ini sebagai platform manajemen. Dilarang keras menyalin, mendistribusikan ulang, atau melakukan rekayasa balik (reverse engineering) pada kode sumber tanpa izin tertulis.</p>
               </section>
               <section className="space-y-3">
                 <h3 className="font-bold text-slate-900 uppercase text-sm tracking-widest">2. Larangan Perubahan Konfigurasi</h3>
@@ -67,7 +67,7 @@ const LegalModal: React.FC<LegalModalProps> = ({ type, onClose }) => {
               </section>
               <section className="space-y-3">
                 <h3 className="font-bold text-rose-600 uppercase text-sm tracking-widest">4. Penghentian Layanan & Penghapusan Data</h3>
-                <p className="text-sm font-black text-slate-900 bg-rose-50 p-4 rounded-2xl border border-rose-100">Apabila pengguna sudah tidak berlangganan layanan Majova.id, maka seluruh data yang tersimpan dalam sistem (Database Karyawan, Log Absensi, Laporan) akan dihapus secara permanen dari server kami demi menjaga privasi dan keamanan data.</p>
+                <p className="text-sm font-black text-slate-900 bg-rose-50 p-4 rounded-2xl border border-rose-100">Apabila pengguna sudah tidak berlangganan layanan HR.Visibel, maka seluruh data yang tersimpan dalam sistem (Database Karyawan, Log Absensi, Laporan) akan dihapus secara permanen dari server kami demi menjaga privasi dan keamanan data.</p>
               </section>
               <section className="space-y-3">
                 <h3 className="font-bold text-slate-900 uppercase text-sm tracking-widest">5. Batasan Tanggung Jawab</h3>

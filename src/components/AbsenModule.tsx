@@ -13,7 +13,6 @@ interface AbsenModuleProps {
   onClose?: () => void;
 }
 
-const MAJOVA_LOGO = "https://lh3.googleusercontent.com/d/1pjtSR-r2YJMexgm3hl6jtANdjbVn2FZD";
 const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
 const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
 
@@ -36,10 +35,9 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [locationStatus, setLocationStatus] = useState<{distance: number | null, isInside: boolean, isUsingDefault: boolean, settings: AttendanceSettings | null}>({
+  const [locationStatus, setLocationStatus] = useState<{distance: number | null, isInside: boolean, settings: AttendanceSettings | null}>({
     distance: null,
     isInside: false,
-    isUsingDefault: false,
     settings: null
   });
   
@@ -49,8 +47,8 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const comp = (company || '').trim().toLowerCase();
-  const currentLogo = comp === 'seller space' ? SELLER_SPACE_LOGO : comp === 'visibel' ? VISIBEL_LOGO : MAJOVA_LOGO;
+  const isSellerSpace = (company || '').trim().toLowerCase() === 'seller space';
+  const currentLogo = isSellerSpace ? SELLER_SPACE_LOGO : VISIBEL_LOGO;
 
   const getTodayLocalStr = () => {
     const now = new Date();
@@ -73,16 +71,15 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
       const { data } = await supabase
         .from('settings')
         .select('value')
-        .eq('key', `attendance_settings_${company.toUpperCase().trim()}`)
+        .eq('key', `attendance_settings_${company}`)
         .single();
       
       const attSettings: AttendanceSettings = data?.value || {
-        locationName: 'Main Office (Default)',
+        locationName: 'Main Office',
         latitude: -6.1754,
         longitude: 106.8272,
         radius: 100,
-        allowRemote: false,
-        isDefault: true
+        allowRemote: false
       };
 
       // Tentukan lokasi target (Cabang atau Main Office)
@@ -90,7 +87,6 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
       let targetLon = attSettings.longitude;
       let targetRadius = attSettings.radius;
       let targetName = attSettings.locationName;
-      let isUsingDefault = !!attSettings.isDefault;
 
       if (employee?.lokasiKerja && attSettings.branches) {
         const branch = attSettings.branches.find(b => b.name === employee.lokasiKerja);
@@ -116,7 +112,6 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         setLocationStatus({
           distance: Math.round(dist),
           isInside: isRemote ? true : dist <= targetRadius,
-          isUsingDefault,
           settings: {
             ...attSettings,
             locationName: targetName,
@@ -288,7 +283,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
       
       const updateData: any = {
         employeeId: employee.id,
-        company: company.toUpperCase().trim(), 
+        company: company, 
         date: todayStr,
         status: 'Hadir'
       };
@@ -346,7 +341,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
           <span className="text-[10px] font-black uppercase tracking-widest">Tutup</span>
         </button>
         <div className="flex flex-col items-center">
-           <img src={currentLogo} alt="Logo" className={`${ comp === 'seller space' ? 'h-[80px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} />
+           <img src={currentLogo} alt="Logo" className={`${ isSellerSpace ? 'h-[80px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} />
         </div>
         <div className="w-10"></div>
       </div>
@@ -357,21 +352,10 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         </h2>
         <div className="h-1.5 w-10 bg-[#FFC000] rounded-full mt-4"></div>
         {locationStatus.settings && (
-          <div className="flex flex-col items-center gap-1">
-            <div className={`mt-3 flex items-center gap-2 px-4 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all ${locationStatus.isInside || employee.isRemoteAllowed ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-rose-50 text-rose-600 border-rose-100 animate-pulse'}`}>
-              <Icons.Fingerprint className="w-3 h-3" />
-              {locationStatus.isInside ? 'Di Area Kantor' : (employee.isRemoteAllowed ? 'Izin Remote Aktif' : 'Di Luar Area Kantor')}
-              {locationStatus.distance !== null && <span className="ml-1">({locationStatus.distance}m)</span>}
-            </div>
-            {/* Debug Info for Admin/Owner or during troubleshooting */}
-            <div className="text-[7px] text-slate-300 uppercase tracking-tighter font-bold">
-              Target: {locationStatus.settings.locationName} ({locationStatus.settings.latitude.toFixed(4)}, {locationStatus.settings.longitude.toFixed(4)})
-            </div>
-            {locationStatus.isUsingDefault && (
-              <div className="text-[7px] text-rose-500 uppercase tracking-tighter font-black mt-1">
-                ⚠️ Pengaturan Lokasi Kantor Belum Diset (Default Jakarta)
-              </div>
-            )}
+          <div className={`mt-3 flex items-center gap-2 px-4 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all ${locationStatus.isInside || employee.isRemoteAllowed ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-rose-50 text-rose-600 border-rose-100 animate-pulse'}`}>
+            <Icons.Fingerprint className="w-3 h-3" />
+            {locationStatus.isInside ? 'Di Area Kantor' : (employee.isRemoteAllowed ? 'Izin Remote Aktif' : 'Di Luar Area Kantor')}
+            {locationStatus.distance !== null && <span className="ml-1">({locationStatus.distance}m)</span>}
           </div>
         )}
       </div>

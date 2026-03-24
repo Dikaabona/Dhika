@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import * as XLSX from 'xlsx';
 import { Employee, LiveReport } from '../types';
 import { Icons, LIVE_BRANDS } from '../constants';
@@ -24,20 +23,6 @@ const parseYMDToIso = (val: any) => {
   if (val instanceof Date) return val.toISOString().split('T')[0];
   
   const str = String(val).trim();
-  if (!str) return new Date().toISOString().split('T')[0];
-
-  // Try DD/MM/YYYY or DD-MM-YYYY
-  const dmyMatch = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
-  if (dmyMatch) {
-    return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
-  }
-  
-  // Try YYYY/MM/DD or YYYY-MM-DD
-  const ymdMatch = str.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
-  if (ymdMatch) {
-    return `${ymdMatch[1]}-${ymdMatch[2].padStart(2, '0')}-${ymdMatch[3].padStart(2, '0')}`;
-  }
-  
   if (str.includes('/')) {
     const parts = str.split('/');
     if (parts.length === 3) {
@@ -69,14 +54,8 @@ const parseYMDToIso = (val: any) => {
   }
   
   if (!isNaN(Number(str)) && Number(str) > 30000) {
-    const date = new Date(Math.round((Number(str) - 25569) * 86400 * 1000));
+    const date = new Date((Number(str) - 25569) * 86400 * 1000);
     return date.toISOString().split('T')[0];
-  }
-
-  // Fallback to Date.parse
-  const d = new Date(str);
-  if (!isNaN(d.getTime())) {
-    return d.toISOString().split('T')[0];
   }
 
   return str;
@@ -220,9 +199,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const payload = editingReport 
-        ? { ...formData, id: editingReport.id } 
-        : { ...formData, id: uuidv4() };
+      const payload = editingReport ? { ...formData, id: editingReport.id } : formData;
       const { data, error } = await supabase.from('live_reports').upsert(payload).select();
       
       if (error) throw error;
@@ -287,7 +264,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, ws, "Live Report");
-    XLSX.writeFile(workbook, `LiveReport_Majova_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(workbook, `LiveReport_Visibel_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleDownloadTemplate = () => {
@@ -323,30 +300,15 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
       try {
         const data = new Uint8Array(event.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false });
+        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         
         const MAX_VAL = Number.MAX_SAFE_INTEGER; 
 
         const missingHosts = new Set<string>();
         const missingOps = new Set<string>();
 
-        const rawParsedReports = jsonData.map((row: any, index: number) => {
-          try {
-            const getVal = (keys: string[]) => {
-              for (const k of keys) {
-                if (row[k] !== undefined) return row[k];
-                const lowerK = k.toLowerCase();
-                if (row[lowerK] !== undefined) return row[lowerK];
-                const upperK = k.toUpperCase();
-                if (row[upperK] !== undefined) return row[upperK];
-              }
-              return undefined;
-            };
-
-            const brandVal = getVal(['BRAND', 'Brand', 'brand']);
-            const roomIdVal = getVal(['ROOM ID', 'Room ID', 'RoomId', 'roomId']);
-            
-            if (!brandVal || !roomIdVal || String(roomIdVal).includes('CONTOH_')) return null;
+        const rawParsedReports = jsonData.map((row: any) => {
+          if (!row['BRAND'] || !row['ROOM ID'] || String(row['ROOM ID']).includes('CONTOH_')) return null;
 
           const cleanInt = (v: any) => {
             if (typeof v === 'number') return Math.floor(v);
@@ -373,37 +335,31 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
             return isNaN(parsed) ? 0 : Math.min(parsed, MAX_VAL);
           };
 
-            const hostName = String(getVal(['HOST', 'Host', 'host']) || '').trim();
-            const opName = String(getVal(['OP', 'Op', 'op', 'Admin', 'ADMIN']) || '').trim();
-            
-            const host = employees.find(e => String(e.nama).toLowerCase().trim() === hostName.toLowerCase());
-            const op = employees.find(e => String(e.nama).toLowerCase().trim() === opName.toLowerCase());
+          const hostName = String(row['HOST'] || '').trim();
+          const opName = String(row['OP'] || '').trim();
+          
+          const host = employees.find(e => String(e.nama).toLowerCase().trim() === hostName.toLowerCase());
+          const op = employees.find(e => String(e.nama).toLowerCase().trim() === opName.toLowerCase());
 
-            if (hostName && !host) missingHosts.add(hostName);
-            if (opName && !op) missingOps.add(opName);
+          if (hostName && !host) missingHosts.add(hostName);
+          if (opName && !op) missingOps.add(opName);
 
-            const tgl = parseYMDToIso(getVal(['TANGGAL', 'DATE', 'Tanggal', 'Date']) || '');
-
-            return {
-              tanggal: tgl,
-              brand: String(brandVal).toUpperCase().trim(),
-              company: String(getVal(['COMPANY', 'Company', 'company']) || company || 'Majova.id'),
-              roomId: String(roomIdVal).trim(),
-              hostId: host?.id || '',
-              opId: op?.id || '',
-              totalView: cleanInt(getVal(['VIEW', 'TOTAL VIEW', 'Total View', 'TotalView'])),
-              enterRoomRate: String(getVal(['RATE', 'ENTER ROOM RATE', 'Enter Room Rate', 'EnterRoomRate']) || '0%'),
-              ctr: String(getVal(['CTR', 'ctr', 'Ctr']) || '0%'),
-              waktuMulai: String(getVal(['START', 'WAKTU MULAI', 'Mulai', 'Start']) || '00:00'),
-              waktuSelesai: String(getVal(['END', 'WAKTU SELESAI', 'Selesai', 'End']) || '00:00'),
-              durasi: cleanInt(getVal(['DURASI', 'Durasi', 'Duration'])),
-              checkout: cleanInt(getVal(['CO', 'CHECKOUT', 'Checkout'])),
-              gmv: cleanInt(getVal(['GMV', 'gmv', 'Gmv']))
-            };
-          } catch (e) {
-            console.error(`Error parsing row ${index + 1}:`, e, row);
-            return null;
-          }
+          return {
+            tanggal: parseYMDToIso(row['TANGGAL']),
+            brand: String(row['BRAND'] || '').toUpperCase().trim(),
+            company: String(row['COMPANY'] || company),
+            roomId: String(row['ROOM ID'] || '').trim(),
+            hostId: host?.id || '',
+            opId: op?.id || '',
+            totalView: cleanInt(row['VIEW']),
+            enterRoomRate: String(row['RATE'] || '0%'),
+            ctr: String(row['CTR'] || '0%'),
+            waktuMulai: String(row['START'] || '00:00'),
+            waktuSelesai: String(row['END'] || '00:00'),
+            durasi: parseFloat(String(row['DURASI'] || 0).replace(',', '.')) || 0,
+            checkout: cleanInt(row['CO']),
+            gmv: cleanInt(row['GMV'])
+          };
         }).filter(r => r !== null) as Omit<LiveReport, 'id'>[];
 
         if (missingHosts.size > 0 || missingOps.size > 0) {
@@ -443,7 +399,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
             if (existingId) {
               finalToUpsert.push({ ...newReport, id: existingId });
             } else {
-              finalToUpsert.push({ ...newReport, id: uuidv4() });
+              finalToUpsert.push(newReport);
             }
           });
 
@@ -705,7 +661,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
             <div className="p-8 border-b bg-[#FFC000] text-black flex justify-between items-center shrink-0">
               <div className="space-y-0.5">
                 <h2 className="text-xl font-black uppercase tracking-tight">{editingReport ? 'Edit Laporan' : 'Tambah Laporan'}</h2>
-                <p className="text-black/60 text-[9px] font-bold uppercase tracking-widest">Majova.id Streaming Center</p>
+                <p className="text-black/60 text-[9px] font-bold uppercase tracking-widest">Visibel Streaming Center</p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="text-3xl leading-none opacity-40 hover:opacity-100 transition-opacity font-black">&times;</button>
             </div>

@@ -36,7 +36,7 @@ async function testSend() {
   try {
     const response = await axios.post(`${apiUrl}/api/sendText`, {
       chatId: to,
-      text: "Test message from Majova.id Backend",
+      text: "Test message from HR Visibel Backend",
       session: sessionName
     }, {
       headers: {

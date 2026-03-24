@@ -34,7 +34,7 @@ async function testFinal() {
   try {
     const res = await axios.post(`${cleanUrl}/api/sendText`, {
       chatId: '628111624080@c.us',
-      text: "Halo! Ini adalah tes otomatis dari sistem Majova.id. Jika Anda menerima ini, berarti API Key sudah BENAR. ✅",
+      text: "Halo! Ini adalah tes otomatis dari sistem HR Visibel. Jika Anda menerima ini, berarti API Key sudah BENAR. ✅",
       session: sessionName
     }, {
       headers: { 'X-Api-Key': apiKey, 'Content-Type': 'application/json' }

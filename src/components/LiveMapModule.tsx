@@ -126,7 +126,7 @@ const LiveMapModule: React.FC<LiveMapModuleProps> = ({ employees, company, onClo
          <div className="bg-amber-50 p-6 rounded-3xl border border-amber-100 flex items-center gap-5">
             <Icons.AlertCircle className="w-8 h-8 text-amber-500 shrink-0" />
             <p className="text-[10px] text-amber-800 font-bold leading-relaxed uppercase">
-              Pelacakan hanya berjalan jika karyawan membuka tab aplikasi Majova.id di HP mereka. Data akan otomatis offline jika aplikasi ditutup atau browser masuk ke mode hemat daya.
+              Pelacakan hanya berjalan jika karyawan membuka tab aplikasi HR.Visibel di HP mereka. Data akan otomatis offline jika aplikasi ditutup atau browser masuk ke mode hemat daya.
             </p>
          </div>
       </div>

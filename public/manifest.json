@@ -1,20 +1,20 @@
 {
-  "name": "Majova.id",
-  "short_name": "Majova.id",
-  "description": "Aplikasi HR & Manajemen Keuangan Majova.id",
+  "name": "HR.Visibel",
+  "short_name": "HR.Visibel",
+  "description": "Aplikasi HR & Manajemen Keuangan Visibel",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#000000",
   "icons": [
     {
-      "src": "https://lh3.googleusercontent.com/d/1pjtSR-r2YJMexgm3hl6jtANdjbVn2FZD",
+      "src": "https://lh3.googleusercontent.com/d/13enH1ZFO2eucK1retpymOp_qis9F8CY9",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "https://lh3.googleusercontent.com/d/1pjtSR-r2YJMexgm3hl6jtANdjbVn2FZD",
+      "src": "https://lh3.googleusercontent.com/d/13enH1ZFO2eucK1retpymOp_qis9F8CY9",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

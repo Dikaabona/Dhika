@@ -23,7 +23,6 @@ interface SalarySlipModalProps {
   initialYear?: string;
 }
 
-const MAJOVA_LOGO = "https://lh3.googleusercontent.com/d/1pjtSR-r2YJMexgm3hl6jtANdjbVn2FZD";
 const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
 const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
 
@@ -523,9 +522,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
   };
 
   const SalarySlipContentWrapper = () => {
-    const comp = (employee.company || '').toLowerCase();
-    const defaultLogo = comp === 'seller space' ? SELLER_SPACE_LOGO : comp === 'visibel' ? VISIBEL_LOGO : MAJOVA_LOGO;
-    const slipLogo = companyDetails?.logo || defaultLogo;
+    const slipLogo = companyDetails?.logo || ((employee.company || '').toLowerCase() === 'seller space' ? SELLER_SPACE_LOGO : VISIBEL_LOGO);
     return (
       <SalarySlipContent 
         employee={employee}
