@@ -217,7 +217,7 @@ export const App: React.FC = () => {
         q = q.eq('company', filter.toUpperCase().trim());
       }
       
-      const { data, error } = await q.order('date', { ascending: false }).limit(5000);
+      const { data, error } = await q.order('date', { ascending: false }).limit(3000);
       if (error) throw error;
       setAttendanceRecords(data || []);
     } catch (e) {
@@ -247,10 +247,10 @@ export const App: React.FC = () => {
         .lt('date', photoDateStr)
         .eq('company', company);
 
-      // 1b. Cleanup old attendance records (older than 1 year)
-      const oneYearAgo = new Date(now);
-      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-      const attDateStr = oneYearAgo.toISOString().split('T')[0];
+      // 1b. Cleanup old attendance records (older than 6 months)
+      const sixMonthsAgo = new Date(now);
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      const attDateStr = sixMonthsAgo.toISOString().split('T')[0];
 
       await supabase
         .from('attendance')
@@ -270,8 +270,6 @@ export const App: React.FC = () => {
         .eq('company', company);
 
       // 3. Cleanup old live reports (older than 6 months / 180 days)
-      const sixMonthsAgo = new Date(now);
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
       const reportDateStr = sixMonthsAgo.toISOString().split('T')[0];
 
       await supabase

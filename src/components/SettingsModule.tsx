@@ -23,7 +23,7 @@ interface SettingsModuleProps {
   onRefresh: () => void;
 }
 
-type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT' | 'COMPANY' | 'GAJI';
+type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT' | 'COMPANY' | 'PAYROLL';
 
 interface CustomCriteria {
   id: string;
@@ -460,7 +460,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
       setEmployees(prev => prev.map(e => e.id === empId ? { ...e, salaryConfig: updatedSalaryConfig as any } : e));
       onRefresh();
     } catch (err: any) {
-      alert("Gagal memperbarui konfigurasi gaji: " + err.message);
+      alert("Gagal memperbarui konfigurasi payroll: " + err.message);
     }
   };
 
@@ -725,10 +725,10 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                   LEMBUR
                 </button>
                 <button 
-                  onClick={() => setActiveSubTab('GAJI')} 
-                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'GAJI' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                  onClick={() => setActiveSubTab('PAYROLL')} 
+                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'PAYROLL' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                 >
-                  GAJI
+                  PAYROLL
                 </button>
                 <button 
                   onClick={() => setActiveSubTab('MAPS')} 
@@ -754,7 +754,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
             </div>
           </div>
           
-          {(activeSubTab !== 'DIVISI' && activeSubTab !== 'LEMBUR' && activeSubTab !== 'CLIENT' && activeSubTab !== 'GAJI') && (
+          {(activeSubTab !== 'DIVISI' && activeSubTab !== 'LEMBUR' && activeSubTab !== 'CLIENT' && activeSubTab !== 'PAYROLL') && (
             <button 
               onClick={
                 activeSubTab === 'KPI' ? () => handleSaveKPISystem(kpiSystem) : 
@@ -769,11 +769,11 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
           )}
         </div>
 
-        {activeSubTab === 'GAJI' ? (
+        {activeSubTab === 'PAYROLL' ? (
           <div className="animate-in fade-in duration-300 space-y-12">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div className="space-y-2">
-                 <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Konfigurasi Tipe Gaji Karyawan</h3>
+                 <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Konfigurasi Payroll Karyawan</h3>
                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tentukan apakah karyawan dibayar per bulan atau per hari.</p>
               </div>
               {!isEditingSalary ? (
@@ -787,7 +787,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                 <button 
                   onClick={() => {
                     setIsEditingSalary(false);
-                    alert("Konfigurasi Gaji berhasil disimpan!");
+                    alert("Konfigurasi Payroll berhasil disimpan!");
                   }}
                   className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl active:scale-95 transition-all flex items-center gap-3"
                 >
@@ -816,7 +816,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                      <tr className="border-b border-slate-200">
                        <th className="text-left py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Karyawan</th>
                        <th className="text-left py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Jabatan</th>
-                       <th className="text-center py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Gaji</th>
+                       <th className="text-center py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Payroll</th>
                        <th className="text-center py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nominal</th>
                        <th className="text-center py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cut Off</th>
                      </tr>

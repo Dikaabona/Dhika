@@ -438,20 +438,33 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
               />
             </div>
 
-            <div className="flex items-center justify-between sm:justify-start bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
-              <input 
-                type="date" 
-                value={startDate} 
-                onChange={(e) => onStartDateChange(e.target.value)}
-                className="text-[10px] font-black text-slate-600 outline-none bg-transparent uppercase"
-              />
-              <span className="mx-3 text-slate-300 font-bold">-</span>
-              <input 
-                type="date" 
-                value={endDate} 
-                onChange={(e) => onEndDateChange(e.target.value)}
-                className="text-[10px] font-black text-slate-600 outline-none bg-transparent uppercase"
-              />
+            <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between sm:justify-start bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+                <input 
+                  type="date" 
+                  value={startDate} 
+                  onChange={(e) => onStartDateChange(e.target.value)}
+                  className="text-[10px] font-black text-slate-600 outline-none bg-transparent uppercase"
+                />
+                <span className="mx-3 text-slate-300 font-bold">-</span>
+                <input 
+                  type="date" 
+                  value={endDate} 
+                  onChange={(e) => onEndDateChange(e.target.value)}
+                  className="text-[10px] font-black text-slate-600 outline-none bg-transparent uppercase"
+                />
+              </div>
+              <button 
+                onClick={() => {
+                  const today = new Date().toISOString().split('T')[0];
+                  onStartDateChange(today);
+                  onEndDateChange(today);
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-slate-200 text-slate-600 px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-50 transition-all active:scale-95"
+              >
+                HARI INI
+              </button>
             </div>
           </div>
           
