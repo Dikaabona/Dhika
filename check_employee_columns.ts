@@ -1,17 +1,29 @@
 import { createClient } from '@supabase/supabase-js';
+import * as dotenv from 'dotenv';
 
-const SUPABASE_URL = 'https://rcrtknakiwvfkmnwvdvf.supabase.co';
-const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcnRrbmFraXd2Zmttbnd2ZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTY2MTI4NiwiZXhwIjoyMDg1MjM3Mjg2fQ.cyX8hoZWpbZ1V8qAPUwoLAHE-mlftuhOuI1x7x8KYk0';
+dotenv.config();
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+const supabaseUrl = process.env.VITE_SUPABASE_URL!;
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-async function checkColumns() {
-  const { data, error } = await supabase.from('employees').select('*').limit(1);
+async function checkEmployeeColumns() {
+  const { data, error } = await supabase
+    .from('employees')
+    .select('*')
+    .limit(1);
+
+  if (error) {
+    console.error('Error fetching employee:', error);
+    return;
+  }
+
   if (data && data.length > 0) {
-    console.log("Columns in 'employees':", Object.keys(data[0]));
+    console.log('Employee columns:', Object.keys(data[0]));
+    console.log('Sample employee data:', data[0]);
   } else {
-    console.log("No data in 'employees' or error:", error);
+    console.log('No employees found.');
   }
 }
 
-checkColumns();
+checkEmployeeColumns();

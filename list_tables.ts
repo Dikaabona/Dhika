@@ -6,17 +6,15 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-async function findLeaveTables() {
-  const tables = ['leave_balances', 'cuti', 'leave', 'sisa_cuti'];
-  for (const table of tables) {
-    const { data, error } = await supabase.from(table).select('*').limit(1);
-    if (!error) {
-      console.log(`Found table: ${table}`);
-      console.log('Sample:', data[0]);
-    } else {
-      console.log(`Table ${table} not found or error: ${error.message}`);
-    }
+async function listTables() {
+  const { data, error } = await supabase.rpc('get_tables');
+  if (error) {
+    console.error('RPC Error:', error);
+    // Fallback: try to query information_schema if possible, but usually RPC is better if defined.
+    // Or just try common names.
+  } else {
+    console.log('Tables:', data);
   }
 }
 
-findLeaveTables();
+listTables();

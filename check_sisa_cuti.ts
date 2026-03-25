@@ -6,17 +6,17 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-async function findLeaveTables() {
-  const tables = ['leave_balances', 'cuti', 'leave', 'sisa_cuti'];
-  for (const table of tables) {
-    const { data, error } = await supabase.from(table).select('*').limit(1);
-    if (!error) {
-      console.log(`Found table: ${table}`);
-      console.log('Sample:', data[0]);
-    } else {
-      console.log(`Table ${table} not found or error: ${error.message}`);
-    }
+async function checkSisaCuti() {
+  const { data, error } = await supabase
+    .from('employees')
+    .select('id, nama, sisaCuti')
+    .limit(1);
+    
+  if (error) {
+    console.error('sisa_cuti error:', error.message);
+  } else {
+    console.log('sisa_cuti exists:', data[0]);
   }
 }
 
-findLeaveTables();
+checkSisaCuti();
