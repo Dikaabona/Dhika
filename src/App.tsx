@@ -437,13 +437,13 @@ export const App: React.FC = () => {
 
       const fetchPromises = [
         fetchAttendance(attendanceStartDate, attendanceEndDate, activeUserRole, detectedCompany, companyFilter),
-        buildQuery('live_reports').order('tanggal', { ascending: false }).limit(2000).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
+        buildQuery('live_reports').order('tanggal', { ascending: false }).limit(5000).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(50).then(({data, error}: any) => { if(error) throw error; setSubmissions(data || []); }),
         buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(30).then(({data, error}: any) => { if(error) throw error; setBroadcasts(data || []); }),
-        buildQuery('schedules').order('date', { ascending: false }).limit(1000).then(({data, error}: any) => { 
+        buildQuery('schedules').order('date', { ascending: false }).limit(5000).then(({data, error}: any) => { 
           if(error) throw error; 
-          if (data && data.length > 900) {
-            console.warn("PERINGATAN EGRESS: Data jadwal mendekati 1.000 record.");
+          if (data && data.length > 4900) {
+            console.warn("PERINGATAN EGRESS: Data jadwal mendekati 5.000 record.");
           }
           setLiveSchedules(data || []); 
         }),
