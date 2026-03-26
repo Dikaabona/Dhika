@@ -136,6 +136,28 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
       const { error: attError } = await supabase.from('attendance').upsert(finalRecords, { onConflict: 'employeeId,date' });
       if (attError) throw new Error(`Gagal mencatat absensi: ${attError.message}`);
 
+      // Reduce leave balance if type is 'Cuti'
+      if (sub.type === 'Cuti') {
+        const { data: empData, error: empFetchError } = await supabase
+          .from('employees')
+          .select('sisaCuti')
+          .eq('id', sub.employeeId)
+          .single();
+        
+        if (empFetchError) throw new Error(`Gagal mengambil data sisa cuti: ${empFetchError.message}`);
+        
+        const currentSisaCuti = empData.sisaCuti || 0;
+        const leaveDays = dates.length;
+        const newSisaCuti = currentSisaCuti - leaveDays;
+
+        const { error: empUpdateError } = await supabase
+          .from('employees')
+          .update({ sisaCuti: newSisaCuti })
+          .eq('id', sub.employeeId);
+        
+        if (empUpdateError) throw new Error(`Gagal update sisa cuti: ${empUpdateError.message}`);
+      }
+
       const { error: subError } = await supabase.from('submissions').update({ status: 'Approved' }).eq('id', sub.id);
       if (subError) throw new Error(`Gagal update status pengajuan: ${subError.message}`);
 

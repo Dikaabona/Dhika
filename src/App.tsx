@@ -32,6 +32,7 @@ import FinancialModule from './components/FinancialModule';
 import RecruitmentModule from './components/RecruitmentModule';
 import { InvoiceModule } from './components/InvoiceModule';
 import { AdvertisingModule } from './components/AdvertisingModule';
+import SalesReport from './components/SalesReport';
 import { getTenureYears, calculateTenure, formatDateToYYYYMMDD, getMondayISO } from './utils/dateUtils';
 import { useConfirmation } from './contexts/ConfirmationContext';
 
@@ -446,7 +447,7 @@ export const App: React.FC = () => {
           }
           setLiveSchedules(data || []); 
         }),
-        buildQuery('content_plans').order('postingDate', { ascending: false }).limit(300).then(({data, error}: any) => { if(error) throw error; setContentPlans(data || []); }),
+        buildQuery('content_plans').order('postingDate', { ascending: false }).limit(5000).then(({data, error}: any) => { if(error) throw error; setContentPlans(data || []); }),
         buildQuery('advertising_records').order('date', { ascending: false }).limit(500).then(({data, error}: any) => { 
           if(error) {
             console.warn("Table advertising_records might not exist yet:", error.message);
@@ -836,7 +837,7 @@ export const App: React.FC = () => {
 
   const isFullscreenModule = activeTab === 'absen' || activeTab === 'minvis';
   const isAttendanceActive = ['absen', 'attendance', 'submissions', 'shift', 'live_map'].includes(activeTab);
-  const isModulActive = ['schedule', 'content', 'minvis', 'calendar', 'advertising'].includes(activeTab);
+  const isModulActive = ['schedule', 'content', 'minvis', 'calendar', 'advertising', 'sales'].includes(activeTab);
 
   const isUnregistered = useMemo(() => {
     if (!session || isLoadingData) return false;
@@ -889,6 +890,8 @@ export const App: React.FC = () => {
                 <button onClick={() => { setActiveTab('content'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">SHORT VIDEO</button>
                 <div className="h-px bg-slate-50 w-full"></div>
                 <button onClick={() => { setActiveTab('advertising'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">ADVERTISING</button>
+                <div className="h-px bg-slate-50 w-full"></div>
+                <button onClick={() => { setActiveTab('sales'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">SALES</button>
                 <div className="h-px bg-slate-50 w-full"></div>
                 <button onClick={() => { setActiveTab('minvis'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-[#FFC000] hover:text-black transition-colors text-[#334155]">MINVIS (AI)</button>
               </div>
@@ -1123,6 +1126,11 @@ export const App: React.FC = () => {
                   company={userCompany}
                   onRefresh={() => fetchData(session?.user?.email, true)}
                   onClose={() => setActiveTab('home')}
+                />
+              ) : activeTab === 'sales' ? (
+                <SalesReport 
+                  company={userCompany} 
+                  onClose={() => setActiveTab('home')} 
                 />
               ) : activeTab === 'submissions' ? (
                 <SubmissionForm employee={currentUserEmployee} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} />
