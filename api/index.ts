@@ -751,19 +751,36 @@ async function checkAndSendNotifications() {
     if (assignError) throw assignError;
 
     const { data: emps } = await supabase.from('employees').select('*');
-    let { data: allShifts } = await supabase.from('shifts').select('*');
+    const { data: allShiftsTable } = await supabase.from('shifts').select('*');
+    const { data: allSettings } = await supabase.from('settings').select('*').like('key', 'shifts_config_%');
 
-    // Fallback if shifts table doesn't exist
-    if (!allShifts) {
-      const { data: settings } = await supabase.from('settings').select('*').eq('key', 'shifts_config_Visibel').maybeSingle();
-      if (settings && settings.value) {
-        allShifts = settings.value;
-      }
+    const shiftsByCompany: Record<string, any[]> = {};
+    
+    // Initialize with table data if it exists
+    if (allShiftsTable && allShiftsTable.length > 0) {
+      // Assuming table data is global or we can group it by company if it has a company column
+      // For now, let's assume it's a fallback for all
+      emps?.forEach((e: any) => {
+        if (e.company) shiftsByCompany[e.company] = allShiftsTable;
+      });
     }
+
+    // Overlay with settings data (more specific)
+    allSettings?.forEach((s: any) => {
+      const company = s.key.replace('shifts_config_', '');
+      shiftsByCompany[company] = s.value;
+      // Also handle case-insensitive matches if needed, but usually it's uppercase
+      shiftsByCompany[company.toUpperCase()] = s.value;
+    });
 
     for (const assign of assignments || []) {
       const emp = emps?.find((e: any) => e.id === assign.employeeId);
-      const shift = allShifts?.find((s: any) => s.id === assign.shiftId);
+      if (!emp) continue;
+
+      const company = emp.company || 'VISIBEL';
+      const companyShifts = shiftsByCompany[company] || shiftsByCompany[company.toUpperCase()] || shiftsByCompany['VISIBEL'];
+      
+      const shift = companyShifts?.find((s: any) => s.id === assign.shiftId);
       if (!emp || !shift || !emp.noHandphone) continue;
 
       const shiftStart = shift.startTime;

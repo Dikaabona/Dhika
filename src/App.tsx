@@ -218,7 +218,7 @@ export const App: React.FC = () => {
         q = q.eq('company', filter.toUpperCase().trim());
       }
       
-      const { data, error } = await q.order('date', { ascending: false }).limit(3000);
+      const { data, error } = await q.order('date', { ascending: false }).limit(10000);
       if (error) throw error;
       setAttendanceRecords(data || []);
     } catch (e) {
@@ -259,10 +259,10 @@ export const App: React.FC = () => {
         .lt('date', attDateStr)
         .eq('company', company);
 
-      // 2. Cleanup old shifts (older than 21 days / 3 weeks)
-      const twentyOneDaysAgo = new Date(now);
-      twentyOneDaysAgo.setDate(twentyOneDaysAgo.getDate() - 21);
-      const shiftDateStr = twentyOneDaysAgo.toISOString().split('T')[0];
+      // 2. Cleanup old shifts (older than 6 months / 180 days)
+      const sixMonthsAgoShifts = new Date(now);
+      sixMonthsAgoShifts.setMonth(sixMonthsAgoShifts.getMonth() - 6);
+      const shiftDateStr = sixMonthsAgoShifts.toISOString().split('T')[0];
 
       await supabase
         .from('shift_assignments')
@@ -279,14 +279,14 @@ export const App: React.FC = () => {
         .lt('tanggal', reportDateStr)
         .eq('company', company);
 
-      // 4. Cleanup old schedules (Retention Policy: Max 1000 records)
+      // 4. Cleanup old schedules (Retention Policy: Max 5000 records)
       const { count: scheduleCount } = await supabase
         .from('schedules')
         .select('*', { count: 'exact', head: true })
         .eq('company', company);
 
-      if (scheduleCount && scheduleCount > 1000) {
-        const overflow = scheduleCount - 900;
+      if (scheduleCount && scheduleCount > 5000) {
+        const overflow = scheduleCount - 4500;
         const { data: oldSchedules } = await supabase
           .from('schedules')
           .select('id, date')
@@ -456,7 +456,7 @@ export const App: React.FC = () => {
           }
           setAdvertisingRecords(data || []); 
         }),
-        buildQuery('shift_assignments').order('date', { ascending: false }).limit(1000).then(({data, error}: any) => { if(error) throw error; setShiftAssignments(data || []); }),
+        buildQuery('shift_assignments').order('date', { ascending: false }).limit(5000).then(({data, error}: any) => { if(error) throw error; setShiftAssignments(data || []); }),
         supabase.from('settings').select('value').eq('key', `shifts_config_${companyFilterVal}`).single().then(({data}) => {
           if (data && Array.isArray(data.value)) setShifts(data.value);
           else setShifts(DEFAULT_SHIFTS);
