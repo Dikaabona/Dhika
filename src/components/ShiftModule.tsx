@@ -310,29 +310,29 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
 
         {activeTab === 'VIEW' ? (
           <div className="space-y-8 animate-in fade-in duration-300">
-             <div className="flex flex-col lg:flex-row items-center gap-4 bg-slate-50 p-2 rounded-[32px] border border-slate-100 shadow-inner">
-                <div className="flex items-center gap-4 px-8 py-4 bg-white rounded-[24px] shadow-sm border border-slate-100 shrink-0">
-                   <div className="flex flex-col items-start min-w-[120px]">
+             <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4 bg-slate-50 p-2 rounded-[32px] border border-slate-100 shadow-inner">
+                <div className="flex items-center gap-4 px-6 py-4 sm:px-8 bg-white rounded-[24px] shadow-sm border border-slate-100 shrink-0">
+                   <div className="flex flex-col items-start min-w-[100px] sm:min-w-[120px]">
                       <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-1">Mulai</span>
                       <input 
                         type="date" 
                         value={startDate} 
                         onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }} 
-                        className="bg-transparent text-sm font-black outline-none text-slate-900 cursor-pointer" 
+                        className="bg-transparent text-xs sm:text-sm font-black outline-none text-slate-900 cursor-pointer w-full" 
                       />
                    </div>
                    <div className="h-8 w-px bg-slate-100"></div>
-                   <div className="flex flex-col items-start min-w-[120px]">
+                   <div className="flex flex-col items-start min-w-[100px] sm:min-w-[120px]">
                       <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-1">Selesai</span>
                       <input 
                         type="date" 
                         value={endDate} 
                         onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }} 
-                        className="bg-transparent text-sm font-black outline-none text-slate-900 cursor-pointer" 
+                        className="bg-transparent text-xs sm:text-sm font-black outline-none text-slate-900 cursor-pointer w-full" 
                       />
                    </div>
                 </div>
-                <div className="relative flex-grow w-full px-6 py-4 bg-white rounded-[24px] shadow-sm border border-slate-100 flex items-center gap-4">
+                <div className="relative flex-grow px-6 py-4 bg-white rounded-[24px] shadow-sm border border-slate-100 flex items-center gap-4">
                    <Icons.Search className="w-5 h-5 text-slate-300" />
                    <input 
                     type="text" 
@@ -342,7 +342,7 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
                     className="w-full text-xs font-black text-slate-800 outline-none placeholder:text-slate-300 uppercase tracking-widest bg-transparent"
                    />
                 </div>
-                <div className="flex gap-2 px-2 shrink-0">
+                <div className="flex gap-2 px-2 shrink-0 justify-center">
                    <button onClick={handleDownloadTemplate} className="p-4 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-900 transition-all shadow-sm"><Icons.Download className="w-5 h-5" /></button>
                    <button onClick={() => fileInputRef.current?.click()} className="p-4 bg-white border border-slate-200 rounded-2xl text-emerald-500 hover:bg-emerald-50 transition-all shadow-sm"><Icons.Upload className="w-5 h-5" /></button>
                    <button onClick={handleExport} className="p-4 bg-slate-900 rounded-2xl text-[#FFC000] shadow-xl"><Icons.Database className="w-5 h-5" /></button>
@@ -350,7 +350,8 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
                 </div>
              </div>
 
-             <div className="overflow-x-auto no-scrollbar">
+             {/* Desktop Table View */}
+             <div className="hidden md:block overflow-x-auto no-scrollbar">
                 <table className="w-full text-left min-w-[800px] border-separate border-spacing-0">
                    <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
                       <tr>
@@ -388,14 +389,51 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
                             </tr>
                          );
                       })}
-                      {paginatedRows.length === 0 && (
-                        <tr>
-                          <td colSpan={3} className="px-10 py-20 text-center text-slate-300 font-black uppercase tracking-widest">Data tidak ditemukan</td>
-                        </tr>
-                      )}
                    </tbody>
                 </table>
              </div>
+
+             {/* Mobile Card View */}
+             <div className="md:hidden space-y-4">
+                {paginatedRows.map((row, idx) => {
+                   const assignment = assignments.find(a => a.employeeId === row.employee.id && a.date === row.date);
+                   const shift = localShifts.find(s => s.id === assignment?.shiftId);
+                   return (
+                      <div key={idx} className="bg-slate-50 rounded-3xl p-5 border border-slate-100 space-y-4">
+                         <div className="flex justify-between items-start">
+                            <div>
+                               <p className="text-xs font-black text-slate-900 uppercase">{row.employee.nama}</p>
+                               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{row.employee.idKaryawan}</p>
+                            </div>
+                            <div className="text-right">
+                               <p className="text-[10px] font-black text-slate-700">{row.date}</p>
+                               <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{new Date(row.date).toLocaleDateString('id-ID', { weekday: 'long' })}</p>
+                            </div>
+                         </div>
+                         <div className="pt-2">
+                            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Pilih Shift</label>
+                            <select 
+                              disabled={!isAdmin}
+                              value={assignment?.shiftId || ''}
+                              onChange={(e) => handleAssignShift(row.employee.id, row.date, e.target.value)}
+                              className={`w-full bg-white border border-slate-200 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-sm outline-none cursor-pointer focus:border-indigo-400 transition-all text-black ${shift ? 'border-l-4 ' + shift.color.replace('bg-', 'border-') : ''}`}
+                            >
+                               <option value="">OFF / LIBUR</option>
+                               {localShifts.map(s => (
+                                  <option key={s.id} value={s.id}>{s.name.toUpperCase()}</option>
+                               ))}
+                            </select>
+                         </div>
+                      </div>
+                   );
+                })}
+             </div>
+
+             {paginatedRows.length === 0 && (
+                <div className="px-10 py-20 text-center text-slate-300 font-black uppercase tracking-widest bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
+                   Data tidak ditemukan
+                </div>
+             )}
 
              {totalPages > 1 && (
                <div className="flex items-center justify-between px-10 py-6 border-t border-slate-50 bg-slate-50/30 rounded-b-3xl">

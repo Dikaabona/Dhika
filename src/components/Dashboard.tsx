@@ -227,7 +227,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   const menuItems = useMemo(() => {
     const base = [
       { id: 'absen', label: 'Absensi', icon: <Icons.Camera className="w-5 h-5" />, tab: 'absen' },
-      { id: 'attendance', label: 'Rekap Absen', icon: <Icons.FileText className="w-5 h-5" />, tab: 'attendance' },
       { id: 'submissions', label: 'Pengajuan', icon: <Icons.Calendar className="w-5 h-5" />, tab: 'submissions' },
       { id: 'schedule', label: 'Live Stream', icon: <Icons.Video className="w-5 h-5" />, tab: 'schedule' },
       { id: 'shift', label: 'Jadwal Shift', icon: <Icons.Clock className="w-5 h-5" />, tab: 'shift' },
@@ -241,8 +240,14 @@ const Dashboard: React.FC<DashboardProps> = ({
       base.push({ id: 'live_map', label: 'Cabang', icon: <Icons.MapPin className="w-5 h-5" />, tab: 'live_map' });
     }
 
+    if (isAdmin) {
+      base.push({ id: 'attendance', label: 'Rekap Absen', icon: <Icons.FileText className="w-5 h-5" />, tab: 'attendance' });
+      base.push({ id: 'advertising', label: 'Advertising', icon: <Icons.Megaphone className="w-5 h-5" />, tab: 'advertising' });
+      base.push({ id: 'sales', label: 'Sales Visit', icon: <Icons.FileText className="w-5 h-5" />, tab: 'sales' });
+    }
+
     return base;
-  }, [isSuper]);
+  }, [isSuper, isAdmin]);
 
   return (
     <div className="space-y-5 md:space-y-10 pb-4 md:pb-20">

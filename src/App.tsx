@@ -415,7 +415,7 @@ export const App: React.FC = () => {
       
       setEmployees(empData || []);
 
-      const companyFilterVal = detectedCompany;
+      const companyFilterVal = (isOwner && companyFilter !== 'ALL') ? companyFilter : detectedCompany;
 
       const buildQuery = (table: string): any => {
         let q: any = supabase.from(table);
@@ -431,7 +431,9 @@ export const App: React.FC = () => {
            q = q.select('*');
         }
         
-        if (!isOwner) q = q.eq('company', companyFilterVal.toUpperCase().trim());
+        if (!isOwner || (isOwner && companyFilter !== 'ALL')) {
+          q = q.eq('company', companyFilterVal.toUpperCase().trim());
+        }
         return q;
       };
 
@@ -456,9 +458,9 @@ export const App: React.FC = () => {
           }
           setAdvertisingRecords(data || []); 
         }),
-        buildQuery('shift_assignments').order('date', { ascending: false }).limit(5000).then(({data, error}: any) => { if(error) throw error; setShiftAssignments(data || []); }),
+        buildQuery('shift_assignments').order('date', { ascending: false }).limit(10000).then(({data, error}: any) => { if(error) throw error; setShiftAssignments(data || []); }),
         supabase.from('settings').select('value').eq('key', `shifts_config_${companyFilterVal}`).single().then(({data}) => {
-          if (data && Array.isArray(data.value)) setShifts(data.value);
+          if (data && Array.isArray(data.value) && data.value.length > 0) setShifts(data.value);
           else setShifts(DEFAULT_SHIFTS);
         }),
         supabase.from('settings').select('value').eq('key', `positions_${companyFilterVal}`).single().then(({data}) => {
@@ -889,10 +891,14 @@ export const App: React.FC = () => {
                 <div className="h-px bg-slate-50 w-full"></div>
                 <button onClick={() => { setActiveTab('content'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">SHORT VIDEO</button>
                 <div className="h-px bg-slate-50 w-full"></div>
-                <button onClick={() => { setActiveTab('advertising'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">ADVERTISING</button>
-                <div className="h-px bg-slate-50 w-full"></div>
-                <button onClick={() => { setActiveTab('sales'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">SALES</button>
-                <div className="h-px bg-slate-50 w-full"></div>
+                {isAdminAccess && (
+                  <>
+                    <button onClick={() => { setActiveTab('advertising'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">ADVERTISING</button>
+                    <div className="h-px bg-slate-50 w-full"></div>
+                    <button onClick={() => { setActiveTab('sales'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">SALES</button>
+                    <div className="h-px bg-slate-50 w-full"></div>
+                  </>
+                )}
                 <button onClick={() => { setActiveTab('minvis'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-[#FFC000] hover:text-black transition-colors text-[#334155]">MINVIS (AI)</button>
               </div>
             )}
