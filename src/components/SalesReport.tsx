@@ -685,6 +685,16 @@ const SalesReport: React.FC<SalesReportProps> = ({ company, onClose }) => {
                             <Icons.Phone className="w-4 h-4" />
                           </a>
                         )}
+                        {record.photo_url && (
+                          <a 
+                            href={record.photo_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="w-9 h-9 flex items-center justify-center bg-indigo-50 rounded-xl text-indigo-500 border border-indigo-100 active:scale-90 transition-transform"
+                          >
+                            <Icons.Camera className="w-4 h-4" />
+                          </a>
+                        )}
                       </div>
                       <div className="flex gap-2">
                         <button 
