@@ -150,8 +150,7 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
         const workbook = XLSX.read(data, { type: 'array', cellDates: true });
         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         
-        const newAssignmentsRaw = jsonData.map((row: any) => {
-          // Normalize headers (case-insensitive)
+        const processedRows = jsonData.map((row: any) => {
           const keys = Object.keys(row);
           const idKey = keys.find(k => k.toUpperCase() === 'ID KARYAWAN');
           const shiftKey = keys.find(k => k.toUpperCase() === 'SHIFT');
@@ -164,47 +163,58 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
           const rawDate = row[dateKey];
 
           const emp = employees.find(e => String(e.idKaryawan).trim() === empIdKaryawan);
-          const shift = (globalShifts || DEFAULT_SHIFTS).find(s => s.name.toLowerCase().trim() === shiftNameInput.toLowerCase());
           const formattedDate = parseExcelDate(rawDate);
 
-          if (!emp || !shift || !formattedDate) return null;
+          if (!emp || !formattedDate) return null;
+
+          const isOff = ['off', 'libur', '', 'null'].includes(shiftNameInput.toLowerCase());
+          const shift = (globalShifts || DEFAULT_SHIFTS).find(s => s.name.toLowerCase().trim() === shiftNameInput.toLowerCase());
+
+          if (!shift && !isOff) return null;
           
           return { 
             employeeId: emp.id, 
             date: formattedDate, 
-            shiftId: shift.id, 
+            shiftId: shift ? shift.id : '', 
             company: company 
           };
-        }).filter((a): a is ShiftAssignment => a !== null);
+        }).filter((a): a is any => a !== null);
 
-        if (newAssignmentsRaw.length > 0) {
-          // Deduplicate by employeeId and date to prevent internal conflict in the batch
-          const dedupedMap = new Map<string, ShiftAssignment>();
-          newAssignmentsRaw.forEach(item => {
-            const key = `${item.employeeId}_${item.date}`;
-            dedupedMap.set(key, item);
-          });
-          const finalBatch = Array.from(dedupedMap.values());
+        if (processedRows.length > 0) {
+          const toUpsert = processedRows.filter(r => r.shiftId !== '');
+          const toDelete = processedRows.filter(r => r.shiftId === '');
 
-          const { data: upsertedData, error } = await supabase
-            .from('shift_assignments')
-            .upsert(finalBatch, { onConflict: 'employeeId,date' })
-            .select();
-
-          if (error) throw error;
-          
-          // Update local state without full reload
-          setAssignments(prev => {
-            const updated = [...prev];
-            upsertedData?.forEach(newItem => {
-              const idx = updated.findIndex(a => a.employeeId === newItem.employeeId && a.date === newItem.date);
-              if (idx !== -1) updated[idx] = newItem;
-              else updated.push(newItem);
+          if (toUpsert.length > 0) {
+            const { data: upsertedData, error } = await supabase
+              .from('shift_assignments')
+              .upsert(toUpsert, { onConflict: 'employeeId,date' })
+              .select();
+            if (error) throw error;
+            
+            setAssignments(prev => {
+              const updated = [...prev];
+              upsertedData?.forEach(newItem => {
+                const idx = updated.findIndex(a => a.employeeId === newItem.employeeId && a.date === newItem.date);
+                if (idx !== -1) updated[idx] = newItem;
+                else updated.push(newItem);
+              });
+              return updated;
             });
-            return updated;
-          });
+          }
 
-          alert(`Berhasil mengimpor ${finalBatch.length} jadwal shift!`);
+          if (toDelete.length > 0) {
+            for (const item of toDelete) {
+              const { error } = await supabase
+                .from('shift_assignments')
+                .delete()
+                .match({ employeeId: item.employeeId, date: item.date });
+              if (!error) {
+                setAssignments(prev => prev.filter(a => !(a.employeeId === item.employeeId && a.date === item.date)));
+              }
+            }
+          }
+
+          alert(`Berhasil memproses ${processedRows.length} data jadwal shift!`);
         } else {
           alert("Tidak ada data valid untuk diimpor. Pastikan header sesuai: TANGGAL, ID KARYAWAN, SHIFT");
         }

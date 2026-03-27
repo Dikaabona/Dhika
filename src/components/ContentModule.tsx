@@ -303,6 +303,18 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     };
   }, [plans, startDate, endDate, brands, employees]);
 
+  const duplicateLinks = useMemo(() => {
+    const counts = new Map<string, number>();
+    plans.forEach(p => {
+      if (p.linkPostingan) {
+        counts.set(p.linkPostingan, (counts.get(p.linkPostingan) || 0) + 1);
+      }
+    });
+    return Array.from(counts.entries())
+      .filter(([_, count]) => count > 1)
+      .map(([link]) => link);
+  }, [plans]);
+
   const filteredPlans = useMemo(() => {
     const finalSearch = (localSearch || globalSearch).toLowerCase();
     return plans.filter(p => {
@@ -409,7 +421,25 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       notes: `${cleanNotes}${jamUpload ? ` [Time: ${jamUpload}]` : ''}`.trim()
     };
 
-    if (editingPlan?.id) dataToSave.id = editingPlan.id;
+    if (editingPlan?.id) {
+      dataToSave.id = editingPlan.id;
+    } else if (formData.linkPostingan) {
+      // Check if link already exists to overwrite
+      try {
+        const { data: existing } = await supabase
+          .from('content_plans')
+          .select('id')
+          .eq('linkPostingan', formData.linkPostingan)
+          .eq('company', company)
+          .maybeSingle();
+        
+        if (existing) {
+          dataToSave.id = existing.id;
+        }
+      } catch (e) {
+        console.warn("Check duplicate link failed", e);
+      }
+    }
 
     try {
       const { data, error } = await supabase.from('content_plans').upsert(dataToSave).select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar');
@@ -606,7 +636,26 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         }
 
         if (rawPlans.length > 0) {
-          const { data: inserted, error } = await supabase.from('content_plans').upsert(rawPlans).select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar');
+          // Fetch existing links to handle overwrites
+          const { data: existingLinks } = await supabase
+            .from('content_plans')
+            .select('id, linkPostingan')
+            .eq('company', company)
+            .not('linkPostingan', 'is', null);
+
+          const linkMap = new Map();
+          existingLinks?.forEach(item => {
+            if (item.linkPostingan) linkMap.set(item.linkPostingan, item.id);
+          });
+
+          const finalPlans = rawPlans.map(p => {
+            if (p.linkPostingan && linkMap.has(p.linkPostingan)) {
+              return { ...p, id: linkMap.get(p.linkPostingan) };
+            }
+            return p;
+          });
+
+          const { data: inserted, error } = await supabase.from('content_plans').upsert(finalPlans).select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar');
           if (error) throw error;
           
           setPlans(prev => {
@@ -705,6 +754,29 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
 
   return (
     <div className="space-y-6 md:space-y-10 animate-in fade-in duration-500">
+      {duplicateLinks.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 p-6 rounded-[32px] flex items-center gap-6 animate-in slide-in-from-top-4 duration-500">
+          <div className="bg-amber-100 p-4 rounded-2xl text-amber-600">
+            <Icons.AlertTriangle className="w-6 h-6" />
+          </div>
+          <div className="flex-grow">
+            <p className="text-sm font-black text-amber-900 uppercase tracking-tight">Ditemukan {duplicateLinks.length} Link Video Duplikat!</p>
+            <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mt-1">Sistem akan menimpa data lama jika link yang sama diupload kembali.</p>
+          </div>
+          <button 
+            onClick={() => {
+              setLocalSearch(duplicateLinks[0]);
+              setSelectedBrandFilter('ALL');
+              setStartDate('');
+              setEndDate('');
+            }}
+            className="bg-amber-900 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-black transition-all"
+          >
+            LIHAT DUPLIKAT
+          </button>
+        </div>
+      )}
+
       {zoomedImage && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4 md:p-12 cursor-zoom-out" onClick={() => setZoomedImage(null)}>
           <img src={zoomedImage} alt="Zoomed" className="max-w-full max-h-full object-contain shadow-2xl rounded-lg animate-in zoom-in duration-200" />
