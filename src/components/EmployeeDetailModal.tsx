@@ -375,6 +375,58 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, use
                 <InfoRow label="Kode pos" value={editedEmployee.kodePos} field="kodePos" isEditing={isEditing} editedEmployee={editedEmployee} setEditedEmployee={setEditedEmployee} />
               </div>
             </div>
+
+            {/* Dokumen */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              <SectionHeader title="Dokumen" icon={Icons.FileText} />
+              <div className="p-5 space-y-4">
+                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
+                      <Icons.CreditCard className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-900 uppercase">Dokumen KTP</p>
+                      <p className="text-[9px] text-slate-400 font-medium">{editedEmployee.ktpDocBase64 ? 'Tersedia' : 'Tidak tersedia'}</p>
+                    </div>
+                  </div>
+                  {editedEmployee.ktpDocBase64 && (
+                    <button 
+                      onClick={() => {
+                        const win = window.open();
+                        win?.document.write(`<iframe src="${editedEmployee.ktpDocBase64}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                      }}
+                      className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                    >
+                      <Icons.Eye className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
+                      <Icons.FileText className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-900 uppercase">Dokumen Kontrak</p>
+                      <p className="text-[9px] text-slate-400 font-medium">{editedEmployee.contractDocBase64 ? 'Tersedia' : 'Tidak tersedia'}</p>
+                    </div>
+                  </div>
+                  {editedEmployee.contractDocBase64 && (
+                    <button 
+                      onClick={() => {
+                        const win = window.open();
+                        win?.document.write(`<iframe src="${editedEmployee.contractDocBase64}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                      }}
+                      className="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm"
+                    >
+                      <Icons.Eye className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

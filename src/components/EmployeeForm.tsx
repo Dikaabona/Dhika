@@ -50,9 +50,6 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     hutang: 0,
     isRemoteAllowed: false,
     lokasiKerja: '',
-    ktpDocBase64: '',
-    ktpDocType: 'image',
-    contractDocBase64: '',
     resigned_at: null,
     resign_reason: null
   });
@@ -445,40 +442,8 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
                 </select>
               </div>
 
-              {/* Informasi Rekening */}
-              <div className="pt-6 border-t border-slate-100 md:col-span-2">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                  <Icons.CreditCard className="w-3 h-3 text-amber-500" />
-                  Informasi Rekening Bank
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Nama Bank</label>
-                    <select name="bank" value={formData.bank} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all">
-                      {BANK_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Nomor Rekening</label>
-                    <input name="noRekening" value={formData.noRekening} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Nama di Rekening</label>
-                    <input name="namaDiRekening" value={formData.namaDiRekening} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" />
-                  </div>
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Sisa Cuti (Hari)</label>
-                <input 
-                  type="number" 
-                  name="sisaCuti" 
-                  value={formData.sisaCuti || 0} 
-                  onChange={handleChange} 
-                  className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all" 
-                />
-              </div>
+
             </div>
             
             <div className="space-y-2">
