@@ -45,6 +45,35 @@ interface KPISystemData {
   scores: Record<string, Record<string, Record<string, number>>>;
 }
 
+const getReliableDriveUrl = (url: string) => {
+  if (!url) return url;
+  
+  // Handle direct download links
+  if (url.includes('drive.google.com/uc?id=')) {
+    return url.replace('drive.google.com/uc?id=', 'lh3.googleusercontent.com/d/');
+  }
+  
+  // Handle view links: https://drive.google.com/file/d/FILE_ID/view...
+  if (url.includes('drive.google.com/file/d/')) {
+    const parts = url.split('/file/d/');
+    if (parts.length > 1) {
+      const id = parts[1].split('/')[0];
+      return `https://lh3.googleusercontent.com/d/${id}`;
+    }
+  }
+  
+  // Handle open links: https://drive.google.com/open?id=FILE_ID
+  if (url.includes('drive.google.com/open?id=')) {
+    const parts = url.split('id=');
+    if (parts.length > 1) {
+      const id = parts[1].split('&')[0];
+      return `https://lh3.googleusercontent.com/d/${id}`;
+    }
+  }
+
+  return url;
+};
+
 const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, userEmail, onRefresh }) => {
   const { confirm } = useConfirmation();
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('ROLE');
@@ -1263,6 +1292,25 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                       className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl text-sm font-bold text-black outline-none focus:border-[#FFC000] transition-all disabled:opacity-50 disabled:bg-slate-50/50"
                       placeholder="https://..."
                     />
+                    {companyData.logo && (
+                      <div className="mt-4 p-6 bg-white border-2 border-slate-100 rounded-[32px] flex flex-col items-center">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Logo Preview</p>
+                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 w-full flex justify-center">
+                          <img 
+                            src={getReliableDriveUrl(companyData.logo)} 
+                            alt="Logo Preview" 
+                            className="max-h-24 object-contain"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=Invalid+Logo+URL';
+                            }}
+                          />
+                        </div>
+                        <p className="text-[9px] font-bold text-slate-400 mt-4 break-all text-center px-4">
+                          Resolved URL: {getReliableDriveUrl(companyData.logo)}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

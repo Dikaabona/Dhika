@@ -120,10 +120,10 @@ const CalendarModule: React.FC<CalendarModuleProps> = ({ employees, userRole, co
           if (sendWhatsApp) {
             const selectedEmployees = employees.filter(emp => formData.employeeIds?.includes(emp.id));
             selectedEmployees.forEach(emp => {
-              if (emp.noTelp) {
+              if (emp.noHandphone) {
                 const message = `Halo ${emp.nama}, ada agenda baru untuk Anda:\n\n*${formData.title}*\nTanggal: ${new Date(formData.date).toLocaleDateString('id-ID', { dateStyle: 'full' })}\nWaktu: ${formData.start}\nJenis: ${formData.type}\n\nSilakan cek aplikasi HR Visibel untuk detail selengkapnya.`;
                 const encodedMsg = encodeURIComponent(message);
-                const phone = emp.noTelp.startsWith('0') ? '62' + emp.noTelp.slice(1) : emp.noTelp;
+                const phone = emp.noHandphone.startsWith('0') ? '62' + emp.noHandphone.slice(1) : emp.noHandphone;
                 window.open(`https://wa.me/${phone}?text=${encodedMsg}`, '_blank');
               }
             });

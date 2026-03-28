@@ -23,6 +23,35 @@ interface SalarySlipModalProps {
   initialYear?: string;
 }
 
+const getReliableDriveUrl = (url: string) => {
+  if (!url) return url;
+  
+  // Handle direct download links
+  if (url.includes('drive.google.com/uc?id=')) {
+    return url.replace('drive.google.com/uc?id=', 'lh3.googleusercontent.com/d/');
+  }
+  
+  // Handle view links: https://drive.google.com/file/d/FILE_ID/view...
+  if (url.includes('drive.google.com/file/d/')) {
+    const parts = url.split('/file/d/');
+    if (parts.length > 1) {
+      const id = parts[1].split('/')[0];
+      return `https://lh3.googleusercontent.com/d/${id}`;
+    }
+  }
+  
+  // Handle open links: https://drive.google.com/open?id=FILE_ID
+  if (url.includes('drive.google.com/open?id=')) {
+    const parts = url.split('id=');
+    if (parts.length > 1) {
+      const id = parts[1].split('&')[0];
+      return `https://lh3.googleusercontent.com/d/${id}`;
+    }
+  }
+
+  return url;
+};
+
 const MAJOVA_LOGO = "https://lh3.googleusercontent.com/d/1pjtSR-r2YJMexgm3hl6jtANdjbVn2FZD";
 const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
 const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
@@ -525,7 +554,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
   const SalarySlipContentWrapper = () => {
     const comp = (employee.company || '').toLowerCase();
     const defaultLogo = comp === 'seller space' ? SELLER_SPACE_LOGO : comp === 'visibel' ? VISIBEL_LOGO : MAJOVA_LOGO;
-    const slipLogo = companyDetails?.logo || defaultLogo;
+    const slipLogo = getReliableDriveUrl(companyDetails?.logo || defaultLogo);
     return (
       <SalarySlipContent 
         employee={employee}

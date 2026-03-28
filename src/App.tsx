@@ -36,6 +36,8 @@ import SalesReport from './components/SalesReport';
 import { getTenureYears, calculateTenure, formatDateToYYYYMMDD, getMondayISO } from './utils/dateUtils';
 import { useConfirmation } from './contexts/ConfirmationContext';
 
+import { transformGoogleDriveUrl } from './utils/imageUtils';
+
 const OWNER_EMAIL = 'muhammadmahardhikadib@gmail.com';
 
 const MAJOVA_LOGO = "https://lh3.googleusercontent.com/d/1pjtSR-r2YJMexgm3hl6jtANdjbVn2FZD";
@@ -1077,7 +1079,12 @@ export const App: React.FC = () => {
                 <div className="max-w-7xl mx-auto px-4">
                   <div className="flex items-center justify-between h-16 sm:h-24 gap-3">
                     <div className="flex items-center cursor-pointer shrink-0 sm:w-auto" onClick={() => setActiveTab('home')}>
-                      <img src={currentLogo} alt="Logo" className={`${ (userCompany || '').trim().toLowerCase() === 'seller space' ? 'h-[80px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} />
+                      <img 
+                        src={transformGoogleDriveUrl(currentLogo)} 
+                        alt="Logo" 
+                        className={`${ (userCompany || '').trim().toLowerCase() === 'seller space' ? 'h-[80px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} 
+                        crossOrigin="anonymous"
+                      />
                     </div>
                     <div className="flex-1 min-w-0 flex justify-center">
                       <div className="hidden md:flex flex-col items-center gap-1">
@@ -1509,7 +1516,15 @@ export const App: React.FC = () => {
 
       <footer className={`pt-4 pb-12 sm:py-16 shrink-0 border-none transition-colors duration-700 ${session ? 'bg-[#f8fafc]' : 'bg-white'}`}>
         <div className="max-w-7xl mx-auto px-6 flex flex-col items-center gap-8">
-          <img src={VISIBEL_LOGO} alt="Logo" className={`h-10 sm:h-12 transition-all duration-700 ${session ? 'opacity-20 grayscale brightness-0' : 'opacity-80'}`} />
+          <img 
+            src={transformGoogleDriveUrl(VISIBEL_LOGO)} 
+            alt="Logo" 
+            className={`h-10 sm:h-12 transition-all duration-700 ${session ? 'opacity-20 grayscale brightness-0' : 'opacity-80'}`} 
+            crossOrigin="anonymous"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/200x80?text=LOGO';
+            }}
+          />
           <div className="flex flex-wrap justify-center gap-x-10 gap-y-4">
              <button onClick={() => setLegalType('contact')} className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-900">Hubungi Kami</button>
              <button onClick={() => setLegalType('privacy')} className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-900">Kebijakan Privasi</button>

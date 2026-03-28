@@ -2,6 +2,8 @@
 import React from 'react';
 import { Employee, SalaryData } from '../types';
 
+import { transformGoogleDriveUrl } from '../utils/imageUtils';
+
 interface SalarySlipContentProps {
   employee: Employee;
   data: SalaryData;
@@ -47,10 +49,10 @@ const SalarySlipContent: React.FC<SalarySlipContentProps> = ({
       <div className="flex justify-between items-start mb-10">
         <div className="w-48">
           <img 
-            src={slipLogo} 
-            alt="Visibel Logo" 
+            src={transformGoogleDriveUrl(slipLogo)} 
+            alt="Company Logo" 
             className="w-full object-contain" 
-            referrerPolicy="no-referrer" 
+            crossOrigin="anonymous" 
             onError={(e) => {
               (e.target as HTMLImageElement).src = 'https://via.placeholder.com/200x80?text=LOGO';
             }}

@@ -20,6 +20,35 @@ interface FinancialModuleProps {
   positionRates?: any[];
 }
 
+const getReliableDriveUrl = (url: string) => {
+  if (!url) return url;
+  
+  // Handle direct download links
+  if (url.includes('drive.google.com/uc?id=')) {
+    return url.replace('drive.google.com/uc?id=', 'lh3.googleusercontent.com/d/');
+  }
+  
+  // Handle view links: https://drive.google.com/file/d/FILE_ID/view...
+  if (url.includes('drive.google.com/file/d/')) {
+    const parts = url.split('/file/d/');
+    if (parts.length > 1) {
+      const id = parts[1].split('/')[0];
+      return `https://lh3.googleusercontent.com/d/${id}`;
+    }
+  }
+  
+  // Handle open links: https://drive.google.com/open?id=FILE_ID
+  if (url.includes('drive.google.com/open?id=')) {
+    const parts = url.split('id=');
+    if (parts.length > 1) {
+      const id = parts[1].split('&')[0];
+      return `https://lh3.googleusercontent.com/d/${id}`;
+    }
+  }
+
+  return url;
+};
+
 const FinancialModule: React.FC<FinancialModuleProps> = ({ 
   company, 
   employees, 
@@ -375,7 +404,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
     const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
     const comp = (company || '').toLowerCase();
     const defaultLogo = comp === 'seller space' ? SELLER_SPACE_LOGO : comp === 'visibel' ? VISIBEL_LOGO : MAJOVA_LOGO;
-    const slipLogo = companyDetails?.logo || defaultLogo;
+    const slipLogo = getReliableDriveUrl(companyDetails?.logo || defaultLogo);
 
     try {
       for (const emp of targetEmployees) {

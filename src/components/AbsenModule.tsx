@@ -4,6 +4,7 @@ import { Employee, AttendanceRecord, AttendanceSettings } from '../types';
 import { Icons } from '../constants';
 import { supabase } from '../services/supabaseClient';
 import { useConfirmation } from '../contexts/ConfirmationContext';
+import { transformGoogleDriveUrl } from '../utils/imageUtils';
 
 interface AbsenModuleProps {
   employee: Employee | null;
@@ -346,7 +347,12 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
           <span className="text-[10px] font-black uppercase tracking-widest">Tutup</span>
         </button>
         <div className="flex flex-col items-center">
-           <img src={currentLogo} alt="Logo" className={`${ comp === 'seller space' ? 'h-[80px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} />
+           <img 
+             src={transformGoogleDriveUrl(currentLogo)} 
+             alt="Logo" 
+             className={`${ comp === 'seller space' ? 'h-[80px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} 
+             crossOrigin="anonymous"
+           />
         </div>
         <div className="w-10"></div>
       </div>
