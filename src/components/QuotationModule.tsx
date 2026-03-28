@@ -13,23 +13,23 @@ interface QuotationModuleProps {
 
 const COMPANY_DATA: Record<string, any> = {
   'Majova': {
-    logo: "https://lh3.googleusercontent.com/d/1pjtSR-r2YJMexgm3hl6jtANdjbVn2FZD",
-    logoYellow: "https://lh3.googleusercontent.com/d/1pjtSR-r2YJMexgm3hl6jtANdjbVn2FZD",
+    logo: "https://drive.google.com/uc?id=1pjtSR-r2YJMexgm3hl6jtANdjbVn2FZD",
+    logoYellow: "https://drive.google.com/uc?id=1pjtSR-r2YJMexgm3hl6jtANdjbVn2FZD",
     name: "MAJOVA ID",
     address: "Jln Ciomas harapan Kp Neglasari RT 01/12 No 4, Ciomas, Kab Bogor, Jawa Barat 16610",
     phone: "+62 811-1743-005",
     email: "kontakmajova@gmail.com",
   },
   'Visibel': {
-    logo: "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA",
-    logoYellow: "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA",
+    logo: "https://drive.google.com/uc?id=1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA",
+    logoYellow: "https://drive.google.com/uc?id=1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA",
     name: "VISIBEL ID",
     address: "Jln Ciomas harapan Kp Neglasari RT 01/12 No 4, Ciomas, Kab Bogor, Jawa Barat 16610",
     phone: "+62 811-1743-005",
     email: "kontakvisibel@gmail.com",
   },
   'Seller Space': {
-    logo: "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w",
+    logo: "https://drive.google.com/uc?id=1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w",
     name: "SELLER SPACE",
     address: "Jl. Terusan Soreang - Cipatik No.21, Pamekaran, Kec. Soreang, Kabupaten Bandung, Jawa Barat 40912",
     phone: "+62 811-1743-005",
@@ -38,7 +38,7 @@ const COMPANY_DATA: Record<string, any> = {
 };
 
 // Yellow Visibel Logo from screenshot
-const VISIBEL_YELLOW_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA"; // Using same for now, but I'll try to find a yellow one or use a filter
+const VISIBEL_YELLOW_LOGO = "https://drive.google.com/uc?id=1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA"; // Using same for now, but I'll try to find a yellow one or use a filter
 
 export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClose }) => {
   const { confirm } = useConfirmation();
@@ -392,7 +392,7 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
                      src={currentCompanyData.logo} 
                      alt="Logo" 
                      className="h-10 w-auto" 
-                     crossOrigin="anonymous"
+                     referrerPolicy="no-referrer"
                    />
                 </div>
                 <div className="text-[rgba(255,255,255,0.8)] text-[11px] font-medium leading-relaxed max-w-[400px]">
@@ -483,11 +483,10 @@ export const QuotationModule: React.FC<QuotationModuleProps> = ({ company, onClo
                 <p className="text-xs font-black uppercase tracking-widest mb-4">Hormat Kami,</p>
                 <div className="relative flex flex-col items-center">
                   <img 
-                    src="https://lh3.googleusercontent.com/d/1jWL_jFNgYzihLR4esxMXmi99gJyTb9J5" 
+                    src="https://drive.google.com/uc?id=1jWL_jFNgYzihLR4esxMXmi99gJyTb9J5" 
                     alt="Signature" 
                     className="h-24 w-auto mb-[-20px] relative z-10"
                     referrerPolicy="no-referrer"
-                    crossOrigin="anonymous"
                   />
                   <div className="w-48 h-[2px] bg-[#000000] mx-auto"></div>
                   <p className="text-xs font-black uppercase mt-4 tracking-tight">{quotation.signatureName}</p>

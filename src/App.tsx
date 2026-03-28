@@ -64,6 +64,8 @@ export const App: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState('');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
 
   const [legalType, setLegalType] = useState<'privacy' | 'tos' | 'contact' | null>(null);
 
@@ -91,6 +93,7 @@ export const App: React.FC = () => {
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [todayAttendanceRecords, setTodayAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [liveSchedules, setLiveSchedules] = useState<LiveSchedule[]>([]);
   const [contentPlans, setContentPlans] = useState<ContentPlan[]>([]);
   const [liveReports, setLiveReports] = useState<LiveReport[]>([]);
@@ -223,6 +226,28 @@ export const App: React.FC = () => {
       setAttendanceRecords(data || []);
     } catch (e) {
       console.error("Error fetching attendance:", e);
+    }
+  }, []);
+
+  const fetchTodayAttendance = useCallback(async (role: string, company: string, filter: string) => {
+    try {
+      const today = getTodayStr();
+      let q = supabase
+        .from('attendance')
+        .select('id, employeeId, company, date, status, clockIn, clockOut, photoIn, photoOut, notes, submittedAt')
+        .eq('date', today);
+      
+      if (role !== 'owner' && role !== 'super') {
+        q = q.eq('company', company.toUpperCase().trim());
+      } else if (role === 'owner' && filter !== 'ALL') {
+        q = q.eq('company', filter.toUpperCase().trim());
+      }
+      
+      const { data, error } = await q;
+      if (error) throw error;
+      setTodayAttendanceRecords(data || []);
+    } catch (e) {
+      console.error("Error fetching today attendance:", e);
     }
   }, []);
 
@@ -439,6 +464,7 @@ export const App: React.FC = () => {
 
       const fetchPromises = [
         fetchAttendance(attendanceStartDate, attendanceEndDate, activeUserRole, detectedCompany, companyFilter),
+        fetchTodayAttendance(activeUserRole, detectedCompany, companyFilter),
         buildQuery('live_reports').order('tanggal', { ascending: false }).limit(5000).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(50).then(({data, error}: any) => { if(error) throw error; setSubmissions(data || []); }),
         buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(30).then(({data, error}: any) => { if(error) throw error; setBroadcasts(data || []); }),
@@ -497,15 +523,19 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (session && (activeTab === 'attendance' || activeTab === 'dashboard' || activeTab === 'home')) {
       fetchAttendance(attendanceStartDate, attendanceEndDate, userRole, userCompany, companyFilter);
+      fetchTodayAttendance(userRole, userCompany, companyFilter);
     }
-  }, [attendanceStartDate, attendanceEndDate, session, userRole, userCompany, activeTab, fetchAttendance, companyFilter]);
+  }, [attendanceStartDate, attendanceEndDate, session, userRole, userCompany, activeTab, fetchAttendance, fetchTodayAttendance, companyFilter]);
 
   const handleAuth = async (email: string, password?: string, isRegister = false, isReset = false) => {
     setIsAuthLoading(true);
     setAuthError('');
+    const cleanEmail = email.trim().toLowerCase();
     try {
       if (isReset) {
-        const { error } = await supabase.auth.resetPasswordForEmail(email);
+        const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+          redirectTo: `${window.location.origin}`,
+        });
         if (error) throw error;
         alert('Cek email untuk reset password.');
         setIsForgotPasswordMode(false);
@@ -555,7 +585,30 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsAuthLoading(true);
+    setAuthError('');
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      alert('Password berhasil diperbarui! Silakan login kembali.');
+      setIsChangingPassword(false);
+      setNewPassword('');
+      await supabase.auth.signOut();
+    } catch (err: any) {
+      setAuthError(err.message);
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('type') === 'recovery') {
+      setIsChangingPassword(true);
+    }
+
     const initSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -577,6 +630,9 @@ export const App: React.FC = () => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsChangingPassword(true);
+      }
       if (session?.user?.email) {
         fetchData(session.user.email);
       } else if (event === 'SIGNED_OUT') {
@@ -639,6 +695,12 @@ export const App: React.FC = () => {
     if (userRole === 'admin') return pending.filter(s => s.type === 'Lembur').length;
     return 0;
   }, [submissions, userRole]);
+
+  const combinedAttendanceRecords = useMemo(() => {
+    const combined = [...attendanceRecords, ...todayAttendanceRecords];
+    const unique = Array.from(new Map(combined.map(r => [`${r.employeeId}-${r.date}`, r])).values());
+    return unique;
+  }, [attendanceRecords, todayAttendanceRecords]);
 
   const handleEditEmployee = async (emp: Employee) => {
     setIsLoadingData(true);
@@ -1061,7 +1123,13 @@ export const App: React.FC = () => {
                    </div>
                 </div>
               ) : activeTab === 'absen' ? (
-                <AbsenModule employee={currentUserEmployee} attendanceRecords={attendanceRecords} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} onClose={() => setActiveTab('home')} />
+                <AbsenModule 
+                  employee={currentUserEmployee} 
+                  attendanceRecords={todayAttendanceRecords} 
+                  company={userCompany} 
+                  onSuccess={() => fetchData(session?.user?.email, true)} 
+                  onClose={() => setActiveTab('home')} 
+                />
               ) : activeTab === 'minvis' ? (
                 <MinVisModule company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'live_map' ? (
@@ -1089,7 +1157,7 @@ export const App: React.FC = () => {
               ) : activeTab === 'attendance' ? (
                 <AttendanceModule 
                   employees={employees} 
-                  records={attendanceRecords} 
+                  records={combinedAttendanceRecords}
                   setRecords={setAttendanceRecords} 
                   searchQuery={searchQuery} 
                   setSearchQuery={setSearchQuery} 
@@ -1148,7 +1216,7 @@ export const App: React.FC = () => {
                 currentUserEmployee && (
                   <MobileAttendanceHistory 
                     employee={currentUserEmployee} 
-                    records={attendanceRecords} 
+                    records={combinedAttendanceRecords}
                     shiftAssignments={shiftAssignments}
                     shifts={shifts}
                     onClose={() => setActiveTab('home')} 
@@ -1382,7 +1450,7 @@ export const App: React.FC = () => {
                   userRole={userRole} 
                   currentUserEmployee={currentUserEmployee} 
                   contentPlans={contentPlans} 
-                  attendanceRecords={attendanceRecords} 
+                  attendanceRecords={todayAttendanceRecords} 
                   shiftAssignments={shiftAssignments} 
                   onNavigate={setActiveTab} 
                   userCompany={userCompany} 
@@ -1428,7 +1496,7 @@ export const App: React.FC = () => {
               </div>
               {authError && <p className="text-xs text-red-600 text-center font-bold">{authError}</p>}
               <button disabled={isAuthLoading} type="submit" className="w-full bg-[#0f172a] text-white py-5 rounded-3xl font-bold text-xs uppercase tracking-[0.4em] shadow-xl hover:bg-black transition-all">
-                {isAuthLoading ? 'MENGHUBUNGKAN...' : isRegisterMode ? 'DAFTAR TRIAL' : 'MASUK'}
+                {isAuthLoading ? 'MENGHUBUNGKAN...' : isForgotPasswordMode ? 'KIRIM EMAIL RESET' : isRegisterMode ? 'DAFTAR TRIAL' : 'MASUK'}
               </button>
               <div className="text-center flex flex-col gap-4 pt-2">
                 <button type="button" onClick={() => { setIsRegisterMode(!isRegisterMode); setIsForgotPasswordMode(false); setRegisterCompanyName(''); }} className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hover:text-slate-900 transition-colors">{isRegisterMode ? 'KEMBALI KE LOGIN' : 'DAFTAR TRIAL 7 HARI'}</button>
@@ -1451,6 +1519,39 @@ export const App: React.FC = () => {
         </div>
       </footer>
 
+      {isChangingPassword && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 z-[1000] animate-in fade-in duration-300">
+          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 p-10 space-y-8">
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl font-bold text-[#0f172a] uppercase tracking-[0.3em]">PASSWORD BARU</h2>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Masukkan kata sandi baru Anda</p>
+            </div>
+            <form onSubmit={handleUpdatePassword} className="space-y-8">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">KATA SANDI BARU</label>
+                <div className="relative">
+                  <input 
+                    required 
+                    type={showPassword ? 'text' : 'password'} 
+                    value={newPassword} 
+                    onChange={(e) => setNewPassword(e.target.value)} 
+                    placeholder="••••••••" 
+                    className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#FFC000] text-sm font-medium text-black transition-all" 
+                  />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400">
+                    <Icons.Search className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              {authError && <p className="text-xs text-red-600 text-center font-bold">{authError}</p>}
+              <button disabled={isAuthLoading} type="submit" className="w-full bg-[#0f172a] text-white py-5 rounded-3xl font-bold text-xs uppercase tracking-[0.4em] shadow-xl hover:bg-black transition-all">
+                {isAuthLoading ? 'MEMPERBARUI...' : 'SIMPAN PASSWORD'}
+              </button>
+              <button type="button" onClick={() => { setIsChangingPassword(false); supabase.auth.signOut(); }} className="w-full text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-slate-900 transition-colors">BATAL</button>
+            </form>
+          </div>
+        </div>
+      )}
       {isFormOpen && <EmployeeForm employees={employees} initialData={editingEmployee} userRole={userRole} userCompany={userCompany} currentUserEmployee={currentUserEmployee} onSave={async (emp) => { 
         const { error } = await supabase.from('employees').upsert(emp, { onConflict: 'id' }); 
         if (error) {

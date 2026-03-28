@@ -697,6 +697,9 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                           }`}>
                             {record.status}
                           </span>
+                          {record.clockIn && shift?.startTime && record.clockIn > shift.startTime && record.status === 'Hadir' && (
+                            <span className="text-[7px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase tracking-widest">TERLAMBAT</span>
+                          )}
                           {isAdmin && (
                             <button 
                               onClick={() => setEditingStatus({ id: record.id!, status: record.status })}
