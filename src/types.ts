@@ -434,8 +434,9 @@ export interface CalendarEvent {
   start?: string;
   date?: string; // Alias for start
   end?: string;
-  type?: 'Holiday' | 'Shift' | 'Live' | 'Birthday' | 'Meeting' | 'Event';
+  type?: 'Holiday' | 'Shift' | 'Live' | 'Birthday' | 'Meeting' | 'Event' | 'Reminder' | 'Appointment';
   color?: string;
   company: string;
   description?: string;
+  employeeIds?: string[];
 }

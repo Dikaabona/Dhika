@@ -52,6 +52,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     hutang: 0,
     isRemoteAllowed: false,
     lokasiKerja: '',
+    status: 'Tetap',
     resigned_at: null,
     resign_reason: null
   });
@@ -117,6 +118,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
         hutang: rest.hutang || 0,
         sisaCuti: rest.sisaCuti || 12,
         isRemoteAllowed: rest.isRemoteAllowed || false,
+        statusKaryawan: rest.statusKaryawan || 'Tetap',
         resigned_at: rest.resigned_at || null,
         resign_reason: rest.resign_reason || null
       });
@@ -156,6 +158,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
         company: formData.company || userCompany,
         hutang: 0,
         sisaCuti: 12,
+        statusKaryawan: 'Tetap',
         isRemoteAllowed: false
       }));
     }
@@ -170,7 +173,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target as HTMLInputElement;
     
-    const restrictedFields = ['idKaryawan', 'jabatan', 'tanggalMasuk', 'hutang', 'isRemoteAllowed'];
+    const restrictedFields = ['idKaryawan', 'jabatan', 'tanggalMasuk', 'hutang', 'isRemoteAllowed', 'statusKaryawan'];
     if (!isSystemAdmin && restrictedFields.includes(name)) return;
 
     if (name === 'company' && !isOwner) return;
@@ -469,6 +472,15 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
                   className="w-5 h-5 rounded border-emerald-200 text-emerald-600 focus:ring-emerald-500" 
                 />
                 <label className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Izinkan Absen Remote (Individu)</label>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Status Karyawan</label>
+                <select name="statusKaryawan" value={formData.statusKaryawan} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-semibold text-black outline-none focus:bg-white transition-all">
+                  <option value="Tetap">Tetap</option>
+                  <option value="Kontrak">Kontrak</option>
+                  <option value="Probation">Probation</option>
+                  <option value="Freelance">Freelance</option>
+                </select>
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Lokasi Kerja (Cabang)</label>

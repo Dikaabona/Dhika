@@ -4,6 +4,7 @@ import { Employee, Shift, ShiftAssignment } from '../types';
 import { Icons, DEFAULT_SHIFTS } from '../constants';
 import { supabase } from '../services/supabaseClient';
 import { formatDateToYYYYMMDD } from '../utils/dateUtils';
+import { useConfirmation } from '../contexts/ConfirmationContext';
 
 interface ShiftModuleProps {
   employees: Employee[];
@@ -17,6 +18,7 @@ interface ShiftModuleProps {
 }
 
 const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAssignments, userRole, company, onClose, globalShifts, onRefreshShifts }) => {
+  const { confirm } = useConfirmation();
   const isAdmin = userRole === 'owner' || userRole === 'super' || userRole === 'admin';
   const [activeTab, setActiveTab] = useState<'VIEW' | 'MANAGE'>('VIEW');
   
@@ -274,24 +276,39 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
 
   const handleAddShift = () => {
     const colors = ['bg-emerald-500', 'bg-amber-500', 'bg-indigo-500', 'bg-rose-500', 'bg-sky-500', 'bg-violet-500', 'bg-orange-500', 'bg-teal-500'];
-    const newId = (localShifts.length > 0 ? (Math.max(...localShifts.map(s => parseInt(s.id))) + 1).toString() : "1");
+    
+    // More robust ID generation
+    const numericIds = localShifts
+      .map(s => parseInt(s.id))
+      .filter(id => !isNaN(id));
+    
+    const nextId = numericIds.length > 0 ? Math.max(...numericIds) + 1 : localShifts.length + 1;
+    const newId = nextId.toString();
+
     const newShift: Shift = {
       id: newId,
       name: 'Shift Baru',
       startTime: '09:00',
       endTime: '17:00',
-      color: colors[localShifts.length % colors.length]
+      color: colors[localShifts.length % colors.length],
+      company: company
     };
-    setLocalShifts([...localShifts, newShift]);
+    
+    setLocalShifts(prev => [...prev, newShift]);
   };
 
-  const handleDeleteShift = (id: string) => {
+  const handleDeleteShift = async (id: string) => {
     if (localShifts.length <= 1) {
       alert("Minimal harus ada satu tipe shift.");
       return;
     }
-    if (!confirm("Hapus tipe shift ini?")) return;
-    setLocalShifts(localShifts.filter(s => s.id !== id));
+    const confirmed = await confirm({
+      title: 'Hapus Tipe Shift',
+      message: 'Apakah Anda yakin ingin menghapus tipe shift ini?',
+      type: 'danger'
+    });
+    if (!confirmed) return;
+    setLocalShifts(prev => prev.filter(s => s.id !== id));
   };
 
   return (
@@ -466,7 +483,13 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
           <div className="space-y-10 animate-in fade-in duration-300">
              <div className="flex justify-between items-center px-2">
                 <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Daftar Tipe Shift</h3>
-                <button onClick={handleAddShift} className="bg-slate-900 text-[#FFC000] px-8 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all">TAMBAH TIPE</button>
+                <button 
+                  onClick={handleAddShift} 
+                  disabled={!isAdmin}
+                  className="bg-slate-900 text-[#FFC000] px-8 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all disabled:opacity-50"
+                >
+                  TAMBAH TIPE
+                </button>
              </div>
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {localShifts.map((s, idx) => (
@@ -476,7 +499,9 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
                          <input 
                             type="text" 
                             value={s.name} 
-                            onChange={e => { const up = [...localShifts]; up[idx].name = e.target.value; setLocalShifts(up); }}
+                            onChange={e => { 
+                               setLocalShifts(prev => prev.map((shift, i) => i === idx ? { ...shift, name: e.target.value } : shift));
+                             }}
                             className="w-full bg-white border border-slate-200 p-4 rounded-2xl text-xs font-black uppercase outline-none focus:border-indigo-400 shadow-sm text-black"
                          />
                       </div>
@@ -486,7 +511,9 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
                             <input 
                                type="time" 
                                value={s.startTime} 
-                               onChange={e => { const up = [...localShifts]; up[idx].startTime = e.target.value; setLocalShifts(up); }}
+                               onChange={e => { 
+                                 setLocalShifts(prev => prev.map((shift, i) => i === idx ? { ...shift, startTime: e.target.value } : shift));
+                               }}
                                className="w-full bg-white border border-slate-200 p-4 rounded-2xl text-xs font-black outline-none focus:border-indigo-400 shadow-sm text-black"
                             />
                          </div>
@@ -495,7 +522,9 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
                             <input 
                                type="time" 
                                value={s.endTime} 
-                               onChange={e => { const up = [...localShifts]; up[idx].endTime = e.target.value; setLocalShifts(up); }}
+                               onChange={e => { 
+                                 setLocalShifts(prev => prev.map((shift, i) => i === idx ? { ...shift, endTime: e.target.value } : shift));
+                               }}
                                className="w-full bg-white border border-slate-200 p-4 rounded-2xl text-xs font-black outline-none focus:border-indigo-400 shadow-sm text-black"
                             />
                          </div>
