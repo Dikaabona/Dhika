@@ -1560,6 +1560,32 @@ export const App: React.FC = () => {
         }
         fetchData(session?.user?.email, true); 
         setIsFormOpen(false); 
+      }} onSaveAndOnboard={async (emp) => {
+        // 1. Save Employee
+        const { error: saveError } = await supabase.from('employees').upsert(emp, { onConflict: 'id' });
+        if (saveError) {
+          alert("Gagal menyimpan data: " + saveError.message);
+          return;
+        }
+
+        // 2. Send Onboarding Email (Magic Link)
+        if (emp.email) {
+          const { error: authError } = await supabase.auth.signInWithOtp({
+            email: emp.email,
+            options: {
+              emailRedirectTo: window.location.origin,
+            }
+          });
+          
+          if (authError) {
+            alert("Karyawan berhasil disimpan, tetapi gagal mengirim email onboarding: " + authError.message);
+          } else {
+            alert(`Karyawan ${emp.nama} berhasil disimpan dan email onboarding telah dikirim ke ${emp.email}`);
+          }
+        }
+
+        fetchData(session?.user?.email, true);
+        setIsFormOpen(false);
       }} onCancel={() => setIsFormOpen(false)} />}
       {viewingEmployee && <EmployeeDetailModal employee={viewingEmployee} userRole={userRole} onClose={() => setViewingEmployee(null)} onUpdate={() => fetchData(session?.user?.email, true)} />}
       {slipEmployee && <SalarySlipModal employee={slipEmployee} attendanceRecords={attendanceRecords} userRole={userRole} onClose={() => setSlipEmployee(null)} onUpdate={() => fetchData(session?.user?.email, true)} weeklyHolidays={weeklyHolidays} positionRates={positionRates} />}

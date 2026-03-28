@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { Employee } from '../types';
 import { BANK_OPTIONS, Icons } from '../constants';
 import { supabase } from '../services/supabaseClient';
@@ -10,6 +11,7 @@ interface EmployeeFormProps {
   userCompany: string;
   currentUserEmployee: Employee | null; 
   onSave: (employee: Employee) => void;
+  onSaveAndOnboard?: (employee: Employee) => void;
   onCancel: () => void;
 }
 
@@ -23,7 +25,7 @@ const RESIGN_REASONS = [
   'Ingin fokus mengembangkan usaha pribadi.'
 ];
 
-const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, userRole, userCompany, currentUserEmployee, onSave, onCancel }) => {
+const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, userRole, userCompany, currentUserEmployee, onSave, onSaveAndOnboard, onCancel }) => {
   const isOwner = userRole === 'owner';
   const isSuper = userRole === 'super';
   const isSystemAdmin = isOwner || isSuper;
@@ -286,8 +288,45 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
       ...formData,
       resigned_at: formData.resigned_at?.trim() || null,
       resign_reason: formData.resign_reason || null,
-      id: initialData?.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      id: initialData?.id || uuidv4()
     });
+  };
+
+  const handleOnboarding = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    if (!formData.email || !formData.email.includes('@')) {
+      alert("Email wajib diisi dengan benar untuk onboarding.");
+      return;
+    }
+
+    const isDuplicateId = employees.some(emp => 
+      emp.idKaryawan.trim().toUpperCase() === formData.idKaryawan.trim().toUpperCase() && 
+      emp.id !== initialData?.id
+    );
+    const isDuplicateEmail = employees.some(emp => 
+      emp.email.trim().toLowerCase() === formData.email.trim().toLowerCase() && 
+      emp.id !== initialData?.id
+    );
+
+    if (isDuplicateId || isDuplicateEmail) {
+      alert("DATA BENTROK! ID Karyawan atau Email ini sudah terdaftar dalam sistem.");
+      return;
+    }
+
+    const employeeData: Employee = {
+      ...formData,
+      resigned_at: formData.resigned_at?.trim() || null,
+      resign_reason: formData.resign_reason || null,
+      id: initialData?.id || uuidv4()
+    };
+
+    if (onSaveAndOnboard) {
+      onSaveAndOnboard(employeeData);
+    } else {
+      onSave(employeeData);
+    }
   };
 
   const getSystemRoleDisplay = (email: string) => {
@@ -492,9 +531,17 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
             </div>
           </div>
         </form>
-        <div className="px-10 py-8 border-t bg-slate-50 flex gap-5 shrink-0">
-          <button type="submit" form="employee-form" className="flex-1 bg-slate-900 text-[#ffdc04] py-5 rounded-2xl font-black uppercase text-sm tracking-widest shadow-xl active:scale-95 transition-all">Simpan</button>
-          <button type="button" onClick={onCancel} className="flex-1 bg-white border-2 border-slate-200 text-slate-600 py-5 rounded-2xl font-black uppercase text-sm tracking-widest hover:bg-slate-50 transition-all">Batal</button>
+        <div className="px-10 py-8 border-t bg-slate-50 flex flex-col md:flex-row gap-4 shrink-0">
+          {initialData && (
+            <button type="submit" form="employee-form" className="flex-1 bg-slate-900 text-[#ffdc04] py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl active:scale-95 transition-all">Simpan</button>
+          )}
+          {!initialData && (
+            <button type="button" onClick={handleOnboarding} className="flex-1 bg-amber-500 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">
+              <Icons.Mail className="w-4 h-4" />
+              Onboarding
+            </button>
+          )}
+          <button type="button" onClick={onCancel} className="flex-1 bg-white border-2 border-slate-200 text-slate-600 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-slate-50 transition-all">Batal</button>
         </div>
       </div>
     </div>
