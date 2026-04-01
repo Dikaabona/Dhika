@@ -103,7 +103,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
           // Virtual record for employee who didn't absen
           // If no shift is assigned or it's an explicit OFF shift, status is 'Libur'
           // Otherwise (has a working shift but no record), status is 'Alpa'
-          const isOff = !shift;
+          const isOff = !shift || shift.name.toUpperCase().includes('OFF') || shift.name.toUpperCase().includes('LIBUR');
           
           entries.push({
             id: `virtual-${emp.id}-${date}`,
