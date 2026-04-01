@@ -19,6 +19,7 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
   const canApproveSomething = isOwner || isSuper || isAdmin;
 
   const [historyPage, setHistoryPage] = useState(1);
+  const [broadcastPage, setBroadcastPage] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
   const [isPhotoLoading, setIsPhotoLoading] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
@@ -30,7 +31,7 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const itemsPerPage = isMobile ? 3 : 10;
+  const itemsPerPage = isMobile ? 3 : 4;
 
   const fetchBroadcastImage = async (id: string) => {
     setIsPhotoLoading(true);
@@ -221,6 +222,12 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
       })
     : broadcasts;
 
+  const broadcastsPerPage = 3;
+  const totalBroadcastPages = Math.ceil(myBroadcasts.length / broadcastsPerPage);
+  const paginatedBroadcasts = useMemo(() => {
+    return myBroadcasts.slice((broadcastPage - 1) * broadcastsPerPage, broadcastPage * broadcastsPerPage);
+  }, [myBroadcasts, broadcastPage, broadcastsPerPage]);
+
   return (
     <div className="space-y-10 animate-in fade-in duration-500 max-w-7xl mx-auto">
       {zoomedImage && (
@@ -376,9 +383,32 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
       </div>
 
       <div className="space-y-6">
-        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-4">PENGUMUMAN & PESAN</h3>
+        <div className="flex justify-between items-end border-b border-slate-100 pb-4">
+          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">PENGUMUMAN & PESAN</h3>
+          {totalBroadcastPages > 1 && (
+            <div className="flex gap-2">
+               <button 
+                disabled={broadcastPage === 1}
+                onClick={() => setBroadcastPage(p => p - 1)}
+                className="p-2 rounded-lg bg-slate-100 text-slate-500 disabled:opacity-30 hover:bg-slate-200 transition-all"
+               >
+                 <Icons.ChevronDown className="w-4 h-4 rotate-90" />
+               </button>
+               <span className="text-[10px] font-black text-slate-900 bg-white px-3 py-2 rounded-lg border shadow-sm whitespace-nowrap min-w-[60px] flex items-center justify-center">
+                 {broadcastPage} / {totalBroadcastPages}
+               </span>
+               <button 
+                disabled={broadcastPage === totalBroadcastPages}
+                onClick={() => setBroadcastPage(p => p + 1)}
+                className="p-2 rounded-lg bg-slate-100 text-slate-500 disabled:opacity-30 hover:bg-slate-200 transition-all"
+               >
+                 <Icons.ChevronDown className="w-4 h-4 -rotate-90" />
+               </button>
+            </div>
+          )}
+        </div>
         <div className="grid grid-cols-1 gap-6">
-          {myBroadcasts.map((brd) => {
+          {paginatedBroadcasts.map((brd) => {
             return (
               <div key={brd.id} className="bg-white p-10 rounded-[40px] border border-slate-100 shadow-sm space-y-4 relative group hover:shadow-xl transition-all border-l-[12px] border-l-slate-900">
                 <div className="flex justify-between items-start">

@@ -481,7 +481,7 @@ export const App: React.FC = () => {
         } else if (table === 'broadcasts') {
            q = q.select('id, title, message, company, targetEmployeeIds, sentAt');
         } else if (table === 'submissions') {
-           q = q.select('id, employeeId, employeeName, company, type, startDate, endDate, notes, status, submittedAt');
+           q = q.select('id, employeeId, employeeName, company, type, startDate, endDate, notes, status, submittedAt, approvedBy, approvedByName');
         } else {
            q = q.select('*');
         }
