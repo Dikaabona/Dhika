@@ -220,6 +220,8 @@ export interface Submission {
   docBase64?: string;
   status: 'Pending' | 'Approved' | 'Rejected';
   submittedAt: string;
+  approvedBy?: string;
+  approvedByName?: string;
 }
 
 export interface InventoryItem {

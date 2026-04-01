@@ -98,9 +98,13 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         const shift = assignment ? shifts.find(s => s.id === assignment.shiftId) : null;
 
         if (record) {
-          entries.push({ ...record, employee: emp, isVirtual: false, shift });
+          entries.push({ ...record, employee: emp, isVirtual: false, shift, assignment });
         } else {
           // Virtual record for employee who didn't absen
+          // If no shift is assigned or it's an explicit OFF shift, status is 'Libur'
+          // Otherwise (has a working shift but no record), status is 'Alpa'
+          const isOff = !shift;
+          
           entries.push({
             id: `virtual-${emp.id}-${date}`,
             employeeId: emp.id,
@@ -108,10 +112,11 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
             date: date,
             clockIn: null,
             clockOut: null,
-            status: 'Alpa',
+            status: isOff ? 'Libur' : 'Alpa',
             isVirtual: true,
             company: emp.company,
-            shift
+            shift,
+            assignment
           });
         }
       });
@@ -565,7 +570,9 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">{shift.startTime} - {shift.endTime}</span>
                           </div>
                         ) : (
-                          <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest italic">No Shift</span>
+                          <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest italic">
+                            OFF / LIBUR
+                          </span>
                         )}
                       </td>
                       <td className="px-8 py-5">
@@ -627,16 +634,19 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                             <option value="Libur">Libur</option>
                           </select>
                         ) : (
+                          <div className="flex items-center gap-2">
                           <span className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-full border ${
                             record.status === 'Hadir' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
                             record.status === 'Cuti' ? 'bg-purple-50 text-purple-700 border-purple-100' :
                             record.status === 'Terlambat' ? 'bg-amber-50 text-amber-700 border-amber-100' :
                             record.status === 'Izin' || record.status === 'Sakit' ? 'bg-blue-50 text-blue-700 border-blue-100' :
                             record.status === 'Alpa' ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                            record.status === 'Libur' ? 'bg-slate-100 text-slate-600 border-slate-200' :
                             'bg-slate-50 text-slate-700 border-slate-100'
                           }`}>
                             {record.status}
                           </span>
+                        </div>
                         )}
                       </td>
                       <td className="px-8 py-5 text-right">
@@ -684,8 +694,10 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                       <span className="font-black text-slate-800 text-sm">{employee?.nama}</span>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{employee?.idKaryawan || '-'}</span>
-                        {shift && (
+                        {shift ? (
                           <span className="text-[9px] font-black text-indigo-500 uppercase bg-indigo-50 px-1.5 py-0.5 rounded-md">{shift.name}</span>
+                        ) : (
+                          <span className="text-[9px] font-black text-slate-500 uppercase bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-100">OFF / LIBUR</span>
                         )}
                       </div>
                     </div>
@@ -714,6 +726,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
                             record.status === 'Terlambat' ? 'bg-amber-50 text-amber-700 border-amber-100' :
                             record.status === 'Izin' || record.status === 'Sakit' ? 'bg-blue-50 text-blue-700 border-blue-100' :
                             record.status === 'Alpa' ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                            record.status === 'Libur' ? 'bg-slate-100 text-slate-600 border-slate-200' :
                             'bg-slate-50 text-slate-700 border-slate-100'
                           }`}>
                             {record.status}

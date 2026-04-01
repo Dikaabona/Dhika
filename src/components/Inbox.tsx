@@ -158,7 +158,11 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
         if (empUpdateError) throw new Error(`Gagal update sisa cuti: ${empUpdateError.message}`);
       }
 
-      const { error: subError } = await supabase.from('submissions').update({ status: 'Approved' }).eq('id', sub.id);
+      const { error: subError } = await supabase.from('submissions').update({ 
+        status: 'Approved',
+        approvedBy: employee?.id,
+        approvedByName: employee?.nama
+      }).eq('id', sub.id);
       if (subError) throw new Error(`Gagal update status pengajuan: ${subError.message}`);
 
       alert("Pengajuan berhasil disetujui!");
@@ -173,7 +177,11 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
     if (!confirm('Tolak pengajuan ini?')) return;
     
     try {
-      const { error } = await supabase.from('submissions').update({ status: 'Rejected' }).eq('id', id);
+      const { error } = await supabase.from('submissions').update({ 
+        status: 'Rejected',
+        approvedBy: employee?.id,
+        approvedByName: employee?.nama
+      }).eq('id', id);
       if (error) throw new Error(error.message);
       
       alert("Pengajuan telah ditolak.");
@@ -353,6 +361,11 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
                 </div>
                 <p className="text-[9px] text-slate-500 font-bold">{sub.startDate} {sub.startDate !== sub.endDate ? `- ${sub.endDate}` : ''}</p>
                 <p className="text-[9px] text-slate-400 italic truncate" title={sub.notes}>"{sub.notes}"</p>
+                {sub.approvedByName && (
+                  <p className="text-[8px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
+                    Oleh: {sub.approvedByName}
+                  </p>
+                )}
                 <button 
                   onClick={() => sub.id && fetchSubmissionAttachment(sub.id)}
                   className="text-[8px] font-black text-indigo-600 hover:underline uppercase tracking-widest flex items-center gap-1 mt-1"

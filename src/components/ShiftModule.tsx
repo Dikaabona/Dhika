@@ -83,15 +83,6 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
     const existing = assignments.find(a => a.employeeId === employeeId && a.date === date);
     
     try {
-      if (shiftId === '') {
-        if (existing) {
-          const { error } = await supabase.from('shift_assignments').delete().eq('id', existing.id);
-          if (error) throw error;
-          setAssignments(prev => prev.filter(a => a.id !== existing.id));
-        }
-        return;
-      }
-
       const newAssignment: Partial<ShiftAssignment> = {
         employeeId,
         date,
@@ -183,38 +174,21 @@ const ShiftModule: React.FC<ShiftModuleProps> = ({ employees, assignments, setAs
         }).filter((a): a is any => a !== null);
 
         if (processedRows.length > 0) {
-          const toUpsert = processedRows.filter(r => r.shiftId !== '');
-          const toDelete = processedRows.filter(r => r.shiftId === '');
-
-          if (toUpsert.length > 0) {
-            const { data: upsertedData, error } = await supabase
-              .from('shift_assignments')
-              .upsert(toUpsert, { onConflict: 'employeeId,date' })
-              .select();
-            if (error) throw error;
-            
-            setAssignments(prev => {
-              const updated = [...prev];
-              upsertedData?.forEach(newItem => {
-                const idx = updated.findIndex(a => a.employeeId === newItem.employeeId && a.date === newItem.date);
-                if (idx !== -1) updated[idx] = newItem;
-                else updated.push(newItem);
-              });
-              return updated;
+          const { data: upsertedData, error } = await supabase
+            .from('shift_assignments')
+            .upsert(processedRows, { onConflict: 'employeeId,date' })
+            .select();
+          if (error) throw error;
+          
+          setAssignments(prev => {
+            const updated = [...prev];
+            upsertedData?.forEach(newItem => {
+              const idx = updated.findIndex(a => a.employeeId === newItem.employeeId && a.date === newItem.date);
+              if (idx !== -1) updated[idx] = newItem;
+              else updated.push(newItem);
             });
-          }
-
-          if (toDelete.length > 0) {
-            for (const item of toDelete) {
-              const { error } = await supabase
-                .from('shift_assignments')
-                .delete()
-                .match({ employeeId: item.employeeId, date: item.date });
-              if (!error) {
-                setAssignments(prev => prev.filter(a => !(a.employeeId === item.employeeId && a.date === item.date)));
-              }
-            }
-          }
+            return updated;
+          });
 
           alert(`Berhasil memproses ${processedRows.length} data jadwal shift!`);
         } else {

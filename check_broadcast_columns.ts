@@ -5,21 +5,17 @@ const supabaseUrl = 'https://rcrtknakiwvfkmnwvdvf.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcnRrbmFraXd2Zmttbnd2ZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2NjEyODYsImV4cCI6MjA4NTIzNzI4Nn0.Ca9m25c9K0_J_kCRphGSaECGs8CGz4-zUpVoA_rIERA';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-async function listTables() {
+async function checkBroadcastColumns() {
   const { data, error } = await supabase
-    .from('submissions')
+    .from('broadcasts')
     .select('*')
     .limit(1);
 
   if (error) {
-    console.error('Error fetching submissions:', error);
+    console.error('Error fetching broadcasts:', error);
   } else {
-    console.log('Submissions table columns:', Object.keys(data[0] || {}));
+    console.log('Broadcast table columns:', Object.keys(data[0] || {}));
   }
-
-  // Try to list tables using a common query if possible, or just check known ones
-  const tables = ['submissions', 'attendance', 'employees', 'broadcasts', 'content_plans', 'inventory', 'invoices', 'quotations', 'kpi', 'candidates', 'salaries', 'calendar_events'];
-  console.log('Known tables:', tables);
 }
 
-listTables();
+checkBroadcastColumns();
