@@ -120,20 +120,8 @@ const Inbox: React.FC<InboxProps> = ({ submissions, broadcasts, employee, userRo
         };
       });
 
-      // Fetch existing records to get IDs for upsert
-      const { data: existingRecords } = await supabase
-        .from('attendance')
-        .select('id, date')
-        .eq('employeeId', sub.employeeId)
-        .in('date', dates);
-
-      const finalRecords = attendanceRecords.map(r => {
-        const existing = existingRecords?.find(er => er.date === r.date);
-        if (existing) return { ...r, id: existing.id };
-        return r;
-      });
-
-      const { error: attError } = await supabase.from('attendance').upsert(finalRecords, { onConflict: 'employeeId,date' });
+      // Upsert attendance records based on employeeId and date
+      const { error: attError } = await supabase.from('attendance').upsert(attendanceRecords, { onConflict: 'employeeId,date' });
       if (attError) throw new Error(`Gagal mencatat absensi: ${attError.message}`);
 
       // Reduce leave balance if type is 'Cuti'
