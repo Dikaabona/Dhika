@@ -18,6 +18,8 @@ interface AttendanceModuleProps {
   onStartDateChange: (date: string) => void;
   onEndDateChange: (date: string) => void;
   weeklyHolidays: Record<string, string[]>;
+  annualLeaveRecords?: AttendanceRecord[];
+  setAnnualLeaveRecords?: React.Dispatch<React.SetStateAction<AttendanceRecord[]>>;
   company: string;
   positionRates: any[];
   shifts: Shift[];
@@ -37,6 +39,8 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
   onStartDateChange,
   onEndDateChange,
   weeklyHolidays,
+  annualLeaveRecords = [],
+  setAnnualLeaveRecords,
   company,
   positionRates,
   shifts,
@@ -171,6 +175,23 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
       }
 
       if (finalRecord) {
+        // Update annualLeaveRecords locally if status changed to/from 'Cuti'
+        if (targetEmpId && oldStatus !== newStatus && setAnnualLeaveRecords) {
+          setAnnualLeaveRecords(prev => {
+            const isOldCuti = oldStatus === 'Cuti';
+            const isNewCuti = newStatus === 'Cuti';
+            
+            if (isOldCuti && !isNewCuti) {
+              // Remove from annualLeaveRecords
+              return prev.filter(r => !(r.employeeId === targetEmpId && r.date === finalRecord.date));
+            } else if (!isOldCuti && isNewCuti) {
+              // Add to annualLeaveRecords
+              return [finalRecord, ...prev];
+            }
+            return prev;
+          });
+        }
+
         // Sync sisaCuti if status changed to/from 'Cuti'
         if (targetEmpId && oldStatus !== newStatus) {
           const employee = employees.find(e => e.id === targetEmpId);

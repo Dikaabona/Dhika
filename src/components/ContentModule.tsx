@@ -48,7 +48,12 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     d.setDate(1); 
     return d.toISOString().split('T')[0];
   });
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 1);
+    d.setDate(0); // Last day of current month
+    return d.toISOString().split('T')[0];
+  });
   
   const screenshotInputRef = useRef<HTMLInputElement>(null);
   const contentFileInputRef = useRef<HTMLInputElement>(null);
@@ -442,7 +447,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     }
 
     try {
-      const { data, error } = await supabase.from('content_plans').upsert(dataToSave).select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar');
+      const { data, error } = await supabase.from('content_plans').upsert(dataToSave).select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar, captionHashtag, linkReference');
       
       if (error) throw error;
       
@@ -479,6 +484,58 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       setPlans(prev => prev.filter(p => p.id !== planId));
     } catch (err: any) {
       alert("Gagal menghapus data: " + err.message);
+    }
+  };
+
+  const handleCleanDuplicates = async () => {
+    if (!hasFullAccess) return;
+    
+    const isConfirmed = await confirm({
+      title: 'Hapus Data Duplikat?',
+      message: `Sistem akan menghapus data duplikat dan hanya menyisakan satu data unik untuk setiap link. Lanjutkan?`,
+      type: 'danger',
+      confirmText: 'HAPUS SEMUA DUPLIKAT'
+    });
+    
+    if (!isConfirmed) return;
+
+    try {
+      const linkGroups = new Map<string, ContentPlan[]>();
+      plans.forEach(p => {
+        if (p.linkPostingan) {
+          const group = linkGroups.get(p.linkPostingan) || [];
+          group.push(p);
+          linkGroups.set(p.linkPostingan, group);
+        }
+      });
+
+      const idsToDelete: string[] = [];
+      linkGroups.forEach((group) => {
+        if (group.length > 1) {
+          const sorted = [...group].sort((a, b) => {
+            const dateA = a.postingDate || '';
+            const dateB = b.postingDate || '';
+            if (dateA !== dateB) return dateB.localeCompare(dateA);
+            return (b.id || '').localeCompare(a.id || '');
+          });
+          
+          const toDelete = sorted.slice(1).map(p => p.id).filter((id): id is string => !!id);
+          idsToDelete.push(...toDelete);
+        }
+      });
+
+      if (idsToDelete.length === 0) {
+        alert("Tidak ada duplikat yang perlu dihapus.");
+        return;
+      }
+
+      const { error } = await supabase.from('content_plans').delete().in('id', idsToDelete);
+      if (error) throw error;
+
+      setPlans(prev => prev.filter(p => !idsToDelete.includes(p.id!)));
+      alert(`Berhasil menghapus ${idsToDelete.length} data duplikat!`);
+    } catch (err: any) {
+      alert("Gagal menghapus duplikat: " + err.message);
     }
   };
 
@@ -655,7 +712,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
             return p;
           });
 
-          const { data: inserted, error } = await supabase.from('content_plans').upsert(finalPlans).select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar');
+          const { data: inserted, error } = await supabase.from('content_plans').upsert(finalPlans).select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar, captionHashtag, linkReference');
           if (error) throw error;
           
           setPlans(prev => {
@@ -763,17 +820,28 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
             <p className="text-sm font-black text-amber-900 uppercase tracking-tight">Ditemukan {duplicateLinks.length} Link Video Duplikat!</p>
             <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mt-1">Sistem akan menimpa data lama jika link yang sama diupload kembali.</p>
           </div>
-          <button 
-            onClick={() => {
-              setLocalSearch(duplicateLinks[0]);
-              setSelectedBrandFilter('ALL');
-              setStartDate('');
-              setEndDate('');
-            }}
-            className="bg-amber-900 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-black transition-all"
-          >
-            LIHAT DUPLIKAT
-          </button>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => {
+                setLocalSearch(duplicateLinks[0]);
+                setSelectedBrandFilter('ALL');
+                setStartDate('');
+                setEndDate('');
+              }}
+              className="bg-amber-900 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-black transition-all"
+            >
+              LIHAT DUPLIKAT
+            </button>
+            {hasFullAccess && (
+              <button 
+                onClick={handleCleanDuplicates}
+                className="bg-red-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-red-700 transition-all flex items-center gap-2"
+              >
+                <Icons.Trash className="w-3 h-3" />
+                HAPUS SEMUA DUPLIKAT
+              </button>
+            )}
+          </div>
         </div>
       )}
 

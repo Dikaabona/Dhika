@@ -16,6 +16,7 @@ interface DashboardProps {
   broadcasts: Broadcast[];
   contentPlans: ContentPlan[];
   attendanceRecords: AttendanceRecord[];
+  annualLeaveRecords?: AttendanceRecord[];
   shiftAssignments: ShiftAssignment[];
   userRole: string;
   currentUserEmployee: Employee | null;
@@ -36,6 +37,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   broadcasts, 
   contentPlans, 
   attendanceRecords,
+  annualLeaveRecords = [],
   shiftAssignments,
   userRole, 
   currentUserEmployee, 
@@ -195,14 +197,14 @@ const Dashboard: React.FC<DashboardProps> = ({
     else if (name.includes('adinda salsabilla')) adjustment = 3;
     else if (name.includes('pajar sidik')) adjustment = 1;
 
-    const used = attendanceRecords.filter(r => 
+    const used = (annualLeaveRecords.length > 0 ? annualLeaveRecords : attendanceRecords).filter(r => 
       r.employeeId === currentUserEmployee.id && 
       r.status === 'Cuti' && 
       new Date(r.date).getFullYear() === currentYear
     ).length;
     
     return Math.max(0, 12 - used - adjustment);
-  }, [tenureYears, currentUserEmployee, attendanceRecords]);
+  }, [tenureYears, currentUserEmployee, annualLeaveRecords, attendanceRecords]);
 
   const handleToggleTracking = async () => {
     if (!currentUserEmployee || isUpdatingTracking) return;

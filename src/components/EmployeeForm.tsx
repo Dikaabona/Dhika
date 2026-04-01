@@ -270,6 +270,13 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // RESTRICTION: Only Owner/Super can update
+    if (initialData && !isSystemAdmin) {
+      alert("AKSES DITOLAK! Hanya Super Admin dan Owner yang dapat memperbarui data.");
+      return;
+    }
+
     if (!validate()) return;
 
     // RULE DATA BENTROK / DOUBLE
@@ -544,7 +551,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
           </div>
         </form>
         <div className="px-10 py-8 border-t bg-slate-50 flex flex-col md:flex-row gap-4 shrink-0">
-          {initialData && (
+          {initialData && isSystemAdmin && (
             <button type="submit" form="employee-form" className="flex-1 bg-slate-900 text-[#ffdc04] py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl active:scale-95 transition-all">Simpan</button>
           )}
           {!initialData && (

@@ -877,19 +877,27 @@ async function checkAndSendNotifications() {
 
     for (const content of contents || []) {
       const emp = emps?.find((e: any) => e.id === content.creatorId);
-      if (!emp || !content.jamUpload || typeof content.jamUpload !== 'string' || !content.jamUpload.includes(':')) continue;
+      if (!emp) continue;
+
+      let jamUpload = content.jamUpload;
+      if (!jamUpload && content.notes && content.notes.includes('[Time:')) {
+        const match = content.notes.match(/\[Time:\s*(\d{2}:\d{2})\]/);
+        if (match) jamUpload = match[1];
+      }
+
+      if (!jamUpload || typeof jamUpload !== 'string' || !jamUpload.includes(':')) continue;
 
       const jab = (emp.jabatan || '').toLowerCase();
       if (!jab.includes('content creator')) continue;
 
-      const [cHour, cMin] = content.jamUpload.split(':').map(Number);
+      const [cHour, cMin] = jamUpload.split(':').map(Number);
       const nowTotalMins = (currentHour * 60) + currentMin;
       const uploadTotalMins = (cHour * 60) + cMin;
       const diffMinutes = uploadTotalMins - nowTotalMins;
 
       if (diffMinutes === 5) {
         const subject = "📱 Pengingat Posting Konten";
-        const msg = `📱 *PENGINGAT POSTING KONTEN* 📱\n\nHalo ${emp.nama}, jadwal posting konten *${content.title}* Anda adalah 5 menit lagi (${content.jamUpload}). Siapkan file dan caption-nya ya!`;
+        const msg = `📱 *PENGINGAT POSTING KONTEN* 📱\n\nHalo ${emp.nama}, jadwal posting konten *${content.title}* Anda adalah 5 menit lagi (${jamUpload}). Siapkan file dan caption-nya ya!`;
         await sendNotification(emp, subject, msg);
       }
     }

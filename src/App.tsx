@@ -96,6 +96,7 @@ export const App: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [todayAttendanceRecords, setTodayAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [annualLeaveRecords, setAnnualLeaveRecords] = useState<AttendanceRecord[]>([]);
   const [liveSchedules, setLiveSchedules] = useState<LiveSchedule[]>([]);
   const [contentPlans, setContentPlans] = useState<ContentPlan[]>([]);
   const [liveReports, setLiveReports] = useState<LiveReport[]>([]);
@@ -218,9 +219,9 @@ export const App: React.FC = () => {
         .lte('date', end);
       
       if (role !== 'owner' && role !== 'super') {
-        q = q.eq('company', company.toUpperCase().trim());
+        q = q.ilike('company', company.trim());
       } else if (role === 'owner' && filter !== 'ALL') {
-        q = q.eq('company', filter.toUpperCase().trim());
+        q = q.ilike('company', filter.trim());
       }
       
       const { data, error } = await q.order('date', { ascending: false }).limit(10000);
@@ -240,9 +241,9 @@ export const App: React.FC = () => {
         .eq('date', today);
       
       if (role !== 'owner' && role !== 'super') {
-        q = q.eq('company', company.toUpperCase().trim());
+        q = q.ilike('company', company.trim());
       } else if (role === 'owner' && filter !== 'ALL') {
-        q = q.eq('company', filter.toUpperCase().trim());
+        q = q.ilike('company', filter.trim());
       }
       
       const { data, error } = await q;
@@ -383,6 +384,33 @@ export const App: React.FC = () => {
     }
   }, []);
 
+  const fetchAnnualLeave = useCallback(async (role: string, company: string, filter: string) => {
+    try {
+      const currentYear = new Date().getFullYear();
+      const start = `${currentYear}-01-01`;
+      const end = `${currentYear}-12-31`;
+      
+      let q = supabase
+        .from('attendance')
+        .select('id, employeeId, company, date, status')
+        .eq('status', 'Cuti')
+        .gte('date', start)
+        .lte('date', end);
+      
+      if (role !== 'owner' && role !== 'super') {
+        q = q.ilike('company', company.trim());
+      } else if (role === 'owner' && filter !== 'ALL') {
+        q = q.ilike('company', filter.trim());
+      }
+      
+      const { data, error } = await q;
+      if (error) throw error;
+      setAnnualLeaveRecords(data || []);
+    } catch (e) {
+      console.error("Error fetching annual leave:", e);
+    }
+  }, []);
+
   const fetchData = useCallback(async (userEmail?: string, isSilent: boolean = false) => {
     if (!navigator.onLine) {
       setFetchError("Anda sedang offline. Periksa koneksi internet Anda.");
@@ -449,7 +477,7 @@ export const App: React.FC = () => {
         if (table === 'attendance') {
            q = q.select('id, employeeId, company, date, status, clockIn, clockOut, photoIn, photoOut, notes, submittedAt');
         } else if (table === 'content_plans') {
-           q = q.select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar');
+           q = q.select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar, captionHashtag, linkReference');
         } else if (table === 'broadcasts') {
            q = q.select('id, title, message, company, targetEmployeeIds, sentAt');
         } else if (table === 'submissions') {
@@ -459,7 +487,7 @@ export const App: React.FC = () => {
         }
         
         if (!isOwner || (isOwner && companyFilter !== 'ALL')) {
-          q = q.eq('company', companyFilterVal.toUpperCase().trim());
+          q = q.ilike('company', companyFilterVal.trim());
         }
         return q;
       };
@@ -467,6 +495,7 @@ export const App: React.FC = () => {
       const fetchPromises = [
         fetchAttendance(attendanceStartDate, attendanceEndDate, activeUserRole, detectedCompany, companyFilter),
         fetchTodayAttendance(activeUserRole, detectedCompany, companyFilter),
+        fetchAnnualLeave(activeUserRole, detectedCompany, companyFilter),
         buildQuery('live_reports').order('tanggal', { ascending: false }).limit(5000).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(50).then(({data, error}: any) => { if(error) throw error; setSubmissions(data || []); }),
         buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(30).then(({data, error}: any) => { if(error) throw error; setBroadcasts(data || []); }),
@@ -1174,6 +1203,8 @@ export const App: React.FC = () => {
                   endDate={attendanceEndDate} 
                   onStartDateChange={setAttendanceStartDate} 
                   onEndDateChange={setAttendanceEndDate} 
+                  annualLeaveRecords={annualLeaveRecords}
+                  setAnnualLeaveRecords={setAnnualLeaveRecords}
                   weeklyHolidays={weeklyHolidays} 
                   company={userRole === 'owner' ? (companyFilter === 'ALL' ? 'Semua' : companyFilter) : userCompany} 
                   positionRates={positionRates}
@@ -1293,9 +1324,11 @@ export const App: React.FC = () => {
                             </button>
                           )}
                           <input type="file" ref={employeeFileInputRef} onChange={handleImportEmployees} className="hidden" accept=".xlsx,.xls" />
-                          <button onClick={() => employeeFileInputRef.current?.click()} disabled={isImportingEmployees} className="bg-[#059669] hover:bg-[#047857] text-white px-5 py-3 rounded-full flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
-                            <Icons.Upload className="w-4 h-4" /> {isImportingEmployees ? '...' : 'UNGGAH'}
-                          </button>
+                          {(userRole === 'owner' || userRole === 'super') && (
+                            <button onClick={() => employeeFileInputRef.current?.click()} disabled={isImportingEmployees} className="bg-[#059669] hover:bg-[#047857] text-white px-5 py-3 rounded-full flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
+                              <Icons.Upload className="w-4 h-4" /> {isImportingEmployees ? '...' : 'UNGGAH'}
+                            </button>
+                          )}
                           <div className="flex gap-2">
                             <button onClick={handleExportAllEmployees} className="bg-[#0f172a] hover:bg-black text-white p-3 rounded-full flex items-center justify-center shadow-md active:scale-95" title="Export Database">
                               <Icons.Database className="w-4 h-4" />
@@ -1332,7 +1365,7 @@ export const App: React.FC = () => {
                             <div className="flex items-center gap-3 shrink-0">
                               <span className="bg-[#f1f5f9] text-slate-600 font-black text-[10px] uppercase px-4 py-2 rounded-full tracking-[0.1em] border border-slate-200/50 shadow-sm">{emp.idKaryawan}</span>
                               <div className="flex gap-1.5 ml-2">
-                                 {userRole !== 'employee' && (
+                                 {(userRole === 'owner' || userRole === 'super') && (
                                    <button onClick={() => handleEditEmployee(emp)} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg"><Icons.Edit className="w-4 h-4" /></button>
                                  )}
                               </div>
@@ -1366,7 +1399,7 @@ export const App: React.FC = () => {
                                 <div key={emp.id} className={`hover:bg-slate-100/50 transition-all duration-300 border-b border-slate-50 last:border-0 ${isResigned(emp) ? 'opacity-60 grayscale-[0.5]' : ''} ${isEven ? 'bg-slate-50/50' : 'bg-white'}`}>
                                   <div className="grid grid-cols-11 items-center px-14 py-4 gap-4">
                                     <div className="col-span-1 flex items-center gap-2">
-                                      {userRole !== 'employee' && (
+                                      {(userRole === 'owner' || userRole === 'super') && (
                                         <button onClick={() => handleEditEmployee(emp)} className="text-slate-400 hover:text-indigo-600 transition-colors">
                                           <Icons.Edit className="w-3.5 h-3.5" />
                                         </button>
@@ -1410,7 +1443,7 @@ export const App: React.FC = () => {
                                           else if (name.includes('adinda salsabilla')) adjustment = 3;
                                           else if (name.includes('pajar sidik')) adjustment = 1;
 
-                                          const used = attendanceRecords.filter(r => 
+                                          const used = annualLeaveRecords.filter(r => 
                                             r.employeeId === emp.id && 
                                             r.status === 'Cuti' && 
                                             new Date(r.date).getFullYear() === new Date().getFullYear()
@@ -1458,6 +1491,7 @@ export const App: React.FC = () => {
                   currentUserEmployee={currentUserEmployee} 
                   contentPlans={contentPlans} 
                   attendanceRecords={todayAttendanceRecords} 
+                  annualLeaveRecords={annualLeaveRecords}
                   shiftAssignments={shiftAssignments} 
                   onNavigate={setActiveTab} 
                   userCompany={userCompany} 
