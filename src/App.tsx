@@ -1520,7 +1520,7 @@ export const App: React.FC = () => {
       ) : (
         <div className="flex-grow flex items-center justify-center p-6 animate-in fade-in duration-700 bg-white">
           <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden border border-slate-100">
-            <div className="bg-black p-12 text-center"><img src={VISIBEL_LOGO} alt="Logo" className="w-[180px] h-auto mx-auto" /></div>
+            <div className="bg-black p-12 text-center"><img src={currentLogo} alt="Logo" className="w-[180px] h-auto mx-auto" /></div>
             <form onSubmit={(e) => { e.preventDefault(); handleAuth(loginEmailInput, loginPasswordInput, isRegisterMode, isForgotPasswordMode); }} className="p-10 space-y-8">
               <div className="space-y-2">
                 <h2 className="text-2xl font-bold text-[#0f172a] text-center uppercase tracking-[0.3em]">{isForgotPasswordMode ? 'RESET' : isRegisterMode ? 'TRIAL 7 HARI' : 'LOGIN'}</h2>
@@ -1563,7 +1563,7 @@ export const App: React.FC = () => {
       <footer className={`pt-4 pb-12 sm:py-16 shrink-0 border-none transition-colors duration-700 ${session ? 'bg-[#f8fafc]' : 'bg-white'}`}>
         <div className="max-w-7xl mx-auto px-6 flex flex-col items-center gap-8">
           <img 
-            src={transformGoogleDriveUrl(VISIBEL_LOGO)} 
+            src={transformGoogleDriveUrl(currentLogo)} 
             alt="Logo" 
             className={`h-10 sm:h-12 transition-all duration-700 ${session ? 'opacity-20 grayscale brightness-0' : 'opacity-80'}`} 
             crossOrigin="anonymous"
