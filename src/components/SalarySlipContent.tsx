@@ -136,7 +136,7 @@ const SalarySlipContent: React.FC<SalarySlipContentProps> = ({
           </h5>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-[#475569]">Absensi ({attendanceResults?.absent || 0} Alpha)</span>
+              <span className="text-sm font-medium text-[#475569]">Absensi ({attendanceResults?.alpa || 0} Alpa)</span>
               <span className="text-sm font-black text-[#f43f5e]">{formatCurrency(potonganAbsensi)}</span>
             </div>
             {isBPJSTKActive && data.bpjstk > 0 && (

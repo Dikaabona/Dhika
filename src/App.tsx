@@ -50,19 +50,31 @@ const sanitizeConfig = (val: any, fallback: string) => {
   return sanitized || fallback.trim();
 };
 
+const getCompanyFromHostname = () => {
+  const hostname = window.location.hostname.toLowerCase();
+  
+  // Mapping spesifik berdasarkan domain atau subdomain
+  if (hostname.includes('sellerspace')) return 'SELLER SPACE';
+  if (hostname.includes('majova')) return 'MAJOVA';
+  if (hostname.includes('yongki') || hostname.includes('komaladi')) return 'YONGKI KOMALADI';
+  
+  // Default untuk visibel.agency atau domain lainnya
+  return 'VISIBEL';
+};
+
 export const App: React.FC = () => {
   const { confirm } = useConfirmation();
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<UserRole>('employee');
   const [currentUserEmployee, setCurrentUserEmployee] = useState<Employee | null>(null);
-  const [userCompany, setUserCompany] = useState<string>('VISIBEL');
+  const [userCompany, setUserCompany] = useState<string>(getCompanyFromHostname());
   const [trialInfo, setTrialInfo] = useState<{ daysLeft: number; isExpired: boolean; isActive: boolean }>({ daysLeft: 7, isExpired: false, isActive: true });
   
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
   const [loginEmailInput, setLoginEmailInput] = useState('');
   const [loginPasswordInput, setLoginPasswordInput] = useState('');
-  const [registerCompanyName, setRegisterCompanyName] = useState('');
+  const [registerCompanyName, setRegisterCompanyName] = useState(getCompanyFromHostname());
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState('');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
@@ -1637,8 +1649,8 @@ export const App: React.FC = () => {
         setIsFormOpen(false);
       }} onCancel={() => setIsFormOpen(false)} />}
       {viewingEmployee && <EmployeeDetailModal employee={viewingEmployee} userRole={userRole} onClose={() => setViewingEmployee(null)} onUpdate={() => fetchData(session?.user?.email, true)} />}
-      {slipEmployee && <SalarySlipModal employee={slipEmployee} attendanceRecords={attendanceRecords} userRole={userRole} onClose={() => setSlipEmployee(null)} onUpdate={() => fetchData(session?.user?.email, true)} weeklyHolidays={weeklyHolidays} positionRates={positionRates} />}
-      {isBulkSalaryOpen && <BulkSalaryModal employees={filteredEmployees} attendanceRecords={attendanceRecords} userRole={userRole} company={userCompany} weeklyHolidays={weeklyHolidays} onClose={() => setIsBulkSalaryOpen(false)} positionRates={positionRates} />}
+      {slipEmployee && <SalarySlipModal employee={slipEmployee} attendanceRecords={attendanceRecords} userRole={userRole} onClose={() => setSlipEmployee(null)} onUpdate={() => fetchData(session?.user?.email, true)} weeklyHolidays={weeklyHolidays} positionRates={positionRates} shiftAssignments={shiftAssignments} shifts={shifts} />}
+      {isBulkSalaryOpen && <BulkSalaryModal employees={filteredEmployees} attendanceRecords={attendanceRecords} userRole={userRole} company={userCompany} weeklyHolidays={weeklyHolidays} onClose={() => setIsBulkSalaryOpen(false)} positionRates={positionRates} shiftAssignments={shiftAssignments} shifts={shifts} />}
       {isAnnouncementOpen && <AnnouncementModal employees={filteredEmployees} company={userCompany} onClose={() => setIsAnnouncementOpen(false)} onSuccess={() => fetchData(session?.user?.email, true)} />}
       {legalType && <LegalModal type={legalType} onClose={() => setLegalType(null)} />}
       {session && !isUnregistered && <MobileNav />}

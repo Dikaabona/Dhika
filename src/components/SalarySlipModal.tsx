@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { Employee, SalaryData, AttendanceRecord, Broadcast, AttendanceSettings } from '../types';
+import { Employee, SalaryData, AttendanceRecord, Broadcast, AttendanceSettings, ShiftAssignment, Shift } from '../types';
 import { Icons } from '../constants';
 import { parseFlexibleDate, formatDateToYYYYMMDD } from '../utils/dateUtils';
 import { supabase } from '../services/supabaseClient';
@@ -21,6 +21,8 @@ interface SalarySlipModalProps {
   positionRates?: any[];
   initialMonth?: string;
   initialYear?: string;
+  shiftAssignments?: ShiftAssignment[];
+  shifts?: Shift[];
 }
 
 const getReliableDriveUrl = (url: string) => {
@@ -56,7 +58,7 @@ const MAJOVA_LOGO = "https://lh3.googleusercontent.com/d/1pjtSR-r2YJMexgm3hl6jtA
 const VISIBEL_LOGO = "https://lh3.googleusercontent.com/d/1aGXJp0RwVbXlCNxqL_tAfHS5dc23h7nA";
 const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9RspSPtZDYBM7ZC-w";
 
-const ALPHA_START_DATE = '2025-01-01';
+const ALPA_START_DATE = '2025-01-01';
 
 const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ 
   employee, 
@@ -67,7 +69,9 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
   weeklyHolidays, 
   positionRates = [],
   initialMonth,
-  initialYear
+  initialYear,
+  shiftAssignments = [],
+  shifts = []
 }) => {
   const { confirm } = useConfirmation();
   const isReadOnlyRole = userRole === 'admin' || userRole === 'employee';
@@ -121,6 +125,7 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
   const activePeriod = getActivePayrollMonthInfo();
   const [isBPJSTKActive, setIsBPJSTKActive] = useState(employee.salaryConfig?.isBPJSTKActive ?? false);
   const [showOvertimeDetails, setShowOvertimeDetails] = useState(false);
+  const [showAlphaDates, setShowAlphaDates] = useState(false);
   const [data, setData] = useState<SalaryData & { adjustment: number; pph21: number; totalHutang: number }>({
     month: initialMonth || activePeriod.name,
     year: initialYear || activePeriod.year,
@@ -189,23 +194,6 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
   const cutoffStart = employee.salaryConfig?.cutoffStart || settings?.payrollCutoffStart || 26;
   const cutoffEnd = employee.salaryConfig?.cutoffEnd || settings?.payrollCutoffEnd || 25;
 
-  const isWorkDay = (date: Date, emp: Employee) => {
-    const day = date.getDay();
-    const isHost = (emp.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
-    if (day === 0) return isHost;
-    if (day === 6) return false;
-    const dayNameMap = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
-    const currentDayName = dayNameMap[day];
-    if (weeklyHolidays) {
-      const empNameUpper = emp.nama.toUpperCase();
-      const employeeInHolidays = Object.values(weeklyHolidays).some(names => (names as string[]).map(n => n.toUpperCase()).includes(empNameUpper));
-      if (employeeInHolidays) {
-        return !(weeklyHolidays[currentDayName] || []).map(n => n.toUpperCase()).includes(empNameUpper);
-      }
-    }
-    return true;
-  };
-
   const tenureInfo = useMemo(() => {
     const joinDate = parseFlexibleDate(employee.tanggalMasuk);
     if (isNaN(joinDate.getTime())) return { years: 0, months: 0, totalMonths: 0 };
@@ -221,8 +209,8 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
   }, [employee.tanggalMasuk]);
 
   const salaryDetails = useMemo(() => {
-    return getSalaryDetails(currentEmployee, data, attendanceRecords, data.month, String(data.year), settings, weeklyHolidays, positionRates);
-  }, [currentEmployee, data, attendanceRecords, settings, weeklyHolidays, positionRates]);
+    return getSalaryDetails(currentEmployee, data, attendanceRecords, data.month, String(data.year), settings, weeklyHolidays, positionRates, shiftAssignments, shifts);
+  }, [currentEmployee, data, attendanceRecords, settings, weeklyHolidays, positionRates, shiftAssignments, shifts]);
 
   const attendanceResults = salaryDetails.summary;
 
@@ -778,9 +766,36 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-                <div className="bg-rose-50/50 p-4 rounded-[24px] border border-rose-100 flex flex-col justify-center">
-                  <label className="text-[8px] font-black text-rose-600 uppercase tracking-widest block">ALPHA ({attendanceResults.alpha})</label>
+                <div className="bg-rose-50/50 p-4 rounded-[24px] border border-rose-100 flex flex-col justify-center relative">
+                  <button 
+                    type="button"
+                    onClick={() => setShowAlphaDates(!showAlphaDates)}
+                    className="text-left group"
+                  >
+                    <label className="text-[8px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1 cursor-pointer hover:text-rose-800 transition-colors">
+                      ALPA ({attendanceResults.alpa})
+                      <Icons.Info className="w-2 h-2 opacity-40 group-hover:opacity-100" />
+                    </label>
+                  </button>
                   <p className="text-lg font-black text-rose-700">Rp {potonganAbsensi.toLocaleString('id-ID')}</p>
+                  
+                  {showAlphaDates && attendanceResults.alpaDates && attendanceResults.alpaDates.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-2 p-3 bg-white border border-rose-100 rounded-2xl shadow-xl z-10 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-[8px] font-black text-rose-600 uppercase tracking-widest">Detail Tanggal Alpa</p>
+                        <button onClick={() => setShowAlphaDates(false)} className="text-rose-300 hover:text-rose-600">
+                          <Icons.X className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 max-h-32 overflow-y-auto custom-scrollbar">
+                        {attendanceResults.alpaDates.map((date, idx) => (
+                          <div key={idx} className="bg-rose-50 px-2 py-1 rounded-lg text-[9px] font-bold text-rose-700 text-center">
+                            {new Date(date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="bg-slate-50/50 p-4 rounded-[24px] border border-slate-100 flex flex-col justify-center">
                   <div className="flex items-center gap-2 mb-1">

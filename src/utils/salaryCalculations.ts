@@ -1,5 +1,5 @@
 
-import { Employee, AttendanceRecord, WeeklyHolidays } from '../types';
+import { Employee, AttendanceRecord, WeeklyHolidays, ShiftAssignment, Shift } from '../types';
 
 export interface SalaryDetails {
   gapok: number;
@@ -18,7 +18,8 @@ export interface SalaryDetails {
   totalPotongan: number;
   takeHomePay: number;
   summary: {
-    alpha: number;
+    alpa: number;
+    alpaDates: string[];
     hadir: number;
     sakit: number;
     izin: number;
@@ -47,7 +48,9 @@ export const getSalaryDetails = (
   selectedYear: string,
   settings: any,
   weeklyHolidays: WeeklyHolidays | null,
-  positionRates: any[] = []
+  positionRates: any[] = [],
+  shiftAssignments: ShiftAssignment[] = [],
+  shifts: Shift[] = []
 ): SalaryDetails => {
   const monthOptions = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -59,7 +62,8 @@ export const getSalaryDetails = (
   
   let workingDays = config.workingDays || 26;
   const summary = { 
-    alpha: 0, 
+    alpa: 0, 
+    alpaDates: [] as string[],
     hadir: 0, 
     sakit: 0, 
     izin: 0, 
@@ -78,11 +82,11 @@ export const getSalaryDetails = (
     
     const rangeStart = new Date(yearNum, monthIdx - 1, cutoffStart);
     const rangeEnd = new Date(yearNum, monthIdx, cutoffEnd);
-    const startStr = rangeStart.toISOString().split('T')[0];
-    const endStr = rangeEnd.toISOString().split('T')[0];
+    const startStr = formatDateToYYYYMMDD(rangeStart);
+    const endStr = formatDateToYYYYMMDD(rangeEnd);
 
     const relevantRecords = attendanceRecords.filter(r => 
-      r.employeeId === employee.id && 
+      String(r.employeeId) === String(employee.id) && 
       r.date >= startStr && 
       r.date <= endStr
     );
@@ -112,6 +116,16 @@ export const getSalaryDetails = (
 
     // Helper to check workday
     const isWorkDay = (date: Date) => {
+      const dStr = formatDateToYYYYMMDD(date);
+      const assignment = (shiftAssignments || []).find(a => String(a.employeeId) === String(employee.id) && a.date === dStr);
+      if (assignment) {
+        const shift = (shifts || []).find(s => String(s.id) === String(assignment.shiftId));
+        if (shift) {
+          const shiftName = shift.name.toUpperCase();
+          return !(shiftName.includes('OFF') || shiftName.includes('LIBUR'));
+        }
+      }
+
       const day = date.getDay();
       const isHost = (employee.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
       if (day === 0) return isHost;
@@ -119,10 +133,12 @@ export const getSalaryDetails = (
       const dayNameMap = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
       const currentDayName = dayNameMap[day];
       if (weeklyHolidays) {
-        const empNameUpper = employee.nama.toUpperCase();
-        const employeeInHolidays = Object.values(weeklyHolidays).some(names => (names as string[]).map((n: string) => n.toUpperCase()).includes(empNameUpper));
+        const empNameUpper = (employee.nama || '').trim().toUpperCase();
+        const employeeInHolidays = Object.values(weeklyHolidays).some(names => 
+          (names as string[]).map((n: string) => n.trim().toUpperCase()).includes(empNameUpper)
+        );
         if (employeeInHolidays) {
-          return !(weeklyHolidays[currentDayName] || []).map((n: string) => n.toUpperCase()).includes(empNameUpper);
+          return !(weeklyHolidays[currentDayName] || []).map((n: string) => n.trim().toUpperCase()).includes(empNameUpper);
         }
       }
       return true;
@@ -146,17 +162,28 @@ export const getSalaryDetails = (
       );
 
       if (mainRecord) {
-        if (mainRecord.status === 'Hadir') summary.hadir++;
-        else if (mainRecord.status === 'Alpha') summary.alpha++;
-        else if (mainRecord.status === 'Sakit') summary.sakit++;
-        else if (mainRecord.status === 'Izin') summary.izin++;
-        else if (mainRecord.status === 'Cuti') summary.cuti++;
-        else summary.libur++;
+        const status = (mainRecord.status || '').toLowerCase();
+        if (status === 'hadir' || status === 'terlambat') summary.hadir++;
+        else if (status === 'alpha' || status === 'alpa') {
+          summary.alpa++;
+          summary.alpaDates.push(dStr);
+        }
+        else if (status === 'sakit') summary.sakit++;
+        else if (status === 'izin') summary.izin++;
+        else if (status === 'cuti') summary.cuti++;
+        else {
+          // Explicitly handle 'libur' or any other status as libur
+          // This ensures 'LIBUR' status does not increment alpa
+          summary.libur++;
+        }
       } else if (overtimeRecords.length > 0) {
         summary.hadir++;
       } else {
         if (dStr < todayStr) {
-          if (isWork) summary.alpha++;
+          if (isWork) {
+            summary.alpa++;
+            summary.alpaDates.push(dStr);
+          }
           else summary.libur++;
         } else {
           if (!isWork) summary.libur++;
@@ -209,7 +236,8 @@ export const getSalaryDetails = (
   const gapok = config.gapok || 0;
   const effectiveGapok = isDaily ? gapok * workingDays : gapok;
   const dailyRate = gapok / 26;
-  const potonganAbsensi = isDaily ? 0 : Math.round(summary.alpha * dailyRate);
+  // Prorate reduction for ALPA: only summary.alpa reduces salary
+  const potonganAbsensi = isDaily ? 0 : Math.round(summary.alpa * dailyRate);
   const finalLembur = summary.totalOvertimePay > 0 ? summary.totalOvertimePay : (config.lembur || 0);
   const tunjanganOps = (config.tunjanganMakan || 0) + (config.tunjanganTransport || 0) + (config.tunjanganKomunikasi || 0) + (config.tunjanganKesehatan || 0) + (config.tunjanganJabatan || 0);
   const bonus = config.bonus || 0;

@@ -110,9 +110,9 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
       const { data, error } = await supabase
         .from('attendance')
         .select('*')
-        .eq('company', company)
-        .gte('date', startDate.toISOString().split('T')[0])
-        .lte('date', endDate.toISOString().split('T')[0]);
+        .ilike('company', company.trim())
+        .gte('date', formatDateToYYYYMMDD(startDate))
+        .lte('date', formatDateToYYYYMMDD(endDate));
       
       if (!error && data) {
         setLocalAttendance(data);
@@ -130,7 +130,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
   const yearOptions = ['2024', '2025', '2026'];
 
   const calculateTotalSalary = useCallback((config: any, hutang: number = 0, empId?: string, employeeObj?: any) => {
-    const emp = employeeObj || employees.find(e => e.id === empId);
+    const emp = employeeObj || employees.find(e => String(e.id) === String(empId));
     if (!emp) return 0;
     const details = getSalaryDetails(emp, config, localAttendance, selectedMonth, selectedYear, settings, weeklyHolidays, positionRates);
     return details.takeHomePay;
@@ -139,7 +139,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
   useEffect(() => {
     if (isProcessingPayroll && employees.length > 0 && payrollEmployees.length > 0) {
       const updatedPayroll = payrollEmployees.map(pEmp => {
-        const latest = employees.find(e => e.id === pEmp.id);
+        const latest = employees.find(e => String(e.id) === String(pEmp.id));
         if (latest) {
           // Sync all fields from latest employee data, but preserve status from draft
           const config = latest.salaryConfig || {};
@@ -237,7 +237,7 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
       const { data: empData, error: empError } = await supabase
         .from('employees')
         .select('*')
-        .eq('company', company)
+        .ilike('company', company.trim())
         .is('deleted_at', null)
         .is('resigned_at', null);
       
@@ -252,9 +252,9 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
       const { data: attData, error: attError } = await supabase
         .from('attendance')
         .select('*')
-        .eq('company', company)
-        .gte('date', startDate.toISOString().split('T')[0])
-        .lte('date', endDate.toISOString().split('T')[0]);
+        .ilike('company', company.trim())
+        .gte('date', formatDateToYYYYMMDD(startDate))
+        .lte('date', formatDateToYYYYMMDD(endDate));
       
       if (attError) throw attError;
       
@@ -792,21 +792,43 @@ const FinancialModule: React.FC<FinancialModuleProps> = ({
                           <h3 className="text-2xl font-black text-[#0f172a] uppercase tracking-tight">Review Payroll</h3>
                           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Silakan periksa kembali daftar penerima dan nominal sebelum eksekusi.</p>
                           
-                          <div className="flex gap-2 mt-4">
-                             <select 
-                               value={selectedMonth} 
-                               onChange={(e) => setSelectedMonth(e.target.value)}
-                               className="bg-slate-100/50 border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-black uppercase outline-none focus:border-[#FFC000]"
-                             >
-                               {monthOptions.map(m => <option key={m} value={m}>{m}</option>)}
-                             </select>
-                             <select 
-                               value={selectedYear} 
-                               onChange={(e) => setSelectedYear(e.target.value)}
-                               className="bg-slate-100/50 border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-black uppercase outline-none focus:border-[#FFC000]"
-                             >
-                               {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
-                             </select>
+                          <div className="flex flex-wrap items-center gap-4 mt-4">
+                             <div className="flex gap-2">
+                                <select 
+                                  value={selectedMonth} 
+                                  onChange={(e) => setSelectedMonth(e.target.value)}
+                                  className="bg-slate-100/50 border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-black uppercase outline-none focus:border-[#FFC000]"
+                                >
+                                  {monthOptions.map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                                <select 
+                                  value={selectedYear} 
+                                  onChange={(e) => setSelectedYear(e.target.value)}
+                                  className="bg-slate-100/50 border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-black uppercase outline-none focus:border-[#FFC000]"
+                                >
+                                  {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                                </select>
+                             </div>
+
+                             <div className="bg-amber-50 border border-amber-100 px-4 py-2 rounded-xl flex items-center gap-3">
+                                <Icons.Calendar className="w-4 h-4 text-amber-500" />
+                                <div>
+                                   <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest leading-none mb-1">Periode Payroll</p>
+                                   <p className="text-[10px] font-black text-slate-900 uppercase">
+                                      {(() => {
+                                         const monthIdx = monthOptions.indexOf(selectedMonth);
+                                         const yearNum = parseInt(selectedYear);
+                                         const cutoffStart = settings?.payrollCutoffStart || 26;
+                                         const cutoffEnd = settings?.payrollCutoffEnd || 25;
+                                         
+                                         const start = new Date(yearNum, monthIdx - 1, cutoffStart);
+                                         const end = new Date(yearNum, monthIdx, cutoffEnd);
+                                         
+                                         return `${start.getDate()} ${monthOptions[start.getMonth()]} - ${end.getDate()} ${monthOptions[end.getMonth()]} ${end.getFullYear()}`;
+                                      })()}
+                                   </p>
+                                </div>
+                             </div>
                              <div className="relative">
                                 <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
                                 <input 

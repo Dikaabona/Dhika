@@ -73,7 +73,10 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
     let curr = new Date(start);
     const last = new Date(end);
     while (curr <= last) {
-      dates.push(curr.toISOString().split('T')[0]);
+      const y = curr.getFullYear();
+      const m = String(curr.getMonth() + 1).padStart(2, '0');
+      const d = String(curr.getDate()).padStart(2, '0');
+      dates.push(`${y}-${m}-${d}`);
       curr.setDate(curr.getDate() + 1);
     }
     return dates.reverse(); // Show latest dates first
@@ -93,9 +96,9 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
     const entries: any[] = [];
     dates.forEach(date => {
       filteredEmployees.forEach(emp => {
-        const record = records.find(r => r.employeeId === emp.id && r.date === date);
-        const assignment = shiftAssignments.find(a => a.employeeId === emp.id && a.date === date);
-        const shift = assignment ? shifts.find(s => s.id === assignment.shiftId) : null;
+        const record = records.find(r => String(r.employeeId) === String(emp.id) && r.date === date);
+        const assignment = shiftAssignments.find(a => String(a.employeeId) === String(emp.id) && a.date === date);
+        const shift = assignment ? shifts.find(s => String(s.id) === String(assignment.shiftId)) : null;
 
         if (record) {
           entries.push({ ...record, employee: emp, isVirtual: false, shift, assignment });
@@ -132,8 +135,8 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
 
   const handleUpdateStatus = async (id: string, newStatus: string, isVirtual: boolean, empId?: string, date?: string) => {
     try {
-      const targetEmpId = empId || records.find(r => r.id === id)?.employeeId;
-      const oldStatus = records.find(r => r.id === id || (r.employeeId === empId && r.date === date))?.status;
+      const targetEmpId = empId || records.find(r => String(r.id) === String(id))?.employeeId;
+      const oldStatus = records.find(r => String(r.id) === String(id) || (String(r.employeeId) === String(empId) && r.date === date))?.status;
 
       let finalRecord;
       
@@ -151,7 +154,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
           employeeId: empId,
           date: date,
           status: newStatus,
-          company: (employees.find(e => e.id === empId)?.company || company || 'VISIBEL').toUpperCase().trim()
+          company: (employees.find(e => String(e.id) === String(empId))?.company || company || 'VISIBEL').toUpperCase().trim()
         };
 
         if (existing) {
@@ -170,7 +173,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
           .from('attendance')
           .update({ 
             status: newStatus,
-            company: (records.find(r => r.id === id)?.company || company || 'VISIBEL').toUpperCase().trim()
+            company: (records.find(r => String(r.id) === String(id))?.company || company || 'VISIBEL').toUpperCase().trim()
           })
           .eq('id', id)
           .select();
@@ -199,7 +202,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
 
         // Sync sisaCuti if status changed to/from 'Cuti'
         if (targetEmpId && oldStatus !== newStatus) {
-          const employee = employees.find(e => e.id === targetEmpId);
+          const employee = employees.find(e => String(e.id) === String(targetEmpId));
           if (employee) {
             let newSisaCuti = employee.sisaCuti || 0;
             if (oldStatus !== 'Cuti' && newStatus === 'Cuti') {
@@ -215,7 +218,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
         }
 
         setRecords(prev => {
-          const index = prev.findIndex(r => r.id === finalRecord.id || (r.employeeId === finalRecord.employeeId && r.date === finalRecord.date));
+          const index = prev.findIndex(r => String(r.id) === String(finalRecord.id) || (String(r.employeeId) === String(finalRecord.employeeId) && r.date === finalRecord.date));
           if (index !== -1) {
             const updated = [...prev];
             updated[index] = { ...updated[index], ...finalRecord };
@@ -283,14 +286,22 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
 
         const parseYMDToIso = (val: any) => {
           if (!val) return '';
-          if (val instanceof Date) return val.toISOString().split('T')[0];
+          if (val instanceof Date) {
+            const y = val.getFullYear();
+            const m = String(val.getMonth() + 1).padStart(2, '0');
+            const d = String(val.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+          }
           const str = String(val).trim();
           if (!str || str === '-') return '';
 
           // Handle Excel serial date
           if (!isNaN(Number(str)) && Number(str) > 30000) {
             const date = new Date(Math.round((Number(str) - 25569) * 86400 * 1000));
-            return date.toISOString().split('T')[0];
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
           }
 
           // Try DD/MM/YYYY or DD-MM-YYYY
@@ -308,7 +319,10 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
           // Fallback to native Date
           const d = new Date(str);
           if (!isNaN(d.getTime())) {
-            return d.toISOString().split('T')[0];
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
           }
           return str;
         };
@@ -362,7 +376,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
           const notesVal = getVal(['Catatan', 'Notes', 'CATATAN']);
           const companyVal = getVal(['Company', 'COMPANY', 'Perusahaan']);
 
-          const employee = employees.find(e => e.idKaryawan === empId || e.id === empId);
+          const employee = employees.find(e => String(e.idKaryawan) === String(empId) || String(e.id) === String(empId));
           const normalizedDate = parseYMDToIso(dateVal);
           
           if (employee && normalizedDate) {
@@ -390,7 +404,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
             .in('date', dates);
 
           const finalRecords = newRecords.map(r => {
-            const existing = existingRecords?.find(er => er.employeeId === r.employeeId && er.date === r.date);
+            const existing = existingRecords?.find(er => String(er.employeeId) === String(r.employeeId) && er.date === r.date);
             if (existing) return { ...r, id: existing.id } as AttendanceRecord;
             return r;
           });
@@ -403,7 +417,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({
           setRecords(prev => {
             const updated = [...prev];
             (upsertedData || []).forEach(nr => {
-              const index = updated.findIndex(r => r.employeeId === nr.employeeId && r.date === nr.date);
+              const index = updated.findIndex(r => String(r.employeeId) === String(nr.employeeId) && r.date === nr.date);
               if (index !== -1) {
                 updated[index] = { ...updated[index], ...nr };
               } else {

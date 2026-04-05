@@ -205,7 +205,8 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, use
         sisaCuti: editedEmployee.sisaCuti,
         bank: editedEmployee.bank,
         noRekening: editedEmployee.noRekening,
-        namaDiRekening: editedEmployee.namaDiRekening
+        namaDiRekening: editedEmployee.namaDiRekening,
+        photoBase64: editedEmployee.photoBase64
       }).eq('id', employee.id);
 
       if (error) throw error;
@@ -216,6 +217,42 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, use
       alert('Gagal menyimpan: ' + err.message);
     }
   };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 1024 * 1024) { // 1MB limit
+        alert('Ukuran foto terlalu besar. Maksimal 1MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditedEmployee({ ...editedEmployee, photoBase64: reader.result as string });
+        // Auto save photo if not in editing mode, or just let it be saved with handleSave
+        // For better UX, let's trigger a specific update for photo if not in general edit mode
+        if (!isEditing) {
+          updatePhotoOnly(reader.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const updatePhotoOnly = async (base64: string) => {
+    try {
+      const { error } = await supabase
+        .from('employees')
+        .update({ photoBase64: base64 })
+        .eq('id', employee.id);
+      if (error) throw error;
+      if (onUpdate) onUpdate();
+      alert('Foto profil berhasil diperbarui');
+    } catch (err: any) {
+      alert('Gagal memperbarui foto: ' + err.message);
+    }
+  };
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const menuItems = [
     { id: 'personal', label: 'Informasi personal', icon: Icons.User },
@@ -499,12 +536,25 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, use
           </div>
 
           <div className="flex items-center gap-6">
-            <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-white flex items-center justify-center overflow-hidden border-4 border-white/20 shadow-lg shrink-0">
-              {employee.photoBase64 || employee.avatarUrl ? (
-                <img src={employee.photoBase64 || employee.avatarUrl} className="w-full h-full object-cover" alt={employee.nama} />
+            <div 
+              className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-white flex items-center justify-center overflow-hidden border-4 border-white/20 shadow-lg shrink-0 relative group cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {editedEmployee.photoBase64 || editedEmployee.avatarUrl ? (
+                <img src={editedEmployee.photoBase64 || editedEmployee.avatarUrl} className="w-full h-full object-cover" alt={editedEmployee.nama} />
               ) : (
                 <Icons.Users className="w-12 h-12 md:w-16 md:h-16 text-slate-300" />
               )}
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <Icons.Camera className="w-6 h-6 text-white" />
+              </div>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handlePhotoChange} 
+                className="hidden" 
+                accept="image/*" 
+              />
             </div>
             <div className="text-black">
               <h2 className="text-2xl md:text-4xl font-bold leading-tight">{employee.nama}</h2>

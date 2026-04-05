@@ -805,24 +805,62 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                  <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">Konfigurasi Payroll Karyawan</h3>
                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tentukan apakah karyawan dibayar per bulan atau per hari.</p>
               </div>
-              {!isEditingSalary ? (
-                <button 
-                  onClick={() => setIsEditingSalary(true)}
-                  className="bg-white border-2 border-slate-100 text-slate-900 px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-50 transition-all flex items-center gap-2"
-                >
-                  <Icons.Edit className="w-4 h-4" /> EDIT DATA
-                </button>
-              ) : (
-                <button 
-                  onClick={() => {
-                    setIsEditingSalary(false);
-                    alert("Konfigurasi Payroll berhasil disimpan!");
-                  }}
-                  className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl active:scale-95 transition-all flex items-center gap-3"
-                >
-                  <Icons.Check className="w-4 h-4" /> SELESAI
-                </button>
-              )}
+              <div className="flex items-center gap-4">
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-4 shadow-sm">
+                  <div className="space-y-1">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Global Cut Off</p>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="number"
+                        min="1"
+                        max="31"
+                        disabled={!isEditingSalary}
+                        value={settings?.payrollCutoffStart || 26}
+                        onChange={(e) => {
+                          const newSettings = { ...settings, payrollCutoffStart: parseInt(e.target.value) || 26 };
+                          setSettings(newSettings);
+                        }}
+                        className="w-10 bg-slate-50 border border-slate-200 px-1 py-1 rounded-lg text-[10px] font-black text-black text-center outline-none focus:border-[#FFC000] disabled:opacity-50"
+                        title="Mulai"
+                      />
+                      <span className="text-slate-300">-</span>
+                      <input 
+                        type="number"
+                        min="1"
+                        max="31"
+                        disabled={!isEditingSalary}
+                        value={settings?.payrollCutoffEnd || 25}
+                        onChange={(e) => {
+                          const newSettings = { ...settings, payrollCutoffEnd: parseInt(e.target.value) || 25 };
+                          setSettings(newSettings);
+                        }}
+                        className="w-10 bg-slate-50 border border-slate-200 px-1 py-1 rounded-lg text-[10px] font-black text-black text-center outline-none focus:border-[#FFC000] disabled:opacity-50"
+                        title="Selesai"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {!isEditingSalary ? (
+                  <button 
+                    onClick={() => setIsEditingSalary(true)}
+                    className="bg-white border-2 border-slate-100 text-slate-900 px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-50 transition-all flex items-center gap-2"
+                  >
+                    <Icons.Edit className="w-4 h-4" /> EDIT DATA
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => {
+                      saveAttendanceSettings(settings).then(() => {
+                        setIsEditingSalary(false);
+                        alert("Konfigurasi Payroll berhasil disimpan!");
+                      });
+                    }}
+                    className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl active:scale-95 transition-all flex items-center gap-3"
+                  >
+                    <Icons.Check className="w-4 h-4" /> SELESAI
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100">

@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Employee, AttendanceRecord } from '../types';
+import { Employee, AttendanceRecord, ShiftAssignment, Shift } from '../types';
 import { Icons } from '../constants';
 import { formatDateToYYYYMMDD } from '../utils/dateUtils';
 import { getSalaryDetails } from '../utils/salaryCalculations';
@@ -13,9 +13,11 @@ interface BulkSalaryModalProps {
   onClose: () => void;
   weeklyHolidays?: Record<string, string[]>;
   positionRates?: any[];
+  shiftAssignments?: ShiftAssignment[];
+  shifts?: Shift[];
 }
 
-const ALPHA_START_DATE = '2025-01-01';
+const ALPA_START_DATE = '2025-01-01';
 
 const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({ 
   employees, 
@@ -24,7 +26,9 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
   company, 
   onClose,
   weeklyHolidays,
-  positionRates = []
+  positionRates = [],
+  shiftAssignments = [],
+  shifts = []
 }) => {
   const getPreviousMonthInfo = () => {
     const now = new Date();
@@ -49,23 +53,6 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
 
   const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
   const monthMap: Record<string, number> = months.reduce((acc, name, idx) => ({ ...acc, [name]: idx }), {});
-
-  const isWorkDay = (date: Date, emp: Employee) => {
-    const day = date.getDay();
-    const isHost = (emp.jabatan || '').toUpperCase().includes('HOST LIVE STREAMING');
-    if (day === 0) return isHost;
-    if (day === 6) return false;
-    const dayNameMap = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
-    const currentDayName = dayNameMap[day];
-    if (weeklyHolidays) {
-      const empNameUpper = emp.nama.toUpperCase();
-      const employeeInHolidays = Object.values(weeklyHolidays).some(names => (names as string[]).map(n => n.toUpperCase()).includes(empNameUpper));
-      if (employeeInHolidays) {
-        return !(weeklyHolidays[currentDayName] || []).map(n => n.toUpperCase()).includes(empNameUpper);
-      }
-    }
-    return true;
-  };
 
   const handleAddEmail = () => {
     if (emailInput.includes('@') && !manualEmails.includes(emailInput)) {
@@ -118,11 +105,14 @@ const BulkSalaryModal: React.FC<BulkSalaryModalProps> = ({
       try {
         if (emp) {
           const config = emp.salaryConfig || {};
-          const details = getSalaryDetails(emp, config, attendanceRecords, selectedMonth, selectedYear, {}, weeklyHolidays, positionRates);
+          const details = getSalaryDetails(emp, config, attendanceRecords, selectedMonth, selectedYear, {}, weeklyHolidays, positionRates, shiftAssignments, shifts);
           const thp = details.takeHomePay;
+          const alphaInfo = details.summary.alpa > 0 
+            ? ` • Alpa: ${details.summary.alpaDates.map(d => d.split('-')[2] + '/' + d.split('-')[1]).join(', ')}` 
+            : '';
 
           await new Promise(resolve => setTimeout(resolve, 300));
-          setLogs(prev => [{ name: emp.nama, status: 'Success', message: `Slip terkirim ke ${email} • THP: Rp ${thp.toLocaleString('id-ID')}` }, ...prev]);
+          setLogs(prev => [{ name: emp.nama, status: 'Success', message: `Slip terkirim ke ${email} • THP: Rp ${thp.toLocaleString('id-ID')}${alphaInfo}` }, ...prev]);
         } else {
           await new Promise(resolve => setTimeout(resolve, 300));
           setLogs(prev => [{ name: email, status: 'Success', message: `Pesan broadcast terkirim.` }, ...prev]);

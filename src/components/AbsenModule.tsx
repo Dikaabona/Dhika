@@ -5,6 +5,7 @@ import { Icons } from '../constants';
 import { supabase } from '../services/supabaseClient';
 import { useConfirmation } from '../contexts/ConfirmationContext';
 import { transformGoogleDriveUrl } from '../utils/imageUtils';
+import * as faceapi from '@vladmandic/face-api';
 
 interface AbsenModuleProps {
   employee: Employee | null;
@@ -37,6 +38,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isModelLoading, setIsModelLoading] = useState(true);
   const [locationStatus, setLocationStatus] = useState<{distance: number | null, isInside: boolean, isUsingDefault: boolean, settings: AttendanceSettings | null}>({
     distance: null,
     isInside: false,
@@ -64,6 +66,21 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
   const todayStr = getTodayLocalStr();
 
   useEffect(() => {
+    const loadModels = async () => {
+      try {
+        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+        ]);
+        setIsModelLoading(false);
+      } catch (err) {
+        console.error("Gagal memuat model deteksi wajah:", err);
+        setIsModelLoading(false);
+      }
+    };
+    loadModels();
     fetchSettingsAndLocate();
     const interval = setInterval(fetchSettingsAndLocate, 10000); // Cek lokasi tiap 10 detik
     return () => clearInterval(interval);
@@ -135,7 +152,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
   useEffect(() => {
     if (employee) {
       const record = attendanceRecords.find(
-        r => r.employeeId === employee.id && r.date === todayStr
+        r => String(r.employeeId) === String(employee.id) && r.date === todayStr
       );
       setLocalTodayRecord(record || null);
     }
@@ -262,7 +279,17 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
     setIsLoading(true);
 
     try {
-      // 2. CAPTURE SELFIE
+      // 2. CEK DETEKSI WAJAH PADA VIDEO SEBELUM CAPTURE (LEBIH AKURAT)
+      if (videoRef.current) {
+        const detections = await faceapi.detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions());
+        if (!detections) {
+          setIsLoading(false);
+          alert("foto absen wajib menampilkan wajah");
+          return;
+        }
+      }
+
+      // 3. CAPTURE SELFIE
       const photo = capturePhoto();
       if (!photo) {
         setIsLoading(false);
@@ -270,7 +297,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         return;
       }
 
-      // 3. AMBIL KOORDINAT PREISI SAAT INI
+      // 4. AMBIL KOORDINAT PREISI SAAT INI
       let locStr = "Lokasi tidak terdeteksi";
       try {
         const position = await new Promise<GeolocationPosition>((resolve, reject) => {
@@ -394,6 +421,12 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
               </div>
             )}
             <canvas ref={canvasRef} className="hidden" />
+            {isModelLoading && (
+              <div className="absolute inset-0 bg-white/80 flex flex-col items-center justify-center gap-3 z-20">
+                <div className="w-8 h-8 border-4 border-[#FFC000] border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Memuat AI...</p>
+              </div>
+            )}
           </div>
           <div className="absolute inset-0 bg-[#FFC000]/10 rounded-full blur-3xl -z-10 animate-pulse"></div>
         </div>
@@ -411,7 +444,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
       <div className="pb-12 pt-6 flex flex-col items-center px-10 shrink-0">
         <button 
           onClick={handleAbsenAction}
-          disabled={isLoading || isFinished || !isCameraActive}
+          disabled={isLoading || isFinished || !isCameraActive || isModelLoading}
           className="relative group transition-all active:scale-95 disabled:opacity-30 disabled:grayscale"
         >
           <div className="bg-slate-900 text-[#FFC000] p-8 rounded-[32px] shadow-2xl shadow-slate-200 group-hover:bg-black transition-all">
@@ -441,3 +474,4 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
 };
 
 export default AbsenModule;
+
