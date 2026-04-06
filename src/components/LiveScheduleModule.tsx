@@ -306,8 +306,18 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
     XLSX.writeFile(wb, `Template_Jadwal_Live_${company}.xlsx`);
   };
 
-  const hostList = useMemo(() => employees.filter(e => (e.jabatan || '').toUpperCase().includes('HOST')), [employees]);
-  const opList = useMemo(() => employees.filter(e => (e.jabatan || '').toUpperCase().includes('OP') || (e.nama || '').toUpperCase().includes('ARIYANSYAH')), [employees]);
+  const hostList = useMemo(() => employees.filter(e => {
+    const jab = (e.jabatan || '').toUpperCase();
+    const isResigned = (e.resigned_at && e.resigned_at.trim() !== '') || (e.resign_reason && e.resign_reason.trim() !== '') || e.status === 'Resign';
+    return jab.includes('HOST') && !isResigned;
+  }), [employees]);
+
+  const opList = useMemo(() => employees.filter(e => {
+    const jab = (e.jabatan || '').toUpperCase();
+    const name = (e.nama || '').toUpperCase();
+    const isResigned = (e.resigned_at && e.resigned_at.trim() !== '') || (e.resign_reason && e.resign_reason.trim() !== '') || e.status === 'Resign';
+    return (jab.includes('OP') || jab.includes('OPERATOR') || name.includes('ARIYANSYAH')) && !isResigned;
+  }), [employees]);
   
   const datesInRange = useMemo(() => {
     const dates = [];
@@ -385,7 +395,8 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
     const liveStaff = employees.filter(e => {
       const jab = (e.jabatan || '').toUpperCase();
       const name = (e.nama || '').toUpperCase();
-      return jab.includes('HOST') || jab.includes('OP') || jab.includes('OPERATOR') || name.includes('ARIYANSYAH');
+      const isResigned = (e.resigned_at && e.resigned_at.trim() !== '') || (e.resign_reason && e.resign_reason.trim() !== '') || e.status === 'Resign';
+      return (jab.includes('HOST') || jab.includes('OP') || jab.includes('OPERATOR') || name.includes('ARIYANSYAH')) && !isResigned;
     });
 
     return holidayDates.map(dateStr => {
@@ -394,8 +405,9 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
       const dayName = DAYS_OF_WEEK[dayIndex];
       
       const offNames = liveStaff.filter(s => {
-        const hasAssignment = shiftAssignments.some(a => a.employeeId === s.id && a.date === dateStr);
-        return !hasAssignment;
+        const assignment = shiftAssignments.find(a => a.employeeId === s.id && a.date === dateStr);
+        // Jika tidak ada assignment, atau assignment-nya adalah 'OFF / Libur' (shiftId kosong)
+        return !assignment || assignment.shiftId === '';
       }).map(s => s.nama.toUpperCase());
 
       return { date: dateStr, day: dayName, names: offNames };
@@ -618,9 +630,9 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
             )}
           </div>
         ) : activeSubTab === 'REPORT' ? (
-          <LiveReportModule employees={employees} reports={reports} setReports={setReports} userRole={userRole} company={company} onClose={() => setActiveSubTab('JADWAL')} />
+          <LiveReportModule employees={employees} reports={reports} setReports={setReports} userRole={userRole} company={company} onClose={() => setActiveSubTab('JADWAL')} brands={brands} />
         ) : activeSubTab === 'GRAFIK' ? (
-          <LiveCharts reports={reports} employees={employees} />
+          <LiveCharts reports={reports} employees={employees} brands={brands} />
         ) : activeSubTab === 'LIBUR' ? (
           <div className="space-y-6 sm:space-y-10">
             <div className="flex items-center bg-[#f1f5f9] rounded-[24px] sm:rounded-[28px] px-6 sm:px-8 py-3 sm:py-4 shadow-inner gap-6 sm:gap-8 w-fit mx-auto mb-8 sm:mb-12">

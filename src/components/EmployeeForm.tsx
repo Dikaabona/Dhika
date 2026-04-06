@@ -281,16 +281,23 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
 
     // RULE DATA BENTROK / DOUBLE
     const isDuplicateId = employees.some(emp => 
+      emp.idKaryawan && 
       emp.idKaryawan.trim().toUpperCase() === formData.idKaryawan.trim().toUpperCase() && 
-      emp.id !== initialData?.id
+      emp.id !== initialData?.id &&
+      (emp.company || '').toLowerCase() === (formData.company || '').toLowerCase()
     );
     const isDuplicateEmail = employees.some(emp => 
+      emp.email && 
       emp.email.trim().toLowerCase() === formData.email.trim().toLowerCase() && 
       emp.id !== initialData?.id
     );
 
-    if (isDuplicateId || isDuplicateEmail) {
-      alert("DATA BENTROK! ID Karyawan atau Email ini sudah terdaftar dalam sistem. Silakan periksa kembali.");
+    if (isDuplicateId) {
+      alert(`DATA BENTROK! ID Karyawan "${formData.idKaryawan}" sudah terdaftar di perusahaan ini. Silakan gunakan ID lain.`);
+      return;
+    }
+    if (isDuplicateEmail) {
+      alert(`DATA BENTROK! Email "${formData.email}" sudah terdaftar dalam sistem. Silakan gunakan email lain.`);
       return;
     }
 
@@ -312,16 +319,23 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, employees, use
     }
 
     const isDuplicateId = employees.some(emp => 
+      emp.idKaryawan && 
       emp.idKaryawan.trim().toUpperCase() === formData.idKaryawan.trim().toUpperCase() && 
-      emp.id !== initialData?.id
+      emp.id !== initialData?.id &&
+      (emp.company || '').toLowerCase() === (formData.company || '').toLowerCase()
     );
     const isDuplicateEmail = employees.some(emp => 
+      emp.email && 
       emp.email.trim().toLowerCase() === formData.email.trim().toLowerCase() && 
       emp.id !== initialData?.id
     );
 
-    if (isDuplicateId || isDuplicateEmail) {
-      alert("DATA BENTROK! ID Karyawan atau Email ini sudah terdaftar dalam sistem.");
+    if (isDuplicateId) {
+      alert(`DATA BENTROK! ID Karyawan "${formData.idKaryawan}" sudah terdaftar di perusahaan ini.`);
+      return;
+    }
+    if (isDuplicateEmail) {
+      alert(`DATA BENTROK! Email "${formData.email}" sudah terdaftar dalam sistem.`);
       return;
     }
 

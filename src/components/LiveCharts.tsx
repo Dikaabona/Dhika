@@ -6,6 +6,7 @@ import { Icons, LIVE_BRANDS } from '../constants';
 interface LiveChartsProps {
   reports: LiveReport[];
   employees: Employee[];
+  brands: any[];
 }
 
 declare global {
@@ -14,7 +15,7 @@ declare global {
   }
 }
 
-const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees }) => {
+const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees, brands }) => {
   const getTodayStr = () => new Date().toISOString().split('T')[0];
   const getSevenDaysAgoStr = () => {
     const d = new Date();
@@ -198,7 +199,7 @@ const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees }) => {
           className="bg-white border border-slate-200 px-6 py-3.5 rounded-[22px] text-[10px] font-black text-slate-900 outline-none shadow-sm appearance-none text-center uppercase tracking-widest sm:flex-grow"
         >
           <option value="ALL">SEMUA BRAND</option>
-          {LIVE_BRANDS.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+          {brands.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
         </select>
 
         <select 

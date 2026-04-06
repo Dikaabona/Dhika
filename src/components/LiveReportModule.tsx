@@ -12,6 +12,7 @@ interface LiveReportModuleProps {
   userRole: string;
   company: string;
   onClose: () => void;
+  brands: any[];
 }
 
 const formatDateToYMD = (dateStr: string) => {
@@ -88,7 +89,7 @@ const getThirtyDaysAgoStr = () => {
   return d.toISOString().split('T')[0];
 };
 
-const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports, setReports, userRole, company, onClose }) => {
+const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports, setReports, userRole, company, onClose, brands }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingReport, setEditingReport] = useState<LiveReport | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -108,7 +109,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
 
   const [formData, setFormData] = useState<Omit<LiveReport, 'id'>>({
     tanggal: new Date().toISOString().split('T')[0],
-    brand: LIVE_BRANDS[0].name,
+    brand: brands.length > 0 ? brands[0].name : '',
     company: company,
     roomId: '',
     hostId: '',
@@ -199,7 +200,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
       setEditingReport(null);
       setFormData({
         tanggal: new Date().toISOString().split('T')[0],
-        brand: selectedBrand !== 'ALL' ? selectedBrand : LIVE_BRANDS[0].name,
+        brand: selectedBrand !== 'ALL' ? selectedBrand : (brands.length > 0 ? brands[0].name : ''),
         company: company,
         roomId: '',
         hostId: '',
@@ -495,7 +496,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
             className="bg-white border border-slate-200 px-6 py-3.5 rounded-[22px] text-[10px] font-black text-slate-900 outline-none shadow-sm appearance-none text-center uppercase tracking-widest sm:flex-grow"
           >
             <option value="ALL">SEMUA BRAND</option>
-            {LIVE_BRANDS.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+            {brands.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
           </select>
           
           <div className="flex items-center gap-3 px-6 py-3 bg-white rounded-[22px] shadow-sm border border-slate-100 shrink-0">
@@ -715,7 +716,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Brand</label>
                   <select value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value})} className="w-full bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-2xl text-[11px] font-bold text-slate-900 outline-none">
-                    {LIVE_BRANDS.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+                    {brands.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1.5">
