@@ -94,8 +94,8 @@ async function addWahaLog(type: string, data: any) {
       data
     });
 
-    // Keep only last 50 logs
-    const trimmedLogs = logs.slice(0, 50);
+    // Keep only last 200 logs
+    const trimmedLogs = logs.slice(0, 200);
 
     // Save back to Supabase
     const { error: upsertError } = await supabase
@@ -221,7 +221,7 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
   const payload = body.payload || body.data || body;
   
   console.log(`[WAHA Webhook] Event: ${event}`);
-  addWahaLog('DEBUG_PAYLOAD', { event, payload_keys: Object.keys(payload) });
+  addWahaLog('WEBHOOK_EVENT', { event, from: payload.from || payload.chatId || (payload.key && payload.key.remoteJid) });
 
   if (event === 'message.upsert' || event === 'message' || !event) {
     // Ignore messages from self to prevent loops
@@ -241,7 +241,22 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
     let company = (req.query.company as string) || 'VISIBEL';
 
     // --- Check if sender is an employee ---
-    const phoneDigits = from.split('@')[0].replace(/\D/g, '');
+    const fromParts = from.split('@');
+    const fromId = fromParts[0];
+    const fromType = fromParts[1]; // lid or c.us or s.whatsapp.net
+    
+    // Extract phone digits from 'from' or 'remoteJidAlt'
+    let phoneDigits = fromId.replace(/\D/g, '');
+    
+    // Check if there's an alternative JID (often contains the real phone number for LID)
+    const remoteJidAlt = payload._data?.key?.remoteJidAlt || payload.remoteJidAlt;
+    if (remoteJidAlt) {
+      const altDigits = remoteJidAlt.split('@')[0].replace(/\D/g, '');
+      if (altDigits && altDigits.length >= 10) {
+        phoneDigits = altDigits;
+        addWahaLog('DEBUG_PHONE_ALT', { original: from, alt: remoteJidAlt, used: phoneDigits });
+      }
+    }
     
     if (!supabase) {
       addWahaLog('ERROR', 'Supabase not initialized');
@@ -261,12 +276,17 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
       
       // Match if:
       // 1. Exact match
-      // 2. DB phone ends with incoming phone (last 10 digits)
-      // 3. Incoming phone ends with DB phone (last 10 digits)
-      const incomingTail = phoneDigits.slice(-10);
-      const dbTail = dbPhone.slice(-10);
+      // 2. DB phone ends with incoming phone (last 9 digits)
+      // 3. Incoming phone ends with DB phone (last 9 digits)
+      const incomingTail = phoneDigits.slice(-9);
+      const dbTail = dbPhone.slice(-9);
       
-      const isMatch = dbPhone === phoneDigits || (incomingTail.length >= 8 && dbTail === incomingTail);
+      const isMatch = dbPhone === phoneDigits || (incomingTail.length >= 7 && dbTail === incomingTail);
+      
+      if (!isMatch && (dbTail === incomingTail || dbPhone.includes(phoneDigits) || phoneDigits.includes(dbPhone))) {
+         addWahaLog('DEBUG_PHONE_MATCH_NEAR', { db: dbPhone, incoming: phoneDigits, dbTail, incomingTail });
+      }
+      
       return isMatch;
     });
 

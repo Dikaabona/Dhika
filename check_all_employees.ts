@@ -7,26 +7,14 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJh
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 async function check() {
-  const { data, error } = await supabase
-    .from('settings')
-    .select('value')
-    .eq('key', 'waha_debug_logs')
-    .single();
-  
+  const { data, error } = await supabase.from('employees').select('nama, noHandphone, company');
   if (error) {
     console.error(error);
     return;
   }
-  
-  const logs = data.value || [];
-  console.log("Logs for LID:");
-  logs.filter((l: any) => JSON.stringify(l).includes('186685501530219')).forEach((log: any) => {
-    console.log(`[${log.timestamp}] ${log.type}:`, JSON.stringify(log.data));
-  });
-  
-  console.log("\nRecent logs (last 100):");
-  logs.slice(0, 100).forEach((log: any) => {
-    console.log(`[${log.timestamp}] ${log.type}:`, JSON.stringify(log.data));
+  console.log("Employees List:");
+  data.forEach(e => {
+    console.log(`- ${e.nama}: ${e.noHandphone} (${e.company})`);
   });
 }
 
