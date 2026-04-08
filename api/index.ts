@@ -123,6 +123,7 @@ async function getWahaSettings(company: string) {
     let apiUrl = envUrl.trim();
     if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
     if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+    console.log(`[WAHA] Using ENV settings for ${company}`);
     return { apiUrl, apiKey: envKey, sessionName: envSession };
   }
 
@@ -132,19 +133,20 @@ async function getWahaSettings(company: string) {
       .from('settings')
       .select('value')
       .eq('key', `waha_settings_${company}`)
-      .single();
+      .maybeSingle();
     
     if (data && data.value) {
       const settings = data.value as { apiUrl: string; apiKey: string; sessionName: string };
       let apiUrl = settings.apiUrl;
       if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
       if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+      console.log(`[WAHA] Using DB settings for ${company}`);
       return { ...settings, apiUrl };
     }
+    console.warn(`[WAHA] No settings found for ${company}`);
   } catch (err) {
-    // Fallback to default if no company settings
+    console.error(`[WAHA] Error fetching settings for ${company}:`, err);
   }
-
   return null;
 }
 
@@ -191,11 +193,11 @@ async function sendWahaMessage(to: string, message: string, company: string = 'V
       }
     });
     console.log(`WAHA message sent to ${chatId} (${company})`);
-    addWahaLog('MESSAGE_SENT', { to: chatId, company });
+    addWahaLog('MESSAGE_SENT', { to: chatId, company, message: message.substring(0, 50) });
   } catch (err: any) {
     const errorMsg = err.response?.data || err.message;
     console.error(`Error sending WAHA message (${company}):`, errorMsg);
-    addWahaLog('MESSAGE_ERROR', { to: chatId, error: errorMsg, company });
+    addWahaLog('MESSAGE_ERROR', { to: chatId, error: errorMsg, company, message: message.substring(0, 50) });
   }
 }
 
@@ -222,6 +224,9 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
   addWahaLog('DEBUG_PAYLOAD', { event, payload_keys: Object.keys(payload) });
 
   if (event === 'message.upsert' || event === 'message' || !event) {
+    // Ignore messages from self to prevent loops
+    if (payload.fromMe === true) return res.status(200).json({ status: "ignored_self" });
+
     // If no event, we try to process it as a message anyway if it looks like one
     const message = payload.body || payload.content || payload.text || payload.caption || 
                    (payload.message && (payload.message.conversation || payload.message.extendedTextMessage?.text || payload.message.imageMessage?.caption || payload.message.videoMessage?.caption));
@@ -232,9 +237,11 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
       return res.status(200).json({ status: "ignored_missing_data" });
     }
 
-    // --- RESTRICTION: Only reply to employees in database ---
+    // Determine company from query or default
+    let company = (req.query.company as string) || 'VISIBEL';
+
+    // --- Check if sender is an employee ---
     const phoneDigits = from.split('@')[0].replace(/\D/g, '');
-    const last9 = phoneDigits.slice(-9);
     
     if (!supabase) {
       addWahaLog('ERROR', 'Supabase not initialized');
@@ -249,37 +256,52 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
     }
 
     const emp = emps?.find((e: any) => {
-      const cleanDbPhone = (e.noHandphone || '').replace(/\D/g, '');
-      const match = cleanDbPhone.endsWith(last9);
-      if (match) console.log(`[WAHA] Found matching employee: ${e.nama} for phone end ${last9}`);
-      return match;
+      const dbPhone = (e.noHandphone || '').replace(/\D/g, '');
+      if (!dbPhone) return false;
+      
+      // Match if:
+      // 1. Exact match
+      // 2. DB phone ends with incoming phone (last 10 digits)
+      // 3. Incoming phone ends with DB phone (last 10 digits)
+      const incomingTail = phoneDigits.slice(-10);
+      const dbTail = dbPhone.slice(-10);
+      
+      const isMatch = dbPhone === phoneDigits || (incomingTail.length >= 8 && dbTail === incomingTail);
+      return isMatch;
     });
 
-    if (!emp) {
-      addWahaLog('UNAUTHORIZED_ACCESS', { 
-        from, 
-        detectedPhone: phoneDigits,
-        last9: last9,
-        msg: typeof message === 'string' ? message.substring(0, 20) : 'non-string msg',
-        registered_count: emps?.length || 0
-      });
-      return res.status(200).json({ status: "ignored_unauthorized" });
+    if (emp) {
+      company = emp.company;
+      addWahaLog('WEBHOOK_PROCESS_EMPLOYEE', { name: emp.nama, from, company });
+    } else {
+      addWahaLog('WEBHOOK_PROCESS_CLIENT', { from, company });
     }
 
-    addWahaLog('WEBHOOK_PROCESS', { from: emp.nama, message: typeof message === 'string' ? message : 'complex-msg' });
     const lowerMsg = typeof message === 'string' ? message.toLowerCase().trim() : '';
 
-    // --- DYNAMIC AUTO-REPLY RULES ---
+    // --- DYNAMIC AUTO-REPLY RULES (For everyone) ---
     try {
-      const { data: rulesData } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', `waha_autoreply_rules_${emp.company}`)
-        .single();
+      // Try both uppercase and original casing for company
+      const companyKeys = [company, company.toUpperCase(), company.charAt(0).toUpperCase() + company.slice(1).toLowerCase()];
+      const uniqueKeys = Array.from(new Set(companyKeys));
       
-      if (rulesData && Array.isArray(rulesData.value)) {
-        const rules = rulesData.value as any[];
-        addWahaLog('RULE_CHECK', { rules_count: rules.length, message: lowerMsg });
+      let rules: any[] = [];
+      for (const key of uniqueKeys) {
+        const { data: rulesData } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', `waha_autoreply_rules_${key}`)
+          .maybeSingle();
+        
+        if (rulesData && Array.isArray(rulesData.value)) {
+          rules = rulesData.value;
+          company = key; // Use the key that worked
+          break;
+        }
+      }
+      
+      if (rules.length > 0) {
+        addWahaLog('RULE_CHECK', { rules_count: rules.length, message: lowerMsg, company });
         
         for (const rule of rules) {
           const keyword = (rule.keyword || '').toLowerCase().trim();
@@ -287,26 +309,30 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
 
           if (rule.matchType === 'exact') {
             if (lowerMsg === keyword) {
-              addWahaLog('RULE_MATCH', { type: 'exact', keyword, response: rule.response.substring(0, 20) });
-              await sendWahaMessage(from, rule.response, emp.company);
+              addWahaLog('RULE_MATCH', { type: 'exact', keyword, from, company });
+              await sendWahaMessage(from, rule.response, company);
               return res.status(200).json({ status: "received_dynamic_exact" });
             }
           } else if (rule.matchType === 'contains') {
             if (lowerMsg.includes(keyword)) {
-              addWahaLog('RULE_MATCH', { type: 'contains', keyword, response: rule.response.substring(0, 20) });
-              await sendWahaMessage(from, rule.response, emp.company);
+              addWahaLog('RULE_MATCH', { type: 'contains', keyword, from, company });
+              await sendWahaMessage(from, rule.response, company);
               return res.status(200).json({ status: "received_dynamic_contains" });
             }
           }
         }
       } else {
-        addWahaLog('RULE_SKIP', { reason: 'No rules found for company', company: emp.company });
+        addWahaLog('RULE_SKIP', { reason: 'No rules found for company', company });
       }
     } catch (e: any) {
       console.error("[WAHA Webhook] Error fetching dynamic rules:", e);
-      addWahaLog('RULE_ERROR', { error: e.message, company: emp.company });
+      addWahaLog('RULE_ERROR', { error: e.message, company });
     }
     // --------------------------------
+
+    if (!emp) {
+      return res.status(200).json({ status: "ignored_unauthorized_client" });
+    }
 
     if (lowerMsg === '!menu' || lowerMsg === '!help' || lowerMsg === 'p' || lowerMsg === 'halo') {
       const menu = `🤖 *MAJOVA.ID HR BOT MENU* 🤖\n\nHalo ${emp.nama},\n\nBerikut adalah perintah yang bisa Anda gunakan:\n\n` +
@@ -628,7 +654,7 @@ app.get("/api/waha/setup-webhook", async (req, res) => {
   
   if (!settings?.apiUrl) return res.status(400).json({ error: "WAHA not configured yet" });
 
-  const webhookUrl = `${process.env.APP_URL || 'https://' + req.get('host')}/api/webhook/waha`;
+  const webhookUrl = `${process.env.APP_URL || 'https://' + req.get('host')}/api/webhook/waha?company=${encodeURIComponent(company)}`;
 
   try {
     const sessionName = settings.sessionName || "default";
