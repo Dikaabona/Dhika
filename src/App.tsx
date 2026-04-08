@@ -577,7 +577,7 @@ export const App: React.FC = () => {
     try {
       if (isReset) {
         const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-          redirectTo: `${window.location.origin}`,
+          redirectTo: `${window.location.origin}/resetpassword`,
         });
         if (error) throw error;
         alert('Cek email untuk reset password.');
@@ -638,6 +638,7 @@ export const App: React.FC = () => {
       alert('Password berhasil diperbarui! Silakan login kembali.');
       setIsChangingPassword(false);
       setNewPassword('');
+      window.history.replaceState({}, '', '/');
       await supabase.auth.signOut();
     } catch (err: any) {
       setAuthError(err.message);
@@ -648,7 +649,7 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('type') === 'recovery') {
+    if (params.get('type') === 'recovery' || window.location.pathname === '/resetpassword') {
       setIsChangingPassword(true);
     }
 
@@ -1608,7 +1609,11 @@ export const App: React.FC = () => {
               <button disabled={isAuthLoading} type="submit" className="w-full bg-[#0f172a] text-white py-5 rounded-3xl font-bold text-xs uppercase tracking-[0.4em] shadow-xl hover:bg-black transition-all">
                 {isAuthLoading ? 'MEMPERBARUI...' : 'SIMPAN PASSWORD'}
               </button>
-              <button type="button" onClick={() => { setIsChangingPassword(false); supabase.auth.signOut(); }} className="w-full text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-slate-900 transition-colors">BATAL</button>
+              <button type="button" onClick={() => { 
+                setIsChangingPassword(false); 
+                window.history.replaceState({}, '', '/');
+                supabase.auth.signOut(); 
+              }} className="w-full text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-slate-900 transition-colors">BATAL</button>
             </form>
           </div>
         </div>

@@ -67,15 +67,50 @@ try {
   console.error("Error initializing Supabase:", err);
 }
 
-// Global variable to store recent logs (in-memory for debugging)
-let wahaLogs: any[] = [];
-function addWahaLog(type: string, data: any) {
-  wahaLogs.unshift({
-    timestamp: new Date().toISOString(),
-    type,
-    data
-  });
-  if (wahaLogs.length > 50) wahaLogs.pop();
+// Global variable to store recent logs (now using Supabase for persistence)
+async function addWahaLog(type: string, data: any) {
+  console.log(`[WAHA LOG] ${type}:`, JSON.stringify(data));
+  if (!supabase) return;
+
+  try {
+    // Fetch existing logs
+    const { data: existing, error: fetchError } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'waha_debug_logs')
+      .maybeSingle();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error("Error fetching logs:", fetchError);
+    }
+
+    let logs = existing?.value || [];
+    if (!Array.isArray(logs)) logs = [];
+
+    // Add new log at the beginning
+    logs.unshift({
+      timestamp: new Date().toISOString(),
+      type,
+      data
+    });
+
+    // Keep only last 50 logs
+    const trimmedLogs = logs.slice(0, 50);
+
+    // Save back to Supabase
+    const { error: upsertError } = await supabase
+      .from('settings')
+      .upsert({ 
+        key: 'waha_debug_logs', 
+        value: trimmedLogs,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'key' });
+
+    if (upsertError) console.error("Upsert error:", upsertError);
+
+  } catch (err) {
+    console.error("Failed to save WAHA log to Supabase:", err);
+  }
 }
 
 // Helper to get WAHA settings for a company
@@ -168,6 +203,7 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
   addWahaLog('WEBHOOK_HIT', { 
     method: req.method,
     url: req.originalUrl,
+    headers: req.headers,
     body: req.body
   });
 
@@ -175,40 +211,90 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
     return res.send("✅ Webhook endpoint is ACTIVE and reachable. Please use POST for actual WAHA data.");
   }
 
-  const { event, payload } = req.body;
+  // Robust payload extraction
+  const body = req.body || {};
+  const event = body.event || (body.payload && body.payload.event) || (body.data && body.data.event);
+  const payload = body.payload || body.data || body;
+  
   console.log(`[WAHA Webhook] Event: ${event}`);
+  addWahaLog('DEBUG_PAYLOAD', { event, payload_keys: Object.keys(payload) });
 
-  if (event === 'message.upsert' || event === 'message') {
-    const message = payload.body || payload.content || payload.text;
-    const from = payload.from || payload.chatId; // e.g. 628123456789@c.us
+  if (event === 'message.upsert' || event === 'message' || !event) {
+    // If no event, we try to process it as a message anyway if it looks like one
+    const message = payload.body || payload.content || payload.text || (payload.message && (payload.message.conversation || payload.message.extendedTextMessage?.text));
+    const from = payload.from || payload.chatId || payload.remoteJid || (payload.key && payload.key.remoteJid);
     
     if (!message || !from) {
-      console.warn("[WAHA Webhook] Missing message body or sender info", payload);
+      addWahaLog('WEBHOOK_SKIP', { reason: 'Missing message or from', payload_sample: JSON.stringify(payload).substring(0, 100) });
       return res.status(200).json({ status: "ignored_missing_data" });
     }
 
     // --- RESTRICTION: Only reply to employees in database ---
     const phoneDigits = from.split('@')[0].replace(/\D/g, '');
-    const last10 = phoneDigits.slice(-10);
+    const last9 = phoneDigits.slice(-9);
     
-    const { data: emps, error: empError } = await supabase.from('employees').select('*');
-    if (empError) {
-      console.error("[WAHA Webhook] Supabase error fetching employees:", empError);
-      return res.status(200).json({ status: "error" });
+    if (!supabase) {
+      addWahaLog('ERROR', 'Supabase not initialized');
+      return res.status(200).json({ status: "error_no_supabase" });
     }
 
-    const emp = emps?.find((e: any) => (e.noHandphone || '').replace(/\D/g, '').endsWith(last10));
+    const { data: emps, error: empError } = await supabase.from('employees').select('*');
+    
+    if (empError) {
+      addWahaLog('ERROR', `Supabase error: ${empError.message}`);
+      return res.status(200).json({ status: "error_db" });
+    }
+
+    const emp = emps?.find((e: any) => {
+      const cleanDbPhone = (e.noHandphone || '').replace(/\D/g, '');
+      const match = cleanDbPhone.endsWith(last9);
+      if (match) console.log(`[WAHA] Found matching employee: ${e.nama} for phone end ${last9}`);
+      return match;
+    });
 
     if (!emp) {
-      console.log(`[WAHA Webhook] Ignoring message from non-employee: ${from}`);
-      addWahaLog('UNAUTHORIZED_ACCESS', { from, last10 });
-      // We don't reply at all to non-employees as requested
+      addWahaLog('UNAUTHORIZED_ACCESS', { 
+        from, 
+        detectedPhone: phoneDigits,
+        last9: last9,
+        msg: typeof message === 'string' ? message.substring(0, 20) : 'non-string msg',
+        registered_count: emps?.length || 0
+      });
       return res.status(200).json({ status: "ignored_unauthorized" });
     }
-    // -------------------------------------------------------
 
-    console.log(`[WAHA Webhook] Message from ${emp.nama} (${from}): ${message}`);
-    const lowerMsg = message.toLowerCase().trim();
+    addWahaLog('WEBHOOK_PROCESS', { from: emp.nama, message: typeof message === 'string' ? message : 'complex-msg' });
+    const lowerMsg = typeof message === 'string' ? message.toLowerCase().trim() : '';
+
+    // --- DYNAMIC AUTO-REPLY RULES ---
+    try {
+      const { data: rulesData } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', `waha_autoreply_rules_${emp.company}`)
+        .single();
+      
+      if (rulesData && Array.isArray(rulesData.value)) {
+        const rules = rulesData.value as any[];
+        for (const rule of rules) {
+          const keyword = (rule.keyword || '').toLowerCase().trim();
+          if (rule.matchType === 'exact') {
+            if (lowerMsg === keyword) {
+              await sendWahaMessage(from, rule.response, emp.company);
+              return res.status(200).json({ status: "received_dynamic_exact" });
+            }
+          } else if (rule.matchType === 'contains') {
+            if (lowerMsg.includes(keyword)) {
+              await sendWahaMessage(from, rule.response, emp.company);
+              return res.status(200).json({ status: "received_dynamic_contains" });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[WAHA Webhook] Error fetching dynamic rules:", e);
+    }
+    // --------------------------------
 
     if (lowerMsg === '!menu' || lowerMsg === '!help' || lowerMsg === 'p' || lowerMsg === 'halo') {
       const menu = `🤖 *MAJOVA.ID HR BOT MENU* 🤖\n\nHalo ${emp.nama},\n\nBerikut adalah perintah yang bisa Anda gunakan:\n\n` +
@@ -365,6 +451,37 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
 });
 
 // API to test WAHA connection from backend
+app.post("/api/waha/test-connection", async (req, res) => {
+  const { apiUrl, apiKey, sessionName } = req.body;
+  if (!apiUrl) return res.status(400).json({ success: false, message: "URL is required" });
+  
+  let cleanUrl = apiUrl.trim();
+  if (cleanUrl.endsWith('/dashboard')) cleanUrl = cleanUrl.replace('/dashboard', '');
+  if (cleanUrl.endsWith('/')) cleanUrl = cleanUrl.slice(0, -1);
+
+  try {
+    const response = await axios.get(`${cleanUrl}/api/sessions`, {
+      headers: { 'X-Api-Key': apiKey }
+    });
+    
+    // Check if the specific session exists or is connected
+    const sessions = response.data;
+    const session = Array.isArray(sessions) ? sessions.find((s: any) => s.name === sessionName) : null;
+    
+    res.status(200).json({ 
+      success: true, 
+      status: session ? session.status : "Connected to WAHA (Session not found or default)",
+      data: response.data 
+    });
+  } catch (err: any) {
+    console.error("WAHA Test Error:", err.response?.data || err.message);
+    res.status(200).json({ 
+      success: false, 
+      message: err.response?.data?.message || err.message 
+    });
+  }
+});
+
 app.post("/api/waha/test", async (req, res) => {
   const { apiUrl, apiKey } = req.body;
   if (!apiUrl) return res.status(400).json({ error: "URL is required" });
@@ -465,8 +582,31 @@ app.get("/api/waha/status", async (req, res) => {
 });
 
 // API to view WAHA logs
-app.get("/api/waha/logs", (req, res) => {
-  res.json(wahaLogs);
+app.get("/api/waha/logs", async (req, res) => {
+  if (!supabase) return res.json([]);
+  try {
+    const { data } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'waha_debug_logs')
+      .single();
+    res.json(data?.value || []);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+// API to clear WAHA logs
+app.post("/api/waha/logs/clear", async (req, res) => {
+  if (!supabase) return res.json({ success: false });
+  try {
+    await supabase
+      .from('settings')
+      .upsert({ key: 'waha_debug_logs', value: [] }, { onConflict: 'key' });
+    res.json({ success: true });
+  } catch (err) {
+    res.json({ success: false });
+  }
 });
 
 // API to automatically register webhook in WAHA

@@ -23,7 +23,20 @@ interface SettingsModuleProps {
   onRefresh: () => void;
 }
 
-type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT' | 'COMPANY' | 'PAYROLL';
+type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT' | 'COMPANY' | 'PAYROLL' | 'WHATSAPP';
+
+interface WahaSettings {
+  apiUrl: string;
+  apiKey: string;
+  sessionName: string;
+}
+
+interface WahaAutoReplyRule {
+  id: string;
+  keyword: string;
+  response: string;
+  matchType: 'exact' | 'contains';
+}
 
 interface CustomCriteria {
   id: string;
@@ -135,6 +148,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const [searchEmp, setSearchEmp] = useState('');
   const [searchRemote, setSearchRemote] = useState('');
 
+  const [wahaSettings, setWahaSettings] = useState<WahaSettings>({ apiUrl: '', apiKey: '', sessionName: 'default' });
+  const [autoReplyRules, setAutoReplyRules] = useState<WahaAutoReplyRule[]>([]);
+  const [newRule, setNewRule] = useState<Partial<WahaAutoReplyRule>>({ keyword: '', response: '', matchType: 'exact' });
+  const [isTestingWaha, setIsTestingWaha] = useState(false);
+  const [showWahaLogs, setShowWahaLogs] = useState(false);
+  const [logs, setLogs] = useState<any[]>([]);
+
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -154,8 +174,25 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     fetchClients();
     fetchCompanyData();
     fetchTrialInfo();
+    fetchWahaSettings();
     if (isOwner) fetchAllCompanies();
   }, [selectedCompany, isOwner, userCompany]);
+
+  const fetchWahaSettings = async () => {
+    try {
+      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const { data: settingsData } = await supabase.from('settings').select('value').eq('key', `waha_settings_${targetCompany}`).single();
+      if (settingsData) setWahaSettings(settingsData.value as WahaSettings);
+      else setWahaSettings({ apiUrl: '', apiKey: '', sessionName: 'default' });
+
+      const { data: rulesData } = await supabase.from('settings').select('value').eq('key', `waha_autoreply_rules_${targetCompany}`).single();
+      if (rulesData && Array.isArray(rulesData.value)) setAutoReplyRules(rulesData.value as WahaAutoReplyRule[]);
+      else setAutoReplyRules([]);
+    } catch (e) {
+      setWahaSettings({ apiUrl: '', apiKey: '', sessionName: 'default' });
+      setAutoReplyRules([]);
+    }
+  };
 
   const fetchTrialInfo = async () => {
     try {
@@ -493,6 +530,160 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     }
   };
 
+  const handleSaveWahaSettings = async () => {
+    setIsSaving(true);
+    try {
+      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const { error } = await supabase.from('settings').upsert({
+        key: `waha_settings_${targetCompany}`,
+        value: wahaSettings
+      }, { onConflict: 'key' });
+      if (error) throw error;
+      alert("Pengaturan WAHA berhasil disimpan!");
+      onRefresh();
+    } catch (err: any) {
+      alert("Gagal menyimpan pengaturan WAHA: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAddRule = async () => {
+    if (!newRule.keyword || !newRule.response) {
+      alert("Keyword dan Response wajib diisi!");
+      return;
+    }
+    const rule: WahaAutoReplyRule = {
+      id: `rule-${Date.now()}`,
+      keyword: newRule.keyword.trim(),
+      response: newRule.response.trim(),
+      matchType: newRule.matchType as 'exact' | 'contains'
+    };
+    const updated = [...autoReplyRules, rule];
+    setIsSaving(true);
+    try {
+      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const { error } = await supabase.from('settings').upsert({
+        key: `waha_autoreply_rules_${targetCompany}`,
+        value: updated
+      }, { onConflict: 'key' });
+      if (error) throw error;
+      setAutoReplyRules(updated);
+      setNewRule({ keyword: '', response: '', matchType: 'exact' });
+      alert("Auto-reply rule berhasil ditambahkan!");
+    } catch (err: any) {
+      alert("Gagal menambah rule: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteRule = async (id: string) => {
+    const isConfirmed = await confirm({
+      title: 'Hapus Rule?',
+      message: 'Hapus auto-reply rule ini?',
+      type: 'danger',
+      confirmText: 'HAPUS'
+    });
+    if (!isConfirmed) return;
+    const updated = autoReplyRules.filter(r => r.id !== id);
+    setIsSaving(true);
+    try {
+      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const { error } = await supabase.from('settings').upsert({
+        key: `waha_autoreply_rules_${targetCompany}`,
+        value: updated
+      }, { onConflict: 'key' });
+      if (error) throw error;
+      setAutoReplyRules(updated);
+      alert("Rule berhasil dihapus!");
+    } catch (err: any) {
+      alert("Gagal menghapus rule: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleTestWaha = async () => {
+    if (!wahaSettings.apiUrl) {
+      alert("API URL wajib diisi untuk testing!");
+      return;
+    }
+    setIsTestingWaha(true);
+    try {
+      // We use our own backend to proxy the test to avoid CORS issues if WAHA is not configured for it
+      const response = await fetch('/api/waha/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiUrl: wahaSettings.apiUrl,
+          apiKey: wahaSettings.apiKey,
+          sessionName: wahaSettings.sessionName
+        })
+      });
+      const result = await response.json();
+      if (result.success) {
+        alert("Koneksi WAHA Berhasil! Status: " + result.status);
+      } else {
+        alert("Koneksi WAHA Gagal: " + result.message);
+      }
+    } catch (err: any) {
+      alert("Terjadi kesalahan saat testing: " + err.message);
+    } finally {
+      setIsTestingWaha(false);
+    }
+  };
+
+  const fetchLogs = async () => {
+    try {
+      const response = await fetch('/api/waha/logs');
+      const data = await response.json();
+      setLogs(data);
+    } catch (e) {
+      console.error("Failed to fetch logs");
+    }
+  };
+
+  const handleClearLogs = async () => {
+    try {
+      await fetch('/api/waha/logs/clear', { method: 'POST' });
+      setLogs([]);
+    } catch (e) {
+      console.error("Failed to clear logs");
+    }
+  };
+
+  const handleSimulateWebhook = async () => {
+    try {
+      const response = await fetch('/api/webhook/waha', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'message',
+          payload: {
+            body: '!menu',
+            from: '628123456789@c.us',
+            chatId: '628123456789@c.us'
+          }
+        })
+      });
+      if (response.ok) {
+        alert("Simulasi terkirim! Silakan cek log.");
+        fetchLogs();
+      }
+    } catch (e) {
+      alert("Gagal simulasi");
+    }
+  };
+
+  useEffect(() => {
+    if (showWahaLogs) {
+      fetchLogs();
+      const interval = setInterval(fetchLogs, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [showWahaLogs]);
+
   const handleAddClient = async () => {
     if (!newClient.namaPic || !newClient.namaBrand) {
       alert("Nama PIC dan Nama Brand wajib diisi!");
@@ -779,11 +970,19 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                     DATA CLIENT
                   </button>
                 )}
+                {isHighAdminAccess && (
+                  <button 
+                    onClick={() => setActiveSubTab('WHATSAPP')} 
+                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'WHATSAPP' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    WHATSAPP (WAHA)
+                  </button>
+                )}
               </div>
             </div>
           </div>
           
-          {(activeSubTab !== 'DIVISI' && activeSubTab !== 'LEMBUR' && activeSubTab !== 'CLIENT' && activeSubTab !== 'PAYROLL') && (
+          {(activeSubTab !== 'DIVISI' && activeSubTab !== 'LEMBUR' && activeSubTab !== 'CLIENT' && activeSubTab !== 'PAYROLL' && activeSubTab !== 'WHATSAPP') && (
             <button 
               onClick={
                 activeSubTab === 'KPI' ? () => handleSaveKPISystem(kpiSystem) : 
@@ -1554,6 +1753,214 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
               <p className="text-slate-500">Anda tidak memiliki izin untuk mengakses data client.</p>
             </div>
           )
+        ) : activeSubTab === 'WHATSAPP' ? (
+          <div className="animate-in fade-in duration-300 space-y-12">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div className="space-y-2">
+                <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">WhatsApp Auto-Reply (WAHA)</h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Konfigurasi WhatsApp API dan aturan balasan otomatis.</p>
+              </div>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setShowWahaLogs(!showWahaLogs)}
+                  className={`px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm transition-all flex items-center gap-2 ${showWahaLogs ? 'bg-rose-500 text-white' : 'bg-white border-2 border-slate-100 text-slate-900 hover:bg-slate-50'}`}
+                >
+                  <Icons.FileText className="w-4 h-4" /> {showWahaLogs ? 'TUTUP LOG' : 'LIHAT LOG WEBHOOK'}
+                </button>
+                <button 
+                  onClick={handleTestWaha}
+                  disabled={isTestingWaha || !wahaSettings.apiUrl}
+                  className="bg-white border-2 border-slate-100 text-slate-900 px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-50 transition-all flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isTestingWaha ? 'Testing...' : <><Icons.Activity className="w-4 h-4" /> TEST KONEKSI</>}
+                </button>
+                <button 
+                  onClick={handleSaveWahaSettings}
+                  disabled={isSaving}
+                  className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-10 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50 flex items-center gap-3"
+                >
+                  <Icons.Database className="w-4 h-4" /> SIMPAN CONFIG
+                </button>
+              </div>
+            </div>
+
+            {showWahaLogs && (
+              <div className="bg-slate-900 rounded-[40px] p-8 font-mono text-[10px] text-emerald-400 overflow-hidden shadow-2xl animate-in slide-in-from-top-4 duration-500">
+                <div className="flex items-center justify-between mb-6 border-b border-slate-800 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                    <span className="font-black uppercase tracking-widest">Live Webhook Logs (Auto-refresh 3s)</span>
+                  </div>
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={handleSimulateWebhook}
+                      className="text-indigo-400 hover:text-white uppercase font-black border border-indigo-900 px-3 py-1 rounded-lg hover:bg-indigo-900 transition-all"
+                    >
+                      Simulasi Webhook
+                    </button>
+                    <button 
+                      onClick={handleClearLogs} 
+                      className="text-slate-500 hover:text-white uppercase font-black"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-3 max-h-[400px] overflow-y-auto no-scrollbar">
+                  {logs.length === 0 && <p className="opacity-30 italic">Menunggu data webhook masuk... Pastikan Anda menggunakan URL ais-pre- di dashboard WAHA.</p>}
+                  {logs.map((log, i) => (
+                    <div key={i} className="border-l-2 border-slate-700 pl-4 py-1">
+                      <span className="text-slate-500">[{new Date(log.timestamp).toLocaleTimeString()}]</span>{' '}
+                      <span className="text-indigo-400 font-bold">[{log.type}]</span>{' '}
+                      <span className="text-slate-300">{JSON.stringify(log.data)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+              <div className="space-y-8">
+                <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-6">
+                  <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-3">
+                    <Icons.Settings className="w-4 h-4 text-indigo-500" /> API Configuration
+                  </h4>
+                  
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">WAHA API URL</label>
+                      <input 
+                        type="text" 
+                        value={wahaSettings.apiUrl} 
+                        onChange={e => setWahaSettings({...wahaSettings, apiUrl: e.target.value})} 
+                        placeholder="https://your-waha-instance.com"
+                        className="w-full bg-white border border-slate-200 px-5 py-3 rounded-2xl text-[11px] font-black outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">API Key (Optional)</label>
+                      <input 
+                        type="password" 
+                        value={wahaSettings.apiKey} 
+                        onChange={e => setWahaSettings({...wahaSettings, apiKey: e.target.value})} 
+                        placeholder="Your API Key"
+                        className="w-full bg-white border border-slate-200 px-5 py-3 rounded-2xl text-[11px] font-black outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Session Name</label>
+                      <input 
+                        type="text" 
+                        value={wahaSettings.sessionName} 
+                        onChange={e => setWahaSettings({...wahaSettings, sessionName: e.target.value})} 
+                        placeholder="default"
+                        className="w-full bg-white border border-slate-200 px-5 py-3 rounded-2xl text-[11px] font-black outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
+                    <p className="text-[9px] font-bold text-indigo-800 uppercase leading-relaxed">
+                      Webhook URL untuk WAHA:<br/>
+                      <code className="bg-white px-2 py-1 rounded mt-1 block lowercase tracking-normal text-[10px] border border-indigo-200">
+                        {window.location.origin.replace('ais-dev-', 'ais-pre-')}/api/webhook/waha
+                      </code>
+                    </p>
+                    <p className="text-[8px] text-indigo-400 mt-2 font-medium">
+                      *Gunakan URL di atas (ais-pre-) agar server WAHA bisa mengirim data ke aplikasi ini.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="lg:col-span-2 space-y-8">
+                <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm space-y-8">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-3">
+                      <Icons.MessageSquare className="w-4 h-4 text-[#FFC000]" /> Auto-Reply Rules
+                    </h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                    <div className="md:col-span-3 space-y-1">
+                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Keyword</label>
+                      <input 
+                        type="text" 
+                        value={newRule.keyword} 
+                        onChange={e => setNewRule({...newRule, keyword: e.target.value})} 
+                        placeholder="e.g. !halo"
+                        className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-[10px] font-black uppercase outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+                      />
+                    </div>
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Match Type</label>
+                      <select 
+                        value={newRule.matchType} 
+                        onChange={e => setNewRule({...newRule, matchType: e.target.value as any})} 
+                        className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-[10px] font-black uppercase outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm cursor-pointer"
+                      >
+                        <option value="exact">EXACT</option>
+                        <option value="contains">CONTAINS</option>
+                      </select>
+                    </div>
+                    <div className="md:col-span-5 space-y-1">
+                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Response Message</label>
+                      <input 
+                        type="text" 
+                        value={newRule.response} 
+                        onChange={e => setNewRule({...newRule, response: e.target.value})} 
+                        placeholder="Balasan otomatis..."
+                        className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-[10px] font-black outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <button 
+                        onClick={handleAddRule}
+                        disabled={isSaving}
+                        className="w-full bg-[#0f172a] text-[#FFC000] py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        <Icons.Plus className="w-4 h-4" /> ADD
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {autoReplyRules.map((rule) => (
+                      <div key={rule.id} className="flex items-center justify-between bg-slate-50/50 p-6 rounded-3xl border border-slate-100 group hover:bg-white hover:shadow-md transition-all">
+                        <div className="flex-grow grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <div>
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Keyword</p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-black text-slate-900 uppercase bg-white px-3 py-1 rounded-lg border border-slate-200 shadow-sm">{rule.keyword}</span>
+                              <span className={`text-[7px] font-black px-2 py-0.5 rounded uppercase tracking-tighter ${rule.matchType === 'exact' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                                {rule.matchType}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="md:col-span-2">
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Response</p>
+                            <p className="text-[10px] font-medium text-slate-600 line-clamp-2">{rule.response}</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => handleDeleteRule(rule.id)}
+                          className="text-rose-400 hover:text-rose-600 p-3 rounded-xl hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Icons.Trash className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    {autoReplyRules.length === 0 && (
+                      <div className="py-20 text-center opacity-30">
+                        <Icons.MessageSquare className="w-12 h-12 mx-auto mb-4" />
+                        <p className="text-[10px] font-black uppercase tracking-[0.4em]">Belum ada aturan auto-reply</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : activeSubTab === 'ROLE' ? (
           <div className="animate-in fade-in duration-300 space-y-10">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
