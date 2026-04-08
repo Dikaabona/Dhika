@@ -102,8 +102,7 @@ async function addWahaLog(type: string, data: any) {
       .from('settings')
       .upsert({ 
         key: 'waha_debug_logs', 
-        value: trimmedLogs,
-        updated_at: new Date().toISOString()
+        value: trimmedLogs
       }, { onConflict: 'key' });
 
     if (upsertError) console.error("Upsert error:", upsertError);
@@ -192,8 +191,11 @@ async function sendWahaMessage(to: string, message: string, company: string = 'V
       }
     });
     console.log(`WAHA message sent to ${chatId} (${company})`);
+    addWahaLog('MESSAGE_SENT', { to: chatId, company });
   } catch (err: any) {
-    console.error(`Error sending WAHA message (${company}):`, err.response?.data || err.message);
+    const errorMsg = err.response?.data || err.message;
+    console.error(`Error sending WAHA message (${company}):`, errorMsg);
+    addWahaLog('MESSAGE_ERROR', { to: chatId, error: errorMsg, company });
   }
 }
 
@@ -221,7 +223,8 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
 
   if (event === 'message.upsert' || event === 'message' || !event) {
     // If no event, we try to process it as a message anyway if it looks like one
-    const message = payload.body || payload.content || payload.text || (payload.message && (payload.message.conversation || payload.message.extendedTextMessage?.text));
+    const message = payload.body || payload.content || payload.text || payload.caption || 
+                   (payload.message && (payload.message.conversation || payload.message.extendedTextMessage?.text || payload.message.imageMessage?.caption || payload.message.videoMessage?.caption));
     const from = payload.from || payload.chatId || payload.remoteJid || (payload.key && payload.key.remoteJid);
     
     if (!message || !from) {
@@ -276,23 +279,32 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
       
       if (rulesData && Array.isArray(rulesData.value)) {
         const rules = rulesData.value as any[];
+        addWahaLog('RULE_CHECK', { rules_count: rules.length, message: lowerMsg });
+        
         for (const rule of rules) {
           const keyword = (rule.keyword || '').toLowerCase().trim();
+          if (!keyword) continue;
+
           if (rule.matchType === 'exact') {
             if (lowerMsg === keyword) {
+              addWahaLog('RULE_MATCH', { type: 'exact', keyword, response: rule.response.substring(0, 20) });
               await sendWahaMessage(from, rule.response, emp.company);
               return res.status(200).json({ status: "received_dynamic_exact" });
             }
           } else if (rule.matchType === 'contains') {
             if (lowerMsg.includes(keyword)) {
+              addWahaLog('RULE_MATCH', { type: 'contains', keyword, response: rule.response.substring(0, 20) });
               await sendWahaMessage(from, rule.response, emp.company);
               return res.status(200).json({ status: "received_dynamic_contains" });
             }
           }
         }
+      } else {
+        addWahaLog('RULE_SKIP', { reason: 'No rules found for company', company: emp.company });
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("[WAHA Webhook] Error fetching dynamic rules:", e);
+      addWahaLog('RULE_ERROR', { error: e.message, company: emp.company });
     }
     // --------------------------------
 

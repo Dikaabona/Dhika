@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import axios from 'axios';
 import { Icons } from '../constants';
 import { supabase } from '../services/supabaseClient';
 import { AttendanceSettings, Employee, Branch, SalaryData } from '../types';
@@ -653,6 +654,27 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     }
   };
 
+  const handleSetupWebhook = async () => {
+    const isConfirmed = await confirm({
+      title: 'Setup Webhook?',
+      message: 'Ini akan mendaftarkan URL aplikasi ini ke server WAHA agar bot bisa menerima pesan secara real-time. Lanjutkan?',
+      type: 'warning',
+      confirmText: 'SETUP'
+    });
+    if (!isConfirmed) return;
+
+    setIsTestingWaha(true);
+    try {
+      const targetCompany = isOwner ? selectedCompany : userCompany;
+      const response = await axios.get(`/api/waha/setup-webhook?company=${targetCompany}`);
+      alert(response.data.message || "Webhook berhasil didaftarkan!");
+    } catch (err: any) {
+      alert("Gagal setup webhook: " + (err.response?.data?.message || err.message));
+    } finally {
+      setIsTestingWaha(false);
+    }
+  };
+
   const handleSimulateWebhook = async () => {
     try {
       const response = await fetch('/api/webhook/waha', {
@@ -893,108 +915,111 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   return (
     <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
       <div className="bg-white rounded-[48px] p-8 sm:p-12 shadow-sm border border-slate-100">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-12">
-          <div className="flex items-center gap-6">
-            <div className="bg-[#0f172a] p-5 rounded-3xl text-[#FFC000] shadow-xl">
-               <Icons.Settings className="w-8 h-8" />
-            </div>
-            <div>
-              <div className="flex items-center gap-4">
-                <h2 className="text-3xl font-black text-[#0f172a] uppercase tracking-tight leading-none">Setting</h2>
-                {isOwner && (
-                  <div className="relative">
-                    <select 
-                      value={selectedCompany}
-                      onChange={(e) => setSelectedCompany(e.target.value)}
-                      className="bg-slate-100 border border-slate-200 text-slate-900 text-[10px] font-black uppercase px-4 py-2 rounded-xl outline-none focus:ring-2 focus:ring-[#FFC000] cursor-pointer"
-                    >
-                      {allCompanies.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                )}
+        <div className="flex flex-col gap-8 mb-12">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-center gap-6">
+              <div className="bg-[#0f172a] p-5 rounded-3xl text-[#FFC000] shadow-xl">
+                 <Icons.Settings className="w-8 h-8" />
               </div>
-              <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner mt-4 w-fit overflow-x-auto no-scrollbar">
-                {canAccessRoleManagement && (
-                  <button 
-                    onClick={() => setActiveSubTab('ROLE')} 
-                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'ROLE' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                  >
-                    ROLE
-                  </button>
-                )}
-                {canAccessRoleManagement && (
-                  <button 
-                    onClick={() => setActiveSubTab('COMPANY')} 
-                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'COMPANY' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                  >
-                    DATA PERUSAHAAN
-                  </button>
-                )}
-                {canAccessRoleManagement && (
-                  <button 
-                    onClick={() => setActiveSubTab('KPI')} 
-                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'KPI' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                  >
-                    KPI
-                  </button>
-                )}
-                <button 
-                  onClick={() => setActiveSubTab('LEMBUR')} 
-                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'LEMBUR' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  LEMBUR
-                </button>
-                <button 
-                  onClick={() => setActiveSubTab('PAYROLL')} 
-                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'PAYROLL' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  PAYROLL
-                </button>
-                <button 
-                  onClick={() => setActiveSubTab('MAPS')} 
-                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'MAPS' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  MAPS
-                </button>
-                <button 
-                  onClick={() => setActiveSubTab('DIVISI')} 
-                  className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'DIVISI' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  DIVISI & STRUKTUR
-                </button>
-                {canAccessClientData && (
-                  <button 
-                    onClick={() => setActiveSubTab('CLIENT')} 
-                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'CLIENT' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                  >
-                    DATA CLIENT
-                  </button>
-                )}
-                {isHighAdminAccess && (
-                  <button 
-                    onClick={() => setActiveSubTab('WHATSAPP')} 
-                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'WHATSAPP' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                  >
-                    WHATSAPP (WAHA)
-                  </button>
-                )}
+              <div>
+                <div className="flex items-center gap-4">
+                  <h2 className="text-3xl font-black text-[#0f172a] uppercase tracking-tight leading-none">Setting</h2>
+                  {isOwner && (
+                    <div className="relative">
+                      <select 
+                        value={selectedCompany}
+                        onChange={(e) => setSelectedCompany(e.target.value)}
+                        className="bg-slate-100 border border-slate-200 text-slate-900 text-[10px] font-black uppercase px-4 py-2 rounded-xl outline-none focus:ring-2 focus:ring-[#FFC000] cursor-pointer"
+                      >
+                        {allCompanies.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+
+            {(activeSubTab !== 'DIVISI' && activeSubTab !== 'LEMBUR' && activeSubTab !== 'CLIENT' && activeSubTab !== 'PAYROLL' && activeSubTab !== 'WHATSAPP') && (
+              <button 
+                onClick={
+                  activeSubTab === 'KPI' ? () => handleSaveKPISystem(kpiSystem) : 
+                  activeSubTab === 'COMPANY' ? () => saveSettingsToCloud(`company_details_${isOwner ? selectedCompany : userCompany}`, companyData).then(() => { alert("Data Perusahaan berhasil disimpan!"); setIsEditingCompany(false); }) :
+                  handleSaveSettings
+                }
+                disabled={isSaving}
+                className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-10 py-5 rounded-3xl font-black text-[10px] sm:text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-4"
+              >
+                {isSaving ? 'Menyimpan...' : <><Icons.Database className="w-4 h-4"/> Simpan Konfigurasi</>}
+              </button>
+            )}
           </div>
-          
-          {(activeSubTab !== 'DIVISI' && activeSubTab !== 'LEMBUR' && activeSubTab !== 'CLIENT' && activeSubTab !== 'PAYROLL' && activeSubTab !== 'WHATSAPP') && (
+
+          <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner w-full overflow-x-auto no-scrollbar">
+            {canAccessRoleManagement && (
+              <button 
+                onClick={() => setActiveSubTab('ROLE')} 
+                className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'ROLE' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                ROLE
+              </button>
+            )}
+            {canAccessRoleManagement && (
+              <button 
+                onClick={() => setActiveSubTab('COMPANY')} 
+                className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'COMPANY' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                DATA PERUSAHAAN
+              </button>
+            )}
+            {canAccessRoleManagement && (
+              <button 
+                onClick={() => setActiveSubTab('KPI')} 
+                className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'KPI' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                KPI
+              </button>
+            )}
             <button 
-              onClick={
-                activeSubTab === 'KPI' ? () => handleSaveKPISystem(kpiSystem) : 
-                activeSubTab === 'COMPANY' ? () => saveSettingsToCloud(`company_details_${isOwner ? selectedCompany : userCompany}`, companyData).then(() => { alert("Data Perusahaan berhasil disimpan!"); setIsEditingCompany(false); }) :
-                handleSaveSettings
-              }
-              disabled={isSaving}
-              className="bg-[#0f172a] hover:bg-black text-[#FFC000] px-10 py-5 rounded-3xl font-black text-[10px] sm:text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-4"
+              onClick={() => setActiveSubTab('LEMBUR')} 
+              className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'LEMBUR' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              {isSaving ? 'Menyimpan...' : <><Icons.Database className="w-4 h-4"/> Simpan Konfigurasi</>}
+              LEMBUR
             </button>
-          )}
+            <button 
+              onClick={() => setActiveSubTab('PAYROLL')} 
+              className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'PAYROLL' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              PAYROLL
+            </button>
+            <button 
+              onClick={() => setActiveSubTab('MAPS')} 
+              className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'MAPS' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              MAPS
+            </button>
+            <button 
+              onClick={() => setActiveSubTab('DIVISI')} 
+              className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'DIVISI' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              DIVISI & STRUKTUR
+            </button>
+            {canAccessClientData && (
+              <button 
+                onClick={() => setActiveSubTab('CLIENT')} 
+                className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'CLIENT' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                DATA CLIENT
+              </button>
+            )}
+            {isHighAdminAccess && (
+              <button 
+                onClick={() => setActiveSubTab('WHATSAPP')} 
+                className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'WHATSAPP' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                WHATSAPP (WAHA)
+              </button>
+            )}
+          </div>
         </div>
 
         {activeSubTab === 'PAYROLL' ? (
@@ -1762,6 +1787,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
               </div>
               <div className="flex gap-3">
                 <button 
+                  onClick={handleSetupWebhook}
+                  disabled={isTestingWaha || !wahaSettings.apiUrl}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Icons.Globe className="w-4 h-4" /> SETUP WEBHOOK
+                </button>
+                <button 
                   onClick={() => setShowWahaLogs(!showWahaLogs)}
                   className={`px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm transition-all flex items-center gap-2 ${showWahaLogs ? 'bg-rose-500 text-white' : 'bg-white border-2 border-slate-100 text-slate-900 hover:bg-slate-50'}`}
                 >
@@ -1879,6 +1911,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                     <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-3">
                       <Icons.MessageSquare className="w-4 h-4 text-[#FFC000]" /> Auto-Reply Rules
                     </h4>
+                    <div className="bg-amber-50 px-4 py-2 rounded-xl border border-amber-100">
+                      <p className="text-[9px] font-bold text-amber-700 uppercase leading-tight">
+                        💡 Tips: Gunakan "CONTAINS" untuk pencocokan yang lebih fleksibel. <br/>
+                        Sistem tidak membedakan huruf besar/kecil (Case Insensitive).
+                      </p>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-slate-50 p-6 rounded-3xl border border-slate-100">
