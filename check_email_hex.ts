@@ -6,28 +6,20 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJh
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-async function checkTables() {
-  const tables = [
-    'employees',
-    'attendance',
-    'live_reports',
-    'submissions',
-    'broadcasts',
-    'schedules',
-    'content_plans',
-    'advertising_records',
-    'shift_assignments',
-    'settings'
-  ];
-  
-  for (const table of tables) {
-    const { error } = await supabase.from(table).select('id').limit(1);
-    if (error) {
-      console.log(`Table "${table}" error: ${error.message}`);
-    } else {
-      console.log(`Table "${table}" exists.`);
-    }
+async function checkEmailHex() {
+  const { data, error } = await supabase
+    .from('employees')
+    .select('email')
+    .ilike('email', 'wida.oktapiani99@gmail.com');
+    
+  if (data && data[0]) {
+    const email = data[0].email;
+    console.log(`Email: "${email}"`);
+    console.log(`Hex: ${Buffer.from(email).toString('hex')}`);
+    
+    const expected = 'wida.oktapiani99@gmail.com';
+    console.log(`Expected Hex: ${Buffer.from(expected).toString('hex')}`);
   }
 }
 
-checkTables();
+checkEmailHex();

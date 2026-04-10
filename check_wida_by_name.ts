@@ -6,28 +6,21 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJh
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-async function checkTables() {
-  const tables = [
-    'employees',
-    'attendance',
-    'live_reports',
-    'submissions',
-    'broadcasts',
-    'schedules',
-    'content_plans',
-    'advertising_records',
-    'shift_assignments',
-    'settings'
-  ];
-  
-  for (const table of tables) {
-    const { error } = await supabase.from(table).select('id').limit(1);
-    if (error) {
-      console.log(`Table "${table}" error: ${error.message}`);
-    } else {
-      console.log(`Table "${table}" exists.`);
-    }
+async function checkWidaByName() {
+  const { data, error } = await supabase
+    .from('employees')
+    .select('*')
+    .ilike('nama', '%Wida Oktapiani%');
+    
+  if (data) {
+    console.log(`Found ${data.length} records matching "Wida Oktapiani":`);
+    data.forEach(emp => {
+      console.log(`- ID: ${emp.id}`);
+      console.log(`  Nama: "${emp.nama}"`);
+      console.log(`  Email: "${emp.email}"`);
+      console.log(`  Deleted At: ${emp.deleted_at}`);
+    });
   }
 }
 
-checkTables();
+checkWidaByName();

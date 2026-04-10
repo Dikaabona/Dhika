@@ -6,28 +6,21 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJh
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-async function checkTables() {
-  const tables = [
-    'employees',
-    'attendance',
-    'live_reports',
-    'submissions',
-    'broadcasts',
-    'schedules',
-    'content_plans',
-    'advertising_records',
-    'shift_assignments',
-    'settings'
-  ];
+async function checkLogs() {
+  const { data } = await supabase
+    .from('settings')
+    .select('value')
+    .eq('key', 'waha_debug_logs')
+    .single();
   
-  for (const table of tables) {
-    const { error } = await supabase.from(table).select('id').limit(1);
-    if (error) {
-      console.log(`Table "${table}" error: ${error.message}`);
-    } else {
-      console.log(`Table "${table}" exists.`);
-    }
-  }
+  const logs = data?.value || [];
+  
+  const empLogs = logs.filter((l: any) => l.type === 'WEBHOOK_PROCESS_EMPLOYEE' || l.type === 'WEBHOOK_PROCESS_CLIENT');
+  
+  console.log("Employee/Client processing logs:");
+  empLogs.forEach((l: any) => {
+    console.log(`[${l.timestamp}] ${l.type}: ${JSON.stringify(l.data)}`);
+  });
 }
 
-checkTables();
+checkLogs();

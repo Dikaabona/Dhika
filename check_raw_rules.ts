@@ -6,28 +6,14 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJh
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-async function checkTables() {
-  const tables = [
-    'employees',
-    'attendance',
-    'live_reports',
-    'submissions',
-    'broadcasts',
-    'schedules',
-    'content_plans',
-    'advertising_records',
-    'shift_assignments',
-    'settings'
-  ];
+async function check() {
+  const { data } = await supabase
+    .from('settings')
+    .select('*')
+    .ilike('key', 'waha_autoreply_rules_%');
   
-  for (const table of tables) {
-    const { error } = await supabase.from(table).select('id').limit(1);
-    if (error) {
-      console.log(`Table "${table}" error: ${error.message}`);
-    } else {
-      console.log(`Table "${table}" exists.`);
-    }
-  }
+  console.log("All Auto-reply Rules in DB:");
+  console.log(JSON.stringify(data, null, 2));
 }
 
-checkTables();
+check();

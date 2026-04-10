@@ -447,7 +447,7 @@ export const App: React.FC = () => {
       const { data: myProfile, error: profileError } = await supabase
         .from('employees')
         .select('*')
-        .eq('email', targetEmail)
+        .ilike('email', targetEmail)
         .is('deleted_at', null)
         .maybeSingle();
 

@@ -28,6 +28,11 @@ async function check() {
   logs.slice(0, 100).forEach((log: any) => {
     console.log(`[${log.timestamp}] ${log.type}:`, JSON.stringify(log.data));
   });
+
+  console.log("\nLast 50 logs:");
+  logs.slice(0, 50).forEach((log: any) => {
+    console.log(`[${log.timestamp}] ${log.type}:`, JSON.stringify(log.data));
+  });
 }
 
 check();

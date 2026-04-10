@@ -241,20 +241,25 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
     let company = (req.query.company as string) || 'VISIBEL';
 
     // --- Check if sender is an employee ---
-    const fromParts = from.split('@');
-    const fromId = fromParts[0];
-    const fromType = fromParts[1]; // lid or c.us or s.whatsapp.net
+    // In groups, 'from' is the group JID, 'participant' is the sender
+    const sender = payload.participant || payload.author || from;
+    const senderParts = sender.split('@');
+    const senderId = senderParts[0];
     
-    // Extract phone digits from 'from' or 'remoteJidAlt'
-    let phoneDigits = fromId.replace(/\D/g, '');
+    // Extract phone digits from sender
+    let phoneDigits = senderId.replace(/\D/g, '');
     
-    // Check if there's an alternative JID (often contains the real phone number for LID)
-    const remoteJidAlt = payload._data?.key?.remoteJidAlt || payload.remoteJidAlt;
-    if (remoteJidAlt) {
-      const altDigits = remoteJidAlt.split('@')[0].replace(/\D/g, '');
+    // Check for alternative JIDs in various places (often contains the real phone number for LID)
+    const altJid = payload.participantAlt || 
+                   payload._data?.key?.participantAlt || 
+                   payload._data?.key?.remoteJidAlt || 
+                   payload.remoteJidAlt;
+                   
+    if (altJid) {
+      const altDigits = altJid.split('@')[0].replace(/\D/g, '');
       if (altDigits && altDigits.length >= 10) {
         phoneDigits = altDigits;
-        addWahaLog('DEBUG_PHONE_ALT', { original: from, alt: remoteJidAlt, used: phoneDigits });
+        addWahaLog('DEBUG_PHONE_ALT', { original: sender, alt: altJid, used: phoneDigits });
       }
     }
     
@@ -299,6 +304,144 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
 
     const lowerMsg = typeof message === 'string' ? message.toLowerCase().trim() : '';
 
+    // --- EMPLOYEE COMMANDS (Take precedence for employees) ---
+    if (emp) {
+      if (lowerMsg === '!menu' || lowerMsg === '!help' || lowerMsg === 'p' || lowerMsg === 'halo') {
+        const menu = `🤖 *MAJOVA.ID HR BOT MENU* 🤖\n\nHalo ${emp.nama},\n\nBerikut adalah perintah yang bisa Anda gunakan:\n\n` +
+          `1️⃣ *!jadwal* - Cek jadwal shift Anda hari ini\n` +
+          `2️⃣ *!konten* - Cek jadwal posting konten Anda hari ini\n` +
+          `3️⃣ *!absen* - Cek status absensi Anda hari ini\n` +
+          `4️⃣ *!layanan* - Info layanan Visibel Agency\n` +
+          `5️⃣ *!live* - Jadwal live streaming Visibel\n` +
+          `6️⃣ *!libur* - Cek siapa saja yang libur hari ini\n` +
+          `7️⃣ *!menu* - Menampilkan menu ini\n\n` +
+          `Silakan ketik perintah di atas untuk mendapatkan informasi.`;
+        await sendWahaMessage(from, menu, emp.company);
+        return res.status(200).json({ status: "received_emp_menu" });
+      }
+
+      if (lowerMsg === '!libur') {
+        const today = new Date().toISOString().split('T')[0];
+        const { data: allEmployees, error: empErr } = await supabase.from('employees').select('id, nama').eq('company', emp.company);
+        if (empErr) {
+          await sendWahaMessage(from, "Terjadi kesalahan saat mengambil data karyawan.", emp.company);
+          return res.status(200).json({ status: "error" });
+        }
+        const { data: assignments, error: assignErr } = await supabase
+          .from('shift_assignments')
+          .select('employeeId, shiftId')
+          .eq('date', today)
+          .eq('company', emp.company);
+        if (assignErr) {
+          await sendWahaMessage(from, "Terjadi kesalahan saat mengambil data jadwal.", emp.company);
+          return res.status(200).json({ status: "error" });
+        }
+        const assignedEmpIds = new Set(assignments?.map((a: any) => a.employeeId) || []);
+        const offEmployees = allEmployees?.filter((e: any) => !assignedEmpIds.has(e.id)) || [];
+        let reply = `🏖️ *KARYAWAN LIBUR HARI INI* 🏖️\n\nTanggal: ${today}\n\n`;
+        if (offEmployees.length > 0) {
+          offEmployees.forEach((e: any, index: number) => {
+            reply += `${index + 1}. ${e.nama}\n`;
+          });
+        } else {
+          reply += `Semua karyawan memiliki jadwal hari ini.`;
+        }
+        await sendWahaMessage(from, reply, emp.company);
+        return res.status(200).json({ status: "received_libur" });
+      }
+
+      if (lowerMsg === '!layanan') {
+        const reply = "Visibel menyediakan:\n• Live Streaming\n• Short Video\n• TikTok Ads\n• Social Media Management";
+        await sendWahaMessage(from, reply, emp.company);
+        return res.status(200).json({ status: "received_layanan" });
+      }
+
+      if (lowerMsg === '!live') {
+        const reply = "Jadwal live Visibel minggu ini:\nSenin - Jumat\n19.00 - 23.00 WIB";
+        await sendWahaMessage(from, reply, emp.company);
+        return res.status(200).json({ status: "received_live" });
+      }
+
+      if (lowerMsg === '!jadwal' || lowerMsg === '!konten' || lowerMsg === '!absen') {
+        addWahaLog('EMPLOYEE_COMMAND', { name: emp.nama, command: lowerMsg });
+        const today = new Date().toISOString().split('T')[0];
+        
+        if (lowerMsg === '!jadwal') {
+          const { data: shiftAssignments, error: shiftError } = await supabase
+            .from('shift_assignments')
+            .select('*, shifts(*)')
+            .eq('employeeId', emp.id)
+            .eq('date', today);
+          if (shiftError) {
+            await sendWahaMessage(from, "Maaf, terjadi kesalahan saat mengambil jadwal shift Anda.", emp.company);
+            return res.status(200).json({ status: "error" });
+          }
+          if (shiftAssignments && shiftAssignments.length > 0) {
+            let reply = `📅 *JADWAL SHIFT HARI INI* 📅\n\nHalo ${emp.nama},\n\n`;
+            shiftAssignments.forEach((a: any) => {
+              const shiftName = a.shifts?.name || 'Shift Tidak Diketahui';
+              const startTime = a.shifts?.startTime || '-';
+              const endTime = a.shifts?.endTime || '-';
+              reply += `🔹 *${shiftName}*\n⏰ ${startTime} - ${endTime}\n`;
+            });
+            await sendWahaMessage(from, reply, emp.company);
+          } else {
+            await sendWahaMessage(from, `Halo ${emp.nama}, Anda tidak memiliki jadwal shift hari ini (${today}).`, emp.company);
+          }
+          return res.status(200).json({ status: "received_jadwal" });
+        } 
+        else if (lowerMsg === '!konten') {
+          const { data: contentPlans, error: contentError } = await supabase
+            .from('content_plans')
+            .select('*')
+            .eq('creatorId', emp.id)
+            .eq('postingDate', today);
+          if (contentError) {
+            await sendWahaMessage(from, "Maaf, terjadi kesalahan saat mengambil jadwal konten Anda.", emp.company);
+            return res.status(200).json({ status: "error" });
+          }
+          if (contentPlans && contentPlans.length > 0) {
+            let reply = `🎬 *JADWAL KONTEN HARI INI* 📅\n\nHalo ${emp.nama},\n\n`;
+            contentPlans.forEach((p: any) => {
+              reply += `📌 *${p.title}*\n📱 Platform: ${p.platform}\n⏰ Jam: ${p.jamUpload || '-'}\n\n`;
+            });
+            await sendWahaMessage(from, reply, emp.company);
+          } else {
+            await sendWahaMessage(from, `Halo ${emp.nama}, Anda tidak memiliki jadwal posting konten hari ini (${today}).`, emp.company);
+          }
+          return res.status(200).json({ status: "received_konten" });
+        }
+        else if (lowerMsg === '!absen') {
+          const { data: attendance, error: attError } = await supabase
+            .from('attendance')
+            .select('*')
+            .eq('employeeId', emp.id)
+            .eq('date', today)
+            .maybeSingle();
+          if (attError) {
+            await sendWahaMessage(from, "Maaf, terjadi kesalahan saat mengambil data absensi Anda.", emp.company);
+            return res.status(200).json({ status: "error" });
+          }
+          if (attendance) {
+            const reply = `✅ *STATUS ABSENSI HARI INI* ✅\n\nHalo ${emp.nama},\n\n` +
+              `📍 Status: ${attendance.status}\n` +
+              `🕒 Masuk: ${attendance.clockIn || '-'}\n` +
+              `🕒 Pulang: ${attendance.clockOut || '-'}\n` +
+              `📝 Catatan: ${attendance.notes || '-'}`;
+            await sendWahaMessage(from, reply, emp.company);
+          } else {
+            await sendWahaMessage(from, `Halo ${emp.nama}, Anda belum melakukan absensi hari ini (${today}). Jangan lupa absen ya!`, emp.company);
+          }
+          return res.status(200).json({ status: "received_absen" });
+        }
+      }
+
+      if (lowerMsg.startsWith('!')) {
+        await sendWahaMessage(from, "Perintah tidak dikenal. Ketik !menu untuk melihat daftar perintah.", emp.company);
+        return res.status(200).json({ status: "received_unknown_command" });
+      }
+    }
+
     // --- DYNAMIC AUTO-REPLY RULES (For everyone) ---
     try {
       // Try both uppercase and original casing for company
@@ -327,6 +470,14 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
           const keyword = (rule.keyword || '').toLowerCase().trim();
           if (!keyword) continue;
 
+          addWahaLog('RULE_DEBUG', { 
+            matchType: rule.matchType, 
+            keyword, 
+            message: lowerMsg,
+            includes: lowerMsg.includes(keyword),
+            exact: lowerMsg === keyword
+          });
+
           if (rule.matchType === 'exact') {
             if (lowerMsg === keyword) {
               addWahaLog('RULE_MATCH', { type: 'exact', keyword, from, company });
@@ -352,156 +503,6 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
 
     if (!emp) {
       return res.status(200).json({ status: "ignored_unauthorized_client" });
-    }
-
-    if (lowerMsg === '!menu' || lowerMsg === '!help' || lowerMsg === 'p' || lowerMsg === 'halo') {
-      const menu = `🤖 *MAJOVA.ID HR BOT MENU* 🤖\n\nHalo ${emp.nama},\n\nBerikut adalah perintah yang bisa Anda gunakan:\n\n` +
-        `1️⃣ *!jadwal* - Cek jadwal shift Anda hari ini\n` +
-        `2️⃣ *!konten* - Cek jadwal posting konten Anda hari ini\n` +
-        `3️⃣ *!absen* - Cek status absensi Anda hari ini\n` +
-        `4️⃣ *!layanan* - Info layanan Visibel Agency\n` +
-        `5️⃣ *!live* - Jadwal live streaming Visibel\n` +
-        `6️⃣ *!libur* - Cek siapa saja yang libur hari ini\n` +
-        `7️⃣ *!menu* - Menampilkan menu ini\n\n` +
-        `Silakan ketik perintah di atas untuk mendapatkan informasi.`;
-      await sendWahaMessage(from, menu, emp.company);
-      return res.status(200).json({ status: "received" });
-    }
-
-    if (lowerMsg === '!libur') {
-      const today = new Date().toISOString().split('T')[0];
-      
-      // 1. Get all employees
-      const { data: allEmployees, error: empErr } = await supabase.from('employees').select('id, nama').eq('company', emp.company);
-      if (empErr) {
-        await sendWahaMessage(from, "Terjadi kesalahan saat mengambil data karyawan.", emp.company);
-        return res.status(200).json({ status: "error" });
-      }
-
-      // 2. Get all shift assignments for today
-      const { data: assignments, error: assignErr } = await supabase
-        .from('shift_assignments')
-        .select('employeeId, shiftId')
-        .eq('date', today)
-        .eq('company', emp.company);
-      
-      if (assignErr) {
-        await sendWahaMessage(from, "Terjadi kesalahan saat mengambil data jadwal.", emp.company);
-        return res.status(200).json({ status: "error" });
-      }
-
-      // 3. Identify who is off
-      const assignedEmpIds = new Set(assignments?.map((a: any) => a.employeeId) || []);
-      const offEmployees = allEmployees?.filter((e: any) => !assignedEmpIds.has(e.id)) || [];
-
-      let reply = `🏖️ *KARYAWAN LIBUR HARI INI* 🏖️\n\nTanggal: ${today}\n\n`;
-      if (offEmployees.length > 0) {
-        offEmployees.forEach((e: any, index: number) => {
-          reply += `${index + 1}. ${e.nama}\n`;
-        });
-      } else {
-        reply += `Semua karyawan memiliki jadwal hari ini.`;
-      }
-
-      await sendWahaMessage(from, reply, emp.company);
-      return res.status(200).json({ status: "received" });
-    }
-
-    if (lowerMsg === '!layanan') {
-      const reply = "Visibel menyediakan:\n• Live Streaming\n• Short Video\n• TikTok Ads\n• Social Media Management";
-      await sendWahaMessage(from, reply, emp.company);
-      return res.status(200).json({ status: "received" });
-    }
-
-    if (lowerMsg === '!live') {
-      const reply = "Jadwal live Visibel minggu ini:\nSenin - Jumat\n19.00 - 23.00 WIB";
-      await sendWahaMessage(from, reply, emp.company);
-      return res.status(200).json({ status: "received" });
-    }
-
-    if (lowerMsg === '!jadwal' || lowerMsg === '!konten' || lowerMsg === '!absen') {
-      addWahaLog('EMPLOYEE_COMMAND', { name: emp.nama, command: lowerMsg });
-      const today = new Date().toISOString().split('T')[0];
-      
-      if (lowerMsg === '!jadwal') {
-        const { data: shiftAssignments, error: shiftError } = await supabase
-          .from('shift_assignments')
-          .select('*, shifts(*)')
-          .eq('employeeId', emp.id)
-          .eq('date', today);
-
-        if (shiftError) {
-          console.error("[WAHA Webhook] Error fetching shifts:", shiftError);
-          await sendWahaMessage(from, "Maaf, terjadi kesalahan saat mengambil jadwal shift Anda.", emp.company);
-          return res.status(200).json({ status: "error" });
-        }
-
-        if (shiftAssignments && shiftAssignments.length > 0) {
-          let reply = `📅 *JADWAL SHIFT HARI INI* 📅\n\nHalo ${emp.nama},\n\n`;
-          shiftAssignments.forEach((a: any) => {
-            const shiftName = a.shifts?.name || 'Shift Tidak Diketahui';
-            const startTime = a.shifts?.startTime || '-';
-            const endTime = a.shifts?.endTime || '-';
-            reply += `🔹 *${shiftName}*\n⏰ ${startTime} - ${endTime}\n`;
-          });
-          await sendWahaMessage(from, reply, emp.company);
-        } else {
-          await sendWahaMessage(from, `Halo ${emp.nama}, Anda tidak memiliki jadwal shift hari ini (${today}).`, emp.company);
-        }
-      } 
-      else if (lowerMsg === '!konten') {
-        const { data: contentPlans, error: contentError } = await supabase
-          .from('content_plans')
-          .select('*')
-          .eq('creatorId', emp.id)
-          .eq('postingDate', today);
-
-        if (contentError) {
-          console.error("[WAHA Webhook] Error fetching content plans:", contentError);
-          await sendWahaMessage(from, "Maaf, terjadi kesalahan saat mengambil jadwal konten Anda.", emp.company);
-          return res.status(200).json({ status: "error" });
-        }
-
-        if (contentPlans && contentPlans.length > 0) {
-          let reply = `🎬 *JADWAL KONTEN HARI INI* 📅\n\nHalo ${emp.nama},\n\n`;
-          contentPlans.forEach((p: any) => {
-            reply += `📌 *${p.title}*\n📱 Platform: ${p.platform}\n⏰ Jam: ${p.jamUpload || '-'}\n\n`;
-          });
-          await sendWahaMessage(from, reply, emp.company);
-        } else {
-          await sendWahaMessage(from, `Halo ${emp.nama}, Anda tidak memiliki jadwal posting konten hari ini (${today}).`, emp.company);
-        }
-      }
-      else if (lowerMsg === '!absen') {
-        const { data: attendance, error: attError } = await supabase
-          .from('attendance')
-          .select('*')
-          .eq('employeeId', emp.id)
-          .eq('date', today)
-          .maybeSingle();
-
-        if (attError) {
-          console.error("[WAHA Webhook] Error fetching attendance:", attError);
-          await sendWahaMessage(from, "Maaf, terjadi kesalahan saat mengambil data absensi Anda.", emp.company);
-          return res.status(200).json({ status: "error" });
-        }
-
-        if (attendance) {
-          const reply = `✅ *STATUS ABSENSI HARI INI* ✅\n\nHalo ${emp.nama},\n\n` +
-            `📍 Status: ${attendance.status}\n` +
-            `🕒 Masuk: ${attendance.clockIn || '-'}\n` +
-            `🕒 Pulang: ${attendance.clockOut || '-'}\n` +
-            `📝 Catatan: ${attendance.notes || '-'}`;
-          await sendWahaMessage(from, reply, emp.company);
-        } else {
-          await sendWahaMessage(from, `Halo ${emp.nama}, Anda belum melakukan absensi hari ini (${today}). Jangan lupa absen ya!`, emp.company);
-        }
-      }
-    } else {
-      console.log(`[WAHA Webhook] No command matched for: ${lowerMsg}`);
-      if (lowerMsg.startsWith('!')) {
-        await sendWahaMessage(from, "Perintah tidak dikenal. Ketik !menu untuk melihat daftar perintah.");
-      }
     }
   }
 
