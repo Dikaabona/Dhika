@@ -368,7 +368,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
 
   return (
     <div className="flex flex-col min-h-screen bg-white max-w-md mx-auto relative shadow-2xl overflow-hidden animate-in fade-in duration-700">
-      <div className="flex justify-between items-center px-6 pt-10 z-10 shrink-0">
+      <div className="flex justify-between items-center px-6 pt-6 z-10 shrink-0">
         <button onClick={onClose} className="px-4 py-2 flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-full text-slate-400 hover:bg-white hover:text-slate-900 transition-all active:scale-90 shadow-sm">
           <Icons.Home className="w-4 h-4" />
           <span className="text-[10px] font-black uppercase tracking-widest">Tutup</span>
@@ -377,21 +377,21 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
            <img 
              src={transformGoogleDriveUrl(currentLogo)} 
              alt="Logo" 
-             className={`${ comp === 'seller space' ? 'h-[80px] sm:h-[120px]' : 'h-10 sm:h-14' } w-auto`} 
+             className={`${ comp === 'seller space' ? 'h-[60px] sm:h-[120px]' : 'h-8 sm:h-14' } w-auto`} 
              crossOrigin="anonymous"
            />
         </div>
         <div className="w-10"></div>
       </div>
 
-      <div className="flex flex-col items-center mt-10 px-6 text-center shrink-0">
-        <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight leading-none">
+      <div className="flex flex-col items-center mt-4 px-6 text-center shrink-0">
+        <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none">
           {employee.nama}
         </h2>
-        <div className="h-1.5 w-10 bg-[#FFC000] rounded-full mt-4"></div>
+        <div className="h-1 w-8 bg-[#FFC000] rounded-full mt-2"></div>
         {locationStatus.settings && (
           <div className="flex flex-col items-center gap-1">
-            <div className={`mt-3 flex items-center gap-2 px-4 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all ${locationStatus.isInside || employee.isRemoteAllowed ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-rose-50 text-rose-600 border-rose-100 animate-pulse'}`}>
+            <div className={`mt-2 flex items-center gap-2 px-4 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all ${locationStatus.isInside || employee.isRemoteAllowed ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-rose-50 text-rose-600 border-rose-100 animate-pulse'}`}>
               <Icons.Fingerprint className="w-3 h-3" />
               {locationStatus.isInside ? 'Di Area Kantor' : (employee.isRemoteAllowed ? 'Izin Remote Aktif' : 'Di Luar Area Kantor')}
               {locationStatus.distance !== null && <span className="ml-1">({locationStatus.distance}m)</span>}
@@ -409,9 +409,9 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         )}
       </div>
 
-      <div className="flex-grow flex flex-col items-center justify-center py-6">
+      <div className="flex-grow flex flex-col items-center justify-center py-2">
         <div className="relative group">
-          <div className="w-64 h-64 sm:w-72 sm:h-72 rounded-full border-[10px] border-white bg-slate-50 shadow-2xl overflow-hidden relative z-10 transition-transform duration-700 group-hover:scale-[1.02]">
+          <div className="w-56 h-56 sm:w-72 sm:h-72 rounded-full border-[8px] border-white bg-slate-50 shadow-2xl overflow-hidden relative z-10 transition-transform duration-700 group-hover:scale-[1.02]">
             {isCameraActive ? (
               <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
             ) : (
@@ -431,31 +431,31 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
           <div className="absolute inset-0 bg-[#FFC000]/10 rounded-full blur-3xl -z-10 animate-pulse"></div>
         </div>
 
-        <div className="mt-10 text-center space-y-1">
-          <h1 className="text-5xl font-black text-slate-900 tracking-tighter tabular-nums leading-none">
+        <div className="mt-4 text-center space-y-1">
+          <h1 className="text-4xl font-black text-slate-900 tracking-tighter tabular-nums leading-none">
             {currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </h1>
-          <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] pt-2">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] pt-1">
             {currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
         </div>
       </div>
 
-      <div className="pb-12 pt-6 flex flex-col items-center px-10 shrink-0">
+      <div className="pb-8 pt-4 flex flex-col items-center px-10 shrink-0">
         <button 
           onClick={handleAbsenAction}
           disabled={isLoading || isFinished || !isCameraActive || isModelLoading}
           className="relative group transition-all active:scale-95 disabled:opacity-30 disabled:grayscale"
         >
-          <div className="bg-slate-900 text-[#FFC000] p-8 rounded-[32px] shadow-2xl shadow-slate-200 group-hover:bg-black transition-all">
-            <Icons.Camera className="w-10 h-10" />
+          <div className="bg-slate-900 text-[#FFC000] p-6 rounded-[28px] shadow-2xl shadow-slate-200 group-hover:bg-black transition-all">
+            <Icons.Camera className="w-8 h-8" />
           </div>
           
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-6 flex flex-col items-center w-max">
-            <span className="text-[11px] font-black uppercase tracking-[0.4em] text-slate-900 leading-none">
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 flex flex-col items-center w-max">
+            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-900 leading-none">
               {isFinished ? 'TUNTAS' : isLoading ? 'PROSES...' : localTodayRecord?.clockIn ? 'PULANG' : 'MASUK'}
             </span>
-            <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest mt-2">VERIFIKASI {company.toUpperCase()}</p>
+            <p className="text-[7px] font-bold text-slate-300 uppercase tracking-widest mt-1.5">VERIFIKASI {company.toUpperCase()}</p>
           </div>
         </button>
 
@@ -463,12 +463,13 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
           <button 
             onClick={handleAbsenUlang}
             disabled={isLoading}
-            className="mt-20 text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] hover:text-slate-900 transition-colors"
+            className="mt-12 text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] hover:text-slate-900 transition-colors"
           >
             Mulai Ulang Absensi
           </button>
         )}
       </div>
+
     </div>
   );
 };
