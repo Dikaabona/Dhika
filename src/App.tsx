@@ -310,8 +310,10 @@ export const App: React.FC = () => {
         .lt('date', shiftDateStr)
         .eq('company', company);
 
-      // 3. Cleanup old live reports (older than 6 months / 180 days)
-      const reportDateStr = sixMonthsAgo.toISOString().split('T')[0];
+      // 3. Cleanup old live reports (older than 20 months)
+      const twentyMonthsAgo = new Date(now);
+      twentyMonthsAgo.setMonth(twentyMonthsAgo.getMonth() - 20);
+      const reportDateStr = twentyMonthsAgo.toISOString().split('T')[0];
 
       await supabase
         .from('live_reports')
@@ -319,14 +321,14 @@ export const App: React.FC = () => {
         .lt('tanggal', reportDateStr)
         .eq('company', company);
 
-      // 4. Cleanup old schedules (Retention Policy: Max 5000 records)
+      // 4. Cleanup old schedules (Retention Policy: Max 10000 records)
       const { count: scheduleCount } = await supabase
         .from('schedules')
         .select('*', { count: 'exact', head: true })
         .eq('company', company);
 
-      if (scheduleCount && scheduleCount > 5000) {
-        const overflow = scheduleCount - 4500;
+      if (scheduleCount && scheduleCount > 10000) {
+        const overflow = scheduleCount - 9500;
         const { data: oldSchedules } = await supabase
           .from('schedules')
           .select('id, date')
@@ -508,17 +510,29 @@ export const App: React.FC = () => {
         fetchAttendance(attendanceStartDate, attendanceEndDate, activeUserRole, detectedCompany, companyFilter),
         fetchTodayAttendance(activeUserRole, detectedCompany, companyFilter),
         fetchAnnualLeave(activeUserRole, detectedCompany, companyFilter),
-        buildQuery('live_reports').order('tanggal', { ascending: false }).limit(5000).then(({data, error}: any) => { if(error) throw error; setLiveReports(data || []); }),
+        buildQuery('live_reports').order('tanggal', { ascending: false }).limit(10000).then(({data, error}: any) => { 
+          if(error) throw error; 
+          if (data && data.length > 9000) {
+            console.warn("PERINGATAN: Data laporan live mendekati 10.000 record.");
+          }
+          setLiveReports(data || []); 
+        }),
         buildQuery('submissions').order('submittedAt', { ascending: false }).limit(50).then(({data, error}: any) => { if(error) throw error; setSubmissions(data || []); }),
         buildQuery('broadcasts').order('sentAt', { ascending: false }).limit(30).then(({data, error}: any) => { if(error) throw error; setBroadcasts(data || []); }),
-        buildQuery('schedules').order('date', { ascending: false }).limit(5000).then(({data, error}: any) => { 
+        buildQuery('schedules').order('date', { ascending: false }).limit(10000).then(({data, error}: any) => { 
           if(error) throw error; 
-          if (data && data.length > 4900) {
-            console.warn("PERINGATAN EGRESS: Data jadwal mendekati 5.000 record.");
+          if (data && data.length > 9000) {
+            console.warn("PERINGATAN EGRESS: Data jadwal mendekati 10.000 record.");
           }
           setLiveSchedules(data || []); 
         }),
-        buildQuery('content_plans').order('postingDate', { ascending: false }).limit(5000).then(({data, error}: any) => { if(error) throw error; setContentPlans(data || []); }),
+        buildQuery('content_plans').order('postingDate', { ascending: false }).limit(10000).then(({data, error}: any) => { 
+          if(error) throw error; 
+          if (data && data.length > 9000) {
+            console.warn("PERINGATAN: Data rencana konten mendekati 10.000 record.");
+          }
+          setContentPlans(data || []); 
+        }),
         buildQuery('advertising_records').order('date', { ascending: false }).limit(500).then(({data, error}: any) => { 
           if(error) {
             console.warn("Table advertising_records might not exist yet:", error.message);
