@@ -344,9 +344,15 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       let ss = '';
       if (plan.id) {
          try {
-           const { data } = await supabase.from('content_plans').select('screenshotBase64').eq('id', plan.id).single();
-           ss = data?.screenshotBase64 || '';
-         } catch(e) {}
+           const { data, error } = await supabase.from('content_plans').select('screenshotBase64').eq('id', plan.id).single();
+           if (!error && data) {
+             ss = data.screenshotBase64 || '';
+           } else {
+             ss = plan.screenshotBase64 || '';
+           }
+         } catch(e) {
+           ss = plan.screenshotBase64 || '';
+         }
       }
 
       let extractedJam = plan.jamUpload || '';
@@ -427,6 +433,11 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       notes: `${cleanNotes}${jamUpload ? ` [Time: ${jamUpload}]` : ''}`.trim()
     };
 
+    // Prevent overwriting existing screenshot with empty string if it's a new record matching by link
+    if (!editingPlan?.id && !dataToSave.screenshotBase64) {
+      delete dataToSave.screenshotBase64;
+    }
+
     if (editingPlan?.id) {
       dataToSave.id = editingPlan.id;
     } else if (formData.linkPostingan) {
@@ -434,13 +445,16 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       try {
         const { data: existing } = await supabase
           .from('content_plans')
-          .select('id')
+          .select('id, screenshotBase64')
           .eq('linkPostingan', formData.linkPostingan)
           .eq('company', company)
           .maybeSingle();
         
         if (existing) {
           dataToSave.id = existing.id;
+          // If we are overwriting by link and the new data has no screenshot, 
+          // but the existing one does, we might want to keep the old one.
+          // However, the logic above already handles this by deleting screenshotBase64 from dataToSave.
         }
       } catch (e) {
         console.warn("Check duplicate link failed", e);
@@ -448,7 +462,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
     }
 
     try {
-      const { data, error } = await supabase.from('content_plans').upsert(dataToSave).select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar, captionHashtag, linkReference');
+      const { data, error } = await supabase.from('content_plans').upsert(dataToSave).select('id, title, brand, company, platform, creatorId, deadline, status, notes, postingDate, linkPostingan, views, likes, comments, saves, shares, contentPillar, captionHashtag, linkReference, screenshotBase64');
       
       if (error) throw error;
       
@@ -457,7 +471,8 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         const idx = prev.findIndex(p => p.id === savedRecord.id);
         if (idx !== -1) {
           const updated = [...prev];
-          updated[idx] = savedRecord;
+          // Use partial update to preserve any fields that might not be in savedRecord
+          updated[idx] = { ...prev[idx], ...savedRecord };
           return updated;
         }
         return [savedRecord, ...prev];
