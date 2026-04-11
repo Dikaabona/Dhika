@@ -226,16 +226,25 @@ const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
+  const canAccessContentHub = useMemo(() => {
+    const jabatan = (currentUserEmployee?.jabatan || '').toLowerCase();
+    return ['owner', 'super', 'superadmin', 'admin'].includes(userRole) || jabatan.includes('content creator');
+  }, [userRole, currentUserEmployee]);
+
   const menuItems = useMemo(() => {
     const base = [
       { id: 'absen', label: 'Absensi', icon: <Icons.Camera className="w-5 h-5" />, tab: 'absen' },
       { id: 'submissions', label: 'Pengajuan', icon: <Icons.Calendar className="w-5 h-5" />, tab: 'submissions' },
       { id: 'schedule', label: 'Live Stream', icon: <Icons.Video className="w-5 h-5" />, tab: 'schedule' },
       { id: 'shift', label: 'Jadwal Shift', icon: <Icons.Clock className="w-5 h-5" />, tab: 'shift' },
-      { id: 'content', label: 'Short Video', icon: <Icons.Image className="w-5 h-5" />, tab: 'content' },
-      { id: 'minvis', label: 'MinVis AI', icon: <Icons.Cpu className="w-5 h-5" />, tab: 'minvis' },
-      { id: 'database', label: 'Database', icon: <Icons.Users className="w-5 h-5" />, tab: 'database' },
     ];
+
+    if (canAccessContentHub) {
+      base.push({ id: 'content', label: 'Short Video', icon: <Icons.Image className="w-5 h-5" />, tab: 'content' });
+    }
+
+    base.push({ id: 'minvis', label: 'MinVis AI', icon: <Icons.Cpu className="w-5 h-5" />, tab: 'minvis' });
+    base.push({ id: 'database', label: 'Database', icon: <Icons.Users className="w-5 h-5" />, tab: 'database' });
 
     if (isSuper) {
       base.push({ id: 'kpi', label: 'KPI Performance', icon: <Icons.Sparkles className="w-5 h-5" />, tab: 'kpi' });

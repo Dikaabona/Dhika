@@ -21,18 +21,19 @@ const DEFAULT_PILLARS = ['Educational', 'Entertainment', 'Sales/Promo', 'Engagem
 
 const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlans, searchQuery: globalSearch = '', userRole = 'employee', currentEmployee = null, company, onOpenReport }) => {
   const { confirm } = useConfirmation();
-  const isCreator = useMemo(() => {
+  const canAccessContentHub = useMemo(() => {
     const jabatan = (currentEmployee?.jabatan || '').toLowerCase();
-    return jabatan.includes('content creator') || jabatan.includes('creator') || jabatan.includes('lead content');
-  }, [currentEmployee]);
-
-  const canViewReport = useMemo(() => {
-    const jabatan = (currentEmployee?.jabatan || '').toLowerCase();
-    // Restriction: Only owner, super admin, admin, and content creator jabatan can view
+    // Only owner, super admin, admin, and content creator jabatan can view/process
     return ['owner', 'super', 'superadmin', 'admin'].includes(userRole) || jabatan.includes('content creator');
   }, [userRole, currentEmployee]);
 
-  const hasFullAccess = userRole === 'admin' || userRole === 'super' || userRole === 'owner' || isCreator;
+  const hasFullAccess = canAccessContentHub;
+  const canViewReport = canAccessContentHub;
+
+  const isCreator = useMemo(() => {
+    const jabatan = (currentEmployee?.jabatan || '').toLowerCase();
+    return jabatan.includes('content creator');
+  }, [currentEmployee]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<ContentPlan | null>(null);
@@ -926,25 +927,25 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2 sm:gap-4 items-center shrink-0 w-full xl:w-auto">
+              <div className="flex flex-nowrap overflow-x-auto custom-scrollbar pb-2 gap-2 sm:gap-4 items-center shrink-0 w-full xl:w-auto">
                 {hasFullAccess && (
                   <>
-                    <button onClick={handleDownloadTemplate} className="flex-1 sm:flex-none bg-slate-50 hover:bg-slate-100 border border-slate-200 px-4 sm:px-8 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-sm active:scale-95 text-slate-500">
+                    <button onClick={() => handleOpenModal()} className="shrink-0 sm:flex-none bg-[#FFC000] hover:bg-black text-black hover:text-white px-5 sm:px-10 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-amber-100 active:scale-95">
+                      <Icons.Plus className="w-4 h-4 sm:w-5 sm:h-5" /> TAMBAH
+                    </button>
+                    <button onClick={handleDownloadTemplate} className="shrink-0 sm:flex-none bg-slate-50 hover:bg-slate-100 border border-slate-200 px-4 sm:px-8 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-sm active:scale-95 text-slate-500">
                       <Icons.Download className="w-4 h-4 sm:w-4.5 sm:h-4.5" /> TEMPLATE
                     </button>
-                    <button onClick={() => setIsManagingSettings(!isManagingSettings)} className={`flex-1 sm:flex-none px-4 sm:px-8 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-sm border ${isManagingSettings ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
+                    <button onClick={() => setIsManagingSettings(!isManagingSettings)} className={`shrink-0 sm:flex-none px-4 sm:px-8 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-sm border ${isManagingSettings ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
                       SETTINGS
                     </button>
                     {onOpenReport && canViewReport && (
-                      <button onClick={onOpenReport} className="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 sm:px-8 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95">
+                      <button onClick={onOpenReport} className="shrink-0 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 sm:px-8 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95">
                         <Icons.Briefcase className="w-4 h-4" /> REPORT
                       </button>
                     )}
-                    <button onClick={() => handleOpenModal()} className="flex-1 sm:flex-none bg-[#FFC000] hover:bg-black text-black hover:text-white px-5 sm:px-10 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-amber-100 active:scale-95">
-                      <Icons.Plus className="w-4 h-4 sm:w-5 sm:h-5" /> TAMBAH
-                    </button>
                     <input type="file" ref={contentFileInputRef} onChange={handleImportExcel} className="hidden" accept=".xlsx,.xls" />
-                    <button onClick={() => contentFileInputRef.current?.click()} disabled={isProcessingExcel} className="flex-1 sm:flex-none bg-[#059669] hover:bg-[#047857] text-white px-4 sm:px-9 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
+                    <button onClick={() => contentFileInputRef.current?.click()} disabled={isProcessingExcel} className="shrink-0 sm:flex-none bg-[#059669] hover:bg-[#047857] text-white px-4 sm:px-9 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] flex items-center justify-center gap-2 sm:gap-3 font-black text-[8px] sm:text-[10px] uppercase tracking-widest shadow-md active:scale-95 disabled:opacity-50">
                       <Icons.Upload className="w-4 h-4" /> {isProcessingExcel ? '...' : 'UNGGAH'}
                     </button>
                   </>
@@ -1073,7 +1074,7 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+      <div className="hidden sm:grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <div className="bg-white p-6 sm:p-8 rounded-[32px] border border-slate-100 shadow-sm flex flex-col gap-6 group hover:shadow-md transition-all">
           <div className="flex items-center gap-6">
             <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
@@ -1112,47 +1113,44 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
         </div>
       </div>
 
-      <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 no-scrollbar scroll-smooth snap-x">
+      <div className="flex gap-3 sm:gap-6 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 no-scrollbar scroll-smooth snap-x">
         {brandStats.map(bs => (
-          <div key={bs.name} className="min-w-[280px] sm:min-w-[320px] bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[36px] border border-slate-100 shadow-sm space-y-5 sm:space-y-6 transition-all hover:shadow-xl hover:-translate-y-1 relative group overflow-hidden snap-start shrink-0">
+          <div key={bs.name} className="min-w-[180px] sm:min-w-[320px] bg-white p-3.5 sm:p-8 rounded-[20px] sm:rounded-[36px] border border-slate-100 shadow-sm space-y-3 sm:space-y-6 transition-all hover:shadow-xl hover:-translate-y-1 relative group overflow-hidden snap-start shrink-0">
             <div className="flex justify-between items-center relative z-10">
-              <span className="text-[10px] sm:text-[11px] font-black text-slate-900 uppercase tracking-widest">{bs.name}</span>
+              <span className="text-[8px] sm:text-[11px] font-black text-slate-900 uppercase tracking-widest">{bs.name}</span>
               <button 
                 onClick={() => handleSyncBrandToCalendar(bs)}
-                className="w-8 h-8 sm:w-9 sm:h-9 bg-slate-50 group-hover:bg-[#FFC000] text-slate-400 group-hover:text-black rounded-xl transition-all flex items-center justify-center shadow-inner"
+                className="w-6 h-6 sm:w-9 sm:h-9 bg-slate-50 group-hover:bg-[#FFC000] text-slate-400 group-hover:text-black rounded-lg sm:rounded-xl transition-all flex items-center justify-center shadow-inner"
                 title="Sync Deadline to Calendar"
               >
-                <Icons.Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <Icons.Calendar className="w-2.5 h-2.5 sm:w-4 sm:h-4" />
               </button>
             </div>
             <div className="flex justify-between items-end relative z-10">
               <div>
-                <p className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tighter">{bs.done}<span className="text-xs sm:text-sm text-slate-300 ml-2 font-bold tracking-normal">/ {bs.target}</span></p>
-                <div className="flex items-center gap-2 mt-2">
-                  <p className={`text-[8px] sm:text-[9px] font-black px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg inline-block shadow-sm ${bs.remaining === 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}>
-                    {bs.remaining === 0 ? 'GOAL ACHIEVED' : `${bs.remaining} REMAINING`}
+                <p className="text-xl sm:text-4xl font-black text-slate-900 tracking-tighter">{bs.done}<span className="text-[9px] sm:text-sm text-slate-300 ml-1 font-bold tracking-normal">/ {bs.target}</span></p>
+                <div className="flex items-center gap-1 mt-1">
+                  <p className={`text-[6px] sm:text-[9px] font-black px-1.5 sm:px-3 py-0.5 sm:py-1.5 rounded-md sm:rounded-lg inline-block shadow-sm ${bs.remaining === 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}>
+                    {bs.remaining === 0 ? 'DONE' : `${bs.remaining} LEFT`}
                   </p>
-                  <span className="text-[8px] sm:text-[9px] font-black text-indigo-500 bg-indigo-50 px-2.5 py-1 sm:py-1.5 rounded-lg shadow-sm">
-                    {bs.creatorsCount} CREATORS
-                  </span>
                 </div>
               </div>
-              <p className="text-[10px] sm:text-xs font-black text-slate-900 bg-slate-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-slate-100">{Math.round(bs.progress)}%</p>
+              <p className="text-[8px] sm:text-xs font-black text-slate-900 bg-slate-50 px-1.5 sm:px-3 py-0.5 sm:py-1.5 rounded-md sm:rounded-lg border border-slate-100">{Math.round(bs.progress)}%</p>
             </div>
-            <div className="h-1.5 sm:h-2 bg-slate-50 rounded-full overflow-hidden shadow-inner relative z-10 border border-slate-100">
+            <div className="h-1 sm:h-2 bg-slate-50 rounded-full overflow-hidden shadow-inner relative z-10 border border-slate-100">
               <div className="h-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)] transition-all duration-1000" style={{ width: `${bs.progress}%` }}></div>
             </div>
-            <div className="flex items-center justify-between pt-4 border-t border-slate-50 relative z-10">
-               <div className="flex flex-col gap-0.5 sm:gap-1">
-                  <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">DEADLINE</span>
-                  <span className="text-[10px] sm:text-[11px] font-black text-slate-700">{bs.quotaDeadline || '-'}</span>
+            <div className="flex items-center justify-between pt-2 border-t border-slate-50 relative z-10">
+               <div className="flex flex-col gap-0.5">
+                  <span className="text-[5px] sm:text-[7px] font-black text-slate-400 uppercase tracking-widest">DEADLINE</span>
+                  <span className="text-[8px] sm:text-[11px] font-black text-slate-700">{bs.quotaDeadline || '-'}</span>
                </div>
-               <div className="flex flex-col text-right gap-0.5 sm:gap-1">
-                  <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">UPLOAD TIME</span>
-                  <span className="text-[10px] sm:text-[11px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg self-end">{bs.jamUpload || '-'}</span>
+               <div className="flex flex-col text-right gap-0.5">
+                  <span className="text-[5px] sm:text-[7px] font-black text-slate-400 uppercase tracking-widest">TIME</span>
+                  <span className="text-[8px] sm:text-[11px] font-black text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded-md self-end">{bs.jamUpload || '-'}</span>
                </div>
             </div>
-            <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-full blur-3xl opacity-0 group-hover:opacity-60 transition-opacity -translate-y-1/2 translate-x-1/2"></div>
+            <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 rounded-full blur-3xl opacity-0 group-hover:opacity-60 transition-opacity -translate-y-1/2 translate-x-1/2"></div>
           </div>
         ))}
       </div>
@@ -1384,48 +1382,50 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[150] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[40px] sm:rounded-[56px] shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-500 border border-white/20">
-            <div className="p-8 sm:p-12 border-b bg-[#0f172a] text-white flex justify-between items-center shrink-0">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+            <div className="px-8 py-6 border-b flex justify-between items-center shrink-0">
               <div>
-                <h2 className="text-2xl sm:text-3xl font-black tracking-tight uppercase leading-none">{editingPlan ? 'EDIT REPORT KONTEN' : 'BUAT REPORT KONTEN BARU'}</h2>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.5em] mt-3">Visibel ID Performance Hub</p>
+                <h2 className="text-xl font-black tracking-tight uppercase text-slate-900">{editingPlan ? 'Edit Report' : 'Report Konten Baru'}</h2>
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Visibel ID Performance Hub</p>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="w-14 h-14 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-4xl leading-none transition-all font-light">&times;</button>
+              <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 rounded-full hover:bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all">
+                <Icons.Plus className="w-6 h-6 rotate-45" />
+              </button>
             </div>
             
-            <form onSubmit={handleSave} className="p-8 sm:p-12 overflow-y-auto flex-grow space-y-10 custom-scrollbar bg-white">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10 sm:gap-14">
-                <div className="space-y-8">
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">BRAND</label>
-                      <select required value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner">
+            <form onSubmit={handleSave} className="p-8 overflow-y-auto flex-grow space-y-8 custom-scrollbar">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Brand</label>
+                      <select required value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs font-bold text-slate-900 outline-none focus:border-indigo-500 transition-all">
                         {brands.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
                       </select>
                     </div>
-                    <div className="space-y-2.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">UPLOAD TIME</label>
-                      <input required type="time" value={formData.jamUpload} onChange={e => setFormData({...formData, jamUpload: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner" />
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Upload Time</label>
+                      <input required type="time" value={formData.jamUpload} onChange={e => setFormData({...formData, jamUpload: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs font-bold text-slate-900 outline-none focus:border-indigo-500 transition-all" />
                     </div>
                   </div>
 
-                  <div className="space-y-2.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">CREATOR</label>
-                    <select value={formData.creatorId} onChange={e => setFormData({...formData, creatorId: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner">
-                      <option value="">PILIH CREATOR...</option>
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Creator</label>
+                    <select value={formData.creatorId} onChange={e => setFormData({...formData, creatorId: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs font-bold text-slate-900 outline-none focus:border-indigo-500 transition-all">
+                      <option value="">Pilih Creator...</option>
                       {creatorList.map(c => <option key={c.id} value={c.id}>{c.nama.toUpperCase()}</option>)}
                     </select>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">TANGGAL POSTING</label>
-                      <input required type="date" value={formData.postingDate} onChange={e => setFormData({...formData, postingDate: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Tanggal Posting</label>
+                      <input required type="date" value={formData.postingDate} onChange={e => setFormData({...formData, postingDate: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs font-bold text-slate-900 outline-none focus:border-indigo-500 transition-all" />
                     </div>
-                    <div className="space-y-2.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">PLATFORM</label>
-                      <select value={formData.platform} onChange={e => setFormData({...formData, platform: e.target.value as any})} className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Platform</label>
+                      <select value={formData.platform} onChange={e => setFormData({...formData, platform: e.target.value as any})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs font-bold text-slate-900 outline-none focus:border-indigo-500 transition-all">
                         <option value="TikTok">TikTok</option>
                         <option value="Instagram">Instagram</option>
                         <option value="Shopee">Shopee</option>
@@ -1434,62 +1434,62 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                     </div>
                   </div>
 
-                  <div className="space-y-2.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">CONTENT PILLAR</label>
-                    <select value={formData.contentPillar} onChange={e => setFormData({...formData, contentPillar: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Content Pillar</label>
+                    <select value={formData.contentPillar} onChange={e => setFormData({...formData, contentPillar: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs font-bold text-slate-900 outline-none focus:border-indigo-500 transition-all">
                       {pillars.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
 
-                  <div className="space-y-2.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">LINK POSTINGAN</label>
-                    <input type="url" value={formData.linkPostingan} onChange={e => setFormData({...formData, linkPostingan: e.target.value})} placeholder="https://..." className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4.5 text-xs font-black text-slate-900 focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all shadow-inner" />
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Link Postingan</label>
+                    <input type="url" value={formData.linkPostingan} onChange={e => setFormData({...formData, linkPostingan: e.target.value})} placeholder="https://..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs font-bold text-slate-900 outline-none focus:border-indigo-500 transition-all" />
                   </div>
                 </div>
 
-                <div className="bg-slate-50 p-8 sm:p-10 rounded-[40px] border border-slate-100 space-y-10 shadow-inner">
-                   <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em] border-b border-slate-200 pb-4">PERFORMA STATISTIK</h3>
-                   <div className="grid grid-cols-2 gap-x-8 gap-y-6">
-                      <div className="space-y-2">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">VIEWS</label>
-                        <input type="number" value={formData.views} onChange={e => setFormData({...formData, views: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 outline-none focus:ring-4 focus:ring-indigo-400/10 transition-all shadow-sm" />
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-6">
+                   <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest border-b border-slate-200 pb-3">Statistik Performa</h3>
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Views</label>
+                        <input type="number" value={formData.views} onChange={e => setFormData({...formData, views: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-indigo-500 transition-all" />
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">LIKES</label>
-                        <input type="number" value={formData.likes} onChange={e => setFormData({...formData, likes: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 outline-none focus:ring-4 focus:ring-indigo-400/10 transition-all shadow-sm" />
+                      <div className="space-y-1.5">
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Likes</label>
+                        <input type="number" value={formData.likes} onChange={e => setFormData({...formData, likes: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-indigo-500 transition-all" />
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">COMMENTS</label>
-                        <input type="number" value={formData.comments} onChange={e => setFormData({...formData, comments: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 outline-none focus:ring-4 focus:ring-indigo-400/10 transition-all shadow-sm" />
+                      <div className="space-y-1.5">
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Comments</label>
+                        <input type="number" value={formData.comments} onChange={e => setFormData({...formData, comments: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-indigo-500 transition-all" />
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">SAVES</label>
-                        <input type="number" value={formData.saves} onChange={e => setFormData({...formData, saves: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 outline-none focus:ring-4 focus:ring-indigo-400/10 transition-all shadow-sm" />
+                      <div className="space-y-1.5">
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Saves</label>
+                        <input type="number" value={formData.saves} onChange={e => setFormData({...formData, saves: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-indigo-500 transition-all" />
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">SHARES</label>
-                        <input type="number" value={formData.shares} onChange={e => setFormData({...formData, shares: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 outline-none focus:ring-4 focus:ring-indigo-400/10 transition-all shadow-sm" />
+                      <div className="space-y-1.5">
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Shares</label>
+                        <input type="number" value={formData.shares} onChange={e => setFormData({...formData, shares: parseInt(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-indigo-500 transition-all" />
                       </div>
                       <div className="flex flex-col justify-end">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">SCREENSHOT</label>
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Screenshot</label>
                         <input type="file" ref={screenshotInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
-                        <button type="button" onClick={() => screenshotInputRef.current?.click()} className={`h-[56px] rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 border shadow-sm ${formData.screenshotBase64 ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-white text-slate-400 border-slate-200 hover:border-indigo-400'}`}>
-                          <Icons.Camera className="w-4.5 h-4.5" /> {formData.screenshotBase64 ? 'TERLAMPIR' : 'UPLOAD'}
+                        <button type="button" onClick={() => screenshotInputRef.current?.click()} className={`h-[38px] rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border ${formData.screenshotBase64 ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-white text-slate-400 border-slate-200 hover:border-indigo-400'}`}>
+                          <Icons.Camera className="w-3.5 h-3.5" /> {formData.screenshotBase64 ? 'Terlampir' : 'Upload'}
                         </button>
                       </div>
                    </div>
                    {formData.screenshotBase64 && (
-                     <div className="mt-6 relative group">
-                        <img src={formData.screenshotBase64} className="w-full h-44 object-cover rounded-[32px] border border-slate-200 shadow-md group-hover:brightness-90 transition-all" alt="Preview" />
-                        <button type="button" onClick={() => setFormData({...formData, screenshotBase64: ''})} className="absolute top-4 right-4 bg-rose-500 text-white w-10 h-10 rounded-full flex items-center justify-center text-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity active:scale-90">&times;</button>
+                     <div className="relative group">
+                        <img src={formData.screenshotBase64} className="w-full h-32 object-cover rounded-2xl border border-slate-200 shadow-sm" alt="Preview" />
+                        <button type="button" onClick={() => setFormData({...formData, screenshotBase64: ''})} className="absolute top-2 right-2 bg-rose-500 text-white w-7 h-7 rounded-full flex items-center justify-center text-sm shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">&times;</button>
                      </div>
                    )}
                 </div>
               </div>
               
-              <div className="pt-10 border-t flex flex-col sm:flex-row gap-5">
-                <button type="submit" className="flex-1 bg-slate-900 text-[#FFC000] py-6 rounded-[32px] font-black text-sm uppercase tracking-[0.3em] shadow-2xl active:scale-[0.98] transition-all hover:bg-black">SIMPAN LAPORAN</button>
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-14 bg-white border border-slate-200 text-slate-400 py-6 rounded-[32px] font-black text-sm uppercase tracking-widest active:scale-[0.98] transition-all">BATAL</button>
+              <div className="pt-6 border-t flex gap-3">
+                <button type="submit" className="flex-1 bg-[#FFC000] hover:bg-black text-black hover:text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-[0.98] transition-all">Simpan Laporan</button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-8 bg-white border border-slate-200 text-slate-400 py-4 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-[0.98] transition-all">Batal</button>
               </div>
             </form>
           </div>

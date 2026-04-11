@@ -697,7 +697,7 @@ export const App: React.FC = () => {
 
   const isResigned = (emp: Employee) => (emp.resigned_at && emp.resigned_at.trim() !== '') || (emp.resign_reason && emp.resign_reason.trim() !== '');
 
-  const canViewContentReport = useMemo(() => {
+  const canAccessContentHub = useMemo(() => {
     const jabatan = (currentUserEmployee?.jabatan || '').toLowerCase();
     // Only owner, super admin, admin, and content creator jabatan can view
     return ['owner', 'super', 'superadmin', 'admin'].includes(userRole) || jabatan.includes('content creator');
@@ -994,8 +994,12 @@ export const App: React.FC = () => {
             {isDesktopModulOpen && (
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 bg-white rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col z-[150] overflow-hidden animate-in fade-in duration-300">
                 <button onClick={() => { setActiveTab('schedule'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">LIVE STREAMING</button>
-                <div className="h-px bg-slate-50 w-full"></div>
-                <button onClick={() => { setActiveTab('content'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">SHORT VIDEO</button>
+                {canAccessContentHub && (
+                  <>
+                    <div className="h-px bg-slate-50 w-full"></div>
+                    <button onClick={() => { setActiveTab('content'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">SHORT VIDEO</button>
+                  </>
+                )}
                 <div className="h-px bg-slate-50 w-full"></div>
                 {isAdminAccess && (
                   <>
@@ -1226,7 +1230,7 @@ export const App: React.FC = () => {
                 />
               ) : activeTab === 'schedule' ? (
                 <LiveScheduleModule employees={employees} schedules={liveSchedules} setSchedules={setLiveSchedules} reports={liveReports} setReports={setLiveReports} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} attendanceRecords={attendanceRecords} shiftAssignments={shiftAssignments} shifts={shifts} onRefreshData={() => fetchData(session?.user?.email, true)} />
-              ) : activeTab === 'content' ? (
+              ) : (activeTab === 'content' && canAccessContentHub) ? (
                 <ContentModule 
                   employees={employees} 
                   plans={contentPlans} 
@@ -1235,9 +1239,9 @@ export const App: React.FC = () => {
                   userRole={userRole} 
                   currentEmployee={currentUserEmployee} 
                   company={userCompany} 
-                  onOpenReport={canViewContentReport ? () => setActiveTab('content_report') : undefined}
+                  onOpenReport={canAccessContentHub ? () => setActiveTab('content_report') : undefined}
                 />
-              ) : (activeTab === 'content_report' && canViewContentReport) ? (
+              ) : (activeTab === 'content_report' && canAccessContentHub) ? (
                 <ContentReport 
                   plans={contentPlans}
                   employees={employees}
