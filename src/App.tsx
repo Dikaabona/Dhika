@@ -127,6 +127,7 @@ export const App: React.FC = () => {
   const [isDesktopModulOpen, setIsDesktopModulOpen] = useState(false);
   
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: keyof Employee | 'tenure' | 'status'; direction: 'asc' | 'desc' } | null>(null);
   const [companyFilter, setCompanyFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'Aktif' | 'Resign' | 'ALL'>('Aktif');
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -736,11 +737,69 @@ export const App: React.FC = () => {
     if (userRole === 'employee' && currentUserEmployee) {
       baseList = baseList.filter(emp => emp.id === currentUserEmployee.id);
     }
-    return baseList.filter(emp => 
+    
+    let result = baseList.filter(emp => 
       (emp.nama || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (emp.idKaryawan || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [employees, searchQuery, userRole, currentUserEmployee, companyFilter, statusFilter]);
+
+    if (sortConfig) {
+      result = [...result].sort((a, b) => {
+        let aValue: any = '';
+        let bValue: any = '';
+
+        if (sortConfig.key === 'tenure') {
+          const getTenureValue = (emp: Employee) => {
+            const tenure = getTenureYears(emp.tanggalMasuk);
+            if (tenure < 1) return 0;
+            const name = emp.nama.toLowerCase();
+            let adjustment = 0;
+            if (name.includes('fikry aditya rizky')) adjustment = 2;
+            else if (name.includes('iskandar juliana')) adjustment = 3;
+            else if (name.includes('adinda salsabilla')) adjustment = 3;
+            else if (name.includes('pajar sidik')) adjustment = 1;
+
+            const used = annualLeaveRecords.filter(r => 
+              r.employeeId === emp.id && 
+              r.status === 'Cuti' && 
+              new Date(r.date).getFullYear() === new Date().getFullYear()
+            ).length;
+            return Math.max(0, 12 - used - adjustment);
+          };
+          aValue = getTenureValue(a);
+          bValue = getTenureValue(b);
+        } else if (sortConfig.key === 'status') {
+          aValue = a.statusKaryawan || 'Tetap';
+          bValue = b.statusKaryawan || 'Tetap';
+        } else {
+          aValue = a[sortConfig.key as keyof Employee] || '';
+          bValue = b[sortConfig.key as keyof Employee] || '';
+        }
+
+        if (typeof aValue === 'string') aValue = aValue.toLowerCase();
+        if (typeof bValue === 'string') bValue = bValue.toLowerCase();
+
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [employees, searchQuery, userRole, currentUserEmployee, companyFilter, statusFilter, sortConfig, annualLeaveRecords]);
+
+  const handleSort = (key: keyof Employee | 'tenure' | 'status') => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const SortIcon = ({ column }: { column: keyof Employee | 'tenure' | 'status' }) => {
+    if (!sortConfig || sortConfig.key !== column) return <Icons.ChevronDown className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />;
+    return sortConfig.direction === 'asc' ? <Icons.ArrowUp className="w-3 h-3 text-indigo-600" /> : <Icons.ArrowDown className="w-3 h-3 text-indigo-600" />;
+  };
 
   const totalEmpPages = Math.ceil(filteredEmployees.length / empRowsPerPage);
   const paginatedEmployeesList = useMemo(() => {
@@ -1409,18 +1468,43 @@ export const App: React.FC = () => {
                       <div className="hidden md:block overflow-x-auto">
                         <div className="min-w-[1400px]">
                           <div className="grid grid-cols-11 bg-slate-50 text-slate-500 text-[8px] uppercase font-bold tracking-[0.15em] border-b border-slate-100 px-14 py-4 sticky top-0 z-10">
-                            <div className="col-span-1 flex items-center gap-1">
+                            <div className="col-span-1 flex items-center gap-1 cursor-pointer group" onClick={() => handleSort('idKaryawan')}>
                               <Icons.Edit className="w-2.5 h-2.5" />
                               <span>ID KARYAWAN</span>
+                              <SortIcon column="idKaryawan" />
                             </div>
-                            <div className="col-span-2">NAMA KARYAWAN</div>
-                            <div className="col-span-1">LOKASI KERJA</div>
-                            <div className="col-span-1">DIVISI</div>
-                            <div className="col-span-1">JABATAN</div>
-                            <div className="col-span-1">STATUS</div>
-                            <div className="col-span-1">TANGGAL MULAI KERJA</div>
-                            <div className="col-span-1">KONTRAK BERAKHIR</div>
-                            <div className="col-span-1">SALDO CUTI</div>
+                            <div className="col-span-2 flex items-center gap-1 cursor-pointer group" onClick={() => handleSort('nama')}>
+                              <span>NAMA KARYAWAN</span>
+                              <SortIcon column="nama" />
+                            </div>
+                            <div className="col-span-1 flex items-center gap-1 cursor-pointer group" onClick={() => handleSort('lokasiKerja')}>
+                              <span>LOKASI KERJA</span>
+                              <SortIcon column="lokasiKerja" />
+                            </div>
+                            <div className="col-span-1 flex items-center gap-1 cursor-pointer group" onClick={() => handleSort('division')}>
+                              <span>DIVISI</span>
+                              <SortIcon column="division" />
+                            </div>
+                            <div className="col-span-1 flex items-center gap-1 cursor-pointer group" onClick={() => handleSort('jabatan')}>
+                              <span>JABATAN</span>
+                              <SortIcon column="jabatan" />
+                            </div>
+                            <div className="col-span-1 flex items-center gap-1 cursor-pointer group" onClick={() => handleSort('status')}>
+                              <span>STATUS</span>
+                              <SortIcon column="status" />
+                            </div>
+                            <div className="col-span-1 flex items-center gap-1 cursor-pointer group" onClick={() => handleSort('tanggalMasuk')}>
+                              <span>TANGGAL MULAI KERJA</span>
+                              <SortIcon column="tanggalMasuk" />
+                            </div>
+                            <div className="col-span-1 flex items-center gap-1 cursor-pointer group" onClick={() => handleSort('resigned_at')}>
+                              <span>KONTRAK BERAKHIR</span>
+                              <SortIcon column="resigned_at" />
+                            </div>
+                            <div className="col-span-1 flex items-center gap-1 cursor-pointer group" onClick={() => handleSort('tenure')}>
+                              <span>SALDO CUTI</span>
+                              <SortIcon column="tenure" />
+                            </div>
                             <div className="col-span-1 text-right">AKSI</div>
                           </div>
                           <div className="bg-white">
