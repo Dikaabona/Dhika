@@ -409,7 +409,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         )}
       </div>
 
-      <div className="flex-grow flex flex-col items-center justify-center py-2">
+      <div className="flex flex-col items-center justify-center pt-2 pb-4">
         <div className="relative group">
           <div className="w-56 h-56 sm:w-72 sm:h-72 rounded-full border-[8px] border-white bg-slate-50 shadow-2xl overflow-hidden relative z-10 transition-transform duration-700 group-hover:scale-[1.02]">
             {isCameraActive ? (
@@ -441,7 +441,7 @@ const AbsenModule: React.FC<AbsenModuleProps> = ({ employee, attendanceRecords, 
         </div>
       </div>
 
-      <div className="pb-8 pt-4 flex flex-col items-center px-10 shrink-0">
+      <div className="flex-grow pb-12 pt-2 flex flex-col items-center px-10">
         <button 
           onClick={handleAbsenAction}
           disabled={isLoading || isFinished || !isCameraActive || isModelLoading}
