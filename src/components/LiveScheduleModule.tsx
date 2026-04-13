@@ -17,6 +17,7 @@ interface LiveScheduleModuleProps {
   setReports: React.Dispatch<React.SetStateAction<LiveReport[]>>;
   searchQuery?: string;
   userRole?: string;
+  currentEmployee?: Employee | null;
   company: string;
   onClose?: () => void;
   attendanceRecords?: AttendanceRecord[];
@@ -61,7 +62,7 @@ const isDateInRange = (target: string, start: string, end: string) => {
 
 const DAYS_OF_WEEK = ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU'];
 
-const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, schedules, setSchedules, reports, setReports, userRole = 'employee', company, onClose, attendanceRecords = [], shiftAssignments = [], shifts = [], onRefreshData }) => {
+const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, schedules, setSchedules, reports, setReports, userRole = 'employee', currentEmployee, company, onClose, attendanceRecords = [], shiftAssignments = [], shifts = [], onRefreshData }) => {
   const { confirm } = useConfirmation();
   const readOnly = userRole === 'employee';
   const [activeSubTab, setActiveSubTab] = useState<'JADWAL' | 'REPORT' | 'GRAFIK' | 'LIBUR' | 'BRAND'>('JADWAL');
@@ -630,7 +631,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
             )}
           </div>
         ) : activeSubTab === 'REPORT' ? (
-          <LiveReportModule employees={employees} reports={reports} setReports={setReports} userRole={userRole} company={company} onClose={() => setActiveSubTab('JADWAL')} brands={brands} />
+          <LiveReportModule employees={employees} reports={reports} setReports={setReports} userRole={userRole} currentEmployee={currentEmployee} company={company} onClose={() => setActiveSubTab('JADWAL')} brands={brands} />
         ) : activeSubTab === 'GRAFIK' ? (
           <LiveCharts reports={reports} employees={employees} brands={brands} />
         ) : activeSubTab === 'LIBUR' ? (

@@ -7,6 +7,7 @@ import axios from "axios";
 import cron from "node-cron";
 import { createClient } from "@supabase/supabase-js";
 import { Buffer } from "buffer";
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
@@ -198,6 +199,53 @@ async function sendWahaMessage(to: string, message: string, company: string = 'V
     const errorMsg = err.response?.data || err.message;
     console.error(`Error sending WAHA message (${company}):`, errorMsg);
     addWahaLog('MESSAGE_ERROR', { to: chatId, error: errorMsg, company, message: message.substring(0, 50) });
+  }
+}
+
+// Helper to generate Gemini response
+async function generateGeminiResponse(userMessage: string, company: string) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error("[GEMINI] API Key missing");
+    return null;
+  }
+
+  try {
+    // Fetch knowledge base from Supabase
+    const { data } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', `gemini_knowledge_base_${company}`)
+      .maybeSingle();
+
+    const knowledgeBase = data?.value || "Anda adalah asisten AI untuk Visibel Agency. Berikan informasi yang akurat dan ramah.";
+
+    const ai = new GoogleGenAI({ apiKey });
+
+    const prompt = `
+      Knowledge Base:
+      ${knowledgeBase}
+
+      User Message:
+      ${userMessage}
+
+      Instructions:
+      - Jawablah berdasarkan Knowledge Base di atas.
+      - Jika informasi tidak ada di Knowledge Base, jawablah dengan sopan bahwa Anda tidak tahu atau arahkan untuk menghubungi admin.
+      - Gunakan bahasa Indonesia yang ramah dan profesional.
+      - Jangan memberikan informasi rahasia atau internal perusahaan yang tidak ada di Knowledge Base.
+      - Berikan jawaban yang singkat, padat, dan jelas untuk WhatsApp.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+    });
+
+    return response.text || "Maaf, saya tidak bisa memberikan jawaban saat ini.";
+  } catch (err) {
+    console.error("[GEMINI] Error:", err);
+    return "Maaf, terjadi kesalahan saat memproses pesan Anda.";
   }
 }
 
@@ -442,62 +490,13 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
       }
     }
 
-    // --- DYNAMIC AUTO-REPLY RULES (For everyone) ---
-    try {
-      // Try both uppercase and original casing for company
-      const companyKeys = [company, company.toUpperCase(), company.charAt(0).toUpperCase() + company.slice(1).toLowerCase()];
-      const uniqueKeys = Array.from(new Set(companyKeys));
-      
-      let rules: any[] = [];
-      for (const key of uniqueKeys) {
-        const { data: rulesData } = await supabase
-          .from('settings')
-          .select('value')
-          .eq('key', `waha_autoreply_rules_${key}`)
-          .maybeSingle();
-        
-        if (rulesData && Array.isArray(rulesData.value)) {
-          rules = rulesData.value;
-          company = key; // Use the key that worked
-          break;
-        }
-      }
-      
-      if (rules.length > 0) {
-        addWahaLog('RULE_CHECK', { rules_count: rules.length, message: lowerMsg, company });
-        
-        for (const rule of rules) {
-          const keyword = (rule.keyword || '').toLowerCase().trim();
-          if (!keyword) continue;
-
-          addWahaLog('RULE_DEBUG', { 
-            matchType: rule.matchType, 
-            keyword, 
-            message: lowerMsg,
-            includes: lowerMsg.includes(keyword),
-            exact: lowerMsg === keyword
-          });
-
-          if (rule.matchType === 'exact') {
-            if (lowerMsg === keyword) {
-              addWahaLog('RULE_MATCH', { type: 'exact', keyword, from, company });
-              await sendWahaMessage(from, rule.response, company);
-              return res.status(200).json({ status: "received_dynamic_exact" });
-            }
-          } else if (rule.matchType === 'contains') {
-            if (lowerMsg.includes(keyword)) {
-              addWahaLog('RULE_MATCH', { type: 'contains', keyword, from, company });
-              await sendWahaMessage(from, rule.response, company);
-              return res.status(200).json({ status: "received_dynamic_contains" });
-            }
-          }
-        }
-      } else {
-        addWahaLog('RULE_SKIP', { reason: 'No rules found for company', company });
-      }
-    } catch (e: any) {
-      console.error("[WAHA Webhook] Error fetching dynamic rules:", e);
-      addWahaLog('RULE_ERROR', { error: e.message, company });
+    // --- DYNAMIC AUTO-REPLY RULES REPLACED BY GEMINI AI ---
+    addWahaLog('GEMINI_PROCESS', { message: message.substring(0, 50), company });
+    const aiResponse = await generateGeminiResponse(message, company);
+    
+    if (aiResponse) {
+      await sendWahaMessage(from, aiResponse, company);
+      return res.status(200).json({ status: "received_gemini_response" });
     }
     // --------------------------------
 

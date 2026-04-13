@@ -14,7 +14,7 @@ export interface AdvertisingRecord {
   notes?: string;
 }
 
-export type ActiveTab = 'dashboard' | 'attendance' | 'employee' | 'content' | 'finance' | 'settings' | 'inbox' | 'inventory' | 'invoice' | 'quotation' | 'recruitment' | 'kpi' | 'calendar' | 'map' | 'report' | 'schedule' | 'minvis' | 'absen' | 'home' | 'database' | 'shift' | 'live_map' | 'submissions' | 'mobile_history' | 'content_report' | 'advertising' | 'sales';
+export type ActiveTab = 'dashboard' | 'attendance' | 'employee' | 'content' | 'finance' | 'settings' | 'inbox' | 'inventory' | 'invoice' | 'quotation' | 'recruitment' | 'kpi' | 'calendar' | 'map' | 'report' | 'schedule' | 'absen' | 'home' | 'database' | 'shift' | 'live_map' | 'submissions' | 'mobile_history' | 'content_report' | 'advertising' | 'sales' | 'ai_assistant';
 
 
 export interface Employee {

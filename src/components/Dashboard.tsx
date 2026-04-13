@@ -243,7 +243,6 @@ const Dashboard: React.FC<DashboardProps> = ({
       base.push({ id: 'content', label: 'Short Video', icon: <Icons.Image className="w-5 h-5" />, tab: 'content' });
     }
 
-    base.push({ id: 'minvis', label: 'MinVis AI', icon: <Icons.Cpu className="w-5 h-5" />, tab: 'minvis' });
     base.push({ id: 'database', label: 'Database', icon: <Icons.Users className="w-5 h-5" />, tab: 'database' });
 
     if (isSuper) {

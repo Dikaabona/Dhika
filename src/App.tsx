@@ -21,7 +21,6 @@ import AbsenModule from './components/AbsenModule';
 import LegalModal from './components/LegalModal';
 import SettingsModule from './components/SettingsModule';
 import ShiftModule from './components/ShiftModule';
-import MinVisModule from './components/MinVisModule';
 import KPIModule from './components/KPIModule';
 import CalendarModule from './components/CalendarModule';
 import InventoryModule from './components/InventoryModule';
@@ -33,6 +32,7 @@ import RecruitmentModule from './components/RecruitmentModule';
 import { InvoiceModule } from './components/InvoiceModule';
 import { AdvertisingModule } from './components/AdvertisingModule';
 import SalesReport from './components/SalesReport';
+import AIAssistantModule from './components/AIAssistantModule';
 import { getTenureYears, calculateTenure, formatDateToYYYYMMDD, getMondayISO } from './utils/dateUtils';
 import { useConfirmation } from './contexts/ConfirmationContext';
 
@@ -1016,9 +1016,9 @@ export const App: React.FC = () => {
     }
   };
 
-  const isFullscreenModule = activeTab === 'absen' || activeTab === 'minvis';
+  const isFullscreenModule = activeTab === 'absen';
   const isAttendanceActive = ['absen', 'attendance', 'submissions', 'shift', 'live_map'].includes(activeTab);
-  const isModulActive = ['schedule', 'content', 'minvis', 'calendar', 'advertising', 'sales'].includes(activeTab);
+  const isModulActive = ['schedule', 'content', 'calendar', 'advertising', 'sales'].includes(activeTab);
 
   const isUnregistered = useMemo(() => {
     if (!session || isLoadingData) return false;
@@ -1079,10 +1079,8 @@ export const App: React.FC = () => {
                     <button onClick={() => { setActiveTab('advertising'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">ADVERTISING</button>
                     <div className="h-px bg-slate-50 w-full"></div>
                     <button onClick={() => { setActiveTab('sales'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-slate-50 transition-colors text-[#334155]">SALES</button>
-                    <div className="h-px bg-slate-50 w-full"></div>
                   </>
                 )}
-                <button onClick={() => { setActiveTab('minvis'); setIsDesktopModulOpen(false); }} className="px-8 py-5 text-left text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-[#FFC000] hover:text-black transition-colors text-[#334155]">MINVIS (AI)</button>
               </div>
             )}
           </div>
@@ -1103,6 +1101,7 @@ export const App: React.FC = () => {
         {isHighAdminAccess && (
           <button onClick={() => setActiveTab('settings')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>SETTING</button>
         )}
+        <button onClick={() => setActiveTab('ai_assistant')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'ai_assistant' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>AI ASSISTANT</button>
       </div>
     );
   };
@@ -1129,6 +1128,16 @@ export const App: React.FC = () => {
         >
           <Icons.Clock className="w-6 h-6" />
           <span className="text-[8px] font-black uppercase tracking-tighter">RIWAYAT</span>
+        </button>
+        <button 
+          onClick={() => {
+            setActiveTab('ai_assistant');
+            setViewingEmployee(null);
+          }}
+          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'ai_assistant' && !viewingEmployee ? 'text-[#1E6BFF]' : 'text-slate-400'}`}
+        >
+          <Icons.MessageSquare className="w-6 h-6" />
+          <span className="text-[8px] font-black uppercase tracking-tighter">AI CHAT</span>
         </button>
         <button 
           onClick={() => {
@@ -1256,8 +1265,6 @@ export const App: React.FC = () => {
                   onSuccess={() => fetchData(session?.user?.email, true)} 
                   onClose={() => setActiveTab('home')} 
                 />
-              ) : activeTab === 'minvis' ? (
-                <MinVisModule company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'live_map' ? (
                 <LiveMapModule employees={employees} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} />
               ) : activeTab === 'finance' ? (
@@ -1302,7 +1309,7 @@ export const App: React.FC = () => {
                   shiftAssignments={shiftAssignments}
                 />
               ) : activeTab === 'schedule' ? (
-                <LiveScheduleModule employees={employees} schedules={liveSchedules} setSchedules={setLiveSchedules} reports={liveReports} setReports={setLiveReports} userRole={userRole} company={userCompany} onClose={() => setActiveTab('home')} attendanceRecords={attendanceRecords} shiftAssignments={shiftAssignments} shifts={shifts} onRefreshData={() => fetchData(session?.user?.email, true)} />
+                <LiveScheduleModule employees={employees} schedules={liveSchedules} setSchedules={setLiveSchedules} reports={liveReports} setReports={setLiveReports} userRole={userRole} currentEmployee={currentUserEmployee} company={userCompany} onClose={() => setActiveTab('home')} attendanceRecords={attendanceRecords} shiftAssignments={shiftAssignments} shifts={shifts} onRefreshData={() => fetchData(session?.user?.email, true)} />
               ) : (activeTab === 'content' && canAccessContentHub) ? (
                 <ContentModule 
                   employees={employees} 
@@ -1334,6 +1341,8 @@ export const App: React.FC = () => {
                   company={userCompany} 
                   onClose={() => setActiveTab('home')} 
                 />
+              ) : activeTab === 'ai_assistant' ? (
+                <AIAssistantModule userCompany={userCompany} userRole={userRole} />
               ) : activeTab === 'submissions' ? (
                 <SubmissionForm employee={currentUserEmployee} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'inbox' ? (

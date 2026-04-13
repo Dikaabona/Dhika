@@ -10,6 +10,7 @@ interface LiveReportModuleProps {
   reports: LiveReport[];
   setReports: React.Dispatch<React.SetStateAction<LiveReport[]>>;
   userRole: string;
+  currentEmployee?: Employee | null;
   company: string;
   onClose: () => void;
   brands: any[];
@@ -89,7 +90,7 @@ const getThirtyDaysAgoStr = () => {
   return d.toISOString().split('T')[0];
 };
 
-const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports, setReports, userRole, company, onClose, brands }) => {
+const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports, setReports, userRole, currentEmployee, company, onClose, brands }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingReport, setEditingReport] = useState<LiveReport | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -144,7 +145,11 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
     }
   }, [formData.waktuMulai, formData.waktuSelesai]);
 
-  const canManage = userRole === 'super' || userRole === 'admin' || userRole === 'owner';
+  const canManage = useMemo(() => {
+    const isHighRole = userRole === 'super' || userRole === 'admin' || userRole === 'owner';
+    const isOperator = (currentEmployee?.jabatan || '').toLowerCase().includes('operator');
+    return isHighRole || isOperator;
+  }, [userRole, currentEmployee]);
 
   const hostList = useMemo(() => employees.filter(e => {
     const jabatan = (e.jabatan || '').toLowerCase();

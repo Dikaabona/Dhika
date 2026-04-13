@@ -150,8 +150,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
   const [searchRemote, setSearchRemote] = useState('');
 
   const [wahaSettings, setWahaSettings] = useState<WahaSettings>({ apiUrl: '', apiKey: '', sessionName: 'default' });
-  const [autoReplyRules, setAutoReplyRules] = useState<WahaAutoReplyRule[]>([]);
-  const [newRule, setNewRule] = useState<Partial<WahaAutoReplyRule>>({ keyword: '', response: '', matchType: 'exact' });
+  const [geminiKnowledgeBase, setGeminiKnowledgeBase] = useState('');
   const [isTestingWaha, setIsTestingWaha] = useState(false);
   const [showWahaLogs, setShowWahaLogs] = useState(false);
   const [logs, setLogs] = useState<any[]>([]);
@@ -186,12 +185,12 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
       if (settingsData) setWahaSettings(settingsData.value as WahaSettings);
       else setWahaSettings({ apiUrl: '', apiKey: '', sessionName: 'default' });
 
-      const { data: rulesData } = await supabase.from('settings').select('value').eq('key', `waha_autoreply_rules_${targetCompany}`).single();
-      if (rulesData && Array.isArray(rulesData.value)) setAutoReplyRules(rulesData.value as WahaAutoReplyRule[]);
-      else setAutoReplyRules([]);
+      const { data: kbData } = await supabase.from('settings').select('value').eq('key', `gemini_knowledge_base_${targetCompany}`).single();
+      if (kbData && typeof kbData.value === 'string') setGeminiKnowledgeBase(kbData.value);
+      else setGeminiKnowledgeBase('');
     } catch (e) {
       setWahaSettings({ apiUrl: '', apiKey: '', sessionName: 'default' });
-      setAutoReplyRules([]);
+      setGeminiKnowledgeBase('');
     }
   };
 
@@ -549,57 +548,18 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
     }
   };
 
-  const handleAddRule = async () => {
-    if (!newRule.keyword || !newRule.response) {
-      alert("Keyword dan Response wajib diisi!");
-      return;
-    }
-    const rule: WahaAutoReplyRule = {
-      id: `rule-${Date.now()}`,
-      keyword: newRule.keyword.trim(),
-      response: newRule.response.trim(),
-      matchType: newRule.matchType as 'exact' | 'contains'
-    };
-    const updated = [...autoReplyRules, rule];
+  const handleSaveKnowledgeBase = async () => {
     setIsSaving(true);
     try {
       const targetCompany = isOwner ? selectedCompany : userCompany;
       const { error } = await supabase.from('settings').upsert({
-        key: `waha_autoreply_rules_${targetCompany}`,
-        value: updated
+        key: `gemini_knowledge_base_${targetCompany}`,
+        value: geminiKnowledgeBase
       }, { onConflict: 'key' });
       if (error) throw error;
-      setAutoReplyRules(updated);
-      setNewRule({ keyword: '', response: '', matchType: 'exact' });
-      alert("Auto-reply rule berhasil ditambahkan!");
+      alert("Knowledge Base berhasil disimpan!");
     } catch (err: any) {
-      alert("Gagal menambah rule: " + err.message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleDeleteRule = async (id: string) => {
-    const isConfirmed = await confirm({
-      title: 'Hapus Rule?',
-      message: 'Hapus auto-reply rule ini?',
-      type: 'danger',
-      confirmText: 'HAPUS'
-    });
-    if (!isConfirmed) return;
-    const updated = autoReplyRules.filter(r => r.id !== id);
-    setIsSaving(true);
-    try {
-      const targetCompany = isOwner ? selectedCompany : userCompany;
-      const { error } = await supabase.from('settings').upsert({
-        key: `waha_autoreply_rules_${targetCompany}`,
-        value: updated
-      }, { onConflict: 'key' });
-      if (error) throw error;
-      setAutoReplyRules(updated);
-      alert("Rule berhasil dihapus!");
-    } catch (err: any) {
-      alert("Gagal menghapus rule: " + err.message);
+      alert("Gagal menyimpan: " + err.message);
     } finally {
       setIsSaving(false);
     }
@@ -1909,91 +1869,32 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                 <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm space-y-8">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-3">
-                      <Icons.MessageSquare className="w-4 h-4 text-[#FFC000]" /> Auto-Reply Rules
+                      <Icons.MessageSquare className="w-4 h-4 text-[#FFC000]" /> Gemini AI Knowledge Base
                     </h4>
-                    <div className="bg-amber-50 px-4 py-2 rounded-xl border border-amber-100">
-                      <p className="text-[9px] font-bold text-amber-700 uppercase leading-tight">
-                        💡 Tips: Gunakan "CONTAINS" untuk pencocokan yang lebih fleksibel. <br/>
-                        Sistem tidak membedakan huruf besar/kecil (Case Insensitive).
+                    <div className="bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100">
+                      <p className="text-[9px] font-bold text-indigo-700 uppercase leading-tight">
+                        💡 Tips: Masukkan informasi detail tentang Visibel agar AI bisa menjawab dengan akurat.
                       </p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                    <div className="md:col-span-3 space-y-1">
-                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Keyword</label>
-                      <input 
-                        type="text" 
-                        value={newRule.keyword} 
-                        onChange={e => setNewRule({...newRule, keyword: e.target.value})} 
-                        placeholder="e.g. !halo"
-                        className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-[10px] font-black uppercase outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
-                      />
-                    </div>
-                    <div className="md:col-span-2 space-y-1">
-                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Match Type</label>
-                      <select 
-                        value={newRule.matchType} 
-                        onChange={e => setNewRule({...newRule, matchType: e.target.value as any})} 
-                        className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-[10px] font-black uppercase outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm cursor-pointer"
-                      >
-                        <option value="exact">EXACT</option>
-                        <option value="contains">CONTAINS</option>
-                      </select>
-                    </div>
-                    <div className="md:col-span-5 space-y-1">
-                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Response Message</label>
-                      <input 
-                        type="text" 
-                        value={newRule.response} 
-                        onChange={e => setNewRule({...newRule, response: e.target.value})} 
-                        placeholder="Balasan otomatis..."
-                        className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-[10px] font-black outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <button 
-                        onClick={handleAddRule}
-                        disabled={isSaving}
-                        className="w-full bg-[#0f172a] text-[#FFC000] py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                      >
-                        <Icons.Plus className="w-4 h-4" /> ADD
-                      </button>
-                    </div>
-                  </div>
-
                   <div className="space-y-4">
-                    {autoReplyRules.map((rule) => (
-                      <div key={rule.id} className="flex items-center justify-between bg-slate-50/50 p-6 rounded-3xl border border-slate-100 group hover:bg-white hover:shadow-md transition-all">
-                        <div className="flex-grow grid grid-cols-1 md:grid-cols-3 gap-6">
-                          <div>
-                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Keyword</p>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-black text-slate-900 uppercase bg-white px-3 py-1 rounded-lg border border-slate-200 shadow-sm">{rule.keyword}</span>
-                              <span className={`text-[7px] font-black px-2 py-0.5 rounded uppercase tracking-tighter ${rule.matchType === 'exact' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                                {rule.matchType}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="md:col-span-2">
-                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Response</p>
-                            <p className="text-[10px] font-medium text-slate-600 line-clamp-2">{rule.response}</p>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => handleDeleteRule(rule.id)}
-                          className="text-rose-400 hover:text-rose-600 p-3 rounded-xl hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <Icons.Trash className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                    {autoReplyRules.length === 0 && (
-                      <div className="py-20 text-center opacity-30">
-                        <Icons.MessageSquare className="w-12 h-12 mx-auto mb-4" />
-                        <p className="text-[10px] font-black uppercase tracking-[0.4em]">Belum ada aturan auto-reply</p>
-                      </div>
-                    )}
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Informasi Perusahaan / Knowledge Base</label>
+                      <textarea 
+                        value={geminiKnowledgeBase} 
+                        onChange={e => setGeminiKnowledgeBase(e.target.value)} 
+                        placeholder="Contoh: Visibel adalah agency live streaming yang berlokasi di Jakarta..."
+                        className="w-full h-64 bg-slate-50 border border-slate-200 px-5 py-4 rounded-3xl text-[11px] font-medium outline-none focus:ring-4 focus:ring-indigo-500/10 text-slate-700 shadow-sm resize-none" 
+                      />
+                    </div>
+                    <button 
+                      onClick={handleSaveKnowledgeBase}
+                      disabled={isSaving}
+                      className="w-full bg-[#0f172a] text-[#FFC000] py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      <Icons.Save className="w-4 h-4" /> SIMPAN KNOWLEDGE BASE
+                    </button>
                   </div>
                 </div>
               </div>
