@@ -152,7 +152,7 @@ async function getWahaSettings(company: string) {
 }
 
 // Helper to send WAHA message
-async function sendWahaMessage(to: string, message: string, company: string = 'Visibel') {
+async function sendWahaMessage(to: string, message: string, company: string = 'VISIBEL') {
   const settings = await getWahaSettings(company);
 
   if (!settings || !settings.apiUrl) {
