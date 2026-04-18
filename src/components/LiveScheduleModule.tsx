@@ -73,7 +73,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   const [endDate, setEndDate] = useState(getLocalDateString());
   
   const [localSearch, setLocalSearch] = useState('');
-  const [selectedBrandFilter, setSelectedBrandFilter] = useState('SEMUA BRAND');
+  const [selectedBrandFilter, setSelectedBrandFilter] = useState(isPublicView && forcedBrand ? forcedBrand.toUpperCase() : 'SEMUA BRAND');
   const [showEmptySlots, setShowEmptySlots] = useState(false); 
   const [newBrandName, setNewBrandName] = useState('');
   const [isImporting, setIsImporting] = useState(false);
@@ -462,10 +462,10 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         {/* Navigation Tabs - Refined for Mobile */}
         <div className="bg-[#f1f5f9] p-1 rounded-[28px] sm:rounded-[32px] flex shadow-inner max-w-4xl mx-auto gap-1">
           {['JADWAL', 'REPORT', 'GRAFIK', 'LIBUR', 'BRAND'].map((tab) => {
-             // If public view, only show REPORT and GRAFIK
-             if (isPublicView && tab !== 'REPORT' && tab !== 'GRAFIK') return null;
+             // If public view, only show JADWAL, REPORT and GRAFIK
+             if (isPublicView && tab !== 'JADWAL' && tab !== 'REPORT' && tab !== 'GRAFIK') return null;
              
-             const isMobileHidden = ['REPORT', 'GRAFIK', 'BRAND'].includes(tab);
+             const isMobileHidden = ['BRAND'].includes(tab);
              return (
               ((tab !== 'BRAND') || !readOnly || isPublicView) && (
                 <button 

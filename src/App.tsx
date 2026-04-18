@@ -118,6 +118,21 @@ export const App: React.FC = () => {
         .eq('brand', shareReportBrand);
       
       setLiveReports(reports || []);
+      
+      if (reports && reports.length > 0) {
+        setUserCompany(reports[0].company);
+      }
+
+      const { data: schedules } = await supabase
+        .from('schedules')
+        .select('*')
+        .eq('brand', shareReportBrand);
+      
+      setLiveSchedules(schedules || []);
+
+      if (!(reports && reports.length > 0) && (schedules && schedules.length > 0)) {
+        setUserCompany(schedules[0].company);
+      }
 
       const { data: emps } = await supabase
         .from('employees')

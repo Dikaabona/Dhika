@@ -612,32 +612,39 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
         )}
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-        <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm flex flex-col justify-center">
-          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total View</p>
-          <p className="text-xl font-black text-slate-900">{filteredReports.reduce((sum, r) => sum + (r.totalView || 0), 0).toLocaleString()}</p>
+      {/* Stats Section - Adjusted for Mobile Comfort */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-4">
+        <div className="bg-white p-4 sm:p-5 rounded-[24px] sm:rounded-[28px] border border-slate-100 shadow-sm flex flex-col justify-center">
+          <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total View</p>
+          <p className="text-sm sm:text-xl font-black text-slate-900">{filteredReports.reduce((sum, r) => sum + (r.totalView || 0), 0).toLocaleString()}</p>
         </div>
-        <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm flex flex-col justify-center">
-          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Avg. Enter Rate</p>
-          <p className="text-xl font-black text-indigo-600">
-            {(filteredReports.length > 0 ? (filteredReports.reduce((sum, r) => sum + parseFloat(r.enterRoomRate || '0'), 0) / filteredReports.length).toFixed(2) : 0)}%
+        <div className="bg-white p-4 sm:p-5 rounded-[24px] sm:rounded-[28px] border border-slate-100 shadow-sm flex flex-col justify-center">
+          <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Avg. Enter Rate</p>
+          <p className="text-sm sm:text-xl font-black text-indigo-600">
+            {filteredReports.length > 0 ? (() => {
+              const rates = filteredReports.map(r => parseFloat(String(r.enterRoomRate || '0').replace('%', '')));
+              const validRates = rates.filter(n => !isNaN(n));
+              return validRates.length > 0 ? (validRates.reduce((a, b) => a + b, 0) / validRates.length).toFixed(1) : '0';
+            })() : '0'}%
           </p>
         </div>
-        <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm flex flex-col justify-center">
-          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Checkout</p>
-          <p className="text-xl font-black text-emerald-600">{filteredReports.reduce((sum, r) => sum + (r.checkout || 0), 0).toLocaleString()}</p>
+        <div className="bg-white p-4 sm:p-5 rounded-[24px] sm:rounded-[28px] border border-slate-100 shadow-sm flex flex-col justify-center">
+          <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Checkout</p>
+          <p className="text-sm sm:text-xl font-black text-emerald-600">{filteredReports.reduce((sum, r) => sum + (r.checkout || 0), 0).toLocaleString()}</p>
         </div>
-        <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm flex flex-col justify-center">
-          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Durasi</p>
-          <p className="text-xl font-black text-slate-900">{filteredReports.reduce((sum, r) => sum + (r.durasi || 0), 0).toFixed(1)} Jam</p>
+        <div className="bg-white p-4 sm:p-5 rounded-[24px] sm:rounded-[28px] border border-slate-100 shadow-sm flex flex-col justify-center">
+          <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Durasi</p>
+          <p className="text-sm sm:text-xl font-black text-slate-900">{filteredReports.reduce((sum, r) => sum + (r.durasi || 0), 0).toFixed(1)} Jam</p>
         </div>
-        <div className="bg-[#0f172a] p-5 rounded-[28px] border border-white/5 shadow-xl flex flex-col justify-center">
-          <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Total GMV</p>
-          <p className="text-base font-black text-[#FFC000] truncate">{formatCurrency(filteredReports.reduce((sum, r) => sum + (r.gmv || 0), 0))}</p>
+        <div className="bg-[#0f172a] p-4 sm:p-5 rounded-[24px] sm:rounded-[28px] border border-white/5 shadow-xl flex flex-col justify-center col-span-2 lg:col-span-1">
+          <p className="text-[7px] sm:text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Total GMV</p>
+          <p className="text-sm sm:text-base font-black text-[#FFC000] truncate">{formatCurrency(filteredReports.reduce((sum, r) => sum + (r.gmv || 0), 0))}</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden">
+      <div className="space-y-4">
+        {/* Desktop Table View */}
+        <div className="hidden md:block bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto no-scrollbar">
           <table className="w-full text-left min-w-[850px]">
             <thead>
@@ -736,8 +743,120 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
             </tbody>
           </table>
         </div>
+        </div>
 
-        {/* Pagination UI */}
+        {/* Mobile Card View */}
+        <div className="md:hidden space-y-4">
+          {paginatedReports.map((report, idx) => {
+            const host = employees.find(e => e.id === report.hostId);
+            const op = employees.find(e => e.id === report.opId);
+            const globalIdx = (currentPage - 1) * rowsPerPage + idx + 1;
+            return (
+              <div key={report.id} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 relative">
+                {/* Header: Sesi & Live */}
+                <div className="flex justify-between items-start border-b border-slate-50 pb-4">
+                  <div className="flex gap-4 items-center">
+                    <span className="w-8 h-8 rounded-full bg-slate-900 text-[#FFC000] flex items-center justify-center text-[10px] font-black shrink-0">{globalIdx}</span>
+                    <div>
+                      <p className="text-[10px] font-black text-[#6366f1] uppercase tracking-[0.2em] mb-0.5">
+                        {new Date(report.tanggal).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase()}
+                      </p>
+                      <h3 className="text-sm font-black text-slate-900 uppercase">{report.brand}</h3>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">ROOM: {report.roomId}</p>
+                    </div>
+                  </div>
+                  {canManage && !isPublicView && (
+                    <div className="flex gap-2">
+                       <button onClick={() => handleOpenModal(report)} className="p-2 text-indigo-600 bg-indigo-50 rounded-xl transition-all active:scale-95"><Icons.Edit className="w-4 h-4" /></button>
+                       <button onClick={() => handleDelete(report.id!)} className="p-2 text-rose-600 bg-rose-50 rounded-xl transition-all active:scale-95"><Icons.Trash className="w-4 h-4" /></button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Body Details */}
+                <div className="grid grid-cols-2 gap-y-6 gap-x-4">
+                  {/* Host & OP */}
+                  <div className="col-span-2 grid grid-cols-2 gap-4 bg-slate-50/50 p-4 rounded-2xl">
+                    <div className="space-y-1">
+                      <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">HOST LIVE</p>
+                      <p className="text-[10px] font-black text-slate-700 uppercase truncate">{host?.nama || '-'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">OPERATOR OP</p>
+                      <p className="text-[10px] font-black text-slate-700 uppercase truncate">{op?.nama || '-'}</p>
+                    </div>
+                  </div>
+
+                  {/* Performance Metrics */}
+                  <div className="space-y-3">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest border-l-2 border-indigo-500 pl-2">Performance</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-white p-2 rounded-xl border border-slate-100">
+                        <p className="text-[6px] font-black text-slate-400 uppercase tracking-tighter mb-0.5">VIEW</p>
+                        <p className="text-[10px] font-black text-slate-900">{(report.totalView || 0).toLocaleString()}</p>
+                      </div>
+                      <div className="bg-white p-2 rounded-xl border border-slate-100">
+                        <p className="text-[6px] font-black text-indigo-500 uppercase tracking-tighter mb-0.5">CTR</p>
+                        <p className="text-[10px] font-black text-indigo-600">{report.ctr || '0%'}</p>
+                      </div>
+                      <div className="bg-white p-2 rounded-xl border border-slate-100 col-span-2">
+                         <p className="text-[6px] font-black text-slate-400 uppercase tracking-tighter mb-0.5">ENTER RATE</p>
+                         <p className="text-[10px] font-black text-slate-900">{report.enterRoomRate}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sales Metrics */}
+                  <div className="space-y-3">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest border-l-2 border-emerald-500 pl-2">Sales</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="bg-emerald-50/50 p-2 rounded-xl border border-emerald-100">
+                        <p className="text-[6px] font-black text-emerald-600 uppercase tracking-tighter mb-0.5">GMV TOTAL</p>
+                        <p className="text-[10px] font-black text-[#0f172a]">{formatCurrency(report.gmv || 0)}</p>
+                      </div>
+                      <div className="bg-white p-2 rounded-xl border border-slate-100 flex justify-between items-center">
+                        <p className="text-[6px] font-black text-slate-400 uppercase tracking-tighter">CHECKOUT</p>
+                        <p className="text-[10px] font-black text-emerald-600">{report.checkout || 0} CO</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Product Details (Best Seller, Qty, GMV/Product) */}
+                  <div className="col-span-2 space-y-3 border-t border-slate-50 pt-4">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Produk Terlaris</p>
+                    <div className="bg-slate-50 p-4 rounded-2xl space-y-3">
+                       <div className="flex justify-between items-start gap-4">
+                          <p className="text-[10px] font-black text-slate-900 uppercase leading-tight line-clamp-2">{report.bestSeller || '-'}</p>
+                          <div className="bg-white px-2 py-1 rounded-lg border border-slate-100 shrink-0">
+                             <p className="text-[8px] font-black text-slate-900">{report.qty || 0} PCS</p>
+                          </div>
+                       </div>
+                       <div className="flex justify-between items-center pt-2 border-t border-slate-200/50">
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">GMV PER PRODUK</p>
+                          <p className="text-[10px] font-black text-emerald-600 font-mono">{formatCurrency(report.gmvPerProduct || 0)}</p>
+                       </div>
+                    </div>
+                  </div>
+
+                  {/* Durasi */}
+                  <div className="col-span-2 flex justify-between items-center bg-slate-900 px-6 py-4 rounded-2xl shadow-lg">
+                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">DURASI LIVE</p>
+                    <div className="flex items-center gap-2">
+                       <Icons.Database className="w-3 h-3 text-[#FFC000]" />
+                       <p className="text-xs font-black text-white">{(report.durasi || 0).toFixed(1)} <span className="text-[#FFC000]">JAM</span></p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {paginatedReports.length === 0 && (
+            <div className="bg-white p-12 rounded-[32px] border border-slate-100 shadow-sm text-center">
+               <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Tidak ada laporan ditemukan</p>
+            </div>
+          )}
+        </div>
+      </div>
         {totalPages > 1 && (
           <div className="px-6 py-5 flex items-center justify-between border-t border-slate-100 bg-slate-50/30">
             <div className="flex items-center gap-2">
@@ -762,7 +881,6 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
             </div>
           </div>
         )}
-      </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-[#0f172a]/95 backdrop-blur-md flex items-center justify-center p-3 z-[200]">

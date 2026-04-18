@@ -298,12 +298,12 @@ const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees, brands, for
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-20">
       {/* FILTER SECTION */}
-      <div className="bg-slate-50 p-1.5 rounded-[28px] border border-slate-100 flex flex-col sm:flex-row gap-3 shadow-inner">
+      <div className="bg-slate-50 p-1.5 rounded-[24px] sm:rounded-[28px] border border-slate-100 flex flex-col sm:flex-row gap-2 sm:gap-3 shadow-inner">
         {!isPublicView && (
           <select 
             value={selectedBrand} 
             onChange={(e) => setSelectedBrand(e.target.value)} 
-            className="bg-white border border-slate-200 px-6 py-3.5 rounded-[22px] text-[10px] font-black text-slate-900 outline-none shadow-sm appearance-none text-center uppercase tracking-widest sm:flex-grow"
+            className="bg-white border border-slate-200 px-4 sm:px-6 py-3 sm:py-3.5 rounded-[20px] sm:rounded-[22px] text-[10px] font-black text-slate-900 outline-none shadow-sm appearance-none text-center uppercase tracking-widest sm:flex-grow"
           >
             <option value="ALL">SEMUA BRAND</option>
             {brands.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
@@ -311,7 +311,7 @@ const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees, brands, for
         )}
 
         {isPublicView && (
-          <div className="bg-slate-900 text-[#FFC000] px-6 py-3.5 rounded-[22px] text-[10px] font-black uppercase tracking-widest shadow-sm flex items-center justify-center sm:flex-grow">
+          <div className="bg-slate-900 text-[#FFC000] px-4 sm:px-6 py-3 sm:py-3.5 rounded-[20px] sm:rounded-[22px] text-[10px] font-black uppercase tracking-widest shadow-sm flex items-center justify-center sm:flex-grow">
             BRAND: {selectedBrand}
           </div>
         )}
@@ -319,30 +319,30 @@ const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees, brands, for
         <select 
           value={selectedHost} 
           onChange={(e) => setSelectedHost(e.target.value)} 
-          className="bg-white border border-slate-200 px-6 py-3.5 rounded-[22px] text-[10px] font-black text-slate-900 outline-none shadow-sm appearance-none text-center uppercase tracking-widest sm:flex-grow"
+          className="bg-white border border-slate-200 px-4 sm:px-6 py-3 sm:py-3.5 rounded-[20px] sm:rounded-[22px] text-[10px] font-black text-slate-900 outline-none shadow-sm appearance-none text-center uppercase tracking-widest sm:flex-grow"
         >
           <option value="ALL">SEMUA HOST</option>
           {hostList.map(h => <option key={h.id} value={h.id}>{h.nama.toUpperCase()}</option>)}
         </select>
         
-        <div className="flex items-center gap-3 px-6 py-3 bg-white rounded-[22px] shadow-sm border border-slate-100 shrink-0">
-          <div className="flex flex-col items-start min-w-[100px]">
+        <div className="flex items-center justify-center gap-3 px-6 py-3 bg-white rounded-[20px] sm:rounded-[22px] shadow-sm border border-slate-100 shrink-0">
+          <div className="flex flex-col items-center sm:items-start min-w-[80px] sm:min-w-[100px]">
             <span className="text-[7px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Mulai</span>
             <input 
               type="date" 
               value={startDate} 
               onChange={(e) => setStartDate(e.target.value)} 
-              className="bg-transparent text-[10px] font-black outline-none text-slate-900 cursor-pointer" 
+              className="bg-transparent text-[9px] sm:text-[10px] font-black outline-none text-slate-900 cursor-pointer" 
             />
           </div>
-          <div className="h-8 w-px bg-slate-100"></div>
-          <div className="flex flex-col items-start min-w-[100px]">
+          <div className="h-6 sm:h-8 w-px bg-slate-100"></div>
+          <div className="flex flex-col items-center sm:items-start min-w-[80px] sm:min-w-[100px]">
             <span className="text-[7px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Sampai</span>
             <input 
               type="date" 
               value={endDate} 
               onChange={(e) => setEndDate(e.target.value)} 
-              className="bg-transparent text-[10px] font-black outline-none text-slate-900 cursor-pointer" 
+              className="bg-transparent text-[9px] sm:text-[10px] font-black outline-none text-slate-900 cursor-pointer" 
             />
           </div>
         </div>
@@ -354,24 +354,26 @@ const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees, brands, for
            <p className="text-xs font-black uppercase tracking-[0.3em]">Tidak ada data untuk filter ini</p>
         </div>
       ) : (
-        <div className="space-y-12">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-             <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm h-[400px]">
+        <div className="space-y-6 sm:space-y-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+             <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border border-slate-100 shadow-sm h-[300px] sm:h-[400px]">
                 <canvas ref={chart2Ref}></canvas>
              </div>
-             <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm h-[400px]">
+             <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border border-slate-100 shadow-sm h-[300px] sm:h-[400px]">
                 <canvas ref={chart1Ref}></canvas>
              </div>
           </div>
-          <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm h-[450px]">
-             <canvas ref={chart3Ref}></canvas>
-          </div>
+          {!isPublicView && (
+            <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border border-slate-100 shadow-sm h-[350px] sm:h-[450px]">
+               <canvas ref={chart3Ref}></canvas>
+            </div>
+          )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-             <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm h-[450px]">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+             <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border border-slate-100 shadow-sm h-[350px] sm:h-[450px]">
                 <canvas ref={chart4Ref}></canvas>
              </div>
-             <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm h-[450px]">
+             <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border border-slate-100 shadow-sm h-[350px] sm:h-[450px]">
                 <canvas ref={chart5Ref}></canvas>
              </div>
           </div>
