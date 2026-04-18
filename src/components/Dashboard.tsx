@@ -248,6 +248,9 @@ const Dashboard: React.FC<DashboardProps> = ({
     if (isSuper) {
       base.push({ id: 'kpi', label: 'KPI Performance', icon: <Icons.Sparkles className="w-5 h-5" />, tab: 'kpi' });
       base.push({ id: 'live_map', label: 'Cabang', icon: <Icons.MapPin className="w-5 h-5" />, tab: 'live_map' });
+      if (userCompany.toUpperCase() === 'VISIBEL') {
+        base.push({ id: 'recruitment', label: 'Rekrutmen', icon: <Icons.Briefcase className="w-5 h-5" />, tab: 'recruitment' });
+      }
     }
 
     if (isAdmin) {
@@ -257,7 +260,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     }
 
     return base;
-  }, [isSuper, isAdmin]);
+  }, [isSuper, isAdmin, userCompany]);
 
   return (
     <div className="space-y-5 md:space-y-10 pb-4 md:pb-20">

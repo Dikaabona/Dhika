@@ -1180,16 +1180,6 @@ export const App: React.FC = () => {
         </button>
         <button 
           onClick={() => {
-            setActiveTab('ai_assistant');
-            setViewingEmployee(null);
-          }}
-          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'ai_assistant' && !viewingEmployee ? 'text-[#1E6BFF]' : 'text-slate-400'}`}
-        >
-          <Icons.MessageSquare className="w-6 h-6" />
-          <span className="text-[8px] font-black uppercase tracking-tighter">AI CHAT</span>
-        </button>
-        <button 
-          onClick={() => {
             if (currentUserEmployee) setViewingEmployee(currentUserEmployee);
           }}
           className={`flex flex-col items-center gap-1 transition-all ${viewingEmployee ? 'text-[#1E6BFF]' : 'text-slate-400'}`}

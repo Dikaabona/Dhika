@@ -429,64 +429,64 @@ CREATE POLICY "Allow auth update" ON candidates FOR UPDATE TO authenticated USIN
   const isAdmin = ['owner', 'super', 'superadmin', 'admin'].includes(userRole);
 
   return (
-    <div className="flex flex-col gap-6 animate-in fade-in duration-700">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <button onClick={onClose} className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-all active:scale-95">
-            <Icons.ArrowLeft className="w-5 h-5 text-slate-600" />
+    <div className="flex flex-col gap-4 sm:gap-6 animate-in fade-in duration-700">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <button onClick={onClose} className="p-2 sm:p-3 bg-white rounded-xl sm:rounded-2xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-all active:scale-95">
+            <Icons.ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600" />
           </button>
           <div>
-            <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Seleksi Kandidat</h1>
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Manajemen Rekrutmen {company}</p>
+            <h1 className="text-xl sm:text-3xl font-black text-slate-900 uppercase tracking-tight">Seleksi Kandidat</h1>
+            <p className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-widest">Manajemen Rekrutmen {company}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full lg:w-auto">
           <button 
             onClick={fetchCandidates}
-            className="p-4 bg-white rounded-3xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-all active:scale-95 text-slate-400 hover:text-slate-900"
+            className="flex-shrink-0 p-3 sm:p-4 bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-all active:scale-95 text-slate-400 hover:text-slate-900"
             title="Refresh Data"
           >
-            <Icons.RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+            <Icons.RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
           {isAdmin && (
-            <>
+            <div className="flex items-center gap-2 w-full">
               <button 
                 onClick={() => setIsSettingsOpen(true)}
-                className="p-4 bg-white rounded-3xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-all active:scale-95 text-slate-400 hover:text-slate-900"
-                title="Pengaturan Email"
+                className="flex-shrink-0 p-3 sm:p-4 bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-all active:scale-95 text-slate-400 hover:text-slate-900"
+                title="Pengaturan"
               >
-                <Icons.Settings className="w-5 h-5" />
+                <Icons.Settings className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               <button 
                 onClick={syncFromSheet}
                 disabled={isSyncing}
-                className="flex items-center justify-center gap-3 bg-[#0f172a] text-[#FFC000] px-8 py-4 rounded-3xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-black transition-all active:scale-95 disabled:opacity-50"
+                className="flex-grow flex items-center justify-center gap-2 bg-[#0f172a] text-[#FFC000] px-4 sm:px-8 py-3 sm:py-4 rounded-2xl sm:rounded-3xl font-black text-[9px] sm:text-[10px] uppercase tracking-widest shadow-xl hover:bg-black transition-all active:scale-95 disabled:opacity-50"
               >
-                {isSyncing ? <Icons.Loader2 className="w-4 h-4 animate-spin" /> : <Icons.RefreshCw className="w-4 h-4" />}
-                Sinkronisasi Spreadsheet
+                {isSyncing ? <Icons.Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" /> : <Icons.RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />}
+                <span className="truncate">Sinkronisasi Spreadsheet</span>
               </button>
-            </>
+            </div>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="md:col-span-2 relative">
-          <Icons.Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="sm:col-span-2 relative">
+          <Icons.Search className="absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input 
             type="text"
             placeholder="CARI NAMA ATAU POSISI..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-14 pr-6 py-4 bg-white rounded-3xl border border-slate-100 shadow-sm focus:ring-2 focus:ring-[#1E6BFF] focus:border-transparent outline-none font-bold text-[10px] uppercase tracking-widest"
+            className="w-full pl-12 sm:pl-14 pr-6 py-3 sm:py-4 bg-white rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm focus:ring-2 focus:ring-[#1E6BFF] focus:border-transparent outline-none font-bold text-[9px] sm:text-[10px] uppercase tracking-widest"
           />
         </div>
         <div className="relative">
-          <Icons.Filter className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Icons.Filter className="absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <select 
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full pl-14 pr-6 py-4 bg-white rounded-3xl border border-slate-100 shadow-sm focus:ring-2 focus:ring-[#1E6BFF] focus:border-transparent outline-none font-bold text-[10px] uppercase tracking-widest appearance-none"
+            className="w-full pl-12 sm:pl-14 pr-10 py-3 sm:py-4 bg-white rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm focus:ring-2 focus:ring-[#1E6BFF] focus:border-transparent outline-none font-bold text-[9px] sm:text-[10px] uppercase tracking-widest appearance-none"
           >
             <option value="ALL">SEMUA STATUS</option>
             <option value="Applied">APPLIED</option>
@@ -495,23 +495,125 @@ CREATE POLICY "Allow auth update" ON candidates FOR UPDATE TO authenticated USIN
             <option value="Rejected">REJECTED</option>
             <option value="Hired">HIRED</option>
           </select>
+          <Icons.ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
         </div>
         <div className="relative">
-          <Icons.Layers className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Icons.Layers className="absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <select 
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value as any)}
-            className="w-full pl-14 pr-6 py-4 bg-white rounded-3xl border border-slate-100 shadow-sm focus:ring-2 focus:ring-[#1E6BFF] focus:border-transparent outline-none font-bold text-[10px] uppercase tracking-widest appearance-none"
+            className="w-full pl-12 sm:pl-14 pr-10 py-3 sm:py-4 bg-white rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm focus:ring-2 focus:ring-[#1E6BFF] focus:border-transparent outline-none font-bold text-[9px] sm:text-[10px] uppercase tracking-widest appearance-none"
           >
             <option value="newest">TERBARU</option>
             <option value="oldest">TERLAMA</option>
             <option value="name_asc">NAMA (A-Z)</option>
             <option value="name_desc">NAMA (Z-A)</option>
           </select>
+          <Icons.ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
         </div>
       </div>
 
-      <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
+      {/* Card View for Mobile */}
+      <div className="md:hidden space-y-4">
+        {isLoading ? (
+          <div className="p-20 text-center">
+            <Icons.Loader2 className="w-8 h-8 animate-spin mx-auto text-slate-300" />
+          </div>
+        ) : paginatedCandidates.length === 0 ? (
+          <div className="p-20 text-center bg-white rounded-[40px] border border-slate-100">
+            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Tidak ada data kandidat</p>
+          </div>
+        ) : (
+          paginatedCandidates.map((cand, idx) => (
+            <div key={cand.id || `${cand.email}-${cand.timestamp}-${idx}`} className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm space-y-4 relative overflow-hidden group">
+              <div className="flex justify-between items-start">
+                <div className="flex flex-col">
+                  <span className="text-sm font-black text-slate-900 uppercase tracking-tight">{cand.nama}</span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{cand.posisi}</span>
+                </div>
+                <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${getStatusColor(cand.status)}`}>
+                  {cand.status}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-[9px]">
+                <div className="space-y-1">
+                  <p className="text-slate-400 font-bold uppercase tracking-widest">Gaji Harapan</p>
+                  <p className="font-black text-emerald-600">Rp {cand.gajiHarapan}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-slate-400 font-bold uppercase tracking-widest">Lahir</p>
+                  <p className="font-bold text-slate-700 truncate">{cand.ttl}</p>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-50 flex flex-wrap gap-2 items-center justify-between">
+                <div className="flex gap-2">
+                  <a href={`mailto:${cand.email}`} className="p-2.5 bg-slate-50 rounded-xl text-slate-400">
+                    <Icons.Mail className="w-3.5 h-3.5" />
+                  </a>
+                  <a href={`tel:${cand.noHp}`} className="p-2.5 bg-slate-50 rounded-xl text-slate-400">
+                    <Icons.Phone className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+                
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {cand.videoUrl && (
+                    <a href={cand.videoUrl} target="_blank" rel="noopener noreferrer" className="p-2.5 bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-blue-600 transition-all shadow-sm">
+                      <Icons.Video className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  {cand.portfolioUrl && (
+                    <a href={cand.portfolioUrl} target="_blank" rel="noopener noreferrer" className="p-2.5 bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-emerald-600 transition-all shadow-sm">
+                      <Icons.FileText className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  <button 
+                    onClick={() => {
+                      setSelectedCandidate(cand);
+                      setCandidateNote(cand.notes || '');
+                      setIsNoteModalOpen(true);
+                    }}
+                    className="p-2.5 bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-amber-600 transition-all shadow-sm"
+                  >
+                    <Icons.MessageSquare className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="relative">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuId(openMenuId === cand.id ? null : cand.id || null);
+                      }}
+                      className={`p-2.5 bg-white border rounded-xl transition-all shadow-sm ${openMenuId === cand.id ? 'text-slate-900 border-slate-300' : 'text-slate-400 border-slate-100'}`}
+                    >
+                      <Icons.MoreVertical className="w-3.5 h-3.5" />
+                    </button>
+                    {openMenuId === cand.id && (
+                      <div className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-[60] animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        {(['Applied', 'Screening', 'Interview', 'Rejected', 'Hired'] as Candidate['status'][]).map((status) => (
+                          <button
+                            key={status}
+                            onClick={() => {
+                              updateStatus(cand.id!, status);
+                              setOpenMenuId(null);
+                            }}
+                            className={`w-full text-left px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-colors ${cand.status === status ? 'bg-slate-50 text-slate-900 cursor-default' : 'hover:bg-slate-50 text-slate-400 hover:text-slate-900'}`}
+                          >
+                            Set {status}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
