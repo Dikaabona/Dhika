@@ -813,73 +813,73 @@ CREATE POLICY "Allow auth update" ON candidates FOR UPDATE TO authenticated USIN
       )}
 
       {isSettingsOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6 animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in duration-300">
-            <div className="px-10 py-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-2xl rounded-[32px] sm:rounded-[40px] shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in duration-300">
+            <div className="px-6 sm:px-10 py-5 sm:py-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
               <div>
-                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Pengaturan Rekrutmen</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Otomatisasi Email Kandidat</p>
+                <h3 className="text-lg sm:text-xl font-black text-slate-900 uppercase tracking-tight">Pengaturan Rekrutmen</h3>
+                <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Otomatisasi Email Kandidat</p>
               </div>
               <button onClick={() => setIsSettingsOpen(false)} className="p-2 hover:bg-white rounded-xl transition-colors">
                 <Icons.X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
-            <div className="p-10 space-y-6 max-h-[70vh] overflow-y-auto">
-              <div className="flex items-center justify-between p-6 bg-slate-50 rounded-3xl">
+            <div className="p-5 sm:p-10 space-y-4 sm:space-y-6 max-h-[80vh] sm:max-h-[70vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-4 sm:p-6 bg-slate-50 rounded-2xl sm:rounded-3xl">
                 <div>
-                  <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">Kirim Email Otomatis</h4>
-                  <p className="text-[10px] font-medium text-slate-500 mt-1">Kirim email ke kandidat saat status diubah.</p>
+                  <h4 className="text-[11px] sm:text-sm font-black text-slate-900 uppercase tracking-tight">Kirim Email Otomatis</h4>
+                  <p className="text-[9px] sm:text-[10px] font-medium text-slate-500 mt-1">Kirim email ke kandidat saat status diubah.</p>
                 </div>
                 <button 
                   onClick={() => setAutoEmailEnabled(!autoEmailEnabled)}
-                  className={`w-14 h-8 rounded-full transition-all relative ${autoEmailEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                  className={`w-12 sm:w-14 h-7 sm:h-8 rounded-full transition-all relative ${autoEmailEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
                 >
-                  <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${autoEmailEnabled ? 'left-7' : 'left-1'}`} />
+                  <div className={`absolute top-1 w-5 sm:w-6 h-5 sm:h-6 bg-white rounded-full transition-all ${autoEmailEnabled ? 'left-6 sm:left-7' : 'left-1'}`} />
                 </button>
               </div>
 
               {autoEmailEnabled && (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between p-6 bg-slate-50 rounded-3xl">
+                <div className="space-y-4 sm:space-y-6">
+                  <div className="flex items-center justify-between p-4 sm:p-6 bg-slate-50 rounded-2xl sm:rounded-3xl">
                     <div>
-                      <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">Kirim WhatsApp Otomatis</h4>
-                      <p className="text-[10px] font-medium text-slate-500 mt-1">Kirim pesan WhatsApp ke kandidat saat status diubah.</p>
+                      <h4 className="text-[11px] sm:text-sm font-black text-slate-900 uppercase tracking-tight">Kirim WhatsApp Otomatis</h4>
+                      <p className="text-[9px] sm:text-[10px] font-medium text-slate-500 mt-1">Kirim pesan WhatsApp ke kandidat saat status diubah.</p>
                     </div>
                     <button 
                       onClick={() => setAutoWhatsAppEnabled(!autoWhatsAppEnabled)}
-                      className={`w-14 h-8 rounded-full transition-all relative ${autoWhatsAppEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                      className={`w-12 sm:w-14 h-7 sm:h-8 rounded-full transition-all relative ${autoWhatsAppEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
                     >
-                      <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${autoWhatsAppEnabled ? 'left-7' : 'left-1'}`} />
+                      <div className={`absolute top-1 w-5 sm:w-6 h-5 sm:h-6 bg-white rounded-full transition-all ${autoWhatsAppEnabled ? 'left-6 sm:left-7' : 'left-1'}`} />
                     </button>
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-700 uppercase tracking-widest ml-2">Email Pengirim (Display Only)</label>
+                    <label className="text-[9px] sm:text-[10px] font-black text-slate-700 uppercase tracking-widest ml-2">Email Pengirim (Display Only)</label>
                     <input 
                       type="email"
                       value={senderEmail}
                       onChange={(e) => setSenderEmail(e.target.value)}
                       placeholder="contoh: hrd@perusahaan.com"
-                      className="w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#1E6BFF] outline-none font-medium text-xs"
+                      className="w-full p-3 sm:p-4 bg-slate-50 rounded-xl sm:rounded-2xl border-none focus:ring-2 focus:ring-[#1E6BFF] outline-none font-medium text-xs"
                     />
-                    <p className="text-[9px] text-slate-400 ml-2 italic">* Saat ini masih dalam mode simulasi. Integrasi API diperlukan untuk pengiriman asli.</p>
+                    <p className="text-[8px] sm:text-[9px] text-slate-400 ml-2 italic">* Saat ini masih dalam mode simulasi. Integrasi API diperlukan untuk pengiriman asli.</p>
                   </div>
 
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Template Email</h4>
+                  <h4 className="text-[10px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest pt-2">Template Email</h4>
                   {Object.entries(emailTemplates).map(([status, template]) => (
-                    <div key={status} className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-700 uppercase tracking-widest ml-2">{status}</label>
+                    <div key={status} className="space-y-1 sm:space-y-2">
+                      <label className="text-[9px] sm:text-[10px] font-black text-slate-700 uppercase tracking-widest ml-2">{status}</label>
                       <textarea 
                         value={template}
                         onChange={(e) => setEmailTemplates(prev => ({ ...prev, [status]: e.target.value }))}
-                        className="w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#1E6BFF] outline-none font-medium text-xs resize-none h-24"
+                        className="w-full p-3 sm:p-4 bg-slate-50 rounded-xl sm:rounded-2xl border-none focus:ring-2 focus:ring-[#1E6BFF] outline-none font-medium text-xs resize-none h-20 sm:h-24"
                         placeholder={`Template untuk status ${status}...`}
                       />
                     </div>
                   ))}
-                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
-                    <p className="text-[9px] font-bold text-amber-700 uppercase tracking-widest leading-relaxed">
+                  <div className="p-3 sm:p-4 bg-amber-50 rounded-xl sm:rounded-2xl border border-amber-100">
+                    <p className="text-[8px] sm:text-[9px] font-bold text-amber-700 uppercase tracking-widest leading-relaxed">
                       Gunakan tag <span className="text-amber-900 font-black">{"{nama}"}</span> untuk nama kandidat dan <span className="text-amber-900 font-black">{"{posisi}"}</span> untuk posisi yang dilamar.
                     </p>
                   </div>
@@ -892,7 +892,7 @@ CREATE POLICY "Allow auth update" ON candidates FOR UPDATE TO authenticated USIN
                   saveRecruitmentSettings(autoEmailEnabled, autoWhatsAppEnabled, emailTemplates, senderEmail);
                   setIsSettingsOpen(false);
                 }}
-                className="w-full bg-[#0f172a] text-white py-5 rounded-3xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all active:scale-95"
+                className="w-full bg-[#0f172a] text-white py-4 sm:py-5 rounded-[20px] sm:rounded-3xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all active:scale-95"
               >
                 SIMPAN PENGATURAN
               </button>
