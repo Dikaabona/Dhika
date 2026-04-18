@@ -98,7 +98,7 @@ export const App: React.FC = () => {
 
     const sharedBrand = sharedParam || brandFromPath;
     if (sharedBrand) {
-      setShareReportBrand(decodeURIComponent(sharedBrand).toUpperCase());
+      setShareReportBrand(decodeURIComponent(sharedBrand).trim().toUpperCase());
     }
   }, []);
 
@@ -115,7 +115,7 @@ export const App: React.FC = () => {
       const { data: reports } = await supabase
         .from('live_reports')
         .select('*')
-        .eq('brand', shareReportBrand);
+        .ilike('brand', shareReportBrand);
       
       setLiveReports(reports || []);
       
@@ -126,7 +126,7 @@ export const App: React.FC = () => {
       const { data: schedules } = await supabase
         .from('schedules')
         .select('*')
-        .eq('brand', shareReportBrand);
+        .ilike('brand', shareReportBrand);
       
       setLiveSchedules(schedules || []);
 

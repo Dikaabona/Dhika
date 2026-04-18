@@ -64,13 +64,23 @@ const isDateInRange = (target: string, start: string, end: string) => {
 
 const DAYS_OF_WEEK = ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU'];
 
+const brandMatch = (bName: string, filter: string) => {
+  if (!bName || !filter) return false;
+  return bName.trim().toUpperCase() === filter.trim().toUpperCase();
+};
+
+const slotMatch = (s1: string, s2: string) => {
+  if (!s1 || !s2) return false;
+  return s1.replace(/[:.]/g, '.').replace(/\s/g, '') === s2.replace(/[:.]/g, '.').replace(/\s/g, '');
+};
+
 const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, schedules, setSchedules, reports, setReports, userRole = 'employee', currentEmployee, company, onClose, attendanceRecords = [], shiftAssignments = [], shifts = [], onRefreshData, isPublicView = false, forcedBrand }) => {
   const { confirm } = useConfirmation();
   const readOnly = userRole === 'employee' || isPublicView;
   const [activeSubTab, setActiveSubTab] = useState<'JADWAL' | 'REPORT' | 'GRAFIK' | 'LIBUR' | 'BRAND'>(isPublicView ? 'REPORT' : 'JADWAL');
   
-  const [startDate, setStartDate] = useState(getLocalDateString());
-  const [endDate, setEndDate] = useState(getLocalDateString());
+  const [startDate, setStartDate] = useState(isPublicView ? getMonthStartString() : getLocalDateString());
+  const [endDate, setEndDate] = useState(isPublicView ? getMonthEndString() : getLocalDateString());
   
   const [localSearch, setLocalSearch] = useState('');
   const [selectedBrandFilter, setSelectedBrandFilter] = useState(forcedBrand || 'ALL');
@@ -94,7 +104,17 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   const fetchBrandsAndHolidays = async () => {
     try {
       const { data: brandData } = await supabase.from('settings').select('value').eq('key', `live_brands_${company}`).single();
-      if (brandData) setBrands(brandData.value);
+      if (brandData) {
+        let finalBrands = brandData.value || [];
+        // Ensure forcedBrand is in brands for public view
+        if (isPublicView && forcedBrand && !finalBrands.some((b: any) => b.name.toUpperCase() === forcedBrand.toUpperCase())) {
+          finalBrands = [...finalBrands, { name: forcedBrand.toUpperCase(), color: 'bg-slate-200' }];
+        }
+        setBrands(finalBrands);
+      } else if (isPublicView && forcedBrand) {
+        // If no data found for company, at least include the forcedBrand
+        setBrands([{ name: forcedBrand.toUpperCase(), color: 'bg-slate-200' }]);
+      }
 
       const { data: holidayData } = await supabase.from('settings').select('value').eq('key', `weekly_holidays_${company}`).single();
       if (holidayData) {
@@ -554,8 +574,8 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
               const hasContentAtAll = TIME_SLOTS.some(slot => {
                 return brands.some(b => {
                   const brandNameNorm = b.name.toUpperCase();
-                  if (selectedBrandFilter !== 'ALL' && brandNameNorm !== selectedBrandFilter.toUpperCase()) return false;
-                  const sched = schedules.find(s => s.date === date && s.brand === brandNameNorm && s.hourSlot === slot);
+                  if (selectedBrandFilter !== 'ALL' && !brandMatch(brandNameNorm, selectedBrandFilter)) return false;
+                  const sched = schedules.find(s => s.date === date && brandMatch(s.brand, brandNameNorm) && slotMatch(s.hourSlot, slot));
                   if (localSearch) {
                     const h = sched ? (employeeMap[sched.hostId] || '').toLowerCase() : '';
                     const o = sched ? (employeeMap[sched.opId] || '').toLowerCase() : '';
@@ -580,8 +600,8 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                     {TIME_SLOTS.map(slot => {
                       const brandsForSlot = brands.filter(b => {
                         const brandNameNorm = b.name.toUpperCase();
-                        if (selectedBrandFilter !== 'ALL' && brandNameNorm !== selectedBrandFilter.toUpperCase()) return false;
-                        const sched = schedules.find(s => s.date === date && s.brand === brandNameNorm && s.hourSlot === slot);
+                        if (selectedBrandFilter !== 'ALL' && !brandMatch(brandNameNorm, selectedBrandFilter)) return false;
+                        const sched = schedules.find(s => s.date === date && brandMatch(s.brand, brandNameNorm) && slotMatch(s.hourSlot, slot));
                         if (localSearch) {
                           const h = sched ? (employeeMap[sched.hostId] || '').toLowerCase() : '';
                           const o = sched ? (employeeMap[sched.opId] || '').toLowerCase() : '';
