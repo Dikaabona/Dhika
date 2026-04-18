@@ -9,6 +9,8 @@ interface LiveChartsProps {
   brands: any[];
   forcedBrand?: string;
   isPublicView?: boolean;
+  selectedBrand?: string;
+  setSelectedBrand?: (brand: string) => void;
 }
 
 declare global {
@@ -17,7 +19,7 @@ declare global {
   }
 }
 
-const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees, brands, forcedBrand, isPublicView = false }) => {
+const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees, brands, forcedBrand, isPublicView = false, selectedBrand: propSelectedBrand, setSelectedBrand: propSetSelectedBrand }) => {
   const getTodayStr = () => new Date().toISOString().split('T')[0];
   const getSevenDaysAgoStr = () => {
     const d = new Date();
@@ -27,7 +29,11 @@ const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees, brands, for
 
   const [startDate, setStartDate] = useState(getSevenDaysAgoStr());
   const [endDate, setEndDate] = useState(getTodayStr());
-  const [selectedBrand, setSelectedBrand] = useState(forcedBrand || 'ALL');
+  
+  const [internalSelectedBrand, setInternalSelectedBrand] = useState(forcedBrand || 'ALL');
+  const selectedBrand = propSelectedBrand || internalSelectedBrand;
+  const setSelectedBrand = propSetSelectedBrand || setInternalSelectedBrand;
+
   const [selectedHost, setSelectedHost] = useState('ALL');
 
   const chart1Ref = useRef<HTMLCanvasElement>(null);

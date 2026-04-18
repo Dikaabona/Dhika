@@ -16,6 +16,8 @@ interface LiveReportModuleProps {
   brands: any[];
   isPublicView?: boolean;
   forcedBrand?: string;
+  selectedBrand?: string;
+  setSelectedBrand?: (brand: string) => void;
 }
 
 const formatDateToYMD = (dateStr: string) => {
@@ -92,11 +94,15 @@ const getThirtyDaysAgoStr = () => {
   return d.toISOString().split('T')[0];
 };
 
-const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports, setReports, userRole, currentEmployee, company, onClose, brands, isPublicView = false, forcedBrand }) => {
+const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports, setReports, userRole, currentEmployee, company, onClose, brands, isPublicView = false, forcedBrand, selectedBrand: propSelectedBrand, setSelectedBrand: propSetSelectedBrand }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingReport, setEditingReport] = useState<LiveReport | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedBrand, setSelectedBrand] = useState(forcedBrand || 'ALL');
+  
+  const [internalSelectedBrand, setInternalSelectedBrand] = useState(forcedBrand || 'ALL');
+  const selectedBrand = propSelectedBrand || internalSelectedBrand;
+  const setSelectedBrand = propSetSelectedBrand || setInternalSelectedBrand;
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
   const getTodayStr = () => new Date().toISOString().split('T')[0];

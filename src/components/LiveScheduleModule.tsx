@@ -73,7 +73,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
   const [endDate, setEndDate] = useState(getLocalDateString());
   
   const [localSearch, setLocalSearch] = useState('');
-  const [selectedBrandFilter, setSelectedBrandFilter] = useState(isPublicView && forcedBrand ? forcedBrand.toUpperCase() : 'SEMUA BRAND');
+  const [selectedBrandFilter, setSelectedBrandFilter] = useState(forcedBrand || 'ALL');
   const [showEmptySlots, setShowEmptySlots] = useState(false); 
   const [newBrandName, setNewBrandName] = useState('');
   const [isImporting, setIsImporting] = useState(false);
@@ -489,6 +489,18 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                 <input type="text" placeholder="CARI..." value={localSearch} onChange={e => setLocalSearch(e.target.value)} className="w-full bg-transparent text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-slate-900 outline-none placeholder:text-[#cbd5e1]" />
               </div>
 
+              {/* Brand Sync Filter */}
+              {!isPublicView && (
+                <select 
+                  value={selectedBrandFilter} 
+                  onChange={(e) => setSelectedBrandFilter(e.target.value)} 
+                  className="bg-white border border-slate-200 px-6 py-2.5 rounded-full text-[10px] font-black text-slate-900 outline-none shadow-sm appearance-none text-center uppercase tracking-widest"
+                >
+                  <option value="ALL">SEMUA BRAND</option>
+                  {brands.map(b => <option key={b.name} value={b.name.toUpperCase()}>{b.name}</option>)}
+                </select>
+              )}
+
               <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
                 <input 
                   type="checkbox" 
@@ -542,7 +554,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
               const hasContentAtAll = TIME_SLOTS.some(slot => {
                 return brands.some(b => {
                   const brandNameNorm = b.name.toUpperCase();
-                  if (selectedBrandFilter !== 'SEMUA BRAND' && brandNameNorm !== selectedBrandFilter) return false;
+                  if (selectedBrandFilter !== 'ALL' && brandNameNorm !== selectedBrandFilter.toUpperCase()) return false;
                   const sched = schedules.find(s => s.date === date && s.brand === brandNameNorm && s.hourSlot === slot);
                   if (localSearch) {
                     const h = sched ? (employeeMap[sched.hostId] || '').toLowerCase() : '';
@@ -568,7 +580,7 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
                     {TIME_SLOTS.map(slot => {
                       const brandsForSlot = brands.filter(b => {
                         const brandNameNorm = b.name.toUpperCase();
-                        if (selectedBrandFilter !== 'SEMUA BRAND' && brandNameNorm !== selectedBrandFilter) return false;
+                        if (selectedBrandFilter !== 'ALL' && brandNameNorm !== selectedBrandFilter.toUpperCase()) return false;
                         const sched = schedules.find(s => s.date === date && s.brand === brandNameNorm && s.hourSlot === slot);
                         if (localSearch) {
                           const h = sched ? (employeeMap[sched.hostId] || '').toLowerCase() : '';
@@ -636,9 +648,30 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
             )}
           </div>
         ) : activeSubTab === 'REPORT' ? (
-          <LiveReportModule employees={employees} reports={reports} setReports={setReports} userRole={userRole} currentEmployee={currentEmployee} company={company} onClose={() => setActiveSubTab('JADWAL')} brands={brands} isPublicView={isPublicView} forcedBrand={forcedBrand} />
+          <LiveReportModule 
+            employees={employees} 
+            reports={reports} 
+            setReports={setReports} 
+            userRole={userRole} 
+            currentEmployee={currentEmployee} 
+            company={company} 
+            onClose={() => setActiveSubTab('JADWAL')} 
+            brands={brands} 
+            isPublicView={isPublicView} 
+            forcedBrand={forcedBrand}
+            selectedBrand={selectedBrandFilter}
+            setSelectedBrand={setSelectedBrandFilter}
+          />
         ) : activeSubTab === 'GRAFIK' ? (
-          <LiveCharts reports={reports} employees={employees} brands={brands} forcedBrand={forcedBrand} isPublicView={isPublicView} />
+          <LiveCharts 
+            reports={reports} 
+            employees={employees} 
+            brands={brands} 
+            forcedBrand={forcedBrand} 
+            isPublicView={isPublicView} 
+            selectedBrand={selectedBrandFilter}
+            setSelectedBrand={setSelectedBrandFilter}
+          />
         ) : activeSubTab === 'LIBUR' ? (
           <div className="space-y-6 sm:space-y-10">
             <div className="flex items-center bg-[#f1f5f9] rounded-[24px] sm:rounded-[28px] px-6 sm:px-8 py-3 sm:py-4 shadow-inner gap-6 sm:gap-8 w-fit mx-auto mb-8 sm:mb-12">
