@@ -395,6 +395,43 @@ async function askGemini(prompt: string, systemContext: string): Promise<string>
 }
 
 // ============================================================
+// HELPER: Ekstrak phone number dari payload WAHA (LID support)
+// ============================================================
+function extractPhoneNumber(payload: any, from: string | null): string | null {
+  // Step 1: Ambil participant/author jika ada (untuk grup),
+  //         fallback ke 'from' untuk chat pribadi
+  const rawId = payload.participant || payload.author || from || '';
+  let phoneDigits = rawId.split('@')[0].replace(/\D/g, '');
+
+  // Step 2: Normalisasi 0 → 62
+  if (phoneDigits.startsWith('0')) {
+    phoneDigits = '62' + phoneDigits.substring(1);
+  }
+
+  // Step 3: Cek LID — cari nomor asli di field Alt
+  const altJid =
+    payload.participantAlt ||
+    payload.remoteJidAlt ||
+    payload._data?.key?.participantAlt ||
+    payload._data?.key?.remoteJidAlt ||
+    payload._data?.remoteJidAlt;
+
+  if (altJid) {
+    const altDigits = altJid.split('@')[0].replace(/\D/g, '');
+    if (altDigits && altDigits.length >= 10) {
+      let normalizedAlt = altDigits;
+      if (normalizedAlt.startsWith('0')) normalizedAlt = '62' + normalizedAlt.substring(1);
+      phoneDigits = normalizedAlt; // ✅ override dengan nomor asli
+    }
+  }
+
+  // Step 4: Validasi hasil akhir
+  if (!phoneDigits || phoneDigits.length < 10) return null;
+
+  return `${phoneDigits}@c.us`;
+}
+
+// ============================================================
 // SYSTEM PROMPTS — Konteks untuk Gemini
 // ============================================================
 const SYSTEM_PROMPT_CS = `
@@ -453,11 +490,31 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
 
   const message = payload.body || payload.content || payload.text || payload.caption || 
                  (payload.message && (payload.message.conversation || payload.message.extendedTextMessage?.text));
-  const from = payload.from || payload.chatId || payload.remoteJid || (payload.key && payload.key.remoteJid);
   
-  if (!message || !from) {
-    addWahaLog('WEBHOOK_IGNORED', { reason: 'message atau from kosong', payload: JSON.stringify(payload).substring(0, 200) });
-    return res.status(200).json({ status: "ignored_missing_data" });
+  // Parse 'from' mentah dulu dari payload
+  const fromRaw =
+    payload.from ||
+    payload.chatId ||
+    payload.remoteJid ||
+    payload.key?.remoteJid ||
+    null;
+
+  // Lalu ekstrak nomor bersih pakai helper
+  const from = extractPhoneNumber(payload, fromRaw);
+
+  if (!from) {
+    addWahaLog('WEBHOOK_IGNORED', {
+      reason: 'from tidak bisa diekstrak',
+      from_raw: fromRaw,
+      participant: payload.participant,
+      altJid: payload.participantAlt || payload.remoteJidAlt,
+    });
+    return res.status(200).json({ status: 'ignored_missing_from' });
+  }
+
+  if (!message) {
+    addWahaLog('WEBHOOK_IGNORED', { reason: 'message kosong', from });
+    return res.status(200).json({ status: "ignored_missing_message" });
   }
 
   addWahaLog('MESSAGE_RECEIVED', { from, message });
@@ -470,17 +527,16 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
     }
 
     // 1. Identifikasi Pengirim (Employee Check)
-    let phoneDigits = (payload.participant || payload.author || from).split('@')[0].replace(/\D/g, '');
-    const altJid = payload.participantAlt || payload._data?.key?.participantAlt || payload.remoteJidAlt;
-    if (altJid) {
-      const altDigits = altJid.split('@')[0].replace(/\D/g, '');
-      if (altDigits && altDigits.length >= 10) phoneDigits = altDigits;
-    }
+    const phoneDigits = from.split('@')[0];
+    
+    addWahaLog('DEBUG_IDENTIFICATION', { fromRaw, phoneDigits, from });
 
     const { data: emps } = await supabase.from('employees').select('*');
     const emp = emps?.find((e: any) => {
-      const dbPhone = (e.noHandphone || '').replace(/\D/g, '');
-      if (!dbPhone) return false;
+      let dbPhone = (e.noHandphone || '').replace(/\D/g, '');
+      if (dbPhone.startsWith('0')) dbPhone = '62' + dbPhone.substring(1);
+      if (!dbPhone || !phoneDigits) return false;
+      
       const incomingTail = phoneDigits.slice(-9);
       const dbTail = dbPhone.slice(-9);
       return dbPhone === phoneDigits || (incomingTail.length >= 7 && dbTail === incomingTail);
@@ -488,9 +544,13 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
 
     const lowerMsg = typeof message === 'string' ? message.toLowerCase().trim() : '';
     const company = emp?.company || 'VISIBEL';
+    const isGroup = fromRaw.endsWith('@g.us');
+    const isAiTestGroup = fromRaw === '120363426247965894@g.us';
+    const isAiTrigger = lowerMsg.startsWith('ai ') || lowerMsg.startsWith('ai,') || lowerMsg === 'ai' || lowerMsg.includes('@ai');
 
     if (emp) {
       // --- LOGIKA KARYAWAN (HR) ---
+      addWahaLog('EMPLOYEE_FOUND', { name: emp.nama, company: emp.company });
       let handled = true;
 
       if (lowerMsg === '!menu' || lowerMsg === '!help' || lowerMsg === 'p' || lowerMsg === 'halo') {
@@ -501,7 +561,7 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
           `4️⃣ *!libur* - Cek siapa saja yang libur hari ini\n` +
           `5️⃣ *!menu* - Menampilkan menu ini\n\n` +
           `Silakan ketik perintah di atas.`;
-        await sendWahaMessage(from, menu, emp.company);
+        await sendWahaMessage(fromRaw, menu, emp.company);
       }
       else if (lowerMsg === '!libur') {
         const today = new Date().toISOString().split('T')[0];
@@ -515,7 +575,7 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
         } else {
           reply += `Semua karyawan memiliki jadwal hari ini.`;
         }
-        await sendWahaMessage(from, reply, emp.company);
+        await sendWahaMessage(fromRaw, reply, emp.company);
       }
       else if (lowerMsg === '!jadwal') {
         const today = new Date().toISOString().split('T')[0];
@@ -525,9 +585,9 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
           shiftAssignments.forEach((a: any) => {
             reply += `🔹 *${a.shifts?.name || 'Shift'}*\n⏰ ${a.shifts?.startTime || '-'} - ${a.shifts?.endTime || '-'}\n`;
           });
-          await sendWahaMessage(from, reply, emp.company);
+          await sendWahaMessage(fromRaw, reply, emp.company);
         } else {
-          await sendWahaMessage(from, `Halo ${emp.nama}, Anda tidak memiliki jadwal shift hari ini (${today}).`, emp.company);
+          await sendWahaMessage(fromRaw, `Halo ${emp.nama}, Anda tidak memiliki jadwal shift hari ini (${today}).`, emp.company);
         }
       } 
       else if (lowerMsg === '!konten') {
@@ -538,9 +598,9 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
           contentPlans.forEach((p: any) => {
             reply += `📌 *${p.title}*\n📱 Platform: ${p.platform}\n⏰ Jam: ${p.jamUpload || '-'}\n\n`;
           });
-          await sendWahaMessage(from, reply, emp.company);
+          await sendWahaMessage(fromRaw, reply, emp.company);
         } else {
-          await sendWahaMessage(from, `Halo ${emp.nama}, Anda tidak memiliki jadwal posting konten hari ini (${today}).`, emp.company);
+          await sendWahaMessage(fromRaw, `Halo ${emp.nama}, Anda tidak memiliki jadwal posting konten hari ini (${today}).`, emp.company);
         }
       }
       else if (lowerMsg === '!absen') {
@@ -551,9 +611,9 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
             `📍 Status: ${attendance.status}\n` +
             `🕒 Masuk: ${attendance.clockIn || '-'}\n` +
             `🕒 Pulang: ${attendance.clockOut || '-'}`;
-          await sendWahaMessage(from, reply, emp.company);
+          await sendWahaMessage(fromRaw, reply, emp.company);
         } else {
-          await sendWahaMessage(from, `Halo ${emp.nama}, Anda belum melakukan absensi hari ini (${today}). Jangan lupa absen ya!`, emp.company);
+          await sendWahaMessage(fromRaw, `Halo ${emp.nama}, Anda belum melakukan absensi hari ini (${today}). Jangan lupa absen ya!`, emp.company);
         }
       }
       else {
@@ -564,16 +624,27 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
         // Fallback ke Gemini HR
         addWahaLog('AI_REQUEST_HR', { from, message });
         const aiReply = await askGemini(message, SYSTEM_PROMPT_HR);
-        await sendWahaMessage(from, aiReply, emp.company);
-        addWahaLog('AI_REPLY_HR', { to: from, aiReply });
+        await sendWahaMessage(fromRaw, aiReply, emp.company);
+        addWahaLog('AI_REPLY_HR', { to: fromRaw, aiReply: aiReply.substring(0, 50) });
       }
     } 
     else {
       // --- LOGIKA NON-KARYAWAN (CS) ---
-      addWahaLog('AI_REQUEST_CS', { from, message });
-      const aiReply = await askGemini(message, SYSTEM_PROMPT_CS);
-      await sendWahaMessage(from, aiReply, company);
-      addWahaLog('AI_REPLY_CS', { to: from, aiReply });
+      // Jika di Grup, hanya balas jika ada trigger "ai" atau jika di Grup Ai test
+      if (isGroup && !isAiTrigger && !isAiTestGroup) {
+        addWahaLog('GROUP_IGNORE', { fromRaw, reason: 'No AI trigger in group' });
+        return res.status(200).json({ status: "ignored_group" });
+      }
+
+      // Bersihkan pesan jika ada trigger
+      let processedMsg = message;
+      if (lowerMsg.startsWith('ai ')) processedMsg = message.substring(3).trim();
+      else if (lowerMsg.startsWith('ai,')) processedMsg = message.substring(3).trim();
+      
+      addWahaLog('AI_REQUEST_CS', { from, message: processedMsg.substring(0, 50) });
+      const aiReply = await askGemini(processedMsg, SYSTEM_PROMPT_CS);
+      await sendWahaMessage(fromRaw, aiReply, company);
+      addWahaLog('AI_REPLY_CS', { to: fromRaw, aiReply: aiReply.substring(0, 50) });
     }
 
     // ✅ BERIKAN RESPON DI AKHIR (Aman untuk Vercel & Server Biasa)
