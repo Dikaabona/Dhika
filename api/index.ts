@@ -363,8 +363,23 @@ async function generateGeminiResponse(userMessage: string, company: string) {
 // HELPER: Panggil Gemini API secara langsung via REST
 // ============================================================
 async function askGemini(prompt: string, systemContext: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return 'Maaf, konfigurasi AI belum lengkap.';
+  // 1. Cek dari Environment Variable dulu
+  let apiKey = (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "").trim();
+  
+  // 2. Jika kosong, coba ambil dari Database (settings)
+  if (!apiKey && supabase) {
+     try {
+       const { data } = await supabase.from('settings').select('value').eq('key', 'GEMINI_API_KEY').maybeSingle();
+       if (data && data.value) apiKey = data.value.trim();
+     } catch (e) {
+       console.error("[GEMINI] Database check failed", e);
+     }
+  }
+
+  if (!apiKey) {
+    console.error("[GEMINI] API Key missing everywhere");
+    return 'Maaf, konfigurasi AI belum lengkap.';
+  }
 
   try {
     const response = await axios.post(
@@ -537,8 +552,10 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
       if (dbPhone.startsWith('0')) dbPhone = '62' + dbPhone.substring(1);
       if (!dbPhone || !phoneDigits) return false;
       
-      const incomingTail = phoneDigits.slice(-9);
-      const dbTail = dbPhone.slice(-9);
+      // Sangat ketat: Cek 9 digit terakhir untuk menghindari masalah format (62 vs 08)
+      const incomingTail = phoneDigits.length >= 7 ? phoneDigits.slice(-9) : phoneDigits;
+      const dbTail = dbPhone.length >= 7 ? dbPhone.slice(-9) : dbPhone;
+      
       return dbPhone === phoneDigits || (incomingTail.length >= 7 && dbTail === incomingTail);
     });
 
@@ -547,6 +564,14 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
     const isGroup = fromRaw.endsWith('@g.us');
     const isAiTestGroup = fromRaw === '120363426247965894@g.us';
     const isAiTrigger = lowerMsg.startsWith('ai ') || lowerMsg.startsWith('ai,') || lowerMsg === 'ai' || lowerMsg.includes('@ai');
+
+    addWahaLog('DEBUG_ROUTING', { 
+      isEmployee: !!emp, 
+      employeeName: emp?.nama, 
+      lowerMsg, 
+      isGroup, 
+      isAiTrigger 
+    });
 
     if (emp) {
       // --- LOGIKA KARYAWAN (HR) ---
