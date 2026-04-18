@@ -24,6 +24,8 @@ interface LiveScheduleModuleProps {
   shiftAssignments?: ShiftAssignment[];
   shifts?: Shift[];
   onRefreshData?: () => void;
+  isPublicView?: boolean;
+  forcedBrand?: string;
 }
 
 const getLocalDateString = () => {
@@ -62,10 +64,10 @@ const isDateInRange = (target: string, start: string, end: string) => {
 
 const DAYS_OF_WEEK = ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU'];
 
-const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, schedules, setSchedules, reports, setReports, userRole = 'employee', currentEmployee, company, onClose, attendanceRecords = [], shiftAssignments = [], shifts = [], onRefreshData }) => {
+const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, schedules, setSchedules, reports, setReports, userRole = 'employee', currentEmployee, company, onClose, attendanceRecords = [], shiftAssignments = [], shifts = [], onRefreshData, isPublicView = false, forcedBrand }) => {
   const { confirm } = useConfirmation();
-  const readOnly = userRole === 'employee';
-  const [activeSubTab, setActiveSubTab] = useState<'JADWAL' | 'REPORT' | 'GRAFIK' | 'LIBUR' | 'BRAND'>('JADWAL');
+  const readOnly = userRole === 'employee' || isPublicView;
+  const [activeSubTab, setActiveSubTab] = useState<'JADWAL' | 'REPORT' | 'GRAFIK' | 'LIBUR' | 'BRAND'>(isPublicView ? 'REPORT' : 'JADWAL');
   
   const [startDate, setStartDate] = useState(getLocalDateString());
   const [endDate, setEndDate] = useState(getLocalDateString());
@@ -460,13 +462,16 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
         {/* Navigation Tabs - Refined for Mobile */}
         <div className="bg-[#f1f5f9] p-1 rounded-[28px] sm:rounded-[32px] flex shadow-inner max-w-4xl mx-auto gap-1">
           {['JADWAL', 'REPORT', 'GRAFIK', 'LIBUR', 'BRAND'].map((tab) => {
+             // If public view, only show REPORT and GRAFIK
+             if (isPublicView && tab !== 'REPORT' && tab !== 'GRAFIK') return null;
+             
              const isMobileHidden = ['REPORT', 'GRAFIK', 'BRAND'].includes(tab);
              return (
-              ((tab !== 'BRAND') || !readOnly) && (
+              ((tab !== 'BRAND') || !readOnly || isPublicView) && (
                 <button 
                   key={tab} 
                   onClick={() => setActiveSubTab(tab as any)} 
-                  className={`flex-1 py-3 sm:py-4 px-2 sm:px-8 rounded-[22px] sm:rounded-[28px] text-[9px] sm:text-[11px] font-black tracking-widest uppercase transition-all duration-500 whitespace-nowrap ${isMobileHidden ? 'hidden sm:block' : ''} ${activeSubTab === tab ? 'bg-white text-slate-900 shadow-md scale-100' : 'text-[#94a3b8] hover:text-slate-600'}`}
+                  className={`flex-1 py-3 sm:py-4 px-2 sm:px-8 rounded-[22px] sm:rounded-[28px] text-[9px] sm:text-[11px] font-black tracking-widest uppercase transition-all duration-500 whitespace-nowrap ${isMobileHidden && !isPublicView ? 'hidden sm:block' : ''} ${activeSubTab === tab ? 'bg-white text-slate-900 shadow-md scale-100' : 'text-[#94a3b8] hover:text-slate-600'}`}
                 >
                   {tab}
                 </button>
@@ -631,9 +636,9 @@ const LiveScheduleModule: React.FC<LiveScheduleModuleProps> = ({ employees, sche
             )}
           </div>
         ) : activeSubTab === 'REPORT' ? (
-          <LiveReportModule employees={employees} reports={reports} setReports={setReports} userRole={userRole} currentEmployee={currentEmployee} company={company} onClose={() => setActiveSubTab('JADWAL')} brands={brands} />
+          <LiveReportModule employees={employees} reports={reports} setReports={setReports} userRole={userRole} currentEmployee={currentEmployee} company={company} onClose={() => setActiveSubTab('JADWAL')} brands={brands} isPublicView={isPublicView} forcedBrand={forcedBrand} />
         ) : activeSubTab === 'GRAFIK' ? (
-          <LiveCharts reports={reports} employees={employees} brands={brands} />
+          <LiveCharts reports={reports} employees={employees} brands={brands} forcedBrand={forcedBrand} isPublicView={isPublicView} />
         ) : activeSubTab === 'LIBUR' ? (
           <div className="space-y-6 sm:space-y-10">
             <div className="flex items-center bg-[#f1f5f9] rounded-[24px] sm:rounded-[28px] px-6 sm:px-8 py-3 sm:py-4 shadow-inner gap-6 sm:gap-8 w-fit mx-auto mb-8 sm:mb-12">

@@ -7,6 +7,8 @@ interface LiveChartsProps {
   reports: LiveReport[];
   employees: Employee[];
   brands: any[];
+  forcedBrand?: string;
+  isPublicView?: boolean;
 }
 
 declare global {
@@ -15,7 +17,7 @@ declare global {
   }
 }
 
-const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees, brands }) => {
+const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees, brands, forcedBrand, isPublicView = false }) => {
   const getTodayStr = () => new Date().toISOString().split('T')[0];
   const getSevenDaysAgoStr = () => {
     const d = new Date();
@@ -25,7 +27,7 @@ const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees, brands }) =
 
   const [startDate, setStartDate] = useState(getSevenDaysAgoStr());
   const [endDate, setEndDate] = useState(getTodayStr());
-  const [selectedBrand, setSelectedBrand] = useState('ALL');
+  const [selectedBrand, setSelectedBrand] = useState(forcedBrand || 'ALL');
   const [selectedHost, setSelectedHost] = useState('ALL');
 
   const chart1Ref = useRef<HTMLCanvasElement>(null);
@@ -193,14 +195,22 @@ const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees, brands }) =
     <div className="space-y-8 animate-in fade-in duration-700 pb-20">
       {/* FILTER SECTION */}
       <div className="bg-slate-50 p-1.5 rounded-[28px] border border-slate-100 flex flex-col sm:flex-row gap-3 shadow-inner">
-        <select 
-          value={selectedBrand} 
-          onChange={(e) => setSelectedBrand(e.target.value)} 
-          className="bg-white border border-slate-200 px-6 py-3.5 rounded-[22px] text-[10px] font-black text-slate-900 outline-none shadow-sm appearance-none text-center uppercase tracking-widest sm:flex-grow"
-        >
-          <option value="ALL">SEMUA BRAND</option>
-          {brands.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
-        </select>
+        {!isPublicView && (
+          <select 
+            value={selectedBrand} 
+            onChange={(e) => setSelectedBrand(e.target.value)} 
+            className="bg-white border border-slate-200 px-6 py-3.5 rounded-[22px] text-[10px] font-black text-slate-900 outline-none shadow-sm appearance-none text-center uppercase tracking-widest sm:flex-grow"
+          >
+            <option value="ALL">SEMUA BRAND</option>
+            {brands.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+          </select>
+        )}
+
+        {isPublicView && (
+          <div className="bg-slate-900 text-[#FFC000] px-6 py-3.5 rounded-[22px] text-[10px] font-black uppercase tracking-widest shadow-sm flex items-center justify-center sm:flex-grow">
+            BRAND: {selectedBrand}
+          </div>
+        )}
 
         <select 
           value={selectedHost} 

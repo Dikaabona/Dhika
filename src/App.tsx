@@ -1226,15 +1226,16 @@ export const App: React.FC = () => {
               </button>
            </div>
            
-           <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
-             <LiveReportModule 
+           <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden min-h-[600px]">
+             <LiveScheduleModule 
                 employees={employees}
+                schedules={liveSchedules}
+                setSchedules={setLiveSchedules}
                 reports={liveReports}
                 setReports={setLiveReports}
                 userRole="employee"
                 company={userCompany}
                 onClose={() => {}}
-                brands={[]}
                 isPublicView={true}
                 forcedBrand={shareReportBrand}
              />
