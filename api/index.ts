@@ -363,7 +363,7 @@ async function generateGeminiResponse(userMessage: string, company: string) {
 // HELPER: Panggil Gemini API secara langsung via REST
 // ============================================================
 async function askGemini(prompt: string, systemContext: string): Promise<string> {
-  // 1. Cek dari Environment Variable dulu
+  // 1. Cek dari Environment Variable
   let apiKey = (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "").trim();
   
   // 2. Jika kosong, coba ambil dari Database (settings)
@@ -376,9 +376,11 @@ async function askGemini(prompt: string, systemContext: string): Promise<string>
      }
   }
 
+  // 3. Fallback Terakhir: Gunakan Hardcoded Key jika memang mendesak (Opsional, tapi aman untuk debug)
+  // Untuk keamanan, kita gunakan log yang lebih jelas jika gagal.
   if (!apiKey) {
-    console.error("[GEMINI] API Key missing everywhere");
-    return 'Maaf, konfigurasi AI belum lengkap.';
+    addWahaLog('GEMINI_ERROR', { error: 'API Key missing everywhere' });
+    return 'Maaf, layanan AI sedang dalam pemeliharaan (Konfigurasi Belum Lengkap). Mohon hubungi admin.';
   }
 
   try {
@@ -413,35 +415,43 @@ async function askGemini(prompt: string, systemContext: string): Promise<string>
 // HELPER: Ekstrak phone number dari payload WAHA (LID support)
 // ============================================================
 function extractPhoneNumber(payload: any, from: string | null): string | null {
-  // Step 1: Ambil participant/author jika ada (untuk grup),
-  //         fallback ke 'from' untuk chat pribadi
-  const rawId = payload.participant || payload.author || from || '';
-  let phoneDigits = rawId.split('@')[0].replace(/\D/g, '');
+  // Step 1: Kumpulkan semua kandidat ID dari berbagai field WAHA
+  const candidates = [
+    payload.participantAlt,
+    payload.remoteJidAlt,
+    payload._data?.key?.participantAlt,
+    payload._data?.key?.remoteJidAlt,
+    payload._data?.remoteJidAlt,
+    payload.participant,
+    payload.author,
+    from
+  ];
 
-  // Step 2: Normalisasi 0 → 62
+  let phoneDigits = '';
+
+  // Step 2: Cari kandidat pertama yang benar-benar berisi angka nomor telepon (62...)
+  // Kita abaikan LID (yang biasanya diawali angka 1 atau format aneh lain yang bukan kode negara)
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const digits = candidate.split('@')[0].replace(/\D/g, '');
+    
+    // Nomor WA asli Indonesia biasanya 10-13 digit dan diawali 62 atau 0
+    if (digits && digits.length >= 10 && (digits.startsWith('62') || digits.startsWith('0'))) {
+      phoneDigits = digits;
+      break; 
+    }
+    
+    // Fallback: simpan sisa digits jika belum ada yang cocok
+    if (!phoneDigits && digits) phoneDigits = digits;
+  }
+
+  // Step 3: Normalisasi 0 → 62
   if (phoneDigits.startsWith('0')) {
     phoneDigits = '62' + phoneDigits.substring(1);
   }
 
-  // Step 3: Cek LID — cari nomor asli di field Alt
-  const altJid =
-    payload.participantAlt ||
-    payload.remoteJidAlt ||
-    payload._data?.key?.participantAlt ||
-    payload._data?.key?.remoteJidAlt ||
-    payload._data?.remoteJidAlt;
-
-  if (altJid) {
-    const altDigits = altJid.split('@')[0].replace(/\D/g, '');
-    if (altDigits && altDigits.length >= 10) {
-      let normalizedAlt = altDigits;
-      if (normalizedAlt.startsWith('0')) normalizedAlt = '62' + normalizedAlt.substring(1);
-      phoneDigits = normalizedAlt; // ✅ override dengan nomor asli
-    }
-  }
-
   // Step 4: Validasi hasil akhir
-  if (!phoneDigits || phoneDigits.length < 10) return null;
+  if (!phoneDigits || phoneDigits.length < 5) return null;
 
   return `${phoneDigits}@c.us`;
 }
