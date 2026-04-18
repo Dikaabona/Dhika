@@ -19,6 +19,7 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [autoEmailEnabled, setAutoEmailEnabled] = useState(false);
+  const [autoWhatsAppEnabled, setAutoWhatsAppEnabled] = useState(false);
   const [senderEmail, setSenderEmail] = useState('');
   const [emailTemplates, setEmailTemplates] = useState<Record<string, string>>({
     'Screening': 'Halo {nama}, terima kasih telah melamar untuk posisi {posisi}. Saat ini lamaran Anda sedang dalam tahap screening.',
@@ -53,6 +54,7 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
       
       if (data && data.value) {
         setAutoEmailEnabled(data.value.autoEmailEnabled || false);
+        setAutoWhatsAppEnabled(data.value.autoWhatsAppEnabled || false);
         setSenderEmail(data.value.senderEmail || '');
         if (data.value.emailTemplates) {
           setEmailTemplates(data.value.emailTemplates);
@@ -63,13 +65,18 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
     }
   };
 
-  const saveRecruitmentSettings = async (enabled: boolean, templates: Record<string, string>, sender: string) => {
+  const saveRecruitmentSettings = async (emailEnabled: boolean, waEnabled: boolean, templates: Record<string, string>, sender: string) => {
     try {
       const { error } = await supabase
         .from('settings')
         .upsert({
           key: `recruitment_settings_${company.trim()}`,
-          value: { autoEmailEnabled: enabled, emailTemplates: templates, senderEmail: sender }
+          value: { 
+            autoEmailEnabled: emailEnabled, 
+            autoWhatsAppEnabled: waEnabled,
+            emailTemplates: templates, 
+            senderEmail: sender 
+          }
         });
       if (error) throw error;
     } catch (err) {
@@ -118,6 +125,33 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
     } catch (err: any) {
       console.error("Failed to send email:", err);
       // We don't alert here to not interrupt the UI flow, but we log it.
+    }
+  };
+
+  const sendAutoWhatsApp = async (candidate: Candidate, status: string) => {
+    if (!autoWhatsAppEnabled || !emailTemplates[status] || !candidate.noHp) return;
+
+    const template = emailTemplates[status];
+    const message = template
+      .replace(/{nama}/g, candidate.nama)
+      .replace(/{posisi}/g, candidate.posisi);
+
+    const targetPhone = candidate.noHp.replace(/\D/g, '');
+    if (!targetPhone) return;
+
+    console.log(`Sending auto WhatsApp TO ${targetPhone} for status ${status}:`, message);
+    
+    try {
+      const response = await fetch(`/api/waha/send-test?to=${encodeURIComponent(targetPhone)}&msg=${encodeURIComponent(message)}&company=${encodeURIComponent(company)}`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send WhatsApp');
+      }
+
+      console.log("WhatsApp sent successfully!");
+    } catch (err: any) {
+      console.error("Failed to send WhatsApp:", err);
     }
   };
 
@@ -321,6 +355,7 @@ CREATE POLICY "Allow auth update" ON candidates FOR UPDATE TO authenticated USIN
         setCandidates(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c));
         if (newStatus !== 'Applied') {
           sendAutoEmail(candidate, newStatus);
+          sendAutoWhatsApp(candidate, newStatus);
         }
       }
     } catch (err) {
@@ -702,7 +737,21 @@ CREATE POLICY "Allow auth update" ON candidates FOR UPDATE TO authenticated USIN
               </div>
 
               {autoEmailEnabled && (
-                <div className="space-y-4">
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between p-6 bg-slate-50 rounded-3xl">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">Kirim WhatsApp Otomatis</h4>
+                      <p className="text-[10px] font-medium text-slate-500 mt-1">Kirim pesan WhatsApp ke kandidat saat status diubah.</p>
+                    </div>
+                    <button 
+                      onClick={() => setAutoWhatsAppEnabled(!autoWhatsAppEnabled)}
+                      className={`w-14 h-8 rounded-full transition-all relative ${autoWhatsAppEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                    >
+                      <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${autoWhatsAppEnabled ? 'left-7' : 'left-1'}`} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-700 uppercase tracking-widest ml-2">Email Pengirim (Display Only)</label>
                     <input 
@@ -733,11 +782,12 @@ CREATE POLICY "Allow auth update" ON candidates FOR UPDATE TO authenticated USIN
                     </p>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
 
               <button 
                 onClick={() => {
-                  saveRecruitmentSettings(autoEmailEnabled, emailTemplates, senderEmail);
+                  saveRecruitmentSettings(autoEmailEnabled, autoWhatsAppEnabled, emailTemplates, senderEmail);
                   setIsSettingsOpen(false);
                 }}
                 className="w-full bg-[#0f172a] text-white py-5 rounded-3xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all active:scale-95"

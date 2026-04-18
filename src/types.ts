@@ -189,6 +189,9 @@ export interface LiveReport {
   waktuMulai?: string;
   waktuSelesai?: string;
   durasi?: number;
+  bestSeller?: string;
+  qty?: number;
+  gmvPerProduct?: number;
 }
 
 export interface Shift {

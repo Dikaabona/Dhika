@@ -33,6 +33,8 @@ const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees, brands, for
   const chart1Ref = useRef<HTMLCanvasElement>(null);
   const chart2Ref = useRef<HTMLCanvasElement>(null);
   const chart3Ref = useRef<HTMLCanvasElement>(null);
+  const chart4Ref = useRef<HTMLCanvasElement>(null);
+  const chart5Ref = useRef<HTMLCanvasElement>(null);
   const chartInstances = useRef<any[]>([]);
 
   const employeeMap = useMemo(() => {
@@ -97,6 +99,28 @@ const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees, brands, for
       hostTotalGMV[hostName] = (hostTotalGMV[hostName] || 0) + (r.gmv || 0);
     });
     const sortedHosts = Object.entries(hostTotalGMV)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10);
+
+    // 4. Best Seller Products (Top Products by Qty)
+    const productQty: Record<string, number> = {};
+    filteredReports.forEach(r => {
+      if (r.bestSeller) {
+        productQty[r.bestSeller] = (productQty[r.bestSeller] || 0) + (r.qty || 0);
+      }
+    });
+    const topProductsByQty = Object.entries(productQty)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10);
+
+    // 5. Top Products by GMV
+    const productGMV: Record<string, number> = {};
+    filteredReports.forEach(r => {
+      if (r.bestSeller) {
+        productGMV[r.bestSeller] = (productGMV[r.bestSeller] || 0) + (r.gmvPerProduct || 0);
+      }
+    });
+    const topProductsByGMV = Object.entries(productGMV)
       .sort(([, a], [, b]) => b - a)
       .slice(0, 10);
 
@@ -186,6 +210,86 @@ const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees, brands, for
       }));
     }
 
+    // Chart 4: Best Seller Products (Bar Chart - Qty)
+    if (chart4Ref.current && topProductsByQty.length > 0) {
+      chartInstances.current.push(new window.Chart(chart4Ref.current, {
+        type: 'bar',
+        data: {
+          labels: topProductsByQty.map(([name]) => name.length > 15 ? name.substring(0, 15) + '...' : name),
+          datasets: [{
+            label: 'Qty Terjual',
+            data: topProductsByQty.map(([, val]) => val),
+            backgroundColor: '#FFC000',
+            borderRadius: 12
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: { display: true, text: 'TOP 10 BEST SELLER PRODUCTS (QTY)', font: { size: 14, weight: '900' }, padding: 20 },
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context: any) => `Terjual: ${context.raw} pcs`
+              }
+            }
+          },
+          scales: {
+            x: { beginAtZero: true }
+          }
+        }
+      }));
+    }
+
+    // Chart 5: GMV Per Product (Pie/Doughnut Chart)
+    if (chart5Ref.current && topProductsByGMV.length > 0) {
+      chartInstances.current.push(new window.Chart(chart5Ref.current, {
+        type: 'doughnut',
+        data: {
+          labels: topProductsByGMV.map(([name]) => name.length > 15 ? name.substring(0, 15) + '...' : name),
+          datasets: [{
+            data: topProductsByGMV.map(([, val]) => val),
+            backgroundColor: topProductsByGMV.map((_, idx) => `hsla(${idx * 36}, 70%, 50%, 0.8)`),
+            borderWidth: 0,
+            hoverOffset: 20
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: { display: true, text: 'GMV DISTRIBUTION BY PRODUCT', font: { size: 14, weight: '900' }, padding: 20 },
+            legend: { 
+              position: 'right', 
+              labels: { 
+                boxWidth: 10, 
+                font: { size: 9, weight: 'bold' },
+                generateLabels: (chart: any) => {
+                  const data = chart.data;
+                  if (data.labels.length && data.datasets.length) {
+                    return data.labels.map((label: string, i: number) => {
+                      const value = data.datasets[0].data[i];
+                      const formattedValue = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value);
+                      return {
+                        text: `${label}: ${formattedValue}`,
+                        fillStyle: data.datasets[0].backgroundColor[i],
+                        hidden: false,
+                        index: i
+                      };
+                    });
+                  }
+                  return [];
+                }
+              } 
+            }
+          },
+          cutout: '60%'
+        }
+      }));
+    }
+
     return () => {
       chartInstances.current.forEach(instance => instance.destroy());
     };
@@ -261,6 +365,15 @@ const LiveCharts: React.FC<LiveChartsProps> = ({ reports, employees, brands, for
           </div>
           <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm h-[450px]">
              <canvas ref={chart3Ref}></canvas>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+             <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm h-[450px]">
+                <canvas ref={chart4Ref}></canvas>
+             </div>
+             <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm h-[450px]">
+                <canvas ref={chart5Ref}></canvas>
+             </div>
           </div>
         </div>
       )}

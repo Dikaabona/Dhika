@@ -202,6 +202,31 @@ async function sendWahaMessage(to: string, message: string, company: string = 'V
   }
 }
 
+// AI Tools implementation
+const aiTools = {
+  get_employees: async () => {
+    const { data } = await supabase.from('employees').select('id, nama, jabatan, company');
+    return data;
+  },
+  get_live_schedules: async (params: { date?: string; brand?: string }) => {
+    const today = new Date().toISOString().split('T')[0];
+    const date = params.date || today;
+    let query = supabase.from('schedules').select('*, employees!hostId(nama)').eq('date', date);
+    if (params.brand) query = query.eq('brand', params.brand);
+    const { data } = await query;
+    return data;
+  },
+  get_live_reports: async (params: { startDate?: string; endDate?: string; brand?: string }) => {
+    const today = new Date().toISOString().split('T')[0];
+    const start = params.startDate || today;
+    const end = params.endDate || today;
+    let query = supabase.from('live_reports').select('*').gte('tanggal', start).lte('tanggal', end);
+    if (params.brand && params.brand !== 'ALL') query = query.eq('brand', params.brand);
+    const { data } = await query;
+    return data;
+  }
+};
+
 // Helper to generate Gemini response
 async function generateGeminiResponse(userMessage: string, company: string) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -211,38 +236,122 @@ async function generateGeminiResponse(userMessage: string, company: string) {
   }
 
   try {
-    // Fetch knowledge base from Supabase
-    const { data } = await supabase
+    const { data: knowledgeData } = await supabase
       .from('settings')
       .select('value')
       .eq('key', `gemini_knowledge_base_${company}`)
       .maybeSingle();
 
-    const knowledgeBase = data?.value || "Anda adalah asisten AI untuk Visibel Agency. Berikan informasi yang akurat dan ramah.";
+    const knowledgeBase = knowledgeData?.value || "Anda adalah asisten AI untuk Visibel Agency. Berikan informasi yang akurat dan ramah.";
 
     const ai = new GoogleGenAI({ apiKey });
-
-    const prompt = `
+    
+    // System Instruction and Tool definition
+    const systemPrompt = `
       Knowledge Base:
       ${knowledgeBase}
-
-      User Message:
-      ${userMessage}
-
-      Instructions:
-      - Jawablah berdasarkan Knowledge Base di atas.
-      - Jika informasi tidak ada di Knowledge Base, jawablah dengan sopan bahwa Anda tidak tahu atau arahkan untuk menghubungi admin.
-      - Gunakan bahasa Indonesia yang ramah dan profesional.
-      - Jangan memberikan informasi rahasia atau internal perusahaan yang tidak ada di Knowledge Base.
-      - Berikan jawaban yang singkat, padat, dan jelas untuk WhatsApp.
+      
+      Konteks Sekarang:
+      Waktu Server: ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB
+      
+      Instruksi:
+      - Anda adalah asisten AI Visibel Agency.
+      - Gunakan tools yang tersedia untuk menjawab pertanyaan tentang jadwal live, GMV, atau data karyawan.
+      - Jika ditanya tentang "GMV" atau "Laporan", gunakan get_live_reports.
+      - Jika ditanya tentang "Jadwal" atau "Siapa yang live", gunakan get_live_schedules.
+      - Berikan jawaban yang ringkas, ramah, dan profesional dalam Bahasa Indonesia.
+      - Selalu sebutkan nominal uang dalam format Rupiah yang mudah dibaca.
     `;
 
-    const response = await ai.models.generateContent({
+    const tools = [{
+      functionDeclarations: [
+        {
+          name: "get_live_schedules",
+          description: "Mendapatkan jadwal live streaming untuk tanggal tertentu atau brand tertentu.",
+          parameters: {
+            type: "object" as any,
+            properties: {
+              date: { type: "string", description: "Tanggal format YYYY-MM-DD. Kosongkan untuk hari ini." },
+              brand: { type: "string", description: "Nama brand (opsional)." }
+            }
+          }
+        },
+        {
+          name: "get_live_reports",
+          description: "Mendapatkan laporan performa live (GMV, Qty, Best Seller) untuk rentang tanggal tertentu.",
+          parameters: {
+            type: "object" as any,
+            properties: {
+              startDate: { type: "string", description: "Tanggal mulai YYYY-MM-DD." },
+              endDate: { type: "string", description: "Tanggal akhir YYYY-MM-DD." },
+              brand: { type: "string", description: "Nama brand (opsional)." }
+            }
+          }
+        },
+        {
+          name: "get_employees",
+          description: "Mendapatkan daftar karyawan untuk mencocokkan nama dengan ID.",
+          parameters: { type: "object" as any, properties: {} }
+        }
+      ]
+    }];
+
+    const result = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: prompt,
+      contents: userMessage,
+      config: {
+        systemInstruction: systemPrompt,
+        tools: tools as any
+      }
     });
 
-    return response.text || "Maaf, saya tidak bisa memberikan jawaban saat ini.";
+    const calls = result.functionCalls;
+
+    if (calls && calls.length > 0) {
+      const toolResponses = [];
+      for (const call of calls) {
+        const fnName = call.name as keyof typeof aiTools;
+        const fnArgs = call.args;
+        
+        console.log(`[GEMINI TOOL] Calling ${fnName} with`, fnArgs);
+        
+        try {
+          const content = await aiTools[fnName](fnArgs as any);
+          toolResponses.push({
+            functionResponse: {
+              name: fnName,
+              response: { content }
+            }
+          });
+        } catch (err) {
+          console.error(`[GEMINI TOOL ERROR] ${fnName}:`, err);
+          toolResponses.push({
+            functionResponse: {
+              name: fnName,
+              response: { error: "Failed to fetch data" }
+            }
+          });
+        }
+      }
+
+      // Add the tool execution result back to conversation
+      const finalResult = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          { role: 'user', parts: [{ text: userMessage }] },
+          { role: 'model', parts: calls.map(c => ({ functionCall: c })) },
+          { role: 'user', parts: toolResponses }
+        ],
+        config: {
+          systemInstruction: systemPrompt,
+          tools: tools as any
+        }
+      });
+      
+      return finalResult.text;
+    }
+
+    return result.text;
   } catch (err) {
     console.error("[GEMINI] Error:", err);
     return "Maaf, terjadi kesalahan saat memproses pesan Anda.";
@@ -346,6 +455,10 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
     if (emp) {
       company = emp.company;
       addWahaLog('WEBHOOK_PROCESS_EMPLOYEE', { name: emp.nama, from, company });
+    } else if (from === '120363426247965894@g.us') {
+      // Special handling for the "Ai test" group
+      company = 'VISIBEL';
+      addWahaLog('WEBHOOK_PROCESS_GROUP', { name: 'Ai test', from, company });
     } else {
       addWahaLog('WEBHOOK_PROCESS_CLIENT', { from, company });
     }
@@ -490,13 +603,27 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
       }
     }
 
-    // --- DYNAMIC AUTO-REPLY RULES REPLACED BY GEMINI AI ---
-    addWahaLog('GEMINI_PROCESS', { message: message.substring(0, 50), company });
-    const aiResponse = await generateGeminiResponse(message, company);
-    
-    if (aiResponse) {
-      await sendWahaMessage(from, aiResponse, company);
-      return res.status(200).json({ status: "received_gemini_response" });
+    const isAiTrigger = lowerMsg.startsWith('ai ') || lowerMsg.startsWith('ai,') || lowerMsg === 'ai' || lowerMsg.includes('@ai');
+    const isAiTestGroup = from === '120363426247965894@g.us' || (payload._data?.chat?.name === 'Ai test');
+
+    if (emp || isAiTestGroup || isAiTrigger) {
+      // Clean message if it starts with trigger
+      let processedMsg = message;
+      if (lowerMsg.startsWith('ai ')) processedMsg = message.substring(3).trim();
+      else if (lowerMsg.startsWith('ai,')) processedMsg = message.substring(3).trim();
+      else if (lowerMsg.startsWith('ai\n')) processedMsg = message.substring(3).trim();
+
+      if (!processedMsg && isAiTrigger) processedMsg = "Halo! Ada yang bisa saya bantu?";
+
+      addWahaLog('GEMINI_PROCESS', { message: processedMsg.substring(0, 50), company, from, isAiTrigger, isAiTestGroup });
+      const aiResponse = await generateGeminiResponse(processedMsg, company);
+      
+      if (aiResponse) {
+        await sendWahaMessage(from, aiResponse, company);
+        return res.status(200).json({ status: "received_gemini_response" });
+      }
+    } else if (from.endsWith('@g.us')) {
+      addWahaLog('GROUP_MESSAGE_NO_TRIGGER', { from, body: message.substring(0, 50) });
     }
     // --------------------------------
 

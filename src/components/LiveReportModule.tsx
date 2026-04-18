@@ -124,7 +124,10 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
     waktuSelesai: '12:00',
     durasi: 3,
     checkout: 0,
-    gmv: 0
+    gmv: 0,
+    bestSeller: '',
+    qty: 0,
+    gmvPerProduct: 0
   });
 
   const calculateDuration = (start: string, end: string): number => {
@@ -219,7 +222,10 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
         waktuSelesai: '12:00',
         durasi: 3,
         checkout: 0,
-        gmv: 0
+        gmv: 0,
+        bestSeller: '',
+        qty: 0,
+        gmvPerProduct: 0
       });
     }
     setIsModalOpen(true);
@@ -289,7 +295,10 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
       'END': r.waktuSelesai,
       'DURASI': r.durasi,
       'CO': r.checkout,
-      'GMV': r.gmv
+      'GMV': r.gmv,
+      'BEST SELLER': r.bestSeller || '',
+      'QTY': r.qty || 0,
+      'GMV PER PRODUCT': r.gmvPerProduct || 0
     }));
 
     const ws = XLSX.utils.json_to_sheet(dataToExport);
@@ -313,7 +322,10 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
         'END': '00:00',
         'DURASI': 0,
         'CO': 0,
-        'GMV': 0
+        'GMV': 0,
+        'BEST SELLER': '',
+        'QTY': 0,
+        'GMV PER PRODUCT': 0
       }
     ];
     const ws = XLSX.utils.json_to_sheet(template);
@@ -406,7 +418,10 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
               waktuSelesai: String(getVal(['END', 'WAKTU SELESAI', 'Selesai', 'End']) || '00:00'),
               durasi: cleanInt(getVal(['DURASI', 'Durasi', 'Duration'])),
               checkout: cleanInt(getVal(['CO', 'CHECKOUT', 'Checkout'])),
-              gmv: cleanInt(getVal(['GMV', 'gmv', 'Gmv']))
+              gmv: cleanInt(getVal(['GMV', 'gmv', 'Gmv'])),
+              bestSeller: String(getVal(['BEST SELLER', 'Best Seller', 'bestSeller']) || '').trim(),
+              qty: cleanInt(getVal(['QTY', 'Qty', 'qty'])),
+              gmvPerProduct: cleanInt(getVal(['GMV PER PRODUCT', 'GMV Per Product', 'gmvPerProduct']))
             };
           } catch (e) {
             console.error(`Error parsing row ${index + 1}:`, e, row);
@@ -642,6 +657,9 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                 <th className="px-6 py-5">Host & OP</th>
                 <th className="px-6 py-5 text-center">Performance</th>
                 <th className="px-6 py-5 text-center">Sales</th>
+                <th className="px-6 py-5">Best Seller</th>
+                <th className="px-6 py-5 text-center">Qty</th>
+                <th className="px-6 py-5 text-center font-black">GMV/Product</th>
                 <th className="px-6 py-5 text-center">Durasi</th>
                 {canManage && !isPublicView && <th className="px-6 py-5 text-right">Aksi</th>}
               </tr>
@@ -684,6 +702,15 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                     <td className="px-6 py-5 text-center">
                        <p className="text-[11px] font-black text-emerald-600">{report.checkout || 0} CO</p>
                        <p className="text-[9px] font-black text-slate-900 mt-0.5">{formatCurrency(report.gmv || 0)}</p>
+                    </td>
+                    <td className="px-6 py-5">
+                       <p className="text-[10px] font-black text-slate-900 uppercase truncate max-w-[120px]">{report.bestSeller || '-'}</p>
+                    </td>
+                    <td className="px-6 py-5 text-center">
+                       <p className="text-[10px] font-black text-slate-900">{(report.qty || 0).toLocaleString()}</p>
+                    </td>
+                    <td className="px-6 py-5 text-center">
+                       <p className="text-[10px] font-black text-slate-900">{formatCurrency(report.gmvPerProduct || 0)}</p>
                     </td>
                     <td className="px-6 py-5 text-center">
                        <p className="text-xs font-black text-slate-900">{(report.durasi || 0).toFixed(1)} Jam</p>
@@ -807,6 +834,22 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">GMV</label>
                   <input type="number" value={formData.gmv} onChange={e => setFormData({...formData, gmv: parseInt(e.target.value) || 0})} className="w-full bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-2xl text-[11px] font-black text-[#FFC000] outline-none" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Produk Terlaris (Best Seller)</label>
+                <input type="text" value={formData.bestSeller} onChange={e => setFormData({...formData, bestSeller: e.target.value})} placeholder="Nama produk terlaris..." className="w-full bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-2xl text-[11px] font-bold text-slate-900 outline-none" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Qty Terjual</label>
+                  <input type="number" value={formData.qty} onChange={e => setFormData({...formData, qty: parseInt(e.target.value) || 0})} className="w-full bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-2xl text-[11px] font-black text-slate-900 outline-none" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">GMV Per Produk</label>
+                  <input type="number" value={formData.gmvPerProduct} onChange={e => setFormData({...formData, gmvPerProduct: parseInt(e.target.value) || 0})} className="w-full bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-2xl text-[11px] font-black text-slate-900 outline-none" />
                 </div>
               </div>
 
