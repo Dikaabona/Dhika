@@ -13,6 +13,7 @@ import BulkSalaryModal from './components/BulkSalaryModal';
 import AttendanceModule from './components/AttendanceModule';
 import AnnouncementModal from './components/AnnouncementModal';
 import LiveScheduleModule from './components/LiveScheduleModule';
+import LiveReportModule from './components/LiveReportModule';
 import SubmissionForm from './components/SubmissionForm';
 import Inbox from './components/Inbox';
 import ContentModule from './components/ContentModule';
@@ -82,6 +83,54 @@ export const App: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
 
   const [legalType, setLegalType] = useState<'privacy' | 'tos' | 'contact' | null>(null);
+  const [shareReportBrand, setShareReportBrand] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sharedParam = params.get('share_report');
+    
+    // Check path first: /livestreaming/report/:brand
+    const pathParts = window.location.pathname.split('/').filter(Boolean);
+    let brandFromPath = null;
+    if (pathParts.length >= 3 && pathParts[0] === 'livestreaming' && pathParts[1] === 'report') {
+      brandFromPath = pathParts[2];
+    }
+
+    const sharedBrand = sharedParam || brandFromPath;
+    if (sharedBrand) {
+      setShareReportBrand(decodeURIComponent(sharedBrand).toUpperCase());
+    }
+  }, []);
+
+  useEffect(() => {
+    if (shareReportBrand) {
+      fetchPublicData();
+    }
+  }, [shareReportBrand]);
+
+  const fetchPublicData = async () => {
+    setIsLoadingData(true);
+    try {
+      // Fetch only necessary data for the shared report
+      const { data: reports } = await supabase
+        .from('live_reports')
+        .select('*')
+        .eq('brand', shareReportBrand);
+      
+      setLiveReports(reports || []);
+
+      const { data: emps } = await supabase
+        .from('employees')
+        .select('id, nama, jabatan')
+        .is('deleted_at', null);
+
+      setEmployees(emps as any || []);
+    } catch (e) {
+      console.error("Failed to fetch public data:", e);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
 
   const getTodayStr = () => formatDateToYYYYMMDD(new Date());
   
@@ -1154,7 +1203,49 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc]">
-      {session ? (
+      {shareReportBrand ? (
+        <div className="flex-grow flex flex-col p-4 sm:p-10 animate-in fade-in duration-700 max-w-7xl mx-auto w-full">
+           <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+              <div className="flex items-center gap-4">
+                 <img src={VISIBEL_LOGO} className="h-10 sm:h-14 w-auto" alt="Logo" referrerPolicy="no-referrer" />
+                 <div>
+                   <h1 className="text-2xl sm:text-4xl font-black text-slate-900 uppercase tracking-tighter">Live Streaming Report</h1>
+                   <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{shareReportBrand} • PUBLIC VIEW</p>
+                   </div>
+                 </div>
+              </div>
+              <button 
+                onClick={() => {
+                  window.location.href = window.location.origin;
+                }}
+                className="bg-white border border-slate-200 text-slate-400 hover:text-slate-900 px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm active:scale-95 transition-all flex items-center gap-2"
+              >
+                  <Icons.User className="w-4 h-4" /> LOGIN KE SISTEM
+              </button>
+           </div>
+           
+           <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
+             <LiveReportModule 
+                employees={employees}
+                reports={liveReports}
+                setReports={setLiveReports}
+                userRole="employee"
+                company={userCompany}
+                onClose={() => {}}
+                brands={[]}
+                isPublicView={true}
+                forcedBrand={shareReportBrand}
+             />
+           </div>
+
+           <div className="mt-12 text-center space-y-2">
+              <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.4em]">POWERED BY VISIBEL.AGENCY</p>
+              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">Laporan ini bersifat rahasia. <br/> Dilarang menyebarluaskan data tanpa izin pemilik brand.</p>
+           </div>
+        </div>
+      ) : session ? (
         (trialInfo.isExpired && userRole !== 'owner') ? (
           <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center">
             <div className="w-24 h-24 bg-rose-500/20 rounded-full flex items-center justify-center mb-6 animate-pulse">

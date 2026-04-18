@@ -43,6 +43,15 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
   const [isProcessingExcel, setIsProcessingExcel] = useState(false);
   const [isPhotoLoading, setIsPhotoLoading] = useState(false);
   const [localSearch, setLocalSearch] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
 
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
@@ -323,14 +332,40 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
 
   const filteredPlans = useMemo(() => {
     const finalSearch = (localSearch || globalSearch).toLowerCase();
-    return plans.filter(p => {
+    let result = plans.filter(p => {
       const matchesSearch = (p.brand || '').toLowerCase().includes(finalSearch) || (p.title || '').toLowerCase().includes(finalSearch);
       const matchesBrand = selectedBrandFilter === 'ALL' || p.brand === selectedBrandFilter;
       const matchesDate = (!startDate || (p.postingDate && p.postingDate >= startDate)) && 
                           (!endDate || (p.postingDate && p.postingDate <= endDate));
       return matchesSearch && matchesBrand && matchesDate;
     });
-  }, [plans, globalSearch, localSearch, selectedBrandFilter, startDate, endDate]);
+
+    if (sortConfig) {
+      result.sort((a, b) => {
+        let valA = '';
+        let valB = '';
+
+        if (sortConfig.key === 'brand') {
+          valA = (a.brand || '').toLowerCase();
+          valB = (b.brand || '').toLowerCase();
+          // If brands are same, sort by date
+          if (valA === valB) {
+            valA = a.postingDate || '';
+            valB = b.postingDate || '';
+          }
+        } else if (sortConfig.key === 'creator') {
+          valA = getCreatorName(a.creatorId || '').toLowerCase();
+          valB = getCreatorName(b.creatorId || '').toLowerCase();
+        }
+
+        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [plans, globalSearch, localSearch, selectedBrandFilter, startDate, endDate, sortConfig, employees]);
 
   const totalPages = Math.ceil(filteredPlans.length / rowsPerPage);
   const paginatedPlans = useMemo(() => {
@@ -930,6 +965,35 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
                    </div>
                 </div>
 
+                <div className="relative shrink-0 ml-1 sm:ml-1.5">
+                   <div className="bg-white text-slate-900 px-4 sm:px-6 py-3.5 sm:py-4.5 h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] text-[9px] sm:text-[11px] font-black uppercase tracking-widest flex items-center gap-2 sm:gap-3 cursor-pointer shadow-sm border border-slate-100 active:scale-95 transition-all">
+                     <Icons.Filter className="w-3.5 h-3.5 text-slate-400" />
+                     <span className="truncate max-w-[60px] sm:max-w-none">
+                       {sortConfig ? `${sortConfig.key === 'brand' ? 'BRAND' : 'CREATOR'} ${sortConfig.direction === 'asc' ? 'A-Z' : 'Z-A'}` : 'SORT'}
+                     </span>
+                     <select 
+                      value={sortConfig ? `${sortConfig.key}-${sortConfig.direction}` : ''} 
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val) {
+                          const [key, direction] = val.split('-');
+                          setSortConfig({ key, direction: direction as 'asc' | 'desc' });
+                        } else {
+                          setSortConfig(null);
+                        }
+                        setCurrentPage(1);
+                      }}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                     >
+                        <option value="">SORT BY</option>
+                        <option value="brand-asc">BRAND (A-Z)</option>
+                        <option value="brand-desc">BRAND (Z-A)</option>
+                        <option value="creator-asc">CREATOR (A-Z)</option>
+                        <option value="creator-desc">CREATOR (Z-A)</option>
+                     </select>
+                   </div>
+                </div>
+
                 <div className="relative flex-grow bg-white h-[42px] sm:h-[56px] rounded-[22px] sm:rounded-[26px] shadow-sm border border-slate-100 px-4 sm:px-7 flex items-center gap-3 sm:gap-4 min-w-0 ml-1 sm:ml-1.5">
                   <Icons.Search className="w-4 h-4 sm:w-5 sm:h-5 text-slate-300 shrink-0" />
                   <input 
@@ -1176,8 +1240,24 @@ const ContentModule: React.FC<ContentModuleProps> = ({ employees, plans, setPlan
           <table className="w-full text-left min-w-[1000px] border-separate border-spacing-0">
             <thead className="bg-slate-50/80 backdrop-blur-sm text-slate-500 text-[10px] uppercase font-bold tracking-[0.15em] sticky top-0 z-10 border-b border-slate-100">
               <tr>
-                <th className="px-10 py-7 border-b border-slate-100">BRAND & TANGGAL</th>
-                <th className="px-8 py-7 border-b border-slate-100">CREATOR</th>
+                <th className="px-10 py-7 border-b border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors group/th" onClick={() => handleSort('brand')}>
+                  <div className="flex items-center gap-2">
+                    BRAND & TANGGAL
+                    <div className="flex flex-col">
+                      <Icons.ChevronUp className={`w-2.5 h-2.5 ${sortConfig?.key === 'brand' && sortConfig.direction === 'asc' ? 'text-indigo-600' : 'text-slate-300'}`} />
+                      <Icons.ChevronDown className={`w-2.5 h-2.5 -mt-1 ${sortConfig?.key === 'brand' && sortConfig.direction === 'desc' ? 'text-indigo-600' : 'text-slate-300'}`} />
+                    </div>
+                  </div>
+                </th>
+                <th className="px-8 py-7 border-b border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors group/th" onClick={() => handleSort('creator')}>
+                  <div className="flex items-center gap-2">
+                    CREATOR
+                    <div className="flex flex-col">
+                      <Icons.ChevronUp className={`w-2.5 h-2.5 ${sortConfig?.key === 'creator' && sortConfig.direction === 'asc' ? 'text-indigo-600' : 'text-slate-300'}`} />
+                      <Icons.ChevronDown className={`w-2.5 h-2.5 -mt-1 ${sortConfig?.key === 'creator' && sortConfig.direction === 'desc' ? 'text-indigo-600' : 'text-slate-300'}`} />
+                    </div>
+                  </div>
+                </th>
                 <th className="px-6 py-7 text-center border-b border-slate-100">LINK</th>
                 <th className="px-8 py-7 border-b border-slate-100">PERFORMANCE</th>
                 <th className="px-6 py-7 text-center border-b border-slate-100">ER%</th>

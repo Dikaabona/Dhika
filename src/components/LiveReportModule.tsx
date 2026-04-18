@@ -14,6 +14,8 @@ interface LiveReportModuleProps {
   company: string;
   onClose: () => void;
   brands: any[];
+  isPublicView?: boolean;
+  forcedBrand?: string;
 }
 
 const formatDateToYMD = (dateStr: string) => {
@@ -90,11 +92,11 @@ const getThirtyDaysAgoStr = () => {
   return d.toISOString().split('T')[0];
 };
 
-const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports, setReports, userRole, currentEmployee, company, onClose, brands }) => {
+const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports, setReports, userRole, currentEmployee, company, onClose, brands, isPublicView = false, forcedBrand }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingReport, setEditingReport] = useState<LiveReport | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedBrand, setSelectedBrand] = useState('ALL');
+  const [selectedBrand, setSelectedBrand] = useState(forcedBrand || 'ALL');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
   const getTodayStr = () => new Date().toISOString().split('T')[0];
@@ -495,14 +497,20 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
         </div>
         
         <div className="bg-slate-50 p-1.5 rounded-[28px] border border-slate-100 flex flex-col sm:flex-row gap-3 shadow-inner">
-          <select 
-            value={selectedBrand} 
-            onChange={(e) => { setSelectedBrand(e.target.value); setCurrentPage(1); }} 
-            className="bg-white border border-slate-200 px-6 py-3.5 rounded-[22px] text-[10px] font-black text-slate-900 outline-none shadow-sm appearance-none text-center uppercase tracking-widest sm:flex-grow"
-          >
-            <option value="ALL">SEMUA BRAND</option>
-            {brands.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
-          </select>
+          {!isPublicView ? (
+            <select 
+              value={selectedBrand} 
+              onChange={(e) => { setSelectedBrand(e.target.value); setCurrentPage(1); }} 
+              className="bg-white border border-slate-200 px-6 py-3.5 rounded-[22px] text-[10px] font-black text-slate-900 outline-none shadow-sm appearance-none text-center uppercase tracking-widest sm:flex-grow"
+            >
+              <option value="ALL">SEMUA BRAND</option>
+              {brands.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+            </select>
+          ) : (
+            <div className="bg-slate-900 text-[#FFC000] px-6 py-3.5 rounded-[22px] text-[10px] font-black uppercase tracking-widest shadow-sm flex items-center justify-center sm:flex-grow">
+              BRAND: {selectedBrand}
+            </div>
+          )}
           
           <div className="flex items-center gap-3 px-6 py-3 bg-white rounded-[22px] shadow-sm border border-slate-100 shrink-0">
             <div className="flex flex-col items-start min-w-[100px]">
@@ -527,46 +535,66 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <button 
-            onClick={handleDownloadTemplate} 
-            className="bg-slate-50 border border-slate-200 text-slate-400 px-3 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-sm hover:bg-slate-100 transition-all flex items-center justify-center gap-2"
-          >
-            <Icons.Download className="w-3 h-3" /> TEMPLATE
-          </button>
-          <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".xlsx,.xls" />
-          <button 
-            onClick={() => fileInputRef.current?.click()} 
-            disabled={isImporting} 
-            className="bg-emerald-50 border border-emerald-200 text-emerald-600 px-3 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-sm hover:bg-emerald-100 transition-all flex items-center justify-center gap-2"
-          >
-            {isImporting ? '...' : <><Icons.Upload className="w-3 h-3" /> IMPORT</>}
-          </button>
-          <button 
-            onClick={handleExport} 
-            className="bg-white border border-slate-200 text-slate-600 px-3 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
-          >
-            <Icons.Download className="w-3 h-3" /> EXPORT
-          </button>
-          {canManage && (
-            <div className="col-span-3 flex gap-3">
-              <button 
-                onClick={() => handleOpenModal()} 
-                className="flex-grow bg-slate-900 text-[#FFC000] px-4 py-4 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"
-              >
-                <Icons.Plus className="w-3 h-3" /> TAMBAH REPORT
-              </button>
-              {selectedIds.size > 0 && (
+        {!isPublicView && (
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <button 
+              onClick={handleDownloadTemplate} 
+              className="bg-slate-50 border border-slate-200 text-slate-400 px-3 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-sm hover:bg-slate-100 transition-all flex items-center justify-center gap-2"
+            >
+              <Icons.Download className="w-3 h-3" /> TEMPLATE
+            </button>
+            <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".xlsx,.xls" />
+            <button 
+              onClick={() => fileInputRef.current?.click()} 
+              disabled={isImporting} 
+              className="bg-emerald-50 border border-emerald-200 text-emerald-600 px-3 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-sm hover:bg-emerald-100 transition-all flex items-center justify-center gap-2"
+            >
+              {isImporting ? '...' : <><Icons.Upload className="w-3 h-3" /> IMPORT</>}
+            </button>
+            <button 
+              onClick={handleExport} 
+              className="bg-white border border-slate-200 text-slate-600 px-3 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+            >
+              <Icons.Download className="w-3 h-3" /> EXPORT
+            </button>
+            {canManage && (
+              <div className="col-span-3 flex gap-3">
                 <button 
-                  onClick={handleBulkDelete} 
-                  className="bg-rose-500 text-white px-6 py-4 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all animate-in slide-in-from-right-2"
+                  onClick={() => handleOpenModal()} 
+                  className="flex-grow bg-slate-900 text-[#FFC000] px-4 py-4 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"
                 >
-                  <Icons.Trash className="w-4 h-4" /> HAPUS ({selectedIds.size})
+                  <Icons.Plus className="w-3 h-3" /> TAMBAH REPORT
                 </button>
-              )}
-            </div>
-          )}
-        </div>
+                {selectedIds.size > 0 && (
+                  <button 
+                    onClick={handleBulkDelete} 
+                    className="bg-rose-500 text-white px-6 py-4 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all animate-in slide-in-from-right-2"
+                  >
+                    <Icons.Trash className="w-4 h-4" /> HAPUS ({selectedIds.size})
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Share Button for Admin */}
+        {!isPublicView && canManage && selectedBrand !== 'ALL' && (
+          <div className="flex justify-end">
+            <button 
+              onClick={() => {
+                const origin = window.location.origin;
+                // Support both query param and the new requested path format
+                const pathUrl = `${origin}/livestreaming/report/${selectedBrand.toLowerCase()}`;
+                navigator.clipboard.writeText(pathUrl);
+                alert("Link report " + selectedBrand + " berhasil disalin ke clipboard:\n" + pathUrl);
+              }}
+              className="bg-indigo-600 text-white px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all"
+            >
+              <Icons.Share2 className="w-4 h-4" /> SHARE REPORT {selectedBrand}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
@@ -599,21 +627,23 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
           <table className="w-full text-left min-w-[850px]">
             <thead>
               <tr className="bg-slate-50/50 text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
-                <th className="px-4 py-5 w-10 text-center">
-                   <input 
-                     type="checkbox" 
-                     checked={selectedIds.size === paginatedReports.length && paginatedReports.length > 0} 
-                     onChange={toggleSelectAll}
-                     className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                   />
-                </th>
+                {!isPublicView && (
+                  <th className="px-4 py-5 w-10 text-center">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedIds.size === paginatedReports.length && paginatedReports.length > 0} 
+                      onChange={toggleSelectAll}
+                      className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-5 w-12 text-center">No</th>
                 <th className="px-6 py-5">Sesi & Live</th>
                 <th className="px-6 py-5">Host & OP</th>
                 <th className="px-6 py-5 text-center">Performance</th>
                 <th className="px-6 py-5 text-center">Sales</th>
                 <th className="px-6 py-5 text-center">Durasi</th>
-                {canManage && <th className="px-6 py-5 text-right">Aksi</th>}
+                {canManage && !isPublicView && <th className="px-6 py-5 text-right">Aksi</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -624,14 +654,16 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                 const isEven = idx % 2 === 1;
                 return (
                   <tr key={report.id} className={`hover:bg-slate-50/50 transition-colors group ${selectedIds.has(report.id!) ? 'bg-indigo-50/30' : (isEven ? 'bg-slate-50/80' : 'bg-white')}`}>
-                    <td className="px-4 py-5 text-center">
-                       <input 
-                         type="checkbox" 
-                         checked={selectedIds.has(report.id!)} 
-                         onChange={() => toggleSelect(report.id!)}
-                         className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                       />
-                    </td>
+                    {!isPublicView && (
+                      <td className="px-4 py-5 text-center">
+                        <input 
+                          type="checkbox" 
+                          checked={selectedIds.has(report.id!)} 
+                          onChange={() => toggleSelect(report.id!)}
+                          className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-5 text-[10px] font-bold text-slate-300 text-center">{globalIdx}</td>
                     <td className="px-6 py-5">
                        <p className="text-[10px] font-black text-slate-900 uppercase">
@@ -656,7 +688,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                     <td className="px-6 py-5 text-center">
                        <p className="text-xs font-black text-slate-900">{(report.durasi || 0).toFixed(1)} Jam</p>
                     </td>
-                    {canManage && (
+                    {canManage && !isPublicView && (
                       <td className="px-6 py-5 text-right">
                         <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => handleOpenModal(report)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Icons.Edit className="w-4 h-4" /></button>
