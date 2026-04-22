@@ -1017,6 +1017,101 @@ app.get("/api/debug/inspect-assignments", async (req, res) => {
   }
 });
 
+// ============================================================
+// AGENT API ENDPOINTS (For OpenClaw / AI Agents)
+// ============================================================
+
+// Middleware for Agent API Authentication
+const agentAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const apiKey = req.headers['x-agent-key'];
+  const masterKey = process.env.AGENT_API_KEY || 'visibel-agent-viewer-2024'; // Fallback if not set
+  
+  if (apiKey !== masterKey) {
+    return res.status(401).json({ error: "Unauthorized. Invalid Agent Key." });
+  }
+  next();
+};
+
+app.get("/api/agent/v1/status", agentAuth, (req, res) => {
+  res.json({ status: "online", version: "1.0.0", agent: "authorized" });
+});
+
+app.get("/api/agent/v1/employees", agentAuth, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('employees').select('id, nama, jabatan, company').is('deleted_at', null);
+    if (error) throw error;
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/agent/v1/schedules", agentAuth, async (req, res) => {
+  try {
+    const { date, brand, startDate, endDate } = req.query;
+    let query = supabase.from('schedules').select('*, employees!hostId(nama)');
+    
+    if (date) {
+      query = query.eq('date', date);
+    } else if (startDate && endDate) {
+      query = query.gte('date', startDate).lte('date', endDate);
+    } else {
+      // Default today
+      const today = new Date().toISOString().split('T')[0];
+      query = query.eq('date', today);
+    }
+    
+    if (brand) {
+      query = query.ilike('brand', `%${brand}%`);
+    }
+    
+    const { data, error } = await query.order('date', { ascending: true });
+    if (error) throw error;
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/agent/v1/reports", agentAuth, async (req, res) => {
+  try {
+    const { startDate, endDate, brand, limit = 50 } = req.query;
+    let query = supabase.from('live_reports').select('*');
+    
+    if (startDate && endDate) {
+      query = query.gte('tanggal', startDate).lte('tanggal', endDate);
+    } else {
+      // Last 7 days if not specified
+      const end = new Date().toISOString().split('T')[0];
+      const start = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      query = query.gte('tanggal', start).lte('tanggal', end);
+    }
+    
+    if (brand) {
+      query = query.ilike('brand', `%${brand}%`);
+    }
+    
+    const { data, error } = await query.order('tanggal', { ascending: false }).limit(Number(limit));
+    if (error) throw error;
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/agent/v1/brands", agentAuth, async (req, res) => {
+  try {
+    const { company } = req.query;
+    if (!company) return res.status(400).json({ error: "Company parameter is required" });
+    
+    const { data, error } = await supabase.from('settings').select('value').eq('key', `live_brands_${company}`).maybeSingle();
+    if (error) throw error;
+    res.json(data?.value || []);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 async function startServer() {
   const PORT = 3000;
   const isVercel = !!process.env.VERCEL;

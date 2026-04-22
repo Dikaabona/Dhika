@@ -176,6 +176,21 @@ const Dashboard: React.FC<DashboardProps> = ({
     return Object.entries(companySalaries).map(([name, value]) => ({ name, value }));
   }, [activeEmployees]);
 
+  const birthdayEmployees = useMemo(() => {
+    const today = new Date();
+    const todayDay = today.getDate();
+    const todayMonth = today.getMonth() + 1;
+
+    return activeEmployees.filter(emp => {
+      if (!emp.tanggalLahir) return false;
+      const parts = emp.tanggalLahir.split('/');
+      if (parts.length !== 3) return false;
+      const birthDay = parseInt(parts[0], 10);
+      const birthMonth = parseInt(parts[1], 10);
+      return birthDay === todayDay && birthMonth === todayMonth;
+    });
+  }, [activeEmployees]);
+
   const tenureYears = useMemo(() => {
     if (!currentUserEmployee?.tanggalMasuk) return 0;
     const parts = currentUserEmployee.tanggalMasuk.split('/');
@@ -337,6 +352,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                     Jadwal Shift: {todayShift ? `${todayShift.name.toUpperCase()} (${todayShift.startTime} - ${todayShift.endTime})` : 'TIDAK ADA SHIFT'}
                   </span>
                 </div>
+                {birthdayEmployees.length > 0 && (
+                  <div className="bg-amber-50 px-4 py-2 rounded-full border border-amber-100 flex items-center gap-2 animate-bounce">
+                    <Icons.Cake className="w-3 h-3 text-[#FFC000]" />
+                    <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest whitespace-nowrap">
+                      HBD: {birthdayEmployees.map(e => e.nama.split(' ')[0]).join(', ')}! 🎉
+                    </span>
+                  </div>
+                )}
                 {isLate && (
                   <div className="bg-rose-50 text-rose-600 px-3 py-1 rounded-lg border border-rose-100 animate-pulse flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 bg-rose-500 rounded-full"></div>
@@ -412,19 +435,32 @@ const Dashboard: React.FC<DashboardProps> = ({
               
               <div className="h-px bg-white/10 w-full"></div>
 
-              {(isAdmin && unreadSubmissions > 0) ? (
-                <button 
-                  onClick={() => onNavigate('inbox')}
-                  className="w-full text-left space-y-1.5 animate-in fade-in slide-in-from-bottom-2"
-                >
-                  <p className="text-[13px] font-black leading-tight text-white uppercase tracking-tight">
-                    ADA {unreadSubmissions} PENGAJUAN BARU MENUNGGU PERSETUJUAN.
-                  </p>
-                  <div className="flex items-center gap-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">
-                    <span>PROSES SEKARANG</span>
-                    <Icons.ChevronDown className="w-3.5 h-3.5 -rotate-90" />
-                  </div>
-                </button>
+              {(isAdmin && unreadSubmissions > 0) || birthdayEmployees.length > 0 ? (
+                <div className="space-y-3">
+                  {(isAdmin && unreadSubmissions > 0) && (
+                    <button 
+                      onClick={() => onNavigate('inbox')}
+                      className="w-full text-left space-y-1.5 animate-in fade-in slide-in-from-bottom-2"
+                    >
+                      <p className="text-[13px] font-black leading-tight text-white uppercase tracking-tight">
+                        ADA {unreadSubmissions} PENGAJUAN BARU MENUNGGU PERSETUJUAN.
+                      </p>
+                      <div className="flex items-center gap-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                        <span>PROSES SEKARANG</span>
+                        <Icons.ChevronDown className="w-3.5 h-3.5 -rotate-90" />
+                      </div>
+                    </button>
+                  )}
+                  {birthdayEmployees.length > 0 && (
+                    <div className={`w-full text-left space-y-1.5 animate-in fade-in slide-in-from-bottom-2 ${(isAdmin && unreadSubmissions > 0) ? 'border-t border-white/5 pt-3' : ''}`}>
+                      <p className="text-[13px] font-black leading-tight text-[#FFC000] uppercase tracking-tight flex items-center gap-2">
+                        <Icons.Cake className="w-4 h-4 shrink-0" /> 
+                        HARI INI ULANG TAHUN: {birthdayEmployees.map(e => e.nama).join(', ')}
+                      </p>
+                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">WISH THEM A HAPPY DAY! 🎉</p>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="space-y-0.5">
                   <p className="text-[13px] font-black leading-tight text-white uppercase tracking-tight">
@@ -624,20 +660,39 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             <div className="space-y-4 max-w-4xl">
-              {(isAdmin && unreadSubmissions > 0) ? (
-                <button 
-                  onClick={() => onNavigate('inbox')}
-                  className="w-full text-left bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[36px] p-8 flex items-center gap-8 group hover:bg-white/10 transition-all duration-500 cursor-pointer active:scale-[0.99]"
-                >
-                  <div className="text-amber-400 p-4 rounded-[24px] bg-white/5 transition-transform group-hover:scale-110 shadow-lg shrink-0">
-                    <Icons.FileText className="w-7 h-7" />
-                  </div>
-                  <div className="flex-grow">
-                    <p className="text-xl font-black leading-snug text-slate-50 uppercase tracking-tight">
-                      ADA {unreadSubmissions} PENGAJUAN BARU YANG MENUNGGU PERSETUJUAN.
-                    </p>
-                  </div>
-                </button>
+              {(isAdmin && unreadSubmissions > 0) || birthdayEmployees.length > 0 ? (
+                <>
+                  {(isAdmin && unreadSubmissions > 0) && (
+                    <button 
+                      onClick={() => onNavigate('inbox')}
+                      className="w-full text-left bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[36px] p-8 flex items-center gap-8 group hover:bg-white/10 transition-all duration-500 cursor-pointer active:scale-[0.99]"
+                    >
+                      <div className="text-amber-400 p-4 rounded-[24px] bg-white/5 transition-transform group-hover:scale-110 shadow-lg shrink-0">
+                        <Icons.FileText className="w-7 h-7" />
+                      </div>
+                      <div className="flex-grow">
+                        <p className="text-xl font-black leading-snug text-slate-50 uppercase tracking-tight">
+                          ADA {unreadSubmissions} PENGAJUAN BARU YANG MENUNGGU PERSETUJUAN.
+                        </p>
+                      </div>
+                    </button>
+                  )}
+                  
+                  {birthdayEmployees.length > 0 && (
+                    <div className="w-full bg-amber-400/5 backdrop-blur-2xl border border-amber-400/20 rounded-[36px] p-8 flex items-center gap-8 animate-in slide-in-from-left duration-700">
+                      <div className="bg-[#FFC000] text-black p-4 rounded-[24px] shadow-lg shadow-amber-500/20 shrink-0">
+                        <Icons.Cake className="w-7 h-7" />
+                      </div>
+                      <div className="flex-grow">
+                        <p className="text-xs font-black text-amber-500 uppercase tracking-[0.3em] mb-2">CELEBRATION TODAY</p>
+                        <p className="text-2xl font-black leading-tight text-white uppercase tracking-tight">
+                          HARI INI ULANG TAHUN: <span className="text-[#FFC000]">{birthdayEmployees.map(e => e.nama).join(', ')}</span>
+                        </p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 px-4 py-1.5 bg-white/5 rounded-full w-fit">WISH THEM A HAPPY DAY! 🎉</p>
+                      </div>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[36px] p-8 flex items-center gap-8">
                   <div className="text-slate-400 p-4 rounded-[24px] bg-white/5 shrink-0">
