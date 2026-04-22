@@ -117,6 +117,40 @@ async function addWahaLog(type: string, data: any) {
   }
 }
 
+// Function to log Agent API Access for tracking
+async function addAgentLog(type: string, data: any) {
+  console.log(`[AGENT LOG] ${type}:`, JSON.stringify(data));
+  if (!supabase) return;
+
+  try {
+    const { data: existing } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'agent_tracking_logs')
+      .maybeSingle();
+
+    let logs = existing?.value || [];
+    if (!Array.isArray(logs)) logs = [];
+
+    logs.unshift({
+      timestamp: new Date().toISOString(),
+      type,
+      data
+    });
+
+    const trimmedLogs = logs.slice(0, 300);
+
+    await supabase
+      .from('settings')
+      .upsert({ 
+        key: 'agent_tracking_logs', 
+        value: trimmedLogs
+      }, { onConflict: 'key' });
+  } catch (err) {
+    console.error("Error in addAgentLog:", err);
+  }
+}
+
 // Helper to get WAHA settings for a company
 async function getWahaSettings(company: string) {
   // First check environment variables (as default/global)
@@ -1028,16 +1062,54 @@ app.get("/api/debug/inspect-assignments", async (req, res) => {
 // Middleware for Agent API Authentication
 const agentAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const apiKey = req.headers['x-agent-key'];
-  const masterKey = process.env.AGENT_API_KEY || 'visibel-agent-viewer-2024'; // Fallback if not set
+  const userAgent = req.headers['user-agent'] || 'Unknown';
+  const masterKey = process.env.AGENT_API_KEY || 'visibel-agent-viewer-2024';
   
+  // Track the request
+  addAgentLog('ACCESS', {
+    method: req.method,
+    url: req.originalUrl,
+    userAgent: userAgent,
+    authorized: apiKey === masterKey,
+    ip: req.ip || req.headers['x-forwarded-for'] || 'Unknown'
+  });
+
   if (apiKey !== masterKey) {
     return res.status(401).json({ error: "Unauthorized. Invalid Agent Key." });
   }
   next();
 };
 
+app.get("/api/agent/v1", (req, res) => {
+  res.json({ 
+    status: "online", 
+    message: "Majova Agent API v1 is active. Use the sub-endpoints for data access.",
+    endpoints: [
+      "/api/agent/v1/status",
+      "/api/agent/v1/employees",
+      "/api/agent/v1/schedules",
+      "/api/agent/v1/reports",
+      "/api/agent/v1/brands",
+      "/api/agent/v1/logs"
+    ]
+  });
+});
+
 app.get("/api/agent/v1/status", agentAuth, (req, res) => {
   res.json({ status: "online", version: "1.0.0", agent: "authorized" });
+});
+
+app.get("/api/agent/v1/logs", agentAuth, async (req, res) => {
+  try {
+    const { data } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'agent_tracking_logs')
+      .maybeSingle();
+    res.json(data?.value || []);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get("/api/agent/v1/employees", agentAuth, async (req, res) => {
@@ -1053,7 +1125,7 @@ app.get("/api/agent/v1/employees", agentAuth, async (req, res) => {
 app.get("/api/agent/v1/schedules", agentAuth, async (req, res) => {
   try {
     const { date, brand, startDate, endDate } = req.query;
-    let query = supabase.from('schedules').select('*, employees!hostId(nama)');
+    let query = supabase.from('schedules').select('*');
     
     if (date) {
       query = query.eq('date', date);
@@ -1069,9 +1141,23 @@ app.get("/api/agent/v1/schedules", agentAuth, async (req, res) => {
       query = query.ilike('brand', `%${brand}%`);
     }
     
-    const { data, error } = await query.order('date', { ascending: true });
-    if (error) throw error;
-    res.json(data);
+    const { data: schedules, error: scheduleError } = await query.order('date', { ascending: true });
+    if (scheduleError) throw scheduleError;
+
+    // Fetch employee names to perform in-memory join (to avoid relationship cache issues)
+    const { data: emps, error: empError } = await supabase.from('employees').select('id, nama');
+    if (empError) throw empError;
+
+    const empMap = new Map();
+    (emps || []).forEach((e: any) => empMap.set(e.id, e.nama));
+
+    const result = (schedules || []).map((s: any) => ({
+      ...s,
+      hostName: s.hostId ? empMap.get(s.hostId) : null,
+      opName: s.opId ? empMap.get(s.opId) : null
+    }));
+
+    res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -1114,6 +1200,15 @@ app.get("/api/agent/v1/brands", agentAuth, async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Fallback for Agent API to prevent HTML response
+app.use("/api/agent/*", (req, res) => {
+  res.status(404).json({ 
+    error: "Endpoint not found", 
+    path: req.originalUrl,
+    message: "The requested agent API endpoint does not exist. Check /api/agent/v1 for available endpoints."
+  });
 });
 
 async function startServer() {
