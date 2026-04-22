@@ -498,30 +498,25 @@ function extractPhoneNumber(payload: any, from: string | null): string | null {
 // SYSTEM PROMPTS — Konteks untuk Gemini
 // ============================================================
 const SYSTEM_PROMPT_CS = `
-Kamu adalah asisten virtual WhatsApp dari Visibel.ID, sebuah creative agency dan TikTok Marketing Partner.
-Jawab pertanyaan calon klien dengan ramah, singkat, dan profesional dalam Bahasa Indonesia.
-Layanan Visibel: Live Streaming, Short Video, TikTok Ads, Social Media Management, KOL Campaign, Affiliate Management.
-Harga: Short Video Rp 6.000.000/bulan, Live Streaming Rp 9.000.000/bulan.
-Kontak: WA 0811-174-3005, Email kontakvisibel@gmail.com, IG @visibel_id.
-Jika pertanyaan di luar layanan Visibel, arahkan untuk hubungi tim kami langsung.
-Jangan pernah memberikan informasi yang tidak kamu ketahui — lebih baik arahkan ke tim.
-Balas maksimal 3-4 kalimat saja.
+Kamu adalah Vivi, asisten virtual cerdas dari Visibel.ID, sebuah creative agency dan TikTok Marketing Partner.
+Jawab pertanyaan calon klien dengan ramah, ceria, dan profesional dalam Bahasa Indonesia.
+Layanan Visibel: Live Streaming (Shopee/TikTok), Short Video, TikTok Ads, Social Media Management, KOL Campaign, Affiliate Management.
+Harga paket standar: Video Rp 6.000.000/bulan, Live Rp 9.000.000/bulan.
+Jika ada yang bertanya tentang "Jadwal" atau "Laporan/GMV", gunakan tools yang tersedia untuk memberikan data real-time.
+Balas maksimal 3-4 kalimat kecuali jika memberikan data tabel.
 `;
 
 const SYSTEM_PROMPT_HR = `
-Kamu adalah asisten HR internal Visibel.ID.
-Bantu karyawan dengan pertanyaan seputar jadwal kerja, absensi, konten, dan informasi internal perusahaan.
-Jawab dengan ramah dan singkat dalam Bahasa Indonesia.
-Jika pertanyaan membutuhkan data spesifik yang tidak kamu miliki (seperti jadwal atau data absensi), minta karyawan gunakan perintah bot:
-- !jadwal untuk cek shift hari ini
-- !absen untuk cek status absensi  
-- !konten untuk jadwal posting hari ini
-- !libur untuk melihat siapa yang libur
-- !menu untuk lihat semua fitur bot
-Balas maksimal 3-4 kalimat saja.
+Kamu adalah Vivi, asisten HR internal cerdas dari Visibel.ID.
+Bantu karyawan dengan ramah dan akurat. Kamu bisa cek jadwal shift, absensi, dan performa konten menggunakan tools.
+Jika karyawan bertanya "Jadwal saya", "Siapa yang live", "GMV kemarin", atau "Absen saya", pastikan gunakan tools.
+Ingatkan mereka untuk selalu profesional dan semangat bekerja!
 `;
 
-app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
+// ============================================================
+// WAHA Webhook Endpoint (Auto-Reply & Bot Logic)
+// ============================================================
+app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
   // Log request awal
   addWahaLog('WEBHOOK_HIT', { 
     method: req.method,
@@ -530,202 +525,139 @@ app.all(["/api/webhook/waha", "/api/waha", "/api/waha/"], async (req, res) => {
   });
 
   if (req.method === 'GET') {
-    return res.send("✅ Webhook endpoint is ACTIVE and reachable. Please use POST for actual WAHA data.");
+    return res.send("✅ Webhook endpoint is ACTIVE and reachable. Point your WAHA server POST here.");
   }
 
   const body = req.body || {};
   const event = body.event;
   
-  // Hanya proses event 'message' atau 'message.upsert'
+  // Hanya proses event 'message'
   if (event !== 'message' && event !== 'message.upsert') {
     return res.status(200).json({ status: "ignored_event", event });
   }
 
   const payload = body.payload;
-  if (!payload) {
-    return res.status(200).json({ status: "ignored_no_payload" });
-  }
-
-  // Abaikan pesan dari bot sendiri (Self-loop protection)
-  if (payload.fromMe === true) {
-    return res.status(200).json({ status: "ignored_self" });
+  if (!payload || payload.fromMe === true) {
+    return res.status(200).json({ status: "ignored" });
   }
 
   const message = payload.body || payload.content || payload.text || payload.caption || 
                  (payload.message && (payload.message.conversation || payload.message.extendedTextMessage?.text));
   
-  // Parse 'from' mentah dulu dari payload
-  const fromRaw =
-    payload.from ||
-    payload.chatId ||
-    payload.remoteJid ||
-    payload.key?.remoteJid ||
-    null;
-
-  // Lalu ekstrak nomor bersih pakai helper
+  const fromRaw = payload.from || payload.chatId || payload.remoteJid || null;
   const from = extractPhoneNumber(payload, fromRaw);
 
-  if (!from) {
-    addWahaLog('WEBHOOK_IGNORED', {
-      reason: 'from tidak bisa diekstrak',
-      from_raw: fromRaw,
-      participant: payload.participant,
-      altJid: payload.participantAlt || payload.remoteJidAlt,
-    });
-    return res.status(200).json({ status: 'ignored_missing_from' });
-  }
-
-  if (!message) {
-    addWahaLog('WEBHOOK_IGNORED', { reason: 'message kosong', from });
-    return res.status(200).json({ status: "ignored_missing_message" });
+  if (!from || !message) {
+    return res.status(200).json({ status: "ignored_incomplete" });
   }
 
   addWahaLog('MESSAGE_RECEIVED', { from, message });
 
-  // ---- PROSES SEQUENTIAL (Aman untuk Vercel) ----
   try {
-    if (!supabase) {
-      addWahaLog('ERROR', 'Supabase not initialized');
-      return res.status(200).json({ status: "error_no_supabase" });
-    }
+    if (!supabase) throw new Error("Supabase not initialized");
 
-    // 1. Identifikasi Pengirim (Employee Check)
+    // 1. Identifikasi Pengirim
     const phoneDigits = from.split('@')[0];
-    
-    addWahaLog('DEBUG_IDENTIFICATION', { fromRaw, phoneDigits, from });
-
     const { data: emps } = await supabase.from('employees').select('*');
     const emp = emps?.find((e: any) => {
       let dbPhone = (e.noHandphone || '').replace(/\D/g, '');
       if (dbPhone.startsWith('0')) dbPhone = '62' + dbPhone.substring(1);
-      if (!dbPhone || !phoneDigits) return false;
-      
-      // Sangat ketat: Cek 9 digit terakhir untuk menghindari masalah format (62 vs 08)
-      const incomingTail = phoneDigits.length >= 7 ? phoneDigits.slice(-9) : phoneDigits;
-      const dbTail = dbPhone.length >= 7 ? dbPhone.slice(-9) : dbPhone;
-      
-      return dbPhone === phoneDigits || (incomingTail.length >= 7 && dbTail === incomingTail);
+      const incomingTail = phoneDigits.slice(-9);
+      const dbTail = dbPhone.slice(-9);
+      return dbPhone === phoneDigits || (incomingTail && dbTail === incomingTail);
     });
 
-    const lowerMsg = typeof message === 'string' ? message.toLowerCase().trim() : '';
+    const lowerMsg = message.toLowerCase().trim();
     const company = emp?.company || 'VISIBEL';
     const isGroup = fromRaw.endsWith('@g.us');
-    const isAiTestGroup = fromRaw === '120363426247965894@g.us';
-    const isAiTrigger = lowerMsg.startsWith('ai ') || lowerMsg.startsWith('ai,') || lowerMsg === 'ai' || lowerMsg.includes('@ai');
+    const isAiTrigger = lowerMsg.startsWith('ai ') || lowerMsg.startsWith('vivi ') || lowerMsg === 'ai' || lowerMsg.includes('@ai');
 
-    addWahaLog('DEBUG_ROUTING', { 
-      isEmployee: !!emp, 
-      employeeName: emp?.nama, 
-      lowerMsg, 
-      isGroup, 
-      isAiTrigger 
-    });
-
-    if (emp) {
-      // --- LOGIKA KARYAWAN (HR) ---
-      addWahaLog('EMPLOYEE_FOUND', { name: emp.nama, company: emp.company });
-      let handled = true;
-
-      if (lowerMsg === '!menu' || lowerMsg === '!help' || lowerMsg === 'p' || lowerMsg === 'halo') {
-        const menu = `🤖 *MAJOVA.ID HR BOT MENU* 🤖\n\nHalo ${emp.nama},\n\nBerikut adalah perintah yang bisa Anda gunakan:\n\n` +
-          `1️⃣ *!jadwal* - Cek jadwal shift Anda hari ini\n` +
-          `2️⃣ *!konten* - Cek jadwal posting konten Anda hari ini\n` +
-          `3️⃣ *!absen* - Cek status absensi Anda hari ini\n` +
-          `4️⃣ *!libur* - Cek siapa saja yang libur hari ini\n` +
-          `5️⃣ *!menu* - Menampilkan menu ini\n\n` +
-          `Silakan ketik perintah di atas.`;
-        await sendWahaMessage(fromRaw, menu, emp.company);
-      }
-      else if (lowerMsg === '!libur') {
-        const today = new Date().toISOString().split('T')[0];
-        const { data: allEmployees } = await supabase.from('employees').select('id, nama').eq('company', emp.company);
-        const { data: assignments } = await supabase.from('shift_assignments').select('employeeId').eq('date', today).eq('company', emp.company);
-        const assignedEmpIds = new Set(assignments?.map((a: any) => a.employeeId) || []);
-        const offEmployees = allEmployees?.filter((e: any) => !assignedEmpIds.has(e.id)) || [];
-        let reply = `🏖️ *KARYAWAN LIBUR HARI INI* 🏖️\n\nTanggal: ${today}\n\n`;
-        if (offEmployees.length > 0) {
-          offEmployees.forEach((e: any, index: number) => reply += `${index + 1}. ${e.nama}\n`);
-        } else {
-          reply += `Semua karyawan memiliki jadwal hari ini.`;
-        }
-        await sendWahaMessage(fromRaw, reply, emp.company);
-      }
-      else if (lowerMsg === '!jadwal') {
-        const today = new Date().toISOString().split('T')[0];
-        const { data: shiftAssignments } = await supabase.from('shift_assignments').select('*, shifts(*)').eq('employeeId', emp.id).eq('date', today);
-        if (shiftAssignments && shiftAssignments.length > 0) {
-          let reply = `📅 *JADWAL SHIFT HARI INI* 📅\n\nHalo ${emp.nama},\n\n`;
-          shiftAssignments.forEach((a: any) => {
-            reply += `🔹 *${a.shifts?.name || 'Shift'}*\n⏰ ${a.shifts?.startTime || '-'} - ${a.shifts?.endTime || '-'}\n`;
-          });
-          await sendWahaMessage(fromRaw, reply, emp.company);
-        } else {
-          await sendWahaMessage(fromRaw, `Halo ${emp.nama}, Anda tidak memiliki jadwal shift hari ini (${today}).`, emp.company);
-        }
-      } 
-      else if (lowerMsg === '!konten') {
-        const today = new Date().toISOString().split('T')[0];
-        const { data: contentPlans } = await supabase.from('content_plans').select('*').eq('creatorId', emp.id).eq('postingDate', today);
-        if (contentPlans && contentPlans.length > 0) {
-          let reply = `🎬 *JADWAL KONTEN HARI INI* 🎬\n\nHalo ${emp.nama},\n\n`;
-          contentPlans.forEach((p: any) => {
-            reply += `📌 *${p.title}*\n📱 Platform: ${p.platform}\n⏰ Jam: ${p.jamUpload || '-'}\n\n`;
-          });
-          await sendWahaMessage(fromRaw, reply, emp.company);
-        } else {
-          await sendWahaMessage(fromRaw, `Halo ${emp.nama}, Anda tidak memiliki jadwal posting konten hari ini (${today}).`, emp.company);
-        }
-      }
-      else if (lowerMsg === '!absen') {
-        const today = new Date().toISOString().split('T')[0];
-        const { data: attendance } = await supabase.from('attendance').select('*').eq('employeeId', emp.id).eq('date', today).maybeSingle();
-        if (attendance) {
-          const reply = `✅ *STATUS ABSENSI HARI INI* ✅\n\nHalo ${emp.nama},\n\n` +
-            `📍 Status: ${attendance.status}\n` +
-            `🕒 Masuk: ${attendance.clockIn || '-'}\n` +
-            `🕒 Pulang: ${attendance.clockOut || '-'}`;
-          await sendWahaMessage(fromRaw, reply, emp.company);
-        } else {
-          await sendWahaMessage(fromRaw, `Halo ${emp.nama}, Anda belum melakukan absensi hari ini (${today}). Jangan lupa absen ya!`, emp.company);
-        }
-      }
-      else {
-        handled = false;
-      }
-
-      if (!handled) {
-        // Fallback ke Gemini HR
-        addWahaLog('AI_REQUEST_HR', { from, message });
-        const aiReply = await askGemini(message, SYSTEM_PROMPT_HR);
-        await sendWahaMessage(fromRaw, aiReply, emp.company);
-        addWahaLog('AI_REPLY_HR', { to: fromRaw, aiReply: aiReply.substring(0, 50) });
-      }
-    } 
-    else {
-      // --- LOGIKA NON-KARYAWAN (CS) ---
-      // Jika di Grup, hanya balas jika ada trigger "ai" atau jika di Grup Ai test
-      if (isGroup && !isAiTrigger && !isAiTestGroup) {
-        addWahaLog('GROUP_IGNORE', { fromRaw, reason: 'No AI trigger in group' });
-        return res.status(200).json({ status: "ignored_group" });
-      }
-
-      // Bersihkan pesan jika ada trigger
-      let processedMsg = message;
-      if (lowerMsg.startsWith('ai ')) processedMsg = message.substring(3).trim();
-      else if (lowerMsg.startsWith('ai,')) processedMsg = message.substring(3).trim();
-      
-      addWahaLog('AI_REQUEST_CS', { from, message: processedMsg.substring(0, 50) });
-      const aiReply = await askGemini(processedMsg, SYSTEM_PROMPT_CS);
-      await sendWahaMessage(fromRaw, aiReply, company);
-      addWahaLog('AI_REPLY_CS', { to: fromRaw, aiReply: aiReply.substring(0, 50) });
+    // 2. Command Sederhana (Pre-AI)
+    if (lowerMsg === '!menu' || lowerMsg === 'p' || lowerMsg === 'halo' || lowerMsg === 'vivi') {
+      const menu = `🤖 *VIVI - ASISTEN VIRTUAL VISIBEL* 🤖\n\nHalo! Ada yang bisa saya bantu?\n\n` +
+        `*FITUR KARYAWAN:* \n` +
+        `1️⃣ *!jadwal* - Cek jadwal shift hari ini\n` +
+        `2️⃣ *!konten* - Cek jadwal konten hari ini\n` +
+        `3️⃣ *!absen* - Cek status absensi hari ini\n` +
+        `4️⃣ *!libur* - Cek siapa yang libur hari ini\n\n` +
+        `*AI CHAT:* \n` +
+        `Ketik apapun untuk ngobrol langsung dengan AI (khusus di Grup awali dengan kata "Vivi")`;
+      await sendWahaMessage(fromRaw, menu, company);
+      return res.status(200).json({ status: "success_menu" });
     }
 
-    // ✅ BERIKAN RESPON DI AKHIR (Aman untuk Vercel & Server Biasa)
-    return res.status(200).json({ status: "success" });
+    // Command Jadwal Cepat (Penting untuk efisiensi)
+    if (lowerMsg === '!jadwal' && emp) {
+      const today = new Date().toISOString().split('T')[0];
+      const { data: shiftAssignments } = await supabase.from('shift_assignments').select('*, shifts(*)').eq('employeeId', emp.id).eq('date', today);
+      let reply = `📅 *JADWAL SHIFT HARI INI* 📅\n\nHalo ${emp.nama},\n\n`;
+      if (shiftAssignments && shiftAssignments.length > 0) {
+        shiftAssignments.forEach((a: any) => {
+          reply += `🔹 *${a.shifts?.name || 'Shift'}*\n⏰ ${a.shifts?.startTime || '-'} - ${a.shifts?.endTime || '-'}\n`;
+        });
+      } else {
+        reply += `Anda tidak memiliki jadwal shift hari ini (${today}).`;
+      }
+      await sendWahaMessage(fromRaw, reply, emp.company);
+      return res.status(200).json({ status: "success_jadwal" });
+    }
+
+    if (lowerMsg === '!absen' && emp) {
+      const today = new Date().toISOString().split('T')[0];
+      const { data: attendance } = await supabase.from('attendance').select('*').eq('employeeId', emp.id).eq('date', today).maybeSingle();
+      let reply = `✅ *STATUS ABSENSI HARI INI* ✅\n\nHalo ${emp.nama},\n\n`;
+      if (attendance) {
+        reply += `📍 Status: ${attendance.status}\n🕒 Masuk: ${attendance.clockIn || '-'}\n🕒 Pulang: ${attendance.clockOut || '-'}`;
+      } else {
+        reply += `Anda belum melakukan absensi hari ini (${today}). Jangan lupa absen ya!`;
+      }
+      await sendWahaMessage(fromRaw, reply, emp.company);
+      return res.status(200).json({ status: "success_absen" });
+    }
+
+    if (lowerMsg === '!libur') {
+      const today = new Date().toISOString().split('T')[0];
+      const targetCompany = emp?.company || 'VISIBEL';
+      const { data: allEmployees } = await supabase.from('employees').select('id, nama').eq('company', targetCompany);
+      const { data: assignments } = await supabase.from('shift_assignments').select('employeeId').eq('date', today).eq('company', targetCompany);
+      const assignedEmpIds = new Set(assignments?.map((a: any) => a.employeeId) || []);
+      const offEmployees = allEmployees?.filter((e: any) => !assignedEmpIds.has(e.id)) || [];
+      let reply = `🏖️ *KARYAWAN LIBUR HARI INI* 🏖️\n\nTanggal: ${today}\n\n`;
+      if (offEmployees.length > 0) {
+        offEmployees.forEach((e: any, index: number) => reply += `${index + 1}. ${e.nama}\n`);
+      } else {
+        reply += `Semua karyawan memiliki jadwal hari ini.`;
+      }
+      await sendWahaMessage(fromRaw, reply, targetCompany);
+      return res.status(200).json({ status: "success_libur" });
+    }
+
+    // 3. AI Auto-Reply (Gemini with Tools)
+    // Jika di grup, harus ada trigger. Jika privat, selalu balas.
+    if (isGroup && !isAiTrigger) {
+      return res.status(200).json({ status: "ignored_group_no_trigger" });
+    }
+
+    let processedMsg = message;
+    if (lowerMsg.startsWith('ai ')) processedMsg = message.substring(3).trim();
+    else if (lowerMsg.startsWith('vivi ')) processedMsg = message.substring(5).trim();
+
+    addWahaLog('AI_PROCESSING', { from, message: processedMsg.substring(0, 50) });
+    
+    // Gunakan generateGeminiResponse yang punya Tool Access
+    const aiReply = await generateGeminiResponse(processedMsg, company);
+    
+    if (aiReply) {
+      await sendWahaMessage(fromRaw, aiReply, company);
+      addWahaLog('AI_REPLY_SENT', { to: fromRaw, length: aiReply.length });
+    }
+
+    return res.status(200).json({ status: "success_ai" });
 
   } catch (err: any) {
-    addWahaLog('WEBHOOK_ERROR', { error: err.message, stack: err.stack, from, message });
-    return res.status(200).json({ status: "error", message: err.message });
+    console.error("[WEBHOOK ERROR]", err);
+    addWahaLog('WEBHOOK_ERROR', { error: err.message });
+    return res.status(200).json({ status: "error" });
   }
 });
 
