@@ -644,15 +644,15 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
         </div>
         <div className="bg-[#0f172a] p-4 sm:p-5 rounded-[24px] sm:rounded-[28px] border border-white/5 shadow-xl flex flex-col justify-center col-span-2 lg:col-span-1">
           <p className="text-[7px] sm:text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Total GMV</p>
-          <p className="text-sm sm:text-base font-black text-[#FFC000] truncate">{formatCurrency(filteredReports.reduce((sum, r) => sum + (r.gmv || 0), 0))}</p>
+          <p className="text-sm sm:text-base font-black text-[#FFC000]">{formatCurrency(filteredReports.reduce((sum, r) => sum + (r.gmv || 0), 0))}</p>
         </div>
       </div>
 
       <div className="space-y-4">
         {/* Desktop Table View */}
         <div className="hidden md:block bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto no-scrollbar">
-          <table className="w-full text-left min-w-[850px]">
+        <div className="w-full overflow-hidden">
+          <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50/50 text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
                 {!isPublicView && (
@@ -704,8 +704,8 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                     </td>
                     <td className="px-6 py-5">
                        <div className="flex flex-col gap-0.5">
-                          <p className="text-[10px] font-black text-slate-700 uppercase truncate max-w-[120px]">{host?.nama || '-'}</p>
-                          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter truncate max-w-[120px]">OP: {op?.nama || '-'}</p>
+                          <p className="text-[10px] font-black text-slate-700 uppercase">{host?.nama || '-'}</p>
+                          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">OP: {op?.nama || '-'}</p>
                        </div>
                     </td>
                     <td className="px-6 py-5 text-center">
@@ -717,7 +717,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                        <p className="text-[9px] font-black text-slate-900 mt-0.5">{formatCurrency(report.gmv || 0)}</p>
                     </td>
                     <td className="px-6 py-5">
-                       <p className="text-[10px] font-black text-slate-900 uppercase truncate max-w-[120px]">{report.bestSeller || '-'}</p>
+                       <p className="text-[10px] font-black text-slate-900 uppercase">{report.bestSeller || '-'}</p>
                     </td>
                     <td className="px-6 py-5 text-center">
                        <p className="text-[10px] font-black text-slate-900">{(report.qty || 0).toLocaleString()}</p>
@@ -785,11 +785,11 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                   <div className="col-span-2 grid grid-cols-2 gap-4 bg-slate-50/50 p-4 rounded-2xl">
                     <div className="space-y-1">
                       <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">HOST LIVE</p>
-                      <p className="text-[10px] font-black text-slate-700 uppercase truncate">{host?.nama || '-'}</p>
+                      <p className="text-[10px] font-black text-slate-700 uppercase">{host?.nama || '-'}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">OPERATOR OP</p>
-                      <p className="text-[10px] font-black text-slate-700 uppercase truncate">{op?.nama || '-'}</p>
+                      <p className="text-[10px] font-black text-slate-700 uppercase">{op?.nama || '-'}</p>
                     </div>
                   </div>
 

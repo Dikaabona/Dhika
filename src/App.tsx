@@ -33,7 +33,6 @@ import RecruitmentModule from './components/RecruitmentModule';
 import { InvoiceModule } from './components/InvoiceModule';
 import { AdvertisingModule } from './components/AdvertisingModule';
 import SalesReport from './components/SalesReport';
-import AIAssistantModule from './components/AIAssistantModule';
 import { getTenureYears, calculateTenure, formatDateToYYYYMMDD, getMondayISO } from './utils/dateUtils';
 import { useConfirmation } from './contexts/ConfirmationContext';
 
@@ -1165,7 +1164,6 @@ export const App: React.FC = () => {
         {isHighAdminAccess && (
           <button onClick={() => setActiveTab('settings')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>SETTING</button>
         )}
-        <button onClick={() => setActiveTab('ai_assistant')} className={`px-6 py-3 rounded-full text-[8px] font-bold tracking-widest uppercase whitespace-nowrap transition-all ${activeTab === 'ai_assistant' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>AI ASSISTANT</button>
       </div>
     );
   };
@@ -1438,8 +1436,6 @@ export const App: React.FC = () => {
                   company={userCompany} 
                   onClose={() => setActiveTab('home')} 
                 />
-              ) : activeTab === 'ai_assistant' ? (
-                <AIAssistantModule userCompany={userCompany} userRole={userRole} />
               ) : activeTab === 'submissions' ? (
                 <SubmissionForm employee={currentUserEmployee} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'inbox' ? (
