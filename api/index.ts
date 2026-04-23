@@ -1022,6 +1022,10 @@ app.get("/api/agent/v1", (req, res) => {
       "/api/agent/v1/schedules",
       "/api/agent/v1/reports",
       "/api/agent/v1/brands",
+      "/api/agent/v1/short-video",
+      "/api/agent/v1/advertising",
+      "/api/agent/v1/attendance",
+      "/api/agent/v1/recruitment",
       "/api/agent/v1/logs"
     ]
   });
@@ -1129,6 +1133,79 @@ app.get("/api/agent/v1/brands", agentAuth, async (req, res) => {
     const { data, error } = await supabase.from('settings').select('value').eq('key', `live_brands_${company}`).maybeSingle();
     if (error) throw error;
     res.json(data?.value || []);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/agent/v1/short-video", agentAuth, async (req, res) => {
+  try {
+    const { brand, creatorId, startDate, endDate, limit = 50 } = req.query;
+    let query = supabase.from('content_plans').select('*');
+    
+    if (startDate && endDate) {
+      query = query.gte('postingDate', startDate).lte('postingDate', endDate);
+    }
+    if (brand) query = query.ilike('brand', `%${brand}%`);
+    if (creatorId) query = query.eq('creatorId', creatorId);
+    
+    const { data, error } = await query.order('postingDate', { ascending: false }).limit(Number(limit));
+    if (error) throw error;
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/agent/v1/advertising", agentAuth, async (req, res) => {
+  try {
+    const { brand, startDate, endDate, limit = 50 } = req.query;
+    let query = supabase.from('advertising_records').select('*');
+    
+    if (startDate && endDate) {
+      query = query.gte('date', startDate).lte('date', endDate);
+    }
+    if (brand) query = query.ilike('brand', `%${brand}%`);
+    
+    const { data, error } = await query.order('date', { ascending: false }).limit(Number(limit));
+    if (error) throw error;
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/agent/v1/attendance", agentAuth, async (req, res) => {
+  try {
+    const { employeeId, date, startDate, endDate, limit = 100 } = req.query;
+    let query = supabase.from('attendance').select('*');
+    
+    if (date) {
+      query = query.eq('date', date);
+    } else if (startDate && endDate) {
+      query = query.gte('date', startDate).lte('date', endDate);
+    }
+    if (employeeId) query = query.eq('employeeId', employeeId);
+    
+    const { data, error } = await query.order('date', { ascending: false }).limit(Number(limit));
+    if (error) throw error;
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/agent/v1/recruitment", agentAuth, async (req, res) => {
+  try {
+    const { status, posisi, limit = 50 } = req.query;
+    let query = supabase.from('candidates').select('*');
+    
+    if (status) query = query.eq('status', status);
+    if (posisi) query = query.ilike('posisi', `%${posisi}%`);
+    
+    const { data, error } = await query.order('created_at', { ascending: false }).limit(Number(limit));
+    if (error) throw error;
+    res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
