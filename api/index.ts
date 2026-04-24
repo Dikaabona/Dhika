@@ -336,7 +336,7 @@ async function generateGeminiResponse(userMessage: string, company: string) {
     const knowledgeBase = knowledgeData?.value || `Anda adalah asisten AI untuk ${company}. Berikan informasi yang akurat dan ramah.`;
 
     console.log(`[GEMINI] Generating response for ${company}...`);
-    await addWahaLog('AI_DEBUG', { step: 'START', message: userMessage.substring(0, 50), company });
+    await addWahaLog('AI_DEBUG', { step: 'START_V3', message: userMessage.substring(0, 50), company });
 
     // System Instruction and Tool definition
     const systemInstruction = `
@@ -396,7 +396,7 @@ async function generateGeminiResponse(userMessage: string, company: string) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash", 
+      model: "gemini-3-flash-preview", 
       systemInstruction: systemInstruction 
     });
 
@@ -439,10 +439,7 @@ async function generateGeminiResponse(userMessage: string, company: string) {
       }
 
       console.log(`[GEMINI] Sending tool responses back to model...`);
-      const finalResult = await chat.sendMessage(toolResponses.map(p => ({
-        role: "function",
-        parts: [p]
-      })) as any); // Note: Simplified mapping for SDK chat mode
+      const finalResult = await chat.sendMessage(toolResponses as any);
       
       const finalResponse = finalResult.response;
       console.log(`[GEMINI] Final response received.`);
@@ -487,7 +484,7 @@ async function askGemini(prompt: string, systemContext: string): Promise<string>
 
   try {
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`,
       {
         system_instruction: {
           parts: [{ text: systemContext }]
