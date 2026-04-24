@@ -335,6 +335,9 @@ async function generateGeminiResponse(userMessage: string, company: string) {
 
     const knowledgeBase = knowledgeData?.value || `Anda adalah asisten AI untuk ${company}. Berikan informasi yang akurat dan ramah.`;
 
+    console.log(`[GEMINI] Generating response for ${company}...`);
+    addWahaLog('AI_DEBUG', { step: 'START', message: userMessage.substring(0, 50), company });
+
     const ai = new GoogleGenAI({ apiKey });
     
     // System Instruction and Tool definition
@@ -393,14 +396,18 @@ async function generateGeminiResponse(userMessage: string, company: string) {
       ]
     }];
 
+    console.log(`[GEMINI] Calling ai.models.generateContent...`);
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: userMessage,
+      model: "gemini-1.5-flash", // Switching to 1.5-flash temporarily to rule out model availability issues
+      contents: [{ role: 'user', parts: [{ text: userMessage }] }],
       config: {
         systemInstruction: systemPrompt,
         tools: tools as any
       }
     });
+
+    console.log(`[GEMINI] Response received.`);
+    addWahaLog('AI_DEBUG', { step: 'RESPONSE_RECEIVED', responseText: result.text?.substring(0, 50) });
 
     const calls = result.functionCalls;
 
@@ -432,8 +439,9 @@ async function generateGeminiResponse(userMessage: string, company: string) {
       }
 
       // Add the tool execution result back to conversation
+      console.log(`[GEMINI] Sending tool responses back to model...`);
       const finalResult = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-1.5-flash",
         contents: [
           { role: 'user', parts: [{ text: userMessage }] },
           { role: 'model', parts: calls.map(c => ({ functionCall: c })) },
@@ -445,6 +453,8 @@ async function generateGeminiResponse(userMessage: string, company: string) {
         }
       });
       
+      console.log(`[GEMINI] Final response received.`);
+      addWahaLog('AI_DEBUG', { step: 'FINAL_RESPONSE_RECEIVED', responseText: finalResult.text?.substring(0, 50) });
       return finalResult.text;
     }
 

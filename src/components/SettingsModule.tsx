@@ -24,7 +24,7 @@ interface SettingsModuleProps {
   onRefresh: () => void;
 }
 
-type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT' | 'COMPANY' | 'PAYROLL';
+type SubTab = 'MAPS' | 'ROLE' | 'KPI' | 'DIVISI' | 'LEMBUR' | 'CLIENT' | 'COMPANY' | 'PAYROLL' | 'WAHA';
 
 interface WahaSettings {
   apiUrl: string;
@@ -86,6 +86,63 @@ const getReliableDriveUrl = (url: string) => {
   }
 
   return url;
+};
+
+const WAHALogViewer: React.FC<{ company: string }> = ({ company }) => {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        const { data } = await supabase.from('settings').select('value').eq('key', 'waha_debug_logs').single();
+        if (data && Array.isArray(data.value)) {
+          setLogs(data.value);
+        }
+      } catch (e) {
+        console.error("Failed to fetch WAHA logs:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLogs();
+    const interval = setInterval(fetchLogs, 5000);
+    return () => clearInterval(interval);
+  }, [company]);
+
+  if (loading) return <div className="text-center py-4 text-[10px] font-black text-slate-400 animate-pulse">MEMUAT LOGS...</div>;
+  if (logs.length === 0) return <div className="text-center py-10 opacity-20"><Icons.Database className="w-8 h-8 mx-auto mb-2" /><p className="text-[8px] font-black uppercase tracking-widest">Belum ada aktivitas</p></div>;
+
+  return (
+    <div className="space-y-2">
+      {logs.map((log: any, idx: number) => (
+        <div key={idx} className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
+          <div className="flex justify-between items-center">
+            <span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${
+              log.type === 'MESSAGE_RECEIVED' ? 'bg-blue-100 text-blue-600' :
+              log.type === 'MESSAGE_SENT' ? 'bg-green-100 text-green-600' :
+              log.type === 'WEBHOOK_HIT' ? 'bg-slate-200 text-slate-600' :
+              log.type === 'AI_DEBUG' ? 'bg-purple-100 text-purple-600' :
+              'bg-rose-100 text-rose-600'
+            }`}>
+              {log.type}
+            </span>
+            <span className="text-[7px] font-bold text-slate-400 capitalize">
+              {new Date(log.timestamp).toLocaleTimeString()}
+            </span>
+          </div>
+          <div className="text-[10px] font-medium text-slate-600 truncate">
+            {log.type === 'MESSAGE_RECEIVED' && `From: ${log.data?.from} - "${log.data?.message}"`}
+            {log.type === 'MESSAGE_SENT' && `To: ${log.data?.to} - "${log.data?.message}"`}
+            {log.type === 'AI_DEBUG' && `Step: ${log.data?.step} - ${log.data?.company || ''}`}
+            {log.type === 'WEBHOOK_HIT' && `Source: ${log.data?.url}`}
+            {log.type === 'WEBHOOK_ERROR' && `Error: ${log.data?.error}`}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 };
 
 const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, userEmail, onRefresh }) => {
@@ -812,6 +869,14 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                 DATA CLIENT
               </button>
             )}
+            {canAccessRoleManagement && (
+              <button 
+                onClick={() => setActiveSubTab('WAHA')} 
+                className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'WAHA' ? 'bg-[#0f172a] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                WAHA / WEBHOOK
+              </button>
+            )}
           </div>
         </div>
 
@@ -1455,6 +1520,77 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                 </button>
               </div>
             )}
+          </div>
+        ) : activeSubTab === 'WAHA' ? (
+          <div className="animate-in fade-in duration-300 space-y-12">
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="space-y-2">
+                  <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">WhatsApp / WAHA Integration</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Atur integrasi WhatsApp menggunakan server WAHA.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-8">
+                  <div className="space-y-4">
+                    <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">WhatsApp Webhook</h4>
+                    <p className="text-[10px] text-slate-500 font-medium">Salin URL ini dan tempelkan di menu *Webhooks* pada Dashboard WAHA Anda.</p>
+                    
+                    <div className="flex items-center gap-2 p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                      <div className="flex-grow overflow-hidden">
+                        <code className="text-[10px] font-mono text-slate-600 break-all">
+                          {window.location.origin}/api/webhook/waha?company={isOwner ? selectedCompany : userCompany}
+                        </code>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          const url = `${window.location.origin}/api/webhook/waha?company=${isOwner ? selectedCompany : userCompany}`;
+                          navigator.clipboard.writeText(url);
+                          alert("URL Webhook berhasil disalin!");
+                        }}
+                        className="p-3 bg-[#0f172a] text-[#FFC000] rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg"
+                        title="Salin URL"
+                      >
+                        <Icons.Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 pt-4 border-t border-slate-200">
+                    <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">Petunjuk Pengaturan</h4>
+                    <ul className="space-y-3">
+                      {[
+                        "Buka Dashboard WAHA Anda.",
+                        "Klik menu 'Webhooks' di sidebar.",
+                        "Klik 'Add Webhook'.",
+                        "Tempelkan URL di atas ke field 'Callback URL'.",
+                        "Pastikan 'Event Types' mencentang 'message'.",
+                        "Klik 'Save'."
+                      ].map((step, idx) => (
+                        <li key={idx} className="flex gap-3 text-[10px] text-slate-500 font-medium">
+                          <span className="flex-shrink-0 w-5 h-5 bg-[#0f172a] text-[#FFC000] text-[8px] font-black rounded-full flex items-center justify-center">{idx + 1}</span>
+                          {step}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-6">
+                  <div className="space-y-2">
+                    <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">WAHA Logs (Recent)</h4>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Pantau aktivitas masuk dan keluar sistem WhatsApp.</p>
+                  </div>
+                  
+                  <div className="bg-white rounded-[28px] border border-slate-200 overflow-hidden shadow-sm">
+                    <div className="max-h-[400px] overflow-y-auto p-4 space-y-3 no-scrollbar">
+                      <WAHALogViewer company={isOwner ? selectedCompany : userCompany} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         ) : activeSubTab === 'CLIENT' ? (
           canAccessClientData ? (
