@@ -176,66 +176,45 @@ const WahaSettingsEditor: React.FC<{ company: string; onSave: () => void }> = ({
   };
 
   return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 gap-6">
-        <div className="space-y-2 group">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-            <Icons.Link className="w-3 h-3 text-slate-400" /> API Endpoint URL
-          </label>
-          <div className="relative group/input">
-            <input 
-              type="text" 
-              placeholder="https://your-waha-server.com"
-              value={localSettings.apiUrl} 
-              onChange={e => setLocalSettings({...localSettings, apiUrl: e.target.value})} 
-              className="w-full bg-slate-50 border border-slate-200 px-6 py-4 rounded-[24px] text-[12px] font-bold outline-none focus:ring-4 focus:ring-[#FFC000]/10 focus:border-[#FFC000] focus:bg-white text-slate-900 shadow-sm transition-all placeholder:text-slate-300" 
-            />
-          </div>
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">WAHA API URL</label>
+          <input 
+            type="text" 
+            placeholder="https://your-waha-url.com"
+            value={localSettings.apiUrl} 
+            onChange={e => setLocalSettings({...localSettings, apiUrl: e.target.value})} 
+            className="w-full bg-slate-50 border border-slate-200 px-5 py-3 rounded-2xl text-[11px] font-black outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+          />
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-              <Icons.ShieldCheck className="w-3 h-3 text-slate-400" /> Security Token
-            </label>
-            <div className="relative">
-              <input 
-                type="password" 
-                placeholder="••••••••••••••••"
-                value={localSettings.apiKey} 
-                onChange={e => setLocalSettings({...localSettings, apiKey: e.target.value})} 
-                className="w-full bg-slate-50 border border-slate-200 px-6 py-4 rounded-[24px] text-[12px] font-bold outline-none focus:ring-4 focus:ring-[#FFC000]/10 focus:border-[#FFC000] focus:bg-white text-slate-900 shadow-sm transition-all placeholder:text-slate-300" 
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-              <Icons.Layers className="w-3 h-3 text-slate-400" /> Instance ID
-            </label>
-            <input 
-              type="text" 
-              placeholder="e.g., prod-session"
-              value={localSettings.sessionName} 
-              onChange={e => setLocalSettings({...localSettings, sessionName: e.target.value})} 
-              className="w-full bg-slate-50 border border-slate-200 px-6 py-4 rounded-[24px] text-[12px] font-bold outline-none focus:ring-4 focus:ring-[#FFC000]/10 focus:border-[#FFC000] focus:bg-white text-slate-900 shadow-sm transition-all placeholder:text-slate-300" 
-            />
-          </div>
+        <div className="space-y-1">
+          <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">WAHA API API KEY</label>
+          <input 
+            type="password" 
+            placeholder="Your API Key"
+            value={localSettings.apiKey} 
+            onChange={e => setLocalSettings({...localSettings, apiKey: e.target.value})} 
+            className="w-full bg-slate-50 border border-slate-200 px-5 py-3 rounded-2xl text-[11px] font-black outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">WAHA SESSION NAME</label>
+          <input 
+            type="text" 
+            placeholder="default"
+            value={localSettings.sessionName} 
+            onChange={e => setLocalSettings({...localSettings, sessionName: e.target.value})} 
+            className="w-full bg-slate-50 border border-slate-200 px-5 py-3 rounded-2xl text-[11px] font-black outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+          />
         </div>
       </div>
-
       <button 
         onClick={handleSave}
         disabled={saving}
-        className="group relative w-full overflow-hidden bg-[#0f172a] text-[#FFC000] py-5 rounded-[24px] font-black text-[11px] uppercase tracking-[0.3em] shadow-xl hover:shadow-2xl transition-all duration-500 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-4"
+        className="w-full bg-[#0f172a] text-[#FFC000] py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
       >
-        <div className="absolute inset-0 bg-gradient-to-r from-[#FFC000]/0 via-[#FFC000]/5 to-[#FFC000]/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-        {saving ? (
-          <Icons.Loader2 className="w-5 h-5 animate-spin" />
-        ) : (
-          <Icons.Zap className="w-5 h-5 group-hover:scale-125 transition-transform duration-300" />
-        )}
-        {saving ? 'UPDATING SYSTEMS...' : 'AUTH & SYNC CONFIG'}
+        <Icons.Save className="w-4 h-4" /> {saving ? 'MENYIMPAN...' : 'SIMPAN PENGATURAN'}
       </button>
     </div>
   );
@@ -1618,42 +1597,23 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
             )}
           </div>
         ) : activeSubTab === 'WAHA' ? (
-          <div className="animate-in fade-in zoom-in-95 duration-500 space-y-16">
-            {/* Unified Header with Premium Aesthetic */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-white p-12 rounded-[56px] border border-slate-100 shadow-sm overflow-hidden relative group">
-              <div className="absolute top-0 right-0 w-80 h-80 bg-slate-50 rounded-full blur-3xl opacity-50 -mr-40 -mt-40 group-hover:bg-[#FFC000]/10 transition-colors duration-1000" />
-              <div className="space-y-4 relative z-10">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-[#FFC000] rounded-full animate-pulse" />
-                  <span className="text-[10px] font-black text-[#FFC000] uppercase tracking-[0.4em]">Integrated Communications</span>
+          <div className="animate-in fade-in duration-300 space-y-12">
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="space-y-2">
+                  <h3 className="text-xl font-black text-[#0f172a] uppercase tracking-tight">WhatsApp / WAHA Integration</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Atur integrasi WhatsApp menggunakan server WAHA.</p>
                 </div>
-                <h3 className="text-5xl font-black text-[#0f172a] tracking-tight">WhatsApp / <span className="text-slate-300">WAHA</span></h3>
-                <p className="text-[12px] text-slate-500 font-bold uppercase tracking-widest leading-relaxed max-w-xl">
-                  Automasi operasional bisnis Anda dengan sinkronisasi WhatsApp real-time. Kelola API dan Webhook dengan standar enterprise.
-                </p>
               </div>
-              <div className="relative z-10 hidden md:flex flex-col items-end gap-2 text-right">
-                <div className="bg-slate-900 px-6 py-3 rounded-2xl border-b-4 border-amber-500 shadow-xl">
-                  <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Engine: V3-Enterprise</span>
-                </div>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mr-2">Production Environment</p>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-              {/* Left Column: API Control Center */}
-              <div className="space-y-12">
-                <div className="bg-white p-12 rounded-[56px] border border-slate-100 space-y-12 shadow-sm relative group">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-5">
-                      <div className="bg-slate-900 p-4 rounded-3xl text-[#FFC000] shadow-lg group-hover:rotate-6 transition-transform">
-                        <Icons.Settings2 className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <h4 className="text-[15px] font-black text-slate-900 uppercase tracking-[0.2em]">Konfigurasi API</h4>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 italic">Authorized Access Only</p>
-                      </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* WAHA API Settings */}
+                <div className="bg-white p-8 rounded-[40px] border border-slate-100 space-y-8 shadow-sm">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="bg-slate-900 p-3 rounded-2xl text-[#FFC000]">
+                      <Icons.Database className="w-5 h-5" />
                     </div>
+                    <h4 className="text-[12px] font-black text-slate-900 uppercase tracking-[0.2em]">Konfigurasi API</h4>
                   </div>
                   
                   <WahaSettingsEditor 
@@ -1665,103 +1625,59 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
                   />
                 </div>
 
-                {/* Security Badge */}
-                <div className="bg-emerald-50/50 p-8 rounded-[40px] border border-emerald-100 flex items-start gap-6">
-                  <div className="bg-white p-3 rounded-2xl shadow-sm text-emerald-500">
-                    <Icons.Lock className="w-6 h-6" />
+                <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-8">
+                  <div className="space-y-4">
+                    <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">WhatsApp Webhook</h4>
+                    <p className="text-[10px] text-slate-500 font-medium">Salin URL ini dan tempelkan di menu *Webhooks* pada Dashboard WAHA Anda.</p>
+                    
+                    <div className="flex items-center gap-2 p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                      <div className="flex-grow overflow-hidden">
+                        <code className="text-[10px] font-mono text-slate-600 break-all">
+                          {window.location.origin}/api/webhook/waha?company={isOwner ? selectedCompany : userCompany}
+                        </code>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          const url = `${window.location.origin}/api/webhook/waha?company=${isOwner ? selectedCompany : userCompany}`;
+                          navigator.clipboard.writeText(url);
+                          alert("URL Webhook berhasil disalin!");
+                        }}
+                        className="p-3 bg-[#0f172a] text-[#FFC000] rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg"
+                        title="Salin URL"
+                      >
+                        <Icons.Copy className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
+
+                  <div className="space-y-4 pt-4 border-t border-slate-200">
+                    <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">Petunjuk Pengaturan</h4>
+                    <ul className="space-y-3">
+                      {[
+                        "Buka Dashboard WAHA Anda.",
+                        "Klik menu 'Webhooks' di sidebar.",
+                        "Klik 'Add Webhook'.",
+                        "Tempelkan URL di atas ke field 'Callback URL'.",
+                        "Pastikan 'Event Types' mencentang 'message'.",
+                        "Klik 'Save'."
+                      ].map((step, idx) => (
+                        <li key={idx} className="flex gap-3 text-[10px] text-slate-500 font-medium">
+                          <span className="flex-shrink-0 w-5 h-5 bg-[#0f172a] text-[#FFC000] text-[8px] font-black rounded-full flex items-center justify-center">{idx + 1}</span>
+                          {step}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-6">
                   <div className="space-y-2">
-                    <h5 className="text-[12px] font-black text-emerald-900 uppercase tracking-widest underline decoration-emerald-200 decoration-4 underline-offset-4">Security Protocol</h5>
-                    <p className="text-[11px] text-emerald-800/70 font-bold leading-relaxed">
-                      Token API Anda dienkripsi dan tidak pernah diekspos ke client luar tanpa otentikasi yang valid.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column: Webhook Center */}
-              <div className="space-y-12">
-                <div className="bg-slate-900 p-12 rounded-[56px] border border-slate-800 space-y-12 shadow-2xl relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none group-hover:rotate-12 transition-transform duration-1000">
-                    <Icons.Globe2 className="w-64 h-64 text-white" />
-                  </div>
-
-                  <div className="space-y-10 relative z-10">
-                    <div className="space-y-3">
-                       <h4 className="text-[15px] font-black text-white uppercase tracking-[0.3em]">Integrasi Webhook</h4>
-                       <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest leading-relaxed">Aktifkan sinkronisasi pesan masuk otomatis ke server Anda.</p>
-                    </div>
-
-                    <div className="group/url p-12 bg-black/40 rounded-[48px] border border-white/5 space-y-10 hover:bg-black/60 transition-all">
-                      <div className="flex items-center justify-between px-2">
-                        <span className="text-[10px] font-black text-[#FFC000] uppercase tracking-[0.4em]">Target Endpoint</span>
-                        <div className="flex items-center gap-2">
-                           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                           <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-tighter">Live Listening</span>
-                        </div>
-                      </div>
-
-                      <div className="relative">
-                        <div className="bg-slate-900/80 p-8 rounded-[32px] border border-white/10 group-hover/url:border-[#FFC000]/30 transition-all shadow-inner">
-                          <code className="text-[12px] font-mono text-slate-400 break-all leading-7 tracking-tight">
-                            {window.location.origin}/api/webhook/waha?company={isOwner ? selectedCompany : userCompany}
-                          </code>
-                        </div>
-                        
-                        <button 
-                          onClick={() => {
-                            const url = `${window.location.origin}/api/webhook/waha?company=${isOwner ? selectedCompany : userCompany}`;
-                            navigator.clipboard.writeText(url);
-                            alert("URL Webhook berhasil disalin!");
-                          }}
-                          className="absolute -bottom-8 right-10 p-6 bg-[#FFC000] text-slate-900 rounded-[30px] shadow-[0_20px_60px_rgba(255,192,0,0.4)] hover:scale-110 hover:-translate-y-3 active:scale-95 transition-all duration-500"
-                          title="Click to copy endpoint"
-                        >
-                          <Icons.Copy className="w-6 h-6" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-8 pt-6">
-                      <div className="flex items-center gap-4 px-2">
-                        <h5 className="text-[11px] font-black text-slate-500 uppercase tracking-[0.5em]">Installation Checklist</h5>
-                        <div className="flex-grow h-px bg-white/10" />
-                      </div>
-                      
-                      <div className="grid grid-cols-1 gap-6">
-                        {[
-                          { text: 'Akses administrator dashboard WAHA', icon: 'Shield' },
-                          { text: 'Navigasi ke menu "Webhooks" settings', icon: 'Settings' },
-                          { text: 'Tambahkan Callback URL di kolom yang tersedia', icon: 'Link' },
-                          { text: 'Centang event "message" untuk bot responsif', icon: 'Zap' },
-                          { text: 'Simpan dan mulai otomatisasi pesan Anda', icon: 'CheckCircle' },
-                        ].map((step, idx) => (
-                          <div key={idx} className="flex items-center gap-6 group/step">
-                            <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-[12px] font-black text-[#FFC000] group-hover/step:bg-[#FFC000] group-hover/step:text-slate-900 transition-all duration-500 shadow-xl group-hover/step:shadow-[#FFC000]/20">
-                              {idx + 1}
-                            </div>
-                            <span className="text-[12px] font-bold text-slate-400 group-hover/step:text-white transition-colors duration-300 uppercase tracking-widest leading-none">{step.text}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Log Panel as a Supporting Feature */}
-                <div className="bg-white p-12 rounded-[56px] border border-slate-100 space-y-10 shadow-sm group">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-2">
-                      <h4 className="text-[15px] font-black text-slate-900 uppercase tracking-[0.2em]">Operational Pulse</h4>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Real-time Activity Logs</p>
-                    </div>
-                    <div className="bg-slate-50 p-4 rounded-3xl text-slate-900">
-                       <Icons.Radio className="w-6 h-6 animate-pulse" />
-                    </div>
+                    <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">WAHA Logs (Recent)</h4>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Pantau aktivitas masuk dan keluar sistem WhatsApp.</p>
                   </div>
                   
-                  <div className="bg-slate-50 rounded-[40px] border border-slate-200 overflow-hidden shadow-inner">
-                    <div className="max-h-[500px] overflow-y-auto p-2 no-scrollbar">
+                  <div className="bg-white rounded-[28px] border border-slate-200 overflow-hidden shadow-sm">
+                    <div className="max-h-[400px] overflow-y-auto p-4 space-y-3 no-scrollbar">
                       <WAHALogViewer company={isOwner ? selectedCompany : userCompany} />
                     </div>
                   </div>

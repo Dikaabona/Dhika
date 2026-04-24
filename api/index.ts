@@ -153,35 +153,9 @@ async function addAgentLog(type: string, data: any) {
 
 // Helper to get WAHA settings for a company
 async function getWahaSettings(company: string, incomingSession?: string) {
-  const comp = (company || 'VISIBEL').toUpperCase();
+  const comp = company.toUpperCase();
   
-  // 1. Try to fetch from Supabase (Priority)
-  // Try both original casing and uppercase key
-  try {
-    const keysToTry = [`waha_settings_${company}`, `waha_settings_${comp}`, `waha_settings_${company.toLowerCase()}`];
-    for (const settingsKey of keysToTry) {
-      const { data } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', settingsKey)
-        .maybeSingle();
-      
-      if (data && data.value) {
-        const settings = data.value as { apiUrl: string; apiKey: string; sessionName: string };
-        if (settings.apiUrl) {
-          let apiUrl = settings.apiUrl.trim();
-          if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
-          if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
-          console.log(`[WAHA] Using DB settings for ${company} (Key: ${settingsKey})`);
-          return { ...settings, apiUrl };
-        }
-      }
-    }
-  } catch (err) {
-    console.error(`[WAHA] Error fetching settings for ${company}:`, err);
-  }
-
-  // 2. If incomingSession is provided, try to match by session name from ENV as fallback
+  // 1. If incomingSession is provided, try to match by session name first (Account 2 priority if it matches)
   if (incomingSession) {
     const envUrl1 = process.env.WAHA_API_URL;
     const envSession1 = process.env.WAHA_SESSION_NAME || 'default';
@@ -192,17 +166,39 @@ async function getWahaSettings(company: string, incomingSession?: string) {
       let apiUrl = envUrl2.trim();
       if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
       if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+      console.log(`[WAHA] Matching Account 2 by session: ${incomingSession}`);
       return { apiUrl, apiKey: process.env.WAHA_API_KEY_2, sessionName: envSession2 };
     }
     if (envUrl1 && incomingSession === envSession1) {
       let apiUrl = envUrl1.trim();
       if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
       if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+      console.log(`[WAHA] Matching Account 1 by session: ${incomingSession}`);
       return { apiUrl, apiKey: process.env.WAHA_API_KEY, sessionName: envSession1 };
     }
   }
 
-  // 3. Check Environment Variables for specific company fallback (WAHA_API_URL_VISIBEL etc)
+  // 2. Try to fetch from Supabase (Priority for initiated messages)
+  try {
+    const { data } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', `waha_settings_${company}`)
+      .maybeSingle();
+    
+    if (data && data.value) {
+      const settings = data.value as { apiUrl: string; apiKey: string; sessionName: string };
+      let apiUrl = settings.apiUrl;
+      if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
+      if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+      console.log(`[WAHA] Using DB settings for ${company}`);
+      return { ...settings, apiUrl };
+    }
+  } catch (err) {
+    console.error(`[WAHA] Error fetching settings for ${company}:`, err);
+  }
+
+  // 3. Check Environment Variables for specific company
   const compUrl = process.env[`WAHA_API_URL_${comp}`];
   const compKey = process.env[`WAHA_API_KEY_${comp}`];
   const compSession = process.env[`WAHA_SESSION_NAME_${comp}`];
@@ -211,16 +207,35 @@ async function getWahaSettings(company: string, incomingSession?: string) {
     let apiUrl = compUrl.trim();
     if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
     if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+    console.log(`[WAHA] Using ENV settings for specific company: ${company}`);
     return { apiUrl, apiKey: compKey, sessionName: compSession || 'default' };
   }
 
-  // Account 1 (Standard Global Fallback)
+  // Account 1 (Standard)
   const envUrl = process.env.WAHA_API_URL;
+  const envKey = process.env.WAHA_API_KEY;
+  const envSession = process.env.WAHA_SESSION_NAME || 'default';
+
+  // Account 2
+  const envUrl2 = process.env.WAHA_API_URL_2;
+  const envKey2 = process.env.WAHA_API_KEY_2;
+  const envSession2 = process.env.WAHA_SESSION_NAME_2;
+
+  // Logic to decide between Account 1 and 2 if no specific company settings
+  if (company !== 'VISIBEL' && envUrl2) {
+    let apiUrl = envUrl2.trim();
+    if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
+    if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+    console.log(`[WAHA] Using ENV Account 2 settings for ${company}`);
+    return { apiUrl, apiKey: envKey2, sessionName: envSession2 || 'default' };
+  }
+
   if (envUrl) {
     let apiUrl = envUrl.trim();
     if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
     if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
-    return { apiUrl, apiKey: process.env.WAHA_API_KEY, sessionName: process.env.WAHA_SESSION_NAME || 'default' };
+    console.log(`[WAHA] Using ENV Account 1 settings for ${company}`);
+    return { apiUrl, apiKey: envKey, sessionName: envSession };
   }
 
   console.warn(`[WAHA] No settings found for ${company}`);
@@ -305,44 +320,8 @@ const aiTools = {
   }
 };
 
-// Helper to get recent history for a user from logs
-async function getRecentHistory(from: string, company: string): Promise<any[]> {
-  if (!supabase) return [];
-  try {
-    const { data: existing } = await supabase
-      .from('settings')
-      .select('value')
-      .eq('key', `waha_logs_${company}`)
-      .maybeSingle();
-
-    if (!existing || !Array.isArray(existing.value)) return [];
-
-    // Filter logs for this user and last 10 messages (5 user, 5 AI)
-    // Looking for MESSAGE_RECEIVED (user) and AI_COMPLETED (bot)
-    const userLogs = existing.value
-      .filter((l: any) => l.from === from && (l.type === 'MESSAGE_RECEIVED' || l.type === 'AI_COMPLETED'))
-      .slice(0, 10);
-    
-    // Gemini history expects chronological order (oldest first)
-    const reversedLogs = [...userLogs].reverse();
-
-    const history: any[] = [];
-    for (const log of reversedLogs) {
-      if (log.type === 'MESSAGE_RECEIVED') {
-        history.push({ role: 'user', parts: [{ text: log.message || '' }] });
-      } else if (log.type === 'AI_COMPLETED') {
-        history.push({ role: 'model', parts: [{ text: log.reply || '' }] });
-      }
-    }
-    return history;
-  } catch (err) {
-    console.error("[HISTORY] Error fetching recent history:", err);
-    return [];
-  }
-}
-
 // Helper to generate Gemini response
-async function generateGeminiResponse(userMessage: string, company: string, emp?: any, history: any[] = []) {
+async function generateGeminiResponse(userMessage: string, company: string, emp?: any) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.error("[GEMINI] API Key missing");
@@ -381,30 +360,29 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
       - Peran: ${emp ? (emp.role || 'Karyawan') : 'Bukan Karyawan'}
       - Perusahaan Penanya: ${emp ? (emp.company || company) : 'Eksternal'}
 
-      Instruksi Gaya Bahasa & Format (PENTING):
-      - Nama Anda adalah Vis. Anda adalah rekan kerja yang asik, ramah, dan membantu.
-      - JANGAN perkenalkan diri sebagai bot atau AI.
-      - Gunakan gaya bahasa santai (seperti chat teman/rekan kerja), hangat, dan manusiawi.
-      - DILARANG KERAS menggunakan format teks tebal (bold contoh: **teks**) atau miring (italic contoh: *teks*). Semua tulisan harus teks biasa.
-      
-      ATURAN MENJAWAB (KRUSIAL):
-      - JANGAN PERNAH mengawali jawaban dengan sapaan "hai ka ada yang bisa Vis bantu?" atau "hai ada yang bisa Vis bantu?".
-      - JANGAN PERNAH mengakhiri jawaban dengan kalimat templat seperti "Ada lagi yang bisa Vis bantu?" atau "Ada lagi yang bisa saya bantu?". Ini terlihat sangat seperti robot.
-      - Jika history kosong (ini sapaan pertama), Anda boleh menyapa ramah sekali saja.
-      - Jika history SUDAH berisi percakapan sebelumnya, LANGSUNG jawab inti pertanyaannya saja tanpa berbasa-basi menyapa lagi.
-      
-      Jika Penanya adalah Karyawan Visibel:
-      - Sapa dengan akrab, contoh: "Halo ${emp ? emp.nama : 'kak'}" atau "Eh ${emp ? emp.nama : 'kamu'}, ada apa?".
-      - Berikan opsi bantuan yang spesifik dan langsung hanya di awal percakapan (history kosong).
-      
-      Aturan Jawaban Terima Kasih:
-      - Jika user/karyawan mengucapkan terima kasih (atau variannya), CUKUP balas dengan sapaan balik yang singkat dan ramah seperti "Sama-sama kak!", "Sama-sama ka, semangat kerjanya ya!", "Sip sama-sama!", atau "Siap, kabari Vis lagi aja kalau butuh apa-apa ya!".
-      - JANGAN menambahkan pertanyaan bantuan lagi setelah mengucapkan sama-sama.
+      Instruksi Gaya Bahasa & Format:
+      - Nama Anda adalah Vis.
+      - Gunakan gaya bahasa yang santai, hangat, dan manusiawi (tidak terlihat seperti robot).
+      - DILARANG menggunakan format teks tebal (bold seperti **) atau miring (italic seperti *). Gunakan teks biasa saja.
+      - ATURAN GREETING (SAPAAN):
+        * Gunakan sapaan (seperti "Halo kak" atau "Halo Tim") HANYA jika pesan user mengandung kata sapaan pembuka (contoh: halo, p, pagi, siang, hay) atau jika ini adalah interaksi pertama di sesi ini.
+        * Jika user LANGSUNG bertanya (misal: "cek jadwal live", "berapa GMV hari ini?"), Anda harus LANGSUNG menjawab ke intinya tanpa memberikan sapaan pembuka seperti "hai ka ada yang bisa Vis bantu?".
+        * JANGAN mengulang-ulang kalimat "ada yang bisa Vis bantu?" di setiap jawaban.
+      - Jika penanya adalah KARYAWAN VISIBEL (Identitas Penanya Nama bukan Pelanggan Eksternal):
+        * Jika perlu menyapa, gunakan panggilan akrab seperti "Halo ${emp ? emp.nama : 'kak'}" atau "Halo Tim".
+      - Aturan Jawaban Terima Kasih:
+        * Jika user menyampaikan terima kasih, cukup balas dengan "Sama-sama kak!", "Sama-sama, senang bisa membantu!", atau variasi lainnya yang ramah. 
+        * JANGAN mengakhiri dengan kalimat penawaran bantuan lagi (seperti "ada yang bisa Vis bantu?") jika user sudah berterima kasih.
+      - Aturan Umum:
+        * JANGAN selalu mengakhiri jawaban dengan kalimat yang sama. Buat variasi kalimat penutup yang natural.
       
       Instruksi Operasional:
-      - Jika ditanya lowongan kerja: arahkan ke https://forms.gle/ixfgPRtMV33PCcKt5
-      - Gunakan tools untuk data real-time (Jadwal, GMV, Karyawan).
-      - Selalu sebutkan nominal uang dalam format Rupiah (RP 1.000.000) yang mudah dibaca.
+      - Jika ditanya tentang lowongan kerja, loker, atau pekerjaan oleh siapapun, jawab dengan mengarahkan mereka untuk mengisi formulir ini: https://forms.gle/ixfgPRtMV33PCcKt5
+      - Gunakan tools yang tersedia untuk menjawab pertanyaan tentang jadwal live, GMV, atau data karyawan.
+      - Jika ditanya tentang "GMV" atau "Laporan", gunakan get_live_reports.
+      - Jika ditanya tentang "Jadwal" atau "Siapa yang live", gunakan get_live_schedules.
+      - Berikan jawaban yang ringkas dan profesional dalam Bahasa Indonesia.
+      - Selalu sebutkan nominal uang dalam format Rupiah yang mudah dibaca.
     `;
 
     const tools = [{
@@ -448,7 +426,7 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
 
     console.log(`[GEMINI] Calling model.generateContent...`);
     const chat = model.startChat({
-      history: history,
+      history: [],
       tools: tools as any,
     });
 
@@ -752,11 +730,10 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
     await addWahaLog('AI_START', { from, message: processedMsg.substring(0, 50) });
     
     try {
-      const history = await getRecentHistory(from, company);
-      const aiReply = await generateGeminiResponse(processedMsg, company, emp, history);
+      const aiReply = await generateGeminiResponse(processedMsg, company, emp);
       
       if (aiReply) {
-        await addWahaLog('AI_COMPLETED', { from, message: processedMsg, reply: aiReply, company });
+        await addWahaLog('AI_COMPLETED', { from, reply: aiReply.substring(0, 50) });
         await sendWahaMessage(fromRaw, aiReply, company, session);
         await addWahaLog('AI_REPLY_SENT', { to: fromRaw, length: aiReply.length, session });
       } else {
