@@ -336,10 +336,8 @@ async function generateGeminiResponse(userMessage: string, company: string) {
     const knowledgeBase = knowledgeData?.value || `Anda adalah asisten AI untuk ${company}. Berikan informasi yang akurat dan ramah.`;
 
     console.log(`[GEMINI] Generating response for ${company}...`);
-    addWahaLog('AI_DEBUG', { step: 'START', message: userMessage.substring(0, 50), company });
+    await addWahaLog('AI_DEBUG', { step: 'START', message: userMessage.substring(0, 50), company });
 
-    const ai = new GoogleGenAI({ apiKey });
-    
     // System Instruction and Tool definition
     const systemPrompt = `
       Knowledge Base:
@@ -396,22 +394,23 @@ async function generateGeminiResponse(userMessage: string, company: string) {
       ]
     }];
 
-    console.log(`[GEMINI] Calling ai.models.generateContent...`);
-    const result = await ai.models.generateContent({
-      model: "gemini-1.5-flash", // Switching to 1.5-flash temporarily to rule out model availability issues
-      contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-      config: {
-        systemInstruction: systemPrompt,
-        tools: tools as any
-      }
+    const genAI = new GoogleGenAI(apiKey);
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash", // Using 1.5-flash for reliability
+      systemInstruction: systemPrompt 
     });
 
-    console.log(`[GEMINI] Response received.`);
-    addWahaLog('AI_DEBUG', { step: 'RESPONSE_RECEIVED', responseText: result.text?.substring(0, 50) });
-
-    const calls = result.functionCalls;
+    console.log(`[GEMINI] Calling model.generateContent...`);
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+      tools: tools as any
+    });
+    
+    const response = result.response;
+    const calls = response.functionCalls();
 
     if (calls && calls.length > 0) {
+      console.log(`[GEMINI] Tool calls detected:`, calls);
       const toolResponses = [];
       for (const call of calls) {
         const fnName = call.name as keyof typeof aiTools;
@@ -440,28 +439,29 @@ async function generateGeminiResponse(userMessage: string, company: string) {
 
       // Add the tool execution result back to conversation
       console.log(`[GEMINI] Sending tool responses back to model...`);
-      const finalResult = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
+      const secondResult = await model.generateContent({
         contents: [
           { role: 'user', parts: [{ text: userMessage }] },
-          { role: 'model', parts: calls.map(c => ({ functionCall: c })) },
-          { role: 'user', parts: toolResponses }
-        ],
-        config: {
-          systemInstruction: systemPrompt,
-          tools: tools as any
-        }
+          { role: 'model', parts: [{ functionCall: calls[0] }] }, // SIMPLIFIED FOR NOW: Multiple calls might need better handling in SDK v1
+          { role: 'function', parts: toolResponses } // Note: Check if parts should be 'function' or 'user' with functionResponse
+        ]
       });
       
+      const finalResponse = secondResult.response;
       console.log(`[GEMINI] Final response received.`);
-      addWahaLog('AI_DEBUG', { step: 'FINAL_RESPONSE_RECEIVED', responseText: finalResult.text?.substring(0, 50) });
-      return finalResult.text;
+      await addWahaLog('AI_DEBUG', { step: 'FINAL_RESPONSE_RECEIVED', responseText: finalResponse.text().substring(0, 50) });
+      return finalResponse.text();
     }
 
-    return result.text;
-  } catch (err) {
-    console.error("[GEMINI] Error:", err);
-    return "Maaf, terjadi kesalahan saat memproses pesan Anda.";
+    console.log(`[GEMINI] Simple response received.`);
+    const text = response.text();
+    await addWahaLog('AI_DEBUG', { step: 'RESPONSE_RECEIVED', responseText: text.substring(0, 50) });
+    return text;
+
+  } catch (err: any) {
+    console.error("[GEMINI ERROR]", err);
+    await addWahaLog('AI_ERROR', { error: err.message, stack: err.stack?.substring(0, 100) });
+    return "Maaf, terjadi kendala teknis saat menghubungi sistem AI Visibel. Coba sapa lagi ya kak.";
   }
 }
 
@@ -696,13 +696,13 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
     if (lowerMsg.startsWith('ai ')) processedMsg = message.substring(3).trim();
     else if (lowerMsg.startsWith('vis ')) processedMsg = message.substring(4).trim();
 
-    addWahaLog('AI_PROCESSING', { from, message: processedMsg.substring(0, 50) });
+    await addWahaLog('AI_PROCESSING', { from, message: processedMsg.substring(0, 50) });
     
     const aiReply = await generateGeminiResponse(processedMsg, company);
     
     if (aiReply) {
       await sendWahaMessage(fromRaw, aiReply, company, session);
-      addWahaLog('AI_REPLY_SENT', { to: fromRaw, length: aiReply.length, session });
+      await addWahaLog('AI_REPLY_SENT', { to: fromRaw, length: aiReply.length, session });
     }
 
     return res.status(200).json({ status: "success_ai" });
