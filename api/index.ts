@@ -152,21 +152,33 @@ async function addAgentLog(type: string, data: any) {
 }
 
 // Helper to get WAHA settings for a company
-async function getWahaSettings(company: string) {
-  // First check environment variables (as default/global)
-  const envUrl = process.env.WAHA_API_URL;
-  const envKey = process.env.WAHA_API_KEY;
-  const envSession = process.env.WAHA_SESSION_NAME || 'default';
+async function getWahaSettings(company: string, incomingSession?: string) {
+  const comp = company.toUpperCase();
+  
+  // 1. If incomingSession is provided, try to match by session name first (Account 2 priority if it matches)
+  if (incomingSession) {
+    const envUrl1 = process.env.WAHA_API_URL;
+    const envSession1 = process.env.WAHA_SESSION_NAME || 'default';
+    const envUrl2 = process.env.WAHA_API_URL_2;
+    const envSession2 = process.env.WAHA_SESSION_NAME_2;
 
-  if (envUrl) {
-    let apiUrl = envUrl.trim();
-    if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
-    if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
-    console.log(`[WAHA] Using ENV settings for ${company}`);
-    return { apiUrl, apiKey: envKey, sessionName: envSession };
+    if (envUrl2 && incomingSession === envSession2) {
+      let apiUrl = envUrl2.trim();
+      if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
+      if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+      console.log(`[WAHA] Matching Account 2 by session: ${incomingSession}`);
+      return { apiUrl, apiKey: process.env.WAHA_API_KEY_2, sessionName: envSession2 };
+    }
+    if (envUrl1 && incomingSession === envSession1) {
+      let apiUrl = envUrl1.trim();
+      if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
+      if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+      console.log(`[WAHA] Matching Account 1 by session: ${incomingSession}`);
+      return { apiUrl, apiKey: process.env.WAHA_API_KEY, sessionName: envSession1 };
+    }
   }
 
-  // Otherwise fetch from Supabase
+  // 2. Try to fetch from Supabase (Priority for initiated messages)
   try {
     const { data } = await supabase
       .from('settings')
@@ -182,16 +194,57 @@ async function getWahaSettings(company: string) {
       console.log(`[WAHA] Using DB settings for ${company}`);
       return { ...settings, apiUrl };
     }
-    console.warn(`[WAHA] No settings found for ${company}`);
   } catch (err) {
     console.error(`[WAHA] Error fetching settings for ${company}:`, err);
   }
+
+  // 3. Check Environment Variables for specific company
+  const compUrl = process.env[`WAHA_API_URL_${comp}`];
+  const compKey = process.env[`WAHA_API_KEY_${comp}`];
+  const compSession = process.env[`WAHA_SESSION_NAME_${comp}`];
+
+  if (compUrl) {
+    let apiUrl = compUrl.trim();
+    if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
+    if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+    console.log(`[WAHA] Using ENV settings for specific company: ${company}`);
+    return { apiUrl, apiKey: compKey, sessionName: compSession || 'default' };
+  }
+
+  // Account 1 (Standard)
+  const envUrl = process.env.WAHA_API_URL;
+  const envKey = process.env.WAHA_API_KEY;
+  const envSession = process.env.WAHA_SESSION_NAME || 'default';
+
+  // Account 2
+  const envUrl2 = process.env.WAHA_API_URL_2;
+  const envKey2 = process.env.WAHA_API_KEY_2;
+  const envSession2 = process.env.WAHA_SESSION_NAME_2;
+
+  // Logic to decide between Account 1 and 2 if no specific company settings
+  if (company !== 'VISIBEL' && envUrl2) {
+    let apiUrl = envUrl2.trim();
+    if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
+    if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+    console.log(`[WAHA] Using ENV Account 2 settings for ${company}`);
+    return { apiUrl, apiKey: envKey2, sessionName: envSession2 || 'default' };
+  }
+
+  if (envUrl) {
+    let apiUrl = envUrl.trim();
+    if (apiUrl.endsWith('/dashboard')) apiUrl = apiUrl.replace('/dashboard', '');
+    if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+    console.log(`[WAHA] Using ENV Account 1 settings for ${company}`);
+    return { apiUrl, apiKey: envKey, sessionName: envSession };
+  }
+
+  console.warn(`[WAHA] No settings found for ${company}`);
   return null;
 }
 
 // Helper to send WAHA message
-async function sendWahaMessage(to: string, message: string, company: string = 'VISIBEL') {
-  const settings = await getWahaSettings(company);
+async function sendWahaMessage(to: string, message: string, company: string = 'VISIBEL', incomingSession?: string) {
+  const settings = await getWahaSettings(company, incomingSession);
 
   if (!settings || !settings.apiUrl) {
     console.warn(`WAHA not configured for company: ${company}`);
@@ -280,7 +333,7 @@ async function generateGeminiResponse(userMessage: string, company: string) {
       .eq('key', `gemini_knowledge_base_${company}`)
       .maybeSingle();
 
-    const knowledgeBase = knowledgeData?.value || "Anda adalah asisten AI untuk Visibel Agency. Berikan informasi yang akurat dan ramah.";
+    const knowledgeBase = knowledgeData?.value || `Anda adalah asisten AI untuk ${company}. Berikan informasi yang akurat dan ramah.`;
 
     const ai = new GoogleGenAI({ apiKey });
     
@@ -291,9 +344,15 @@ async function generateGeminiResponse(userMessage: string, company: string) {
       
       Konteks Sekarang:
       Waktu Server: ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB
+      Nama Perusahaan: ${company}
       
       Instruksi:
-      - Anda adalah asisten AI Visibel Agency.
+      - Anda adalah Vis, asisten AI dari ${company}.
+      - ATURAN GREETING (PENTING):
+        * Jika pengirim BUKAN karyawan VISIBEL (Identified as external), sapa dengan: "hai ka ada yang bisa Vis bantu?".
+        * Jika pengirim ADALAH karyawan VISIBEL, sapa dengan: "Halo Tim, Vis siap bantu nih semua kebutuhan kamu. butuh apa nih?".
+      - Jika ditanya tentang lowongan kerja, loker, atau pekerjaan oleh siapapun, jawab dengan mengarahkan mereka untuk mengisi formulir ini: https://forms.gle/ixfgPRtMV33PCcKt5
+      - Kebutuhan Karyawan: Jika karyawan VISIBEL bertanya tentang "Libur", informasikan jadwal libur mereka berdasarkan data yang ada.
       - Gunakan tools yang tersedia untuk menjawab pertanyaan tentang jadwal live, GMV, atau data karyawan.
       - Jika ditanya tentang "GMV" atau "Laporan", gunakan get_live_reports.
       - Jika ditanya tentang "Jadwal" atau "Siapa yang live", gunakan get_live_schedules.
@@ -530,6 +589,7 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
 
   const body = req.body || {};
   const event = body.event;
+  const session = body.session; // Capture WAHA session name
   
   // Hanya proses event 'message'
   if (event !== 'message' && event !== 'message.upsert') {
@@ -551,7 +611,7 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
     return res.status(200).json({ status: "ignored_incomplete" });
   }
 
-  addWahaLog('MESSAGE_RECEIVED', { from, message });
+  addWahaLog('MESSAGE_RECEIVED', { from, message, session });
 
   try {
     if (!supabase) throw new Error("Supabase not initialized");
@@ -568,25 +628,14 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
     });
 
     const lowerMsg = message.toLowerCase().trim();
-    const company = emp?.company || 'VISIBEL';
+    // Prioritize query param, then employee's company, then default
+    const company = (req.query.company as string) || emp?.company || 'VISIBEL';
     const isGroup = fromRaw.endsWith('@g.us');
-    const isAiTrigger = lowerMsg.startsWith('ai ') || lowerMsg.startsWith('vivi ') || lowerMsg === 'ai' || lowerMsg.includes('@ai');
-
-    // 2. Command Sederhana (Pre-AI)
-    if (lowerMsg === '!menu' || lowerMsg === 'p' || lowerMsg === 'halo' || lowerMsg === 'vivi') {
-      const menu = `🤖 *VIVI - ASISTEN VIRTUAL VISIBEL* 🤖\n\nHalo! Ada yang bisa saya bantu?\n\n` +
-        `*FITUR KARYAWAN:* \n` +
-        `1️⃣ *!jadwal* - Cek jadwal shift hari ini\n` +
-        `2️⃣ *!konten* - Cek jadwal konten hari ini\n` +
-        `3️⃣ *!absen* - Cek status absensi hari ini\n` +
-        `4️⃣ *!libur* - Cek siapa yang libur hari ini\n\n` +
-        `*AI CHAT:* \n` +
-        `Ketik apapun untuk ngobrol langsung dengan AI (khusus di Grup awali dengan kata "Vivi")`;
-      await sendWahaMessage(fromRaw, menu, company);
-      return res.status(200).json({ status: "success_menu" });
+    if (isGroup) {
+      return res.status(200).json({ status: "ignored_group" });
     }
 
-    // Command Jadwal Cepat (Penting untuk efisiensi)
+    // 2. Command Sederhana (Prioritas untuk Karyawan)
     if (lowerMsg === '!jadwal' && emp) {
       const today = new Date().toISOString().split('T')[0];
       const { data: shiftAssignments } = await supabase.from('shift_assignments').select('*, shifts(*)').eq('employeeId', emp.id).eq('date', today);
@@ -598,7 +647,7 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
       } else {
         reply += `Anda tidak memiliki jadwal shift hari ini (${today}).`;
       }
-      await sendWahaMessage(fromRaw, reply, emp.company);
+      await sendWahaMessage(fromRaw, reply, emp.company, session);
       return res.status(200).json({ status: "success_jadwal" });
     }
 
@@ -611,7 +660,7 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
       } else {
         reply += `Anda belum melakukan absensi hari ini (${today}). Jangan lupa absen ya!`;
       }
-      await sendWahaMessage(fromRaw, reply, emp.company);
+      await sendWahaMessage(fromRaw, reply, emp.company, session);
       return res.status(200).json({ status: "success_absen" });
     }
 
@@ -628,28 +677,22 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
       } else {
         reply += `Semua karyawan memiliki jadwal hari ini.`;
       }
-      await sendWahaMessage(fromRaw, reply, targetCompany);
+      await sendWahaMessage(fromRaw, reply, targetCompany, session);
       return res.status(200).json({ status: "success_libur" });
     }
 
-    // 3. AI Auto-Reply (Gemini with Tools)
-    // Jika di grup, harus ada trigger. Jika privat, selalu balas.
-    if (isGroup && !isAiTrigger) {
-      return res.status(200).json({ status: "ignored_group_no_trigger" });
-    }
-
+    // 3. AI Fallback (Untuk semua chat pribadi)
     let processedMsg = message;
     if (lowerMsg.startsWith('ai ')) processedMsg = message.substring(3).trim();
-    else if (lowerMsg.startsWith('vivi ')) processedMsg = message.substring(5).trim();
+    else if (lowerMsg.startsWith('vis ')) processedMsg = message.substring(4).trim();
 
     addWahaLog('AI_PROCESSING', { from, message: processedMsg.substring(0, 50) });
     
-    // Gunakan generateGeminiResponse yang punya Tool Access
     const aiReply = await generateGeminiResponse(processedMsg, company);
     
     if (aiReply) {
-      await sendWahaMessage(fromRaw, aiReply, company);
-      addWahaLog('AI_REPLY_SENT', { to: fromRaw, length: aiReply.length });
+      await sendWahaMessage(fromRaw, aiReply, company, session);
+      addWahaLog('AI_REPLY_SENT', { to: fromRaw, length: aiReply.length, session });
     }
 
     return res.status(200).json({ status: "success_ai" });
@@ -1133,6 +1176,79 @@ app.get("/api/agent/v1/brands", agentAuth, async (req, res) => {
     const { data, error } = await supabase.from('settings').select('value').eq('key', `live_brands_${company}`).maybeSingle();
     if (error) throw error;
     res.json(data?.value || []);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/agent/v1/short-video", agentAuth, async (req, res) => {
+  try {
+    const { brand, creatorId, startDate, endDate, limit = 50 } = req.query;
+    let query = supabase.from('content_plans').select('*');
+    
+    if (startDate && endDate) {
+      query = query.gte('postingDate', startDate).lte('postingDate', endDate);
+    }
+    if (brand) query = query.ilike('brand', `%${brand}%`);
+    if (creatorId) query = query.eq('creatorId', creatorId);
+    
+    const { data, error } = await query.order('postingDate', { ascending: false }).limit(Number(limit));
+    if (error) throw error;
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/agent/v1/advertising", agentAuth, async (req, res) => {
+  try {
+    const { brand, startDate, endDate, limit = 50 } = req.query;
+    let query = supabase.from('advertising_records').select('*');
+    
+    if (startDate && endDate) {
+      query = query.gte('date', startDate).lte('date', endDate);
+    }
+    if (brand) query = query.ilike('brand', `%${brand}%`);
+    
+    const { data, error } = await query.order('date', { ascending: false }).limit(Number(limit));
+    if (error) throw error;
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/agent/v1/attendance", agentAuth, async (req, res) => {
+  try {
+    const { employeeId, date, startDate, endDate, limit = 100 } = req.query;
+    let query = supabase.from('attendance').select('*');
+    
+    if (date) {
+      query = query.eq('date', date);
+    } else if (startDate && endDate) {
+      query = query.gte('date', startDate).lte('date', endDate);
+    }
+    if (employeeId) query = query.eq('employeeId', employeeId);
+    
+    const { data, error } = await query.order('date', { ascending: false }).limit(Number(limit));
+    if (error) throw error;
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/agent/v1/recruitment", agentAuth, async (req, res) => {
+  try {
+    const { status, posisi, limit = 50 } = req.query;
+    let query = supabase.from('candidates').select('*');
+    
+    if (status) query = query.eq('status', status);
+    if (posisi) query = query.ilike('posisi', `%${posisi}%`);
+    
+    const { data, error } = await query.order('created_at', { ascending: false }).limit(Number(limit));
+    if (error) throw error;
+    res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
