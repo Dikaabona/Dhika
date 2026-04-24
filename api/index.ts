@@ -253,21 +253,23 @@ async function sendWahaMessage(to: string, message: string, company: string = 'V
 
   const { apiUrl, apiKey, sessionName } = settings;
 
-  // Format number: remove +, ensure it ends with @c.us, handle leading 0 for Indonesia
-  let cleaned = to.replace(/\D/g, ''); // Remove all non-digits
-  if (cleaned.startsWith('0')) {
-    cleaned = '62' + cleaned.substring(1);
-  }
-  // If it's a standard Indonesian number without 62, add it
-  if (cleaned.length >= 9 && cleaned.length <= 13 && !cleaned.startsWith('62')) {
-    cleaned = '62' + cleaned;
+  // Decide if we should clean the number or use as is
+  let chatId = to;
+
+  // If "to" already looks like a complete JID (contains @), we check if it's a type we should handle
+  // Otherwise if it's just raw digits or needs formatting:
+  if (!to.includes('@')) {
+    let cleaned = to.replace(/\D/g, ''); // Remove all non-digits
+    if (cleaned.startsWith('0')) {
+      cleaned = '62' + cleaned.substring(1);
+    }
+    // If it's a standard Indonesian number without 62, add it
+    if (cleaned.length >= 9 && cleaned.length <= 13 && !cleaned.startsWith('62')) {
+      cleaned = '62' + cleaned;
+    }
+    chatId = `${cleaned}@c.us`;
   }
   
-  let chatId = cleaned;
-  if (chatId && !chatId.includes('@')) {
-    chatId = `${chatId}@c.us`;
-  }
-
   if (!chatId || chatId === '@c.us') {
     console.warn(`Invalid phone number for WAHA: ${to}`);
     return;
@@ -284,12 +286,12 @@ async function sendWahaMessage(to: string, message: string, company: string = 'V
         'Content-Type': 'application/json'
       }
     });
-    console.log(`WAHA message sent to ${chatId} (${company})`);
-    addWahaLog('MESSAGE_SENT', { to: chatId, company, message: message.substring(0, 50) });
+    console.log(`WAHA message sent to ${chatId} (${company}, session: ${sessionName})`);
+    addWahaLog('MESSAGE_SENT', { to: chatId, company, session: sessionName, message: message.substring(0, 50) });
   } catch (err: any) {
     const errorMsg = err.response?.data || err.message;
-    console.error(`Error sending WAHA message (${company}):`, errorMsg);
-    addWahaLog('MESSAGE_ERROR', { to: chatId, error: errorMsg, company, message: message.substring(0, 50) });
+    console.error(`Error sending WAHA message (${company}, session: ${sessionName}):`, errorMsg);
+    addWahaLog('MESSAGE_ERROR', { to: chatId, error: errorMsg, company, session: sessionName, message: message.substring(0, 50) });
   }
 }
 
@@ -514,10 +516,12 @@ async function askGemini(prompt: string, systemContext: string): Promise<string>
 // HELPER: Ekstrak phone number dari payload WAHA (LID support)
 // ============================================================
 function extractPhoneNumber(payload: any, from: string | null): string | null {
-  // Step 1: Kumpulkan semua kandidat ID dari berbagai field WAHA
+  // Step 1: Kumpulkan semua kandidat ID dari berbagai field WAHA (termasuk Alt fields untuk LID support)
   const candidates = [
     payload.participantAlt,
     payload.remoteJidAlt,
+    payload._data?.Info?.SenderAlt, // GOWS/WAHA specific candidate
+    payload._data?.Info?.RecipientAlt,
     payload._data?.key?.participantAlt,
     payload._data?.key?.remoteJidAlt,
     payload._data?.remoteJidAlt,
@@ -528,29 +532,42 @@ function extractPhoneNumber(payload: any, from: string | null): string | null {
 
   let phoneDigits = '';
 
-  // Step 2: Cari kandidat pertama yang benar-benar berisi angka nomor telepon (62...)
-  // Kita abaikan LID (yang biasanya diawali angka 1 atau format aneh lain yang bukan kode negara)
+  // Step 2: Cari kandidat pertama yang benar-benar berisi angka nomor telepon asli (62...)
   for (const candidate of candidates) {
     if (!candidate) continue;
-    const digits = candidate.split('@')[0].replace(/\D/g, '');
+    const jid = String(candidate);
+    const digits = jid.split('@')[0].replace(/\D/g, '');
     
-    // Nomor WA asli Indonesia biasanya 10-13 digit dan diawali 62 atau 0
-    if (digits && digits.length >= 10 && (digits.startsWith('62') || digits.startsWith('0'))) {
+    // Prioritas: Nomor asli biasanya diawali 62 atau 0 dan bukan LID
+    if (digits && digits.length >= 10 && digits.length <= 15 && (digits.startsWith('62') || digits.startsWith('0'))) {
       phoneDigits = digits;
       break; 
     }
-    
-    // Fallback: simpan sisa digits jika belum ada yang cocok
-    if (!phoneDigits && digits) phoneDigits = digits;
   }
 
-  // Step 3: Normalisasi 0 → 62
+  // Step 3: Jika tidak ketemu yang 62/0, cari yang penting ada angka (dan bukan LID)
+  if (!phoneDigits) {
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      const jid = String(candidate);
+      const digits = jid.split('@')[0].replace(/\D/g, '');
+      if (digits && digits.length >= 5 && !jid.includes('@lid')) {
+        phoneDigits = digits;
+        break;
+      }
+    }
+  }
+
+  // Step 4: Normalisasi 0 → 62
   if (phoneDigits.startsWith('0')) {
     phoneDigits = '62' + phoneDigits.substring(1);
   }
 
-  // Step 4: Validasi hasil akhir
-  if (!phoneDigits || phoneDigits.length < 5) return null;
+  // Step 5: Validasi hasil akhir
+  if (!phoneDigits || phoneDigits.length < 5) {
+    if (from && from.includes('@c.us')) return from;
+    return null;
+  }
 
   return `${phoneDigits}@c.us`;
 }

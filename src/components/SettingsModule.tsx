@@ -145,6 +145,81 @@ const WAHALogViewer: React.FC<{ company: string }> = ({ company }) => {
   );
 };
 
+const WahaSettingsEditor: React.FC<{ company: string; onSave: () => void }> = ({ company, onSave }) => {
+  const [localSettings, setLocalSettings] = useState<WahaSettings>({ apiUrl: '', apiKey: '', sessionName: '' });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const fetchWahaSettings = async () => {
+      const { data } = await supabase.from('settings').select('value').eq('key', `waha_settings_${company}`).single();
+      if (data && data.value) {
+        setLocalSettings(data.value);
+      }
+    };
+    fetchWahaSettings();
+  }, [company]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('settings').upsert({
+        key: `waha_settings_${company}`,
+        value: localSettings
+      }, { onConflict: 'key' });
+      if (error) throw error;
+      onSave();
+    } catch (e: any) {
+      alert("Error: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">WAHA API URL</label>
+          <input 
+            type="text" 
+            placeholder="https://your-waha-url.com"
+            value={localSettings.apiUrl} 
+            onChange={e => setLocalSettings({...localSettings, apiUrl: e.target.value})} 
+            className="w-full bg-slate-50 border border-slate-200 px-5 py-3 rounded-2xl text-[11px] font-black outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">WAHA API API KEY</label>
+          <input 
+            type="password" 
+            placeholder="Your API Key"
+            value={localSettings.apiKey} 
+            onChange={e => setLocalSettings({...localSettings, apiKey: e.target.value})} 
+            className="w-full bg-slate-50 border border-slate-200 px-5 py-3 rounded-2xl text-[11px] font-black outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">WAHA SESSION NAME</label>
+          <input 
+            type="text" 
+            placeholder="default"
+            value={localSettings.sessionName} 
+            onChange={e => setLocalSettings({...localSettings, sessionName: e.target.value})} 
+            className="w-full bg-slate-50 border border-slate-200 px-5 py-3 rounded-2xl text-[11px] font-black outline-none focus:ring-4 focus:ring-[#FFC000]/10 text-black shadow-sm" 
+          />
+        </div>
+      </div>
+      <button 
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full bg-[#0f172a] text-[#FFC000] py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+      >
+        <Icons.Save className="w-4 h-4" /> {saving ? 'MENYIMPAN...' : 'SIMPAN PENGATURAN'}
+      </button>
+    </div>
+  );
+};
+
 const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, userEmail, onRefresh }) => {
   const { confirm } = useConfirmation();
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('ROLE');
@@ -1532,6 +1607,24 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ userRole, userCompany, 
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* WAHA API Settings */}
+                <div className="bg-white p-8 rounded-[40px] border border-slate-100 space-y-8 shadow-sm">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="bg-slate-900 p-3 rounded-2xl text-[#FFC000]">
+                      <Icons.Database className="w-5 h-5" />
+                    </div>
+                    <h4 className="text-[12px] font-black text-slate-900 uppercase tracking-[0.2em]">Konfigurasi API</h4>
+                  </div>
+                  
+                  <WahaSettingsEditor 
+                    company={isOwner ? selectedCompany : userCompany} 
+                    onSave={() => {
+                        alert("Pengaturan WAHA berhasil disimpan!");
+                        onRefresh();
+                    }}
+                  />
+                </div>
+
                 <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100 space-y-8">
                   <div className="space-y-4">
                     <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">WhatsApp Webhook</h4>
