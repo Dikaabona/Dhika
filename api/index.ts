@@ -8,7 +8,7 @@ import axios from "axios";
 import cron from "node-cron";
 import { createClient } from "@supabase/supabase-js";
 import { Buffer } from "buffer";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 dotenv.config();
 
@@ -339,7 +339,7 @@ async function generateGeminiResponse(userMessage: string, company: string) {
     await addWahaLog('AI_DEBUG', { step: 'START', message: userMessage.substring(0, 50), company });
 
     // System Instruction and Tool definition
-    const systemPrompt = `
+    const systemInstruction = `
       Knowledge Base:
       ${knowledgeBase}
       
@@ -394,19 +394,21 @@ async function generateGeminiResponse(userMessage: string, company: string) {
       ]
     }];
 
-    const genAI = new GoogleGenAI(apiKey);
+    const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash", // Using 1.5-flash for reliability
-      systemInstruction: systemPrompt 
+      model: "gemini-1.5-flash", 
+      systemInstruction: systemInstruction 
     });
 
     console.log(`[GEMINI] Calling model.generateContent...`);
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-      tools: tools as any
+    const chat = model.startChat({
+      history: [],
+      tools: tools as any,
     });
-    
+
+    const result = await chat.sendMessage(userMessage);
     const response = result.response;
+    const text = response.text();
     const calls = response.functionCalls();
 
     if (calls && calls.length > 0) {
@@ -415,7 +417,6 @@ async function generateGeminiResponse(userMessage: string, company: string) {
       for (const call of calls) {
         const fnName = call.name as keyof typeof aiTools;
         const fnArgs = call.args;
-        
         console.log(`[GEMINI TOOL] Calling ${fnName} with`, fnArgs);
         
         try {
@@ -437,24 +438,18 @@ async function generateGeminiResponse(userMessage: string, company: string) {
         }
       }
 
-      // Add the tool execution result back to conversation
       console.log(`[GEMINI] Sending tool responses back to model...`);
-      const secondResult = await model.generateContent({
-        contents: [
-          { role: 'user', parts: [{ text: userMessage }] },
-          { role: 'model', parts: [{ functionCall: calls[0] }] }, // SIMPLIFIED FOR NOW: Multiple calls might need better handling in SDK v1
-          { role: 'function', parts: toolResponses } // Note: Check if parts should be 'function' or 'user' with functionResponse
-        ]
-      });
+      const finalResult = await chat.sendMessage(toolResponses.map(p => ({
+        role: "function",
+        parts: [p]
+      })) as any); // Note: Simplified mapping for SDK chat mode
       
-      const finalResponse = secondResult.response;
+      const finalResponse = finalResult.response;
       console.log(`[GEMINI] Final response received.`);
       await addWahaLog('AI_DEBUG', { step: 'FINAL_RESPONSE_RECEIVED', responseText: finalResponse.text().substring(0, 50) });
       return finalResponse.text();
     }
 
-    console.log(`[GEMINI] Simple response received.`);
-    const text = response.text();
     await addWahaLog('AI_DEBUG', { step: 'RESPONSE_RECEIVED', responseText: text.substring(0, 50) });
     return text;
 
@@ -696,13 +691,26 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
     if (lowerMsg.startsWith('ai ')) processedMsg = message.substring(3).trim();
     else if (lowerMsg.startsWith('vis ')) processedMsg = message.substring(4).trim();
 
-    await addWahaLog('AI_PROCESSING', { from, message: processedMsg.substring(0, 50) });
+    await addWahaLog('AI_START', { from, message: processedMsg.substring(0, 50) });
     
-    const aiReply = await generateGeminiResponse(processedMsg, company);
-    
-    if (aiReply) {
-      await sendWahaMessage(fromRaw, aiReply, company, session);
-      await addWahaLog('AI_REPLY_SENT', { to: fromRaw, length: aiReply.length, session });
+    try {
+      const aiReply = await generateGeminiResponse(processedMsg, company);
+      
+      if (aiReply) {
+        await addWahaLog('AI_COMPLETED', { from, reply: aiReply.substring(0, 50) });
+        await sendWahaMessage(fromRaw, aiReply, company, session);
+        await addWahaLog('AI_REPLY_SENT', { to: fromRaw, length: aiReply.length, session });
+      } else {
+        await addWahaLog('AI_EMPTY_REPLY', { from });
+      }
+    } catch (aiErr: any) {
+      console.error("[AI ERROR IN WEBHOOK]", aiErr);
+      await addWahaLog('AI_PROCESS_ERROR', { error: aiErr.message });
+      // Kirim pesan fallback jika AI gagal
+      const fallback = emp?.company === 'VISIBEL' 
+        ? "Halo Tim, maaf Vis lagi ada kendala teknis sebentar. Butuh apa nih? Biar tim lain bantu."
+        : "Halo ka, maaf Vis lagi istirahat sebentar. Ada yang bisa dibantu?";
+      await sendWahaMessage(fromRaw, fallback, company, session);
     }
 
     return res.status(200).json({ status: "success_ai" });
