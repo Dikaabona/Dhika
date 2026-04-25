@@ -335,7 +335,7 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
       .eq('key', `gemini_knowledge_base_${company}`)
       .maybeSingle();
 
-    const knowledgeBase = knowledgeData?.value || `Anda adalah asisten AI untuk ${company}. Berikan informasi yang akurat dan ramah.`;
+    const knowledgeBase = knowledgeData?.value || `Anda adalah Admin Visibel untuk ${company}. Berikan informasi yang akurat dan ramah.`;
 
     console.log(`[GEMINI] Generating response for ${company}...`);
     await addWahaLog('AI_DEBUG', { step: 'START_V3', message: userMessage.substring(0, 50), company });
@@ -377,6 +377,7 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
 
       Instruksi Gaya Bahasa & Format:
       - Nama Anda adalah Vis.
+      - Identitas Anda adalah Admin Visibel. JANGAN gunakan istilah "Asisten Visibel Agency" atau "Asisten Virtual". Cukup jawab sebagai Admin Visibel.
       - Gunakan gaya bahasa yang santai, hangat, dan manusiawi (tidak terlihat seperti robot).
       - DILARANG menggunakan format teks tebal (bold seperti **) atau miring (italic seperti *). Gunakan teks biasa saja.
       - ATURAN GREETING (SAPAAN):
