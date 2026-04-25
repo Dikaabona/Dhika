@@ -318,10 +318,8 @@ const aiTools = {
     const { data } = await query;
     return data;
   }
-};
-
-// Helper to generate Gemini response
-async function generateGeminiResponse(userMessage: string, company: string, emp?: any) {
+}// Helper to generate Gemini response
+async function generateGeminiResponse(userMessage: string, company: string, emp?: any, from?: string) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.error("[GEMINI] API Key missing");
@@ -339,6 +337,37 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
 
     console.log(`[GEMINI] Generating response for ${company}...`);
     await addWahaLog('AI_DEBUG', { step: 'START_V3', message: userMessage.substring(0, 50), company });
+
+    // Fetch chat history from logs if 'from' is provided
+    let chatHistory: any[] = [];
+    if (from && supabase) {
+      try {
+        const { data: logData } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'waha_debug_logs')
+          .maybeSingle();
+        
+        if (logData?.value && Array.isArray(logData.value)) {
+          // Filter logs for this specific user (MESSAGE_RECEIVED or AI_REPLY_SENT/MESSAGE_SENT)
+          const userLogs = logData.value
+            .filter((log: any) => {
+              if (log.type === 'MESSAGE_RECEIVED' && log.data?.from === from) return true;
+              if (log.type === 'AI_REPLY_SENT' && log.data?.to?.includes(from.split('@')[0])) return true;
+              return false;
+            })
+            .slice(0, 10) // Last 10 messages for context
+            .reverse(); // Gemini expects chronological order
+          
+          chatHistory = userLogs.map((log: any) => ({
+            role: log.type === 'MESSAGE_RECEIVED' ? 'user' : 'model',
+            parts: [{ text: log.type === 'MESSAGE_RECEIVED' ? log.data.message : log.data.reply || "Pesan terkirim." }]
+          }));
+        }
+      } catch (historyErr) {
+        console.error("Failed to fetch chat history:", historyErr);
+      }
+    }
 
     // Cek apakah pesan berisi ucapan terima kasih
     const gratitudeKeywords = ['terima kasih', 'terimakasih', 'thanks', 'thankyou', 'thank you', 'tengkyu', 'nuhun', 'matur nuwun', 'syukron'];
@@ -363,8 +392,16 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
       - Jika penanya adalah KARYAWAN VISIBEL dan bertanya tentang DATA DIRI (alamat, NIK, dll) atau GAJI/PAYROLL: Jawab bahwa informasi tersebut bersifat CONFIDENTIAL (rahasia) dan arahkan mereka untuk bertanya langsung ke HR Visibel.
       - DILARANG memberikan atau melakukan "Update Status WhatsApp" atau membicarakan fitur tersebut.
 
+      Instruksi Lowongan Kerja:
+      - JIKA USER BERTANYA TENTANG LOWONGAN KERJA, LOKER, ATAU PEKERJAAN:
+        * SEGERA berikan link formulir ini: https://forms.gle/ixfgPRtMV33PCcKt5
+        * DILARANG KERAS mempromosikan atau menyebutkan jasa Visibel (live streaming, video, ads, dsbg) saat menjawab tentang lowongan kerja sebagai penawaran jasa. Fokus hanya pada informasi pendaftaran kerja.
+        * Jika ada kandidat bertanya mengenai JOBDESK:
+          - Live Streaming: Tugasnya adalah menjual produk secara live streaming di platform TikTok atau Shopee. Kategori produknya meliputi fashion (baju, celana, tas), electronic (headset, speaker), dan sport.
+          - Content Creator: Tugasnya adalah membuat konten untuk kebutuhan brand dari proses shooting sampai posting di e-commerce.
+
       Instruksi Layanan & Harga (Rate Card):
-      - Jika ditanya tentang LAYANAN VISIBEL: Sebutkan bahwa Visibel menyediakan jasa: live streaming, short video, tiktok ads, meta ads, photo produk, dan sosial media management.
+      - Jika ditanya tentang LAYANAN VISIBEL (kecuali saat bertanya lowongan kerja): Sebutkan bahwa Visibel menyediakan jasa: live streaming, short video, tiktok ads, meta ads, photo produk, dan sosial media management.
       - JANGAN langsung mengirimkan Rate Card atau harga kecuali diminta secara eksplisit.
       - Jika user BERTANYA RATE CARD, berikan detail berikut:
         * Live Streaming (100 jam): Rp 9.000.000
@@ -381,7 +418,7 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
       - Gunakan gaya bahasa yang santai, hangat, dan manusiawi (tidak terlihat seperti robot).
       - DILARANG menggunakan format teks tebal (bold seperti **) atau miring (italic seperti *). Gunakan teks biasa saja.
       - ATURAN GREETING (SAPAAN):
-        * Gunakan sapaan (seperti "Halo kak" atau "Halo Tim") HANYA jika pesan user mengandung kata sapaan pembuka (contoh: halo, p, pagi, siang, hay) atau jika ini adalah interaksi pertama di sesi ini.
+        * Gunakan sapaan (seperti "Halo kak" atau "Halo Tim") HANYA jika pesan user mengandung kata sapaan pembuka (contoh: halo, p, pagi, siang, hay) atau jika ini adalah interaksi pertama di sesi ini atau jika user menyapa setelah sekian lama.
         * Jika user LANGSUNG bertanya (misal: "cek jadwal live", "berapa GMV hari ini?"), Anda harus LANGSUNG menjawab ke intinya tanpa memberikan sapaan pembuka seperti "hai ka ada yang bisa Vis bantu?".
         * JANGAN mengulang-ulang kalimat "ada yang bisa Vis bantu?" di setiap jawaban.
       - Jika penanya adalah KARYAWAN VISIBEL (Identitas Penanya Nama bukan Pelanggan Eksternal):
@@ -391,9 +428,10 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
         * JANGAN mengakhiri dengan kalimat penawaran bantuan lagi (seperti "ada yang bisa Vis bantu?") jika user sudah berterima kasih.
       - Aturan Umum:
         * JANGAN selalu mengakhiri jawaban dengan kalimat yang sama. Buat variasi kalimat penutup yang natural.
+        * Jika user hanya mengirim emoticon/emoji atau simbol tanpa teks pesan yang jelas, DIAM dan JANGAN MEMBERIKAN JAWABAN APAPUN (Kembalikan string kosong).
+        * Anda memiliki kemampuan untuk melihat riwayat obrolan sebelumnya untuk memberikan jawaban yang lebih kontekstual.
       
       Instruksi Operasional:
-      - Jika ditanya tentang lowongan kerja, loker, atau pekerjaan oleh siapapun, jawab dengan mengarahkan mereka untuk mengisi formulir ini: https://forms.gle/ixfgPRtMV33PCcKt5
       - Gunakan tools yang tersedia untuk menjawab pertanyaan tentang jadwal live, GMV, atau data karyawan (jadwal libur, shift, GMV brand).
       - Jika ditanya tentang "GMV" atau "Laporan", gunakan get_live_reports.
       - Jika ditanya tentang "Jadwal" atau "Siapa yang live", gunakan get_live_schedules.
@@ -440,9 +478,9 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
       systemInstruction: systemInstruction 
     });
 
-    console.log(`[GEMINI] Calling model.generateContent...`);
+    console.log(`[GEMINI] Calling model.startChat with history (${chatHistory.length} messages)...`);
     const chat = model.startChat({
-      history: [],
+      history: chatHistory,
       tools: tools as any,
     });
 
@@ -685,6 +723,14 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
     });
 
     const lowerMsg = message.toLowerCase().trim();
+    
+    // Cek jika pesan hanya berisi emoticon/emoji (tanpa teks/angka)
+    const emojiRegex = /^(\s|[\u{1F300}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E0}-\u{1F1FF}])+$/u;
+    if (emojiRegex.test(message) && message.trim().length > 0) {
+      console.log(`[WAHA] Pesan hanya emoji dari ${from}, diabaikan.`);
+      return res.status(200).json({ status: "ignored_emoji" });
+    }
+
     // Prioritize query param, then employee's company, then default
     const company = (req.query.company as string) || emp?.company || 'VISIBEL';
     const isGroup = fromRaw.endsWith('@g.us');
@@ -746,7 +792,7 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
     await addWahaLog('AI_START', { from, message: processedMsg.substring(0, 50) });
     
     try {
-      const aiReply = await generateGeminiResponse(processedMsg, company, emp);
+      const aiReply = await generateGeminiResponse(processedMsg, company, emp, from);
       
       if (aiReply) {
         await addWahaLog('AI_COMPLETED', { from, reply: aiReply.substring(0, 50) });
