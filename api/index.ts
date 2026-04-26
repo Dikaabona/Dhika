@@ -394,7 +394,7 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
 
       Instruksi Lowongan Kerja:
       - JIKA USER BERTANYA TENTANG LOWONGAN KERJA, LOKER, ATAU PEKERJAAN:
-        * SEGERA berikan link formulir ini: https://forms.gle/ixfgPRtMV33PCcKt5
+        * SEGERA berikan link ini: https://web.visibel.agency/karir
         * DILARANG KERAS mempromosikan atau menyebutkan jasa Visibel (live streaming, video, ads, dsbg) saat menjawab tentang lowongan kerja sebagai penawaran jasa. Fokus hanya pada informasi pendaftaran kerja.
         * Jika ada kandidat bertanya mengenai JOBDESK:
           - Live Streaming: Tugasnya adalah menjual produk secara live streaming di platform TikTok atau Shopee. Kategori produknya meliputi fashion (baju, celana, tas), electronic (headset, speaker), dan sport.
