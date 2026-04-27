@@ -158,8 +158,9 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
 
   const canManage = useMemo(() => {
     const isHighRole = userRole === 'super' || userRole === 'admin' || userRole === 'owner';
-    const isOperator = (currentEmployee?.jabatan || '').toLowerCase().includes('operator');
-    return isHighRole || isOperator;
+    const jab = (currentEmployee?.jabatan || '').toLowerCase();
+    const isLiveTeam = jab.includes('operator') || jab.includes('host') || jab.includes('content creator');
+    return isHighRole || isLiveTeam;
   }, [userRole, currentEmployee]);
 
   const hostList = useMemo(() => employees.filter(e => {
@@ -650,9 +651,9 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
 
       <div className="space-y-4">
         {/* Desktop Table View */}
-        <div className="hidden md:block bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden">
-        <div className="w-full overflow-hidden">
-          <table className="w-full text-left">
+        <div className="hidden md:block bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-visible">
+        <div className="w-full overflow-x-auto custom-scrollbar">
+          <table className="w-full text-left min-w-[1200px]">
             <thead>
               <tr className="bg-slate-50/50 text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
                 {!isPublicView && (
@@ -674,7 +675,7 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                 <th className="px-6 py-5 text-center">Qty</th>
                 <th className="px-6 py-5 text-center font-black">GMV/Product</th>
                 <th className="px-6 py-5 text-center">Durasi</th>
-                {canManage && !isPublicView && <th className="px-6 py-5 text-right">Aksi</th>}
+                {canManage && !isPublicView && <th className="px-6 py-5 text-center">Aksi</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -729,10 +730,10 @@ const LiveReportModule: React.FC<LiveReportModuleProps> = ({ employees, reports,
                        <p className="text-xs font-black text-slate-900">{(report.durasi || 0).toFixed(1)} Jam</p>
                     </td>
                     {canManage && !isPublicView && (
-                      <td className="px-6 py-5 text-right">
-                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => handleOpenModal(report)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Icons.Edit className="w-4 h-4" /></button>
-                          <button onClick={() => handleDelete(report.id!)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-all"><Icons.Trash className="w-4 h-4" /></button>
+                      <td className="px-6 py-5 text-center">
+                        <div className="flex justify-center gap-1">
+                          <button onClick={() => handleOpenModal(report)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all" title="Edit"><Icons.Edit className="w-4 h-4" /></button>
+                          <button onClick={() => handleDelete(report.id!)} className="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-all" title="Hapus"><Icons.Trash className="w-4 h-4" /></button>
                         </div>
                       </td>
                     )}
