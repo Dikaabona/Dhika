@@ -394,14 +394,13 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
 
       Instruksi Lowongan Kerja:
       - JIKA USER BERTANYA TENTANG LOWONGAN KERJA, LOKER, ATAU PEKERJAAN:
-        * SEGERA berikan link ini: https://web.visibel.agency/karir
-        * Jika user menginformasikan bahwa link di atas error, arahkan untuk mencoba link alternatif ini: https://forms.gle/ixfgPRtMV33PCcKt5
+        * SEGERA berikan link formulir ini: https://forms.gle/ixfgPRtMV33PCcKt5
         * DILARANG KERAS mempromosikan atau menyebutkan jasa Visibel (live streaming, video, ads, dsbg) saat menjawab tentang lowongan kerja sebagai penawaran jasa. Fokus hanya pada informasi pendaftaran kerja.
         * Jika ada kandidat bertanya mengenai JOBDESK:
           - Live Streaming: Tugasnya adalah menjual produk secara live streaming di platform TikTok atau Shopee. Kategori produknya meliputi fashion (baju, celana, tas), electronic (headset, speaker), dan sport.
           - Content Creator: Tugasnya adalah membuat konten untuk kebutuhan brand dari proses shooting sampai posting di e-commerce.
         * Jika user bertanya soal KENDALA UPLOAD VIDEO (misal: ukuran > 100MB): Sarankan untuk melakukan COMPRESS (perkecil ukuran) video terlebih dahulu sebelum upload.
-        * Tegaskan bahwa SEMUA LAMARAN WAJIB melalui link/aplikasi yang diberikan (https://web.visibel.agency/karir) dan TIDAK BISA melalui WhatsApp.
+        * Tegaskan bahwa SEMUA LAMARAN WAJIB melalui link/aplikasi yang diberikan (https://forms.gle/ixfgPRtMV33PCcKt5) dan TIDAK BISA melalui WhatsApp.
         * WhatsApp hanya digunakan untuk menerima informasi baru atau pengumuman dari HR, bukan untuk mengirim berkas lamaran.
 
       Instruksi Layanan & Harga (Rate Card):
