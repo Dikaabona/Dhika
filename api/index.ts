@@ -304,10 +304,28 @@ const aiTools = {
   get_live_schedules: async (params: { date?: string; brand?: string }) => {
     const today = new Date().toISOString().split('T')[0];
     const date = params.date || today;
-    let query = supabase.from('schedules').select('*, employees!hostId(nama)').eq('date', date);
-    if (params.brand) query = query.eq('brand', params.brand);
-    const { data } = await query;
-    return data;
+    
+    // Fetch schedules
+    let query = supabase.from('schedules').select('*').eq('date', date);
+    if (params.brand && params.brand !== 'ALL') query = query.eq('brand', params.brand);
+    const { data: schedules, error: schedError } = await query;
+    
+    if (schedError) {
+      console.error("Error fetching schedules:", schedError);
+      return [];
+    }
+
+    // Fetch employees for mapping names
+    const { data: employees } = await supabase.from('employees').select('id, nama');
+    const empMap: Record<string, string> = {};
+    employees?.forEach((e: any) => { empMap[e.id] = e.nama; });
+
+    // Format for AI
+    return schedules?.map((s: any) => ({
+      ...s,
+      hostName: empMap[s.hostId] || 'Tidak diketahui',
+      opName: empMap[s.opId] || 'Tidak diketahui'
+    })) || [];
   },
   get_live_reports: async (params: { startDate?: string; endDate?: string; brand?: string }) => {
     const today = new Date().toISOString().split('T')[0];
@@ -317,9 +335,14 @@ const aiTools = {
     if (params.brand && params.brand !== 'ALL') query = query.eq('brand', params.brand);
     const { data } = await query;
     return data;
+  },
+  add_live_report: async (params: any) => {
+    const { data, error } = await supabase.from('live_reports').insert([params]).select();
+    if (error) throw error;
+    return data;
   }
-}// Helper to generate Gemini response
-async function generateGeminiResponse(userMessage: string, company: string, emp?: any, from?: string) {
+} // Helper to generate Gemini response (updated for Image support)
+async function generateGeminiResponse(userMessage: string, company: string, emp?: any, from?: string, media?: { data: string, mimeType: string }) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.error("[GEMINI] API Key missing");
@@ -335,8 +358,8 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
 
     const knowledgeBase = knowledgeData?.value || `Anda adalah Admin Visibel untuk ${company}. Berikan informasi yang akurat dan ramah.`;
 
-    console.log(`[GEMINI] Generating response for ${company}...`);
-    await addWahaLog('AI_DEBUG', { step: 'START_V3', message: userMessage.substring(0, 50), company });
+    console.log(`[GEMINI] Generating response for ${company}... ${media ? 'WITH IMAGE' : ''}`);
+    await addWahaLog('AI_DEBUG', { step: 'START_V3', message: userMessage.substring(0, 50), company, hasMedia: !!media });
 
     // Fetch chat history from logs if 'from' is provided
     let chatHistory: any[] = [];
@@ -358,11 +381,10 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
             })
             .slice(0, 10) // Last 10 messages for context
             .reverse(); // Gemini expects chronological order
-          
-          chatHistory = userLogs.map((log: any) => ({
+                  chatHistory = userLogs.map((log: any) => ({
             role: log.type === 'MESSAGE_RECEIVED' ? 'user' : 'model',
-            parts: [{ text: log.type === 'MESSAGE_RECEIVED' ? log.data.message : log.data.reply || "Pesan terkirim." }]
-          }));
+            parts: [{ text: (log.type === 'MESSAGE_RECEIVED' ? log.data.message : log.data.reply) || "..." }]
+          })).filter((chat: any) => chat.parts[0].text);
         }
       } catch (historyErr) {
         console.error("Failed to fetch chat history:", historyErr);
@@ -406,14 +428,6 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
       Instruksi Layanan & Harga (Rate Card):
       - Jika ditanya tentang LAYANAN VISIBEL (kecuali saat bertanya lowongan kerja): Sebutkan bahwa Visibel menyediakan jasa: live streaming, short video, tiktok ads, meta ads, photo produk, dan sosial media management.
       - JANGAN langsung mengirimkan Rate Card atau harga kecuali diminta secara eksplisit.
-      - Jika user BERTANYA RATE CARD, berikan detail berikut:
-        * Live Streaming (100 jam): Rp 9.000.000
-        * Short Video (30 video): Rp 6.000.000
-        * Photo Produk: Mulai dari Rp 30.000
-        * Tiktok Ads / Meta Ads: Mulai dari Rp 1.500.000
-        * Social Media Management: Mulai dari Rp 2.500.000
-      - Tambahkan catatan: "Harga berikut masih bisa negosiasi tergantung kebutuhannya".
-      - ATURAN NEGO: Jika user bertanya tentang "NEGO", "DISKON", atau "TAWAR HARGA", Anda harus DIAM dan JANGAN MEMBERIKAN JAWABAN APAPUN (Kembalikan string kosong).
 
       Instruksi Gaya Bahasa & Format:
       - Nama Anda adalah Vis.
@@ -421,25 +435,19 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
       - Gunakan gaya bahasa yang santai, hangat, dan manusiawi (tidak terlihat seperti robot).
       - DILARANG menggunakan format teks tebal (bold seperti **) atau miring (italic seperti *). Gunakan teks biasa saja.
       - ATURAN GREETING (SAPAAN):
-        * Gunakan sapaan (seperti "Halo kak" atau "Halo Tim") HANYA jika pesan user mengandung kata sapaan pembuka (contoh: halo, p, pagi, siang, hay) atau jika ini adalah interaksi pertama di sesi ini atau jika user menyapa setelah sekian lama.
-        * Jika user LANGSUNG bertanya (misal: "cek jadwal live", "berapa GMV hari ini?"), Anda harus LANGSUNG menjawab ke intinya tanpa memberikan sapaan pembuka seperti "hai ka ada yang bisa Vis bantu?".
-        * JANGAN mengulang-ulang kalimat "ada yang bisa Vis bantu?" di setiap jawaban.
-      - Jika penanya adalah KARYAWAN VISIBEL (Identitas Penanya Nama bukan Pelanggan Eksternal):
-        * Jika perlu menyapa, gunakan panggilan akrab seperti "Halo ${emp ? emp.nama : 'kak'}" atau "Halo Tim".
-      - Aturan Jawaban Terima Kasih:
-        * Jika user menyampaikan terima kasih, cukup balas dengan "Sama-sama kak!", "Sama-sama, senang bisa membantu!", atau variasi lainnya yang ramah. 
-        * JANGAN mengakhiri dengan kalimat penawaran bantuan lagi (seperti "ada yang bisa Vis bantu?") jika user sudah berterima kasih.
-      - Aturan Umum:
-        * JANGAN selalu mengakhiri jawaban dengan kalimat yang sama. Buat variasi kalimat penutup yang natural.
-        * Jika user hanya mengirim emoticon/emoji atau simbol tanpa teks pesan yang jelas, DIAM dan JANGAN MEMBERIKAN JAWABAN APAPUN (Kembalikan string kosong).
-        * Anda memiliki kemampuan untuk melihat riwayat obrolan sebelumnya untuk memberikan jawaban yang lebih kontekstual.
+        * Gunakan sapaan (seperti "Halo kak" atau "Halo Tim") HANYA jika pesan user mengandung kata sapaan pembuka (contoh: halo, p, pagi, siang, hay) atau jika ini adalah interaksi pertama di sesi ini or sapaan setelah lama.
+        * Jika user LANGSUNG bertanya (misal: "cek jadwal live", "berapa GMV hari ini?"), Anda harus LANGSUNG menjawab ke intinya tanpa memberikan sapaan pembuka.
       
-      Instruksi Operasional:
-      - Gunakan tools yang tersedia untuk menjawab pertanyaan tentang jadwal live, GMV, atau data karyawan (jadwal libur, shift, GMV brand).
-      - Jika ditanya tentang "GMV" atau "Laporan", gunakan get_live_reports.
-      - Jika ditanya tentang "Jadwal" atau "Siapa yang live", gunakan get_live_schedules.
-      - Berikan jawaban yang ringkas dan profesional dalam Bahasa Indonesia.
-      - Selalu sebutkan nominal uang dalam format Rupiah yang mudah dibaca.
+      Instruksi Operasional (SANGAT PENTING):
+      - Anda memiliki akses ke data operasional melalui tools.
+      - Jika penanya bertanya tentang "JADWAL LIVE", "PULKOT", "JADWAL HARI INI", atau "SIAPA YANG LIVE": GUNAKAN tool get_live_schedules. Berikan informasi Brand, Jam, Host, dan Operator secara jelas.
+      - Jika ditanya tentang "GMV", "PERFORMANCE", "LAPORAN", atau "REPORT": GUNAKAN tool get_live_reports.
+      - Jika penanya (KARYAWAN) ingin INPUT data "LAPORAN LIVE" atau "REPORT": GUNAKAN tool add_live_report.
+        * Anda harus memastikan data lengkap: tanggal (YYYY-MM-DD), brand, hostId (cari ID di get_employees), opId (cari ID di get_employees), gmv, checkout, qty.
+        * Jika ada data yang kurang, tanyakan dengan sopan.
+      - Jika penanya bertanya "JADWAL" tanpa menyebutkan tanggal, asumsi adalah untuk HARI INI.
+      - Jika tool tidak mengembalikan data, sampaikan bahwa belum ada jadwal atau laporan yang terdata untuk periode tersebut.
+      - Jika user mengirim gambar, analisislah isi gambar tersebut berdasarkan permintaan user.
     `;
 
     const tools = [{
@@ -468,6 +476,31 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
           }
         },
         {
+          name: "add_live_report",
+          description: "Menambahkan data laporan live streaming baru ke sistem.",
+          parameters: {
+            type: "object" as any,
+            properties: {
+              tanggal: { type: "string", description: "Tanggal YYYY-MM-DD." },
+              brand: { type: "string", description: "Nama Brand." },
+              hostId: { type: "string", description: "UUID Host (dapatkan dari get_employees)." },
+              opId: { type: "string", description: "UUID Operator (dapatkan dari get_employees)." },
+              gmv: { type: "number", description: "Total GMV Rupiah." },
+              checkout: { type: "number", description: "Total Checkout (CO)." },
+              qty: { type: "number", description: "Total Qty terjual." },
+              bestSeller: { type: "string", description: "Nama produk best seller." },
+              waktuMulai: { type: "string", description: "Jam mulai HH:mm." },
+              waktuSelesai: { type: "string", description: "Jam selesai HH:mm." },
+              durasi: { type: "number", description: "Durasi dalam jam (angka)." },
+              totalView: { type: "number", description: "Total penonton." },
+              enterRoomRate: { type: "string", description: "Enter room rate (%)" },
+              ctr: { type: "string", description: "CTR (%)" },
+              company: { type: "string", description: "Nama company (default: VISIBEL)." }
+            },
+            required: ["tanggal", "brand", "hostId", "opId", "gmv", "checkout", "qty"]
+          }
+        },
+        {
           name: "get_employees",
           description: "Mendapatkan daftar karyawan untuk mencocokkan nama dengan ID.",
           parameters: { type: "object" as any, properties: {} }
@@ -487,7 +520,19 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
       tools: tools as any,
     });
 
-    const result = await chat.sendMessage(userMessage);
+    // Prepare message Parts (Handle Media + Text)
+    const messageParts: any[] = [];
+    if (media) {
+      messageParts.push({
+        inlineData: {
+          data: media.data,
+          mimeType: media.mimeType
+        }
+      });
+    }
+    messageParts.push({ text: userMessage || (media ? "Tolong jelaskan isi gambar ini." : "Halo") });
+
+    const result = await chat.sendMessage(messageParts);
     const response = result.response;
     const text = response.text();
     const calls = response.functionCalls();
@@ -709,7 +754,7 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
     return res.status(200).json({ status: "ignored_incomplete" });
   }
 
-  addWahaLog('MESSAGE_RECEIVED', { from, message, session });
+  addWahaLog('MESSAGE_RECEIVED', { from, message, session, hasMedia: !!payload.hasMedia });
 
   try {
     if (!supabase) throw new Error("Supabase not initialized");
@@ -725,6 +770,31 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
       return dbPhone === phoneDigits || (incomingTail && dbTail === incomingTail);
     });
 
+    const company = (req.query.company as string) || emp?.company || 'VISIBEL';
+
+    // 0. Cek Media (Gambar)
+    let mediaData: any = null;
+    if (payload.hasMedia && payload.id) {
+      try {
+        const settings = await getWahaSettings(company, session);
+        if (settings) {
+          const mediaResponse = await axios.get(`${settings.apiUrl}/api/${session}/messages/${payload.id}/media`, {
+            headers: { 'X-Api-Key': settings.apiKey },
+            responseType: 'json'
+          });
+          if (mediaResponse.data && mediaResponse.data.data) {
+            mediaData = {
+              data: mediaResponse.data.data, // Base64
+              mimeType: mediaResponse.data.mimetype || 'image/jpeg'
+            };
+            console.log(`[WAHA] Media downloaded for message ${payload.id}`);
+          }
+        }
+      } catch (mediaErr: any) {
+        console.error("[WAHA] Failed to download media:", mediaErr.message);
+      }
+    }
+
     const lowerMsg = message.toLowerCase().trim();
     
     // Cek jika pesan hanya berisi emoticon/emoji (tanpa teks/angka)
@@ -734,8 +804,6 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
       return res.status(200).json({ status: "ignored_emoji" });
     }
 
-    // Prioritize query param, then employee's company, then default
-    const company = (req.query.company as string) || emp?.company || 'VISIBEL';
     const isGroup = fromRaw.endsWith('@g.us');
     if (isGroup) {
       return res.status(200).json({ status: "ignored_group" });
@@ -795,7 +863,7 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
     await addWahaLog('AI_START', { from, message: processedMsg.substring(0, 50) });
     
     try {
-      const aiReply = await generateGeminiResponse(processedMsg, company, emp, from);
+      const aiReply = await generateGeminiResponse(processedMsg, company, emp, from, mediaData);
       
       if (aiReply) {
         await addWahaLog('AI_COMPLETED', { from, reply: aiReply.substring(0, 50) });
