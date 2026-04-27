@@ -8,7 +8,7 @@ import axios from "axios";
 import cron from "node-cron";
 import { createClient } from "@supabase/supabase-js";
 import { Buffer } from "buffer";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 dotenv.config();
 
@@ -359,7 +359,7 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
     const knowledgeBase = knowledgeData?.value || `Anda adalah Admin Visibel untuk ${company}. Berikan informasi yang akurat dan ramah.`;
 
     console.log(`[GEMINI] Generating response for ${company}... ${media ? 'WITH IMAGE' : ''}`);
-    await addWahaLog('AI_DEBUG', { step: 'START_V3', message: userMessage.substring(0, 50), company, hasMedia: !!media });
+    await addWahaLog('AI_DEBUG', { step: 'START_V4', message: userMessage?.substring(0, 50), company, hasMedia: !!media, from });
 
     // Fetch chat history from logs if 'from' is provided
     let chatHistory: any[] = [];
@@ -372,7 +372,7 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
           .maybeSingle();
         
         if (logData?.value && Array.isArray(logData.value)) {
-          // Filter logs for this specific user (MESSAGE_RECEIVED or AI_REPLY_SENT/MESSAGE_SENT)
+          // Filter logs for this specific user
           const userLogs = logData.value
             .filter((log: any) => {
               if (log.type === 'MESSAGE_RECEIVED' && log.data?.from === from) return true;
@@ -381,23 +381,37 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
             })
             .slice(0, 10) // Last 10 messages for context
             .reverse(); // Gemini expects chronological order
-                  chatHistory = userLogs.map((log: any) => ({
+          
+          let rawHistory = userLogs.map((log: any) => ({
             role: log.type === 'MESSAGE_RECEIVED' ? 'user' : 'model',
             parts: [{ text: (log.type === 'MESSAGE_RECEIVED' ? log.data.message : log.data.reply) || "..." }]
           })).filter((chat: any) => chat.parts[0].text);
+
+          // SANITIZE HISTORY: Gemini REQUIRES alternating roles starting with 'user'
+          const sanitized: any[] = [];
+          rawHistory.forEach((item: any) => {
+            if (sanitized.length === 0) {
+              if (item.role === 'user') sanitized.push(item);
+            } else {
+              const last = sanitized[sanitized.length - 1];
+              if (item.role !== last.role) {
+                sanitized.push(item);
+              }
+            }
+          });
+          chatHistory = sanitized;
         }
       } catch (historyErr) {
         console.error("Failed to fetch chat history:", historyErr);
       }
     }
 
-    // Cek apakah pesan berisi ucapan terima kasih
     const gratitudeKeywords = ['terima kasih', 'terimakasih', 'thanks', 'thankyou', 'thank you', 'tengkyu', 'nuhun', 'matur nuwun', 'syukron'];
-    const lowerMessage = userMessage.toLowerCase();
+    const lowerMessage = (userMessage || "").toLowerCase();
     const isGratitude = gratitudeKeywords.some(keyword => lowerMessage.includes(keyword));
 
-    // System Instruction and Tool definition
-    const systemInstruction = `
+    // System Instruction
+    const systemInstructionText = `
       Knowledge Base:
       ${knowledgeBase}
       
@@ -405,122 +419,75 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
       Waktu Server: ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB
       Nama Perusahaan: ${company}
       Status Pesan: ${isGratitude ? 'User mengucapkan terima kasih' : 'Pesan normal'}
-          Identitas Penanya:
+      Identitas Penanya:
       - Nama: ${emp ? emp.nama : 'Pelanggan Eksternal'}
       - Peran: ${emp ? (emp.role || 'Karyawan') : 'Bukan Karyawan'}
       - Perusahaan Penanya: ${emp ? (emp.company || company) : 'Eksternal'}
 
-      Instruksi Khusus Keamanan & Privasi:
-      - Jika penanya adalah KARYAWAN VISIBEL dan bertanya tentang DATA DIRI (alamat, NIK, dll) atau GAJI/PAYROLL: Jawab bahwa informasi tersebut bersifat CONFIDENTIAL (rahasia) dan arahkan mereka untuk bertanya langsung ke HR Visibel.
-      - DILARANG memberikan atau melakukan "Update Status WhatsApp" atau membicarakan fitur tersebut.
-
-      Instruksi Lowongan Kerja:
-      - JIKA USER BERTANYA TENTANG LOWONGAN KERJA, LOKER, ATAU PEKERJAAN:
-        * SEGERA berikan link formulir ini: https://forms.gle/ixfgPRtMV33PCcKt5
-        * DILARANG KERAS mempromosikan atau menyebutkan jasa Visibel saat menjawab tentang lowongan kerja.
-        * Jika ada kandidat bertanya mengenai JOBDESK:
-          - Live Streaming: Tugasnya menjual produk secara live streaming di platform TikTok atau Shopee. Kategori produk meliputi fashion (baju, celana, tas), electronic (headset, speaker), dan sport.
-          - Content Creator: Tugasnya membuat content untuk kebutuhan brand dari shoot sampai posting di e-commerce.
-        * Jika user bertanya soal KENDALA UPLOAD VIDEO (ukuran > 100MB): Jawab bahwa mereka bisa COMPRESS (perkecil ukuran) videonya terlebih dahulu.
-        * Tegaskan bahwa SEMUA LAMARAN WAJIB melalui link https://forms.gle/ixfgPRtMV33PCcKt5 dan TIDAK BISA melalui WhatsApp.
-        * WhatsApp hanya digunakan untuk menerima informasi baru dari HR, bukan untuk mengirim berkas lamaran.
-
-      Instruksi Layanan & Harga (Rate Card):
-      - Jika ditanya tentang LAYANAN VISIBEL (kecuali saat bertanya lowongan kerja): Sebutkan bahwa Visibel menyediakan jasa: live streaming, short video, tiktok ads, meta ads, photo produk, dan sosial media management.
-      - JANGAN langsung mengirimkan Rate Card atau harga kecuali diminta secara eksplisit.
-
-      Instruksi Gaya Bahasa & Format:
-      - Nama Anda adalah Vis.
-      - Identitas Anda adalah Admin Visibel. JANGAN gunakan istilah "Asisten Visibel Agency" atau "Asisten Virtual". Cukup jawab sebagai Admin Visibel.
-      - Gunakan gaya bahasa yang santai, hangat, dan manusiawi (tidak terlihat seperti robot).
-      - DILARANG menggunakan format teks tebal (bold seperti **) atau miring (italic seperti *). Gunakan teks biasa saja.
-      - ATURAN GREETING (SAPAAN):
-        * Gunakan sapaan (seperti "Halo kak" atau "Halo Tim") HANYA jika pesan user mengandung kata sapaan pembuka (contoh: halo, p, pagi, siang, hay) atau jika ini adalah interaksi pertama di sesi ini or sapaan setelah lama.
-        * Jika user LANGSUNG bertanya (misal: "cek jadwal live", "berapa GMV hari ini?"), Anda harus LANGSUNG menjawab ke intinya tanpa memberikan sapaan pembuka.
-      
-      Instruksi Operasional (SANGAT PENTING):
-      - Anda memiliki akses ke data operasional melalui tools.
-      - Jika penanya bertanya tentang "JADWAL LIVE", "PULKOT", "JADWAL HARI INI", atau "SIAPA YANG LIVE": GUNAKAN tool get_live_schedules. Berikan informasi Brand, Jam, Host, dan Operator secara jelas.
-      - Jika ditanya tentang "GMV", "PERFORMANCE", "LAPORAN", atau "REPORT": GUNAKAN tool get_live_reports.
-      - Jika penanya (KARYAWAN) ingin INPUT data "LAPORAN LIVE" atau "REPORT": GUNAKAN tool add_live_report.
-        * Anda harus memastikan data lengkap: tanggal (YYYY-MM-DD), brand, hostId (cari ID di get_employees), opId (cari ID di get_employees), gmv, checkout, qty.
-        * Jika ada data yang kurang, tanyakan dengan sopan.
-      - Jika penanya bertanya "JADWAL" tanpa menyebutkan tanggal, asumsi adalah untuk HARI INI.
-      - Jika tool tidak mengembalikan data, sampaikan bahwa belum ada jadwal atau laporan yang terdata untuk periode tersebut.
-      - Jika user mengirim gambar, analisislah isi gambar tersebut berdasarkan permintaan user.
+      Instruksi:
+      - Nama Anda adalah Vis, Admin Visibel. Santai, hangat, manusiawi.
+      - DILARANG menggunakan format teks tebal (**) atau miring (*).
+      - Jika user BERTANYA TENTANG LOWONGAN KERJA/LOKER: Beri link link https://forms.gle/ixfgPRtMV33PCcKt5.
+      - Gunakan tools untuk data Jadwal atau GMV.
+      - Jika user kirim gambar, analisislah isi gambarnya.
     `;
 
-    const tools = [{
-      functionDeclarations: [
-        {
-          name: "get_live_schedules",
-          description: "Mendapatkan jadwal live streaming untuk tanggal tertentu atau brand tertentu.",
-          parameters: {
-            type: "object" as any,
-            properties: {
-              date: { type: "string", description: "Tanggal format YYYY-MM-DD. Kosongkan untuk hari ini." },
-              brand: { type: "string", description: "Nama brand (opsional)." }
+    const ai = new GoogleGenAI({ apiKey });
+    
+    // Define Tool for @google/genai
+    const tools = [
+      {
+        functionDeclarations: [
+          {
+            name: "get_live_schedules",
+            description: "Mendapatkan jadwal live streaming.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                date: { type: Type.STRING, description: "YYYY-MM-DD. Kosongkan untuk hari ini." },
+                brand: { type: Type.STRING, description: "Nama brand (opsional)." }
+              }
             }
-          }
-        },
-        {
-          name: "get_live_reports",
-          description: "Mendapatkan laporan performa live (GMV, Qty, Best Seller) untuk rentang tanggal tertentu.",
-          parameters: {
-            type: "object" as any,
-            properties: {
-              startDate: { type: "string", description: "Tanggal mulai YYYY-MM-DD." },
-              endDate: { type: "string", description: "Tanggal akhir YYYY-MM-DD." },
-              brand: { type: "string", description: "Nama brand (opsional)." }
+          },
+          {
+            name: "get_live_reports",
+            description: "Mendapatkan laporan performa live.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                startDate: { type: Type.STRING, description: "YYYY-MM-DD." },
+                endDate: { type: Type.STRING, description: "YYYY-MM-DD." },
+                brand: { type: Type.STRING, description: "Nama brand (opsional)." }
+              }
             }
+          },
+          {
+            name: "add_live_report",
+            description: "Menambahkan data laporan live streaming baru ke sistem.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                tanggal: { type: Type.STRING, description: "YYYY-MM-DD." },
+                brand: { type: Type.STRING, description: "Nama Brand." },
+                hostId: { type: Type.STRING, description: "UUID Host (dapatkan dari get_employees)." },
+                opId: { type: Type.STRING, description: "UUID Operator (dapatkan dari get_employees)." },
+                gmv: { type: Type.NUMBER, description: "Total GMV Rupiah." },
+                checkout: { type: Type.NUMBER, description: "Total Checkout (CO)." },
+                qty: { type: Type.NUMBER, description: "Total Qty terjual." }
+              },
+              required: ["tanggal", "brand", "hostId", "opId", "gmv", "checkout", "qty"]
+            }
+          },
+          {
+            name: "get_employees",
+            description: "Mendapatkan daftar karyawan.",
+            parameters: { type: Type.OBJECT, properties: {} }
           }
-        },
-        {
-          name: "add_live_report",
-          description: "Menambahkan data laporan live streaming baru ke sistem.",
-          parameters: {
-            type: "object" as any,
-            properties: {
-              tanggal: { type: "string", description: "Tanggal YYYY-MM-DD." },
-              brand: { type: "string", description: "Nama Brand." },
-              hostId: { type: "string", description: "UUID Host (dapatkan dari get_employees)." },
-              opId: { type: "string", description: "UUID Operator (dapatkan dari get_employees)." },
-              gmv: { type: "number", description: "Total GMV Rupiah." },
-              checkout: { type: "number", description: "Total Checkout (CO)." },
-              qty: { type: "number", description: "Total Qty terjual." },
-              bestSeller: { type: "string", description: "Nama produk best seller." },
-              waktuMulai: { type: "string", description: "Jam mulai HH:mm." },
-              waktuSelesai: { type: "string", description: "Jam selesai HH:mm." },
-              durasi: { type: "number", description: "Durasi dalam jam (angka)." },
-              totalView: { type: "number", description: "Total penonton." },
-              enterRoomRate: { type: "string", description: "Enter room rate (%)" },
-              ctr: { type: "string", description: "CTR (%)" },
-              company: { type: "string", description: "Nama company (default: VISIBEL)." }
-            },
-            required: ["tanggal", "brand", "hostId", "opId", "gmv", "checkout", "qty"]
-          }
-        },
-        {
-          name: "get_employees",
-          description: "Mendapatkan daftar karyawan untuk mencocokkan nama dengan ID.",
-          parameters: { type: "object" as any, properties: {} }
-        }
-      ]
-    }];
+        ]
+      }
+    ];
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-3-flash-preview", 
-      systemInstruction: systemInstruction 
-    });
-
-    console.log(`[GEMINI] Calling model.startChat with history (${chatHistory.length} messages)...`);
-    const chat = model.startChat({
-      history: chatHistory,
-      tools: tools as any,
-    });
-
-    // Prepare message Parts (Handle Media + Text)
+    // Prepare message Parts
     const messageParts: any[] = [];
     if (media) {
       messageParts.push({
@@ -532,10 +499,21 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
     }
     messageParts.push({ text: userMessage || (media ? "Tolong jelaskan isi gambar ini." : "Halo") });
 
-    const result = await chat.sendMessage(messageParts);
-    const response = result.response;
-    const text = response.text();
-    const calls = response.functionCalls();
+    // Multi-turn style using generateContent (manual history management)
+    const result = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [
+        ...chatHistory,
+        { role: 'user', parts: messageParts }
+      ],
+      config: {
+        systemInstruction: systemInstructionText,
+        tools: tools as any
+      }
+    });
+
+    let text = result.text || "";
+    const calls = result.functionCalls;
 
     if (calls && calls.length > 0) {
       console.log(`[GEMINI] Tool calls detected:`, calls);
@@ -543,8 +521,6 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
       for (const call of calls) {
         const fnName = call.name as keyof typeof aiTools;
         const fnArgs = call.args;
-        console.log(`[GEMINI TOOL] Calling ${fnName} with`, fnArgs);
-        
         try {
           const content = await aiTools[fnName](fnArgs as any);
           toolResponses.push({
@@ -554,7 +530,6 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
             }
           });
         } catch (err) {
-          console.error(`[GEMINI TOOL ERROR] ${fnName}:`, err);
           toolResponses.push({
             functionResponse: {
               name: fnName,
@@ -564,21 +539,29 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
         }
       }
 
-      console.log(`[GEMINI] Sending tool responses back to model...`);
-      const finalResult = await chat.sendMessage(toolResponses as any);
-      
-      const finalResponse = finalResult.response;
-      console.log(`[GEMINI] Final response received.`);
-      await addWahaLog('AI_DEBUG', { step: 'FINAL_RESPONSE_RECEIVED', responseText: finalResponse.text().substring(0, 50) });
-      return finalResponse.text();
+      console.log(`[GEMINI] Sending tool responses back...`);
+      const finalResult = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          ...chatHistory,
+          { role: 'user', parts: messageParts },
+          { role: 'model', parts: calls.map(c => ({ functionCall: c }) as any) },
+          { role: 'user', parts: toolResponses }
+        ],
+        config: {
+          systemInstruction: systemInstructionText,
+          tools: tools as any
+        }
+      });
+      text = finalResult.text || "";
     }
 
-    await addWahaLog('AI_DEBUG', { step: 'RESPONSE_RECEIVED', responseText: text.substring(0, 50) });
+    await addWahaLog('AI_DEBUG', { step: 'RESPONSE_RECEIVED', text: text?.substring(0, 50) });
     return text;
 
   } catch (err: any) {
     console.error("[GEMINI ERROR]", err);
-    await addWahaLog('AI_ERROR', { error: err.message, stack: err.stack?.substring(0, 100) });
+    await addWahaLog('AI_ERROR', { error: err.message, from, stack: err.stack?.substring(0, 50) });
     return "Maaf, terjadi kendala teknis saat menghubungi sistem AI Visibel. Coba sapa lagi ya kak.";
   }
 }
