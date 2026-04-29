@@ -23,12 +23,12 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({ employees, compan
     setIsSubmitting(true);
     try {
       const { error } = await supabase
-        .from('announcements')
+        .from('broadcasts')
         .insert([{
           title,
-          content,
+          message: content,
           company,
-          created_at: new Date().toISOString()
+          sentAt: new Date().toISOString()
         }]);
 
       if (error) throw error;

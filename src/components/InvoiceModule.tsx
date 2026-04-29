@@ -308,7 +308,22 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
       
       if (seqError) throw seqError;
 
-      // 3. Send Inbox Notification to Owner & Super Admin
+      // 3. Generate PNG
+      const element = invoiceRef.current;
+      let invoiceImageBase64 = '';
+      if (element) {
+        try {
+          invoiceImageBase64 = await domToJpeg(element, {
+            quality: 0.8,
+            scale: 2,
+            backgroundColor: '#ffffff'
+          });
+        } catch (imgErr) {
+          console.error("Gagal generate image for broadcast:", imgErr);
+        }
+      }
+
+      // 4. Send Inbox Notification to Owner & Super Admin
       try {
         const { data: admins } = await supabase
           .from('employees')
@@ -323,31 +338,20 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ company, onClose, 
             message: `Invoice ${invoice.invoiceNumber} untuk ${invoice.recipientName} senilai ${formatCurrency(invoice.total)} telah berhasil diterbitkan.`,
             company: company,
             targetEmployeeIds: adminIds,
-            sentAt: new Date().toISOString()
+            sentAt: new Date().toISOString(),
+            imageBase64: invoiceImageBase64 // ADDED THIS
           }]);
         }
       } catch (notifErr) {
         console.error("Gagal mengirim notifikasi inbox:", notifErr);
       }
 
-      // 4. Generate PNG
-      const element = invoiceRef.current;
-      if (!element) return;
-
-      try {
-        const dataUrl = await domToJpeg(element, {
-          quality: 0.8,
-          scale: 2,
-          backgroundColor: '#ffffff'
-        });
-
+      // 5. Download PNG
+      if (invoiceImageBase64) {
         const link = document.createElement('a');
-        link.href = dataUrl;
+        link.href = invoiceImageBase64;
         link.download = `Invoice_${invoice.invoiceNumber}.jpg`;
         link.click();
-      } catch (imgErr) {
-        console.error("Gagal generate JPG:", imgErr);
-        alert("Gagal mengunduh JPG. Silakan coba lagi.");
       }
 
       // 4. Update local state for next invoice
