@@ -406,7 +406,7 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
       }
     }
 
-    const gratitudeKeywords = ['terima kasih', 'terimakasih', 'thanks', 'thankyou', 'thank you', 'tengkyu', 'nuhun', 'matur nuwun', 'syukron'];
+    const gratitudeKeywords = ['terima kasih', 'terimakasih', 'thanks', 'thankyou', 'thank you', 'tengkyu', 'nuhun', 'matur nuwun', 'syukron', 'makasih', 'mks', 'thx'];
     const lowerMessage = (userMessage || "").toLowerCase();
     const isGratitude = gratitudeKeywords.some(keyword => lowerMessage.includes(keyword));
 
@@ -424,12 +424,21 @@ async function generateGeminiResponse(userMessage: string, company: string, emp?
       - Peran: ${emp ? (emp.role || 'Karyawan') : 'Bukan Karyawan'}
       - Perusahaan Penanya: ${emp ? (emp.company || company) : 'Eksternal'}
 
-      Instruksi:
+      Instruksi Utama:
       - Nama Anda adalah Vis, Admin Visibel. Santai, hangat, manusiawi.
       - DILARANG menggunakan format teks tebal (**) atau miring (*).
-      - Jika user BERTANYA TENTANG LOWONGAN KERJA/LOKER: Beri link link https://forms.gle/ixfgPRtMV33PCcKt5.
-      - Gunakan tools untuk data Jadwal atau GMV.
+      - Anda memiliki akses ke riwayat obrolan (History) di atas untuk memahami konteks pembicaraan sebelumnya.
+
+      Klasifikasi Pengunjung:
+      1. KANDIDAT/PELAMAR: Jika bertanya tentang lowongan kerja, loker, kirim CV, atau cara bergabung.
+         * Jawaban: Berikan pilihan link https://web.visibel.agency/karir atau https://forms.gle/ixfgPRtMV33PCcKt5.
+      2. CALON CLIENT: Jika bertanya tentang jasa, harga, rate card, atau kerjasama bisnis.
+         * Jawaban: Jelaskan layanan Visibel (Live Streaming, Ads, Sosmed) dan arahkan untuk konsultasi.
+      
+      Fitur Tambahan:
+      - Jika user mengucapkan terima kasih, cukup balas "sama-sama ka" tanpa informasi tambahan.
       - Jika user kirim gambar, analisislah isi gambarnya.
+      - Gunakan tools untuk data Jadwal atau GMV jika dibutuhkan (khusus data operasional).
     `;
 
     const ai = new GoogleGenAI({ apiKey });
@@ -779,6 +788,34 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
     }
 
     const lowerMsg = message.toLowerCase().trim();
+    const words = message.trim().split(/\s+/);
+    const gratitudeKeywords = ['terima kasih', 'terimakasih', 'thanks', 'thankyou', 'thank you', 'tengkyu', 'nuhun', 'matur nuwun', 'syukron', 'makasih', 'mks', 'thx'];
+    
+    // 0.1. Handle Terima Kasih (Sama-sama ka) - Respon Pendek Tanpa Informasi Tambahan
+    const isPureGratitude = gratitudeKeywords.some(k => 
+      lowerMsg === k || 
+      lowerMsg === k + ' ka' || 
+      lowerMsg === k + ' kak' || 
+      lowerMsg === k + ' infonya ka' || 
+      lowerMsg === k + ' infonya kak' ||
+      lowerMsg === k + ' ya ka' ||
+      lowerMsg === k + ' ya kak' ||
+      lowerMsg === 'ok ' + k ||
+      lowerMsg === 'oke ' + k ||
+      lowerMsg === 'siap ' + k
+    );
+
+    if (isPureGratitude) {
+      await sendWahaMessage(fromRaw, "sama-sama ka", company, session);
+      await addWahaLog('AI_COMPLETED', { from, reply: "sama-sama ka (Pure Gratitude)" });
+      return res.status(200).json({ status: "success_gratitude" });
+    }
+
+    // 0.2. Chat cuma 1 kata diabaikan (kecuali ada media/gambar)
+    if (words.length < 2 && !payload.hasMedia) {
+      console.log(`[WAHA] Pesan hanya ${words.length} kata dari ${from}, diabaikan.`);
+      return res.status(200).json({ status: "ignored_one_word" });
+    }
     
     // Cek jika pesan hanya berisi emoticon/emoji (tanpa teks/angka)
     const emojiRegex = /^(\s|[\u{1F300}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E0}-\u{1F1FF}])+$/u;
