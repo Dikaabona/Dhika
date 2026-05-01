@@ -9,6 +9,7 @@ import { Icons, BANK_OPTIONS, DEFAULT_SHIFTS } from './constants';
 import EmployeeForm from './components/EmployeeForm';
 import Dashboard from './components/Dashboard';
 import SalarySlipModal from './components/SalarySlipModal';
+import PersonalSalarySlip from './components/PersonalSalarySlip';
 import BulkSalaryModal from './components/BulkSalaryModal';
 import AttendanceModule from './components/AttendanceModule';
 import AnnouncementModal from './components/AnnouncementModal';
@@ -1436,6 +1437,19 @@ export const App: React.FC = () => {
                   company={userCompany} 
                   onClose={() => setActiveTab('home')} 
                 />
+              ) : activeTab === 'slip_gaji' ? (
+                currentUserEmployee && (
+                  <PersonalSalarySlip
+                    employee={currentUserEmployee}
+                    attendanceRecords={attendanceRecords}
+                    weeklyHolidays={weeklyHolidays}
+                    positionRates={positionRates}
+                    shiftAssignments={shiftAssignments}
+                    shifts={shifts}
+                    company={userCompany}
+                    onClose={() => setActiveTab('home')}
+                  />
+                )
               ) : activeTab === 'submissions' ? (
                 <SubmissionForm employee={currentUserEmployee} company={userCompany} onSuccess={() => fetchData(session?.user?.email, true)} />
               ) : activeTab === 'inbox' ? (

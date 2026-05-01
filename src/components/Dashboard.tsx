@@ -251,6 +251,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       { id: 'absen', label: 'Absensi', icon: <Icons.Camera className="w-5 h-5" />, tab: 'absen' },
       { id: 'submissions', label: 'Pengajuan', icon: <Icons.Calendar className="w-5 h-5" />, tab: 'submissions' },
       { id: 'schedule', label: 'Live Stream', icon: <Icons.Video className="w-5 h-5" />, tab: 'schedule' },
+      { id: 'slip_gaji', label: 'Slip Gaji', icon: <Icons.DollarSign className="w-5 h-5" />, tab: 'slip_gaji' },
       { id: 'shift', label: 'Jadwal Shift', icon: <Icons.Clock className="w-5 h-5" />, tab: 'shift' },
     ];
 
