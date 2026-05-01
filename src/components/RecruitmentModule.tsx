@@ -35,9 +35,76 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
   const [candidateNote, setCandidateNote] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name_asc' | 'name_desc'>('newest');
-  const itemsPerPage = 10;
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1yY2WbVzz4iOGB8XII_x2n5cALVQH56dYLZcaMXfylFo/export?format=csv';
+
+  const isAdmin = ['owner', 'super', 'superadmin', 'admin'].includes(userRole);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === paginatedCandidates.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(paginatedCandidates.map(c => c.id!).filter(id => !!id));
+    }
+  };
+
+  const toggleSelectItem = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const bulkUpdateStatus = async (newStatus: Candidate['status']) => {
+    if (selectedIds.length === 0) return;
+    
+    const confirmed = await confirm({
+      title: 'Bulk Update Status',
+      message: `Apakah Anda yakin ingin mengubah status ${selectedIds.length} kandidat menjadi ${newStatus}?`,
+      confirmText: 'YA, UPDATE SEKALIGUS',
+      cancelText: 'BATAL',
+      type: 'warning'
+    });
+
+    if (!confirmed) return;
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from('candidates')
+        .update({ status: newStatus })
+        .in('id', selectedIds);
+
+      if (error) throw error;
+
+      // Update local state
+      const updatedCandidates = candidates.map(c => 
+        selectedIds.includes(c.id!) ? { ...c, status: newStatus } : c
+      );
+      setCandidates(updatedCandidates);
+      
+      // Auto email/WA for each with delay to prevent rate limiting (max 5 req/sec)
+      if (newStatus !== 'Applied') {
+        const selectedCandObjects = candidates.filter(c => selectedIds.includes(c.id!));
+        for (const [index, cand] of selectedCandObjects.entries()) {
+          // Add 300ms delay between each to stay under 5 req/sec
+          if (index > 0) await new Promise(resolve => setTimeout(resolve, 300));
+          
+          await sendAutoEmail(cand, newStatus);
+          await sendAutoWhatsApp(cand, newStatus);
+        }
+      }
+
+      setSelectedIds([]);
+      alert(`Berhasil memperbarui ${selectedIds.length} kandidat.`);
+    } catch (err: any) {
+      console.error("Bulk update error:", err);
+      alert(`Gagal update: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchCandidates();
@@ -163,8 +230,7 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
         .from('candidates')
         .select('*')
         .ilike('company', company.trim())
-        .order('timestamp', { ascending: false })
-        .limit(20);
+        .order('timestamp', { ascending: false });
 
       if (error) {
         console.error("Supabase Fetch Error:", error);
@@ -190,19 +256,29 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
   };
 
   const syncFromSheet = async () => {
+    const confirmed = await confirm({
+      title: 'Sinkronisasi Spreadsheet',
+      message: 'Sinkronisasi akan MENGHAPUS seluruh data kandidat di aplikasi ini dan menggantinya dengan data terbaru dari Spreadsheet. Lanjutkan?',
+      confirmText: 'YA, SINKRONKAN',
+      cancelText: 'BATAL',
+      type: 'warning'
+    });
+
+    if (!confirmed) return;
+
     setIsSyncing(true);
     try {
-      // Cleanup old candidates (older than 60 days) ONLY during sync
-      const sixtyDaysAgoCleanup = new Date();
-      sixtyDaysAgoCleanup.setDate(sixtyDaysAgoCleanup.getDate() - 60);
-      
+      // 1. Delete ALL existing candidates for this company to ensure a fresh start
+      console.log("Cleaning up existing candidates for:", company);
       const { error: deleteError } = await supabase
         .from('candidates')
         .delete()
-        .lt('created_at', sixtyDaysAgoCleanup.toISOString())
         .ilike('company', company.trim());
 
-      if (deleteError) console.error("Cleanup error during sync:", deleteError);
+      if (deleteError) {
+        console.error("Deletion error during sync:", deleteError);
+        throw new Error("Gagal menghapus data lama sebelum sinkronisasi.");
+      }
 
       console.log("Fetching from:", SHEET_URL);
       const response = await fetch(SHEET_URL);
@@ -222,9 +298,8 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
             return;
           }
 
-          const sixtyDaysAgo = new Date();
-          sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-
+          // We include all valid entries from the sheet, no longer forcing 60 day limit here 
+          // as the user wants the sheet to be the absolute source of truth.
           const newCandidates: Candidate[] = sheetData
             .map((row: any) => {
               const ts = (row['Timestamp'] || row['timestamp'] || row['Waktu'] || row['waktu'] || '').toString().trim();
@@ -235,10 +310,8 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
                 const parts = datePart.split('/');
                 if (parts.length === 3) {
                   const [p1, p2, p3] = parts;
-                  // Try YYYY-MM-DD (assuming p1 is month)
                   let d = new Date(`${p3}-${p1}-${p2}`);
                   if (isNaN(d.getTime())) {
-                    // Try YYYY-MM-DD (assuming p2 is month)
                     d = new Date(`${p3}-${p2}-${p1}`);
                   }
                   dateObj = d;
@@ -258,74 +331,28 @@ const RecruitmentModule: React.FC<RecruitmentModuleProps> = ({ company, userRole
                 portfolioUrl: (row['Silahkan lampirkan portfolio'] || row['Portfolio'] || row['Link Portfolio'] || '').toString().trim(),
                 status: 'Applied' as const,
                 company: company.trim(),
-                _dateObj: dateObj
               };
             })
-            .filter(cand => cand.email && cand.nama && (isNaN(cand._dateObj.getTime()) || cand._dateObj >= sixtyDaysAgo))
-            .map(({ _dateObj, ...rest }) => rest);
+            .filter(cand => cand.email && cand.nama);
 
           if (newCandidates.length === 0) {
-            alert('Tidak ada pelamar baru yang valid dalam 60 hari terakhir di Spreadsheet.');
+            alert('Tidak ada data pelamar yang valid di Spreadsheet.');
             setIsSyncing(false);
             return;
           }
 
-          // Try to save to DB
-          let successCount = 0;
-          let failCount = 0;
-          let lastErrorMessage = "";
-
-          for (const cand of newCandidates) {
-            try {
-              console.log("Processing candidate:", cand.email, cand.company);
-              const { data: existing, error: checkError } = await supabase
-                .from('candidates')
-                .select('id')
-                .eq('email', cand.email)
-                .eq('timestamp', cand.timestamp)
-                .ilike('company', company.trim())
-                .maybeSingle();
-
-              if (checkError) throw checkError;
-
-              if (!existing) {
-                const { error: insertError } = await supabase.from('candidates').insert([cand]);
-                if (insertError) throw insertError;
-                successCount++;
-              }
-            } catch (err: any) {
-              console.error("Error processing candidate:", cand.email, err);
-              if (!lastErrorMessage) lastErrorMessage = err.message || JSON.stringify(err);
-              failCount++;
-            }
-          }
+          // Use bulk insert for efficiency since we cleared the DB
+          console.log(`Inserting ${newCandidates.length} candidates in bulk...`);
+          const { error: insertError } = await supabase.from('candidates').insert(newCandidates);
           
-          console.log(`Sync complete. Success: ${successCount}, Failed: ${failCount}`);
+          if (insertError) {
+            console.error("Bulk insert error:", insertError);
+            alert(`Gagal memasukkan data baru: ${insertError.message}`);
+          } else {
+            alert(`Sinkronisasi Berhasil! ${newCandidates.length} data dimuat ulang dari Spreadsheet.`);
+          }
           
           await fetchCandidates();
-          
-          if (failCount > 0) {
-            const sqlFix = `
--- Jalankan di Supabase SQL Editor:
-ALTER TABLE candidates ADD COLUMN IF NOT EXISTS "gajiHarapan" text;
-ALTER TABLE candidates ADD COLUMN IF NOT EXISTS "noHp" text;
-ALTER TABLE candidates ADD COLUMN IF NOT EXISTS "videoUrl" text;
-ALTER TABLE candidates ADD COLUMN IF NOT EXISTS "portfolioUrl" text;
-
--- Fix RLS Policy
-ALTER TABLE candidates ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow auth insert" ON candidates;
-CREATE POLICY "Allow auth insert" ON candidates FOR INSERT TO authenticated WITH CHECK (true);
-DROP POLICY IF EXISTS "Allow auth select" ON candidates;
-CREATE POLICY "Allow auth select" ON candidates FOR SELECT TO authenticated USING (true);
-DROP POLICY IF EXISTS "Allow auth update" ON candidates;
-CREATE POLICY "Allow auth update" ON candidates FOR UPDATE TO authenticated USING (true);
-`.trim();
-            console.error("SQL Fix Suggestion:", sqlFix);
-            alert(`Sinkronisasi selesai dengan kendala. Berhasil: ${successCount}, Gagal: ${failCount}.\n\nKEMUNGKINAN PENYEBAB: Izin akses (RLS) atau Kolom di database Supabase tidak lengkap.\n\nSOLUSI: Jalankan perintah SQL yang muncul di Console Log (F12) ke Supabase SQL Editor.`);
-          } else {
-            alert(`Sinkronisasi Berhasil! ${successCount} data baru ditambahkan.`);
-          }
           setIsSyncing(false);
         },
         error: (error: any) => {
@@ -426,8 +453,6 @@ CREATE POLICY "Allow auth update" ON candidates FOR UPDATE TO authenticated USIN
     }
   };
 
-  const isAdmin = ['owner', 'super', 'superadmin', 'admin'].includes(userRole);
-
   return (
     <div className="flex flex-col gap-4 sm:gap-6 animate-in fade-in duration-700">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -469,6 +494,44 @@ CREATE POLICY "Allow auth update" ON candidates FOR UPDATE TO authenticated USIN
           )}
         </div>
       </div>
+
+      {/* Bulk Action Bar */}
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-2xl bg-[#0f172a] text-white p-4 sm:p-6 rounded-[32px] sm:rounded-[40px] shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4 animate-in slide-in-from-bottom-10 duration-500 border border-white/10">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#FFC000] rounded-full flex items-center justify-center text-[#0f172a] font-black text-lg">
+              {selectedIds.length}
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm font-black uppercase tracking-tight">Kandidat Terpilih</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Update status sekaligus</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto sm:overflow-visible pb-2 sm:pb-0">
+            {(['Screening', 'Interview', 'Rejected', 'Hired'] as Candidate['status'][]).map((status) => (
+              <button
+                key={status}
+                onClick={() => bulkUpdateStatus(status)}
+                className={`whitespace-nowrap px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 ${
+                  status === 'Rejected' ? 'bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white' :
+                  status === 'Hired' ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white' :
+                  'bg-white/5 text-slate-300 hover:bg-white hover:text-[#0f172a]'
+                }`}
+              >
+                Set {status}
+              </button>
+            ))}
+            <button 
+              onClick={() => setSelectedIds([])}
+              className="p-2 sm:p-2.5 bg-white/5 text-slate-400 hover:text-white rounded-xl transition-colors"
+              title="Batal"
+            >
+              <Icons.X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="sm:col-span-2 relative">
@@ -525,11 +588,23 @@ CREATE POLICY "Allow auth update" ON candidates FOR UPDATE TO authenticated USIN
           </div>
         ) : (
           paginatedCandidates.map((cand, idx) => (
-            <div key={cand.id || `${cand.email}-${cand.timestamp}-${idx}`} className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm space-y-4 relative overflow-hidden group">
+            <div key={cand.id || `${cand.email}-${cand.timestamp}-${idx}`} className={`bg-white p-5 rounded-[32px] border transition-all shadow-sm space-y-4 relative overflow-hidden group ${selectedIds.includes(cand.id!) ? 'border-[#FFC000] ring-2 ring-[#FFC000]/10' : 'border-slate-100'}`}>
               <div className="flex justify-between items-start">
-                <div className="flex flex-col">
-                  <span className="text-sm font-black text-slate-900 uppercase tracking-tight">{cand.nama}</span>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{cand.posisi}</span>
+                <div className="flex items-start gap-3">
+                  {isAdmin && (
+                    <button 
+                      onClick={() => toggleSelectItem(cand.id!)}
+                      className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${
+                        selectedIds.includes(cand.id!) ? 'bg-[#FFC000] border-[#FFC000]' : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {selectedIds.includes(cand.id!) && <Icons.Check className="w-3 h-3 text-[#0f172a]" />}
+                    </button>
+                  )}
+                  <div className="flex flex-col">
+                    <span className="text-sm font-black text-slate-900 uppercase tracking-tight">{cand.nama}</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{cand.posisi}</span>
+                  </div>
                 </div>
                 <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${getStatusColor(cand.status)}`}>
                   {cand.status}
@@ -618,7 +693,19 @@ CREATE POLICY "Allow auth update" ON candidates FOR UPDATE TO authenticated USIN
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100">
-                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kandidat</th>
+                <th className="pl-8 pr-4 py-6 w-12">
+                  {isAdmin && (
+                    <button 
+                      onClick={toggleSelectAll}
+                      className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${
+                        selectedIds.length === paginatedCandidates.length && paginatedCandidates.length > 0 ? 'bg-[#FFC000] border-[#FFC000]' : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {selectedIds.length === paginatedCandidates.length && paginatedCandidates.length > 0 ? <Icons.Check className="w-3 h-3 text-[#0f172a]" /> : selectedIds.length > 0 && <div className="w-2 h-0.5 bg-slate-400 rounded-full" />}
+                    </button>
+                  )}
+                </th>
+                <th className="px-4 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kandidat</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Posisi & Gaji</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kontak</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
@@ -640,8 +727,20 @@ CREATE POLICY "Allow auth update" ON candidates FOR UPDATE TO authenticated USIN
                 </tr>
               ) : (
                 paginatedCandidates.map((cand, idx) => (
-                  <tr key={cand.id || `${cand.email}-${cand.timestamp}-${idx}`} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="px-8 py-6">
+                  <tr key={cand.id || `${cand.email}-${cand.timestamp}-${idx}`} className={`hover:bg-slate-50/50 transition-colors group ${selectedIds.includes(cand.id!) ? 'bg-[#FFC000]/5' : ''}`}>
+                    <td className="pl-8 pr-4 py-6">
+                      {isAdmin && (
+                        <button 
+                          onClick={() => toggleSelectItem(cand.id!)}
+                          className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${
+                            selectedIds.includes(cand.id!) ? 'bg-[#FFC000] border-[#FFC000]' : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          {selectedIds.includes(cand.id!) && <Icons.Check className="w-3 h-3 text-[#0f172a]" />}
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-4 py-6">
                       <div className="flex flex-col">
                         <span className="text-sm font-black text-slate-900 uppercase tracking-tight">{cand.nama}</span>
                         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{cand.ttl}</span>
