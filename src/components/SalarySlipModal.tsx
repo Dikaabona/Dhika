@@ -74,7 +74,8 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
   shifts = []
 }) => {
   const { confirm } = useConfirmation();
-  const isReadOnlyRole = userRole === 'admin' || userRole === 'employee';
+  const isReadOnlyRole = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'employee';
+  const isPowerUser = ['owner', 'super admin', 'superadmin', 'super'].includes(userRole.toLowerCase());
   const [currentEmployee, setCurrentEmployee] = useState(employee);
 
   const handleRefreshEmployee = async () => {
@@ -214,11 +215,14 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
 
   const attendanceResults = salaryDetails.summary;
 
+  const lastCalculatedOvertime = useRef(attendanceResults.totalOvertimePay);
+
   useEffect(() => {
-    if (!isReadOnlyRole && attendanceResults.totalOvertimePay > 0) {
+    // Only auto-sync if it's the first run or the system-calculated overtime has actually CHANGED
+    // This allows manual edits to persist until a new sync or period change happens
+    if (!isReadOnlyRole && attendanceResults.totalOvertimePay !== lastCalculatedOvertime.current) {
       setData(prev => ({ ...prev, lembur: attendanceResults.totalOvertimePay }));
-    } else if (!isReadOnlyRole && attendanceResults.totalOvertimePay === 0) {
-      setData(prev => ({ ...prev, lembur: 0 }));
+      lastCalculatedOvertime.current = attendanceResults.totalOvertimePay;
     }
   }, [attendanceResults.totalOvertimePay, isReadOnlyRole]);
 
@@ -713,10 +717,10 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
                     <div className="relative">
                       <input 
                         type="text" 
-                        disabled={isReadOnlyRole} 
+                        disabled={isReadOnlyRole && !isPowerUser} 
                         value={formatCurrencyValue(data.lembur)} 
                         onChange={e => setData({...data, lembur: parseCurrencyInput(e.target.value)})} 
-                        className="w-full bg-white border border-slate-100 rounded-[16px] pl-10 pr-4 py-3.5 text-xs font-black text-slate-800 focus:border-amber-400 outline-none shadow-inner transition-all" 
+                        className="w-full bg-white border border-slate-100 rounded-[16px] pl-10 pr-4 py-3.5 text-xs font-black text-slate-800 focus:border-amber-400 outline-none shadow-inner transition-all disabled:opacity-60" 
                       />
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 font-black text-[10px] pointer-events-none">Rp</span>
                     </div>
