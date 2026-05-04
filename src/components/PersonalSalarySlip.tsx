@@ -18,6 +18,11 @@ interface PersonalSalarySlipProps {
   onClose: () => void;
 }
 
+const monthOptions = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
+
 const PersonalSalarySlip: React.FC<PersonalSalarySlipProps> = ({
   employee,
   attendanceRecords,
@@ -28,19 +33,46 @@ const PersonalSalarySlip: React.FC<PersonalSalarySlipProps> = ({
   company,
   onClose
 }) => {
-  const monthOptions = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-  ];
-  
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[new Date().getMonth()]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [settings, setSettings] = useState<any>(null);
   const [companyDetails, setCompanyDetails] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [localAttendance, setLocalAttendance] = useState<AttendanceRecord[]>(attendanceRecords);
   const previewRef = useRef<HTMLDivElement>(null);
   const captureRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const fetchLocalAttendance = async () => {
+      const monthIdx = monthOptions.indexOf(selectedMonth);
+      if (monthIdx === -1) return;
+      const yearNum = parseInt(selectedYear);
+      
+      const config = (employee.salaryConfig || {}) as any;
+      const currentCutoffStart = config.cutoffStart || settings?.payrollCutoffStart || 26;
+      const currentCutoffEnd = config.cutoffEnd || settings?.payrollCutoffEnd || 25;
+      
+      const startDate = new Date(yearNum, monthIdx - 1, currentCutoffStart);
+      const endDate = new Date(yearNum, monthIdx, currentCutoffEnd);
+      
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('*')
+        .ilike('company', company.trim())
+        .eq('employeeId', employee.id)
+        .gte('date', startDate.toISOString().split('T')[0])
+        .lte('date', endDate.toISOString().split('T')[0]);
+      
+      if (!error && data) {
+        setLocalAttendance(data);
+      }
+    };
+
+    if (settings) {
+      fetchLocalAttendance();
+    }
+  }, [selectedMonth, selectedYear, company, employee.id, settings, monthOptions]);
 
   useEffect(() => {
     const updateScale = () => {
@@ -75,7 +107,7 @@ const PersonalSalarySlip: React.FC<PersonalSalarySlipProps> = ({
   const salaryDetails = getSalaryDetails(
     employee,
     employee.salaryConfig || {},
-    attendanceRecords,
+    localAttendance,
     selectedMonth,
     selectedYear,
     settings,
@@ -117,8 +149,16 @@ const PersonalSalarySlip: React.FC<PersonalSalarySlipProps> = ({
     employee,
     data: {
       ...employee.salaryConfig,
+      bonus: salaryDetails.bonus,
+      thr: salaryDetails.thr,
+      lembur: salaryDetails.lembur,
+      potonganHutang: salaryDetails.potonganHutang,
+      potonganLain: salaryDetails.potonganLain,
+      pph21: salaryDetails.pph21,
+      gapok: salaryDetails.gapok,
+      workingDays: salaryDetails.workingDays,
       month: selectedMonth,
-      year: selectedYear
+      year: selectedYear,
     } as any,
     totalTunjanganOps: salaryDetails.tunjanganOps,
     totalPendapatan: salaryDetails.totalPendapatan,

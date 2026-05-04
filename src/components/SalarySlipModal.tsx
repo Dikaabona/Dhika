@@ -60,6 +60,11 @@ const SELLER_SPACE_LOGO = "https://lh3.googleusercontent.com/d/1Hh5302qSr_fEcas9
 
 const ALPA_START_DATE = '2025-01-01';
 
+const monthOptions = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
+
 const SalarySlipModal: React.FC<SalarySlipModalProps> = ({ 
   employee, 
   attendanceRecords, 
@@ -151,12 +156,44 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
   const [isPreview, setIsPreview] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [localAttendance, setLocalAttendance] = useState<AttendanceRecord[]>(attendanceRecords);
   
   const previewSlipRef = useRef<HTMLDivElement>(null);
   const hiddenSlipRef = useRef<HTMLDivElement>(null);
 
   const [companyDetails, setCompanyDetails] = useState<any>(null);
   const [settings, setSettings] = useState<AttendanceSettings | null>(null);
+
+  useEffect(() => {
+    const fetchLocalAttendance = async () => {
+      const monthIdx = monthOptions.indexOf(data.month);
+      if (monthIdx === -1) return;
+      const yearNum = parseInt(String(data.year));
+      
+      const config = (currentEmployee.salaryConfig || {}) as any;
+      const currentCutoffStart = config.cutoffStart || settings?.payrollCutoffStart || 26;
+      const currentCutoffEnd = config.cutoffEnd || settings?.payrollCutoffEnd || 25;
+      
+      const startDate = new Date(yearNum, monthIdx - 1, currentCutoffStart);
+      const endDate = new Date(yearNum, monthIdx, currentCutoffEnd);
+      
+      const { data: attData, error } = await supabase
+        .from('attendance')
+        .select('*')
+        .ilike('company', employee.company.trim())
+        .eq('employeeId', employee.id)
+        .gte('date', startDate.toISOString().split('T')[0])
+        .lte('date', endDate.toISOString().split('T')[0]);
+      
+      if (!error && attData) {
+        setLocalAttendance(attData);
+      }
+    };
+
+    if (settings) {
+      fetchLocalAttendance();
+    }
+  }, [data.month, data.year, employee.company, employee.id, settings]);
 
   useEffect(() => {
     const fetchCompany = async () => {
@@ -210,8 +247,8 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
   }, [employee.tanggalMasuk]);
 
   const salaryDetails = useMemo(() => {
-    return getSalaryDetails(currentEmployee, data, attendanceRecords, data.month, String(data.year), settings, weeklyHolidays, positionRates, shiftAssignments, shifts);
-  }, [currentEmployee, data, attendanceRecords, settings, weeklyHolidays, positionRates, shiftAssignments, shifts]);
+    return getSalaryDetails(currentEmployee, data, localAttendance, data.month, String(data.year), settings, weeklyHolidays, positionRates, shiftAssignments, shifts);
+  }, [currentEmployee, data, localAttendance, settings, weeklyHolidays, positionRates, shiftAssignments, shifts]);
 
   const attendanceResults = salaryDetails.summary;
   const lastCalculatedOvertime = useRef(attendanceResults.totalOvertimePay);
