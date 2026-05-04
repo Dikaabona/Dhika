@@ -214,8 +214,37 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
   }, [currentEmployee, data, attendanceRecords, settings, weeklyHolidays, positionRates, shiftAssignments, shifts]);
 
   const attendanceResults = salaryDetails.summary;
-
   const lastCalculatedOvertime = useRef(attendanceResults.totalOvertimePay);
+
+  useEffect(() => {
+    const periodKey = `${data.month}-${data.year}`;
+    const monthlyOverride = currentEmployee.salaryConfig?.monthlyConfigs?.[periodKey];
+    
+    if (monthlyOverride) {
+      setData(prev => ({
+        ...prev,
+        bonus: monthlyOverride.bonus ?? prev.bonus,
+        thr: monthlyOverride.thr ?? prev.thr,
+        lembur: monthlyOverride.lembur ?? prev.lembur,
+        potonganHutang: monthlyOverride.potonganHutang ?? prev.potonganHutang,
+        potonganLain: monthlyOverride.potonganLain ?? prev.potonganLain,
+        workingDays: monthlyOverride.workingDays ?? prev.workingDays,
+        pph21: monthlyOverride.pph21 ?? prev.pph21,
+      }));
+    } else {
+      // Reset to defaults from employee config if no override exists for this period
+      setData(prev => ({
+        ...prev,
+        bonus: currentEmployee.salaryConfig?.bonus ?? 0,
+        thr: currentEmployee.salaryConfig?.thr ?? 0,
+        lembur: currentEmployee.salaryConfig?.lembur ?? 0,
+        potonganHutang: Math.min(currentEmployee.hutang || 0, currentEmployee.salaryConfig?.potonganHutang ?? 0),
+        potonganLain: currentEmployee.salaryConfig?.potonganLain ?? 0,
+        workingDays: currentEmployee.salaryConfig?.workingDays ?? 26,
+        pph21: currentEmployee.salaryConfig?.pph21 ?? 0,
+      }));
+    }
+  }, [data.month, data.year, currentEmployee.salaryConfig, currentEmployee.hutang]);
 
   useEffect(() => {
     // Only auto-sync if it's the first run or the system-calculated overtime has actually CHANGED
@@ -281,7 +310,9 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
     }
     setIsSaving(true);
     try {
+      const periodKey = `${data.month}-${data.year}`;
       const configToSave = {
+        ...currentEmployee.salaryConfig,
         gapok: data.gapok,
         workingDays: data.workingDays,
         tunjanganMakan: data.tunjanganMakan,
@@ -292,11 +323,18 @@ const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
         bpjstk: data.bpjstk,
         isBPJSTKActive: isBPJSTKActive,
         pph21: data.pph21,
-        lembur: data.lembur,
-        bonus: data.bonus,
-        thr: data.thr,
-        potonganHutang: data.potonganHutang,
-        potonganLain: data.potonganLain
+        monthlyConfigs: {
+          ...(currentEmployee.salaryConfig?.monthlyConfigs || {}),
+          [periodKey]: {
+            bonus: data.bonus,
+            thr: data.thr,
+            lembur: data.lembur,
+            potonganHutang: data.potonganHutang,
+            potonganLain: data.potonganLain,
+            workingDays: data.workingDays,
+            pph21: data.pph21
+          }
+        }
       };
       const updates: any = { 
         salaryConfig: configToSave,

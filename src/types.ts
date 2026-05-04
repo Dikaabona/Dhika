@@ -113,6 +113,15 @@ export interface Employee {
     potonganHutang?: number;
     potonganLain?: number;
     isBPJSTKActive?: boolean;
+    monthlyConfigs?: Record<string, {
+      bonus?: number;
+      thr?: number;
+      lembur?: number;
+      potonganHutang?: number;
+      potonganLain?: number;
+      workingDays?: number;
+      pph21?: number;
+    }>;
   };
 }
 
@@ -429,6 +438,7 @@ export interface SalaryData {
   cutoffEnd?: number;
   type?: string;
   isBPJSTKActive?: boolean;
+  monthlyConfigs?: Record<string, any>;
 }
 
 export interface SalarySlip extends SalaryData {}

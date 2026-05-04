@@ -57,10 +57,13 @@ export const getSalaryDetails = (
     'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
   ];
 
-  const actualPotonganHutang = Math.min(employee.hutang || 0, config.potonganHutang || 0);
+  const periodKey = `${selectedMonth}-${selectedYear}`;
+  const monthlyOverride = config.monthlyConfigs?.[periodKey] || {};
+
+  const actualPotonganHutang = Math.min(employee.hutang || 0, monthlyOverride.potonganHutang ?? config.potonganHutang ?? 0);
   const isDaily = config.type === 'daily';
   
-  let workingDays = config.workingDays || 26;
+  let workingDays = monthlyOverride.workingDays ?? config.workingDays ?? 26;
   const summary = { 
     alpa: 0, 
     alpaDates: [] as string[],
@@ -238,15 +241,15 @@ export const getSalaryDetails = (
   const dailyRate = gapok / 26;
   // Prorate reduction for ALPA: only summary.alpa reduces salary
   const potonganAbsensi = isDaily ? 0 : Math.round(summary.alpa * dailyRate);
-  const finalLembur = summary.totalOvertimePay > 0 ? summary.totalOvertimePay : (config.lembur || 0);
+  const finalLembur = summary.totalOvertimePay > 0 ? summary.totalOvertimePay : (monthlyOverride.lembur ?? config.lembur ?? 0);
   const tunjanganOps = (config.tunjanganMakan || 0) + (config.tunjanganTransport || 0) + (config.tunjanganKomunikasi || 0) + (config.tunjanganKesehatan || 0) + (config.tunjanganJabatan || 0);
-  const bonus = config.bonus || 0;
-  const thr = config.thr || 0;
+  const bonus = monthlyOverride.bonus ?? config.bonus ?? 0;
+  const thr = monthlyOverride.thr ?? config.thr ?? 0;
   const totalPendapatan = effectiveGapok + tunjanganOps + finalLembur + bonus + thr;
   
   const bpjstk = config.isBPJSTKActive === true ? (config.bpjstk || 0) : 0;
-  const pph21 = config.pph21 || 0;
-  const potonganLain = config.potonganLain || 0;
+  const pph21 = monthlyOverride.pph21 ?? config.pph21 ?? 0;
+  const potonganLain = monthlyOverride.potonganLain ?? config.potonganLain ?? 0;
   const totalPotongan = bpjstk + pph21 + potonganAbsensi + actualPotonganHutang + potonganLain;
   const takeHomePay = totalPendapatan - totalPotongan;
 
