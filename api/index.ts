@@ -829,6 +829,34 @@ app.all(["/api/webhook/waha", "/api/waha"], async (req, res) => {
       return res.status(200).json({ status: "ignored_group" });
     }
 
+    // 0.4. Filter pesan terkait jasa Visibel (diabaikan kecuali konteks lamar kerja)
+    const serviceKeywords = [
+      "sosmed management", 
+      "social media management", 
+      "jasa visibel", 
+      "jasa visible",
+      "rate live", 
+      "rate short video", 
+      "rate card", 
+      "ratecard",
+      "pricelist", 
+      "price list", 
+      "harga jasa",
+      "tanya jasa",
+      "biaya live",
+      "biaya video"
+    ];
+    const jobKeywords = ["lamar", "lowongan", "loker", "kerja", "rekrut", "cv", "portfolio", "posisi", "apply"];
+    
+    const isServiceQuery = serviceKeywords.some(k => lowerMsg.includes(k));
+    const isJobQuery = jobKeywords.some(k => lowerMsg.includes(k));
+
+    if (isServiceQuery && !isJobQuery) {
+      console.log(`[WAHA] Pesan terkait jasa diabaikan (bukan lamaran kerja) dari ${from}: ${message}`);
+      addWahaLog('MESSAGE_IGNORED_SERVICE', { from, message });
+      return res.status(200).json({ status: "ignored_service_query" });
+    }
+
     // 2. Command Sederhana (Prioritas untuk Karyawan)
     if (lowerMsg === '!jadwal' && emp) {
       const today = new Date().toISOString().split('T')[0];
